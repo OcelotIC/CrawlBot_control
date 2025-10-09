@@ -1,0 +1,245 @@
+<?xml version="1.0"?>
+<!-- Multi-Arm Robot (MAR) - Dual Arm 6-DoF
+     Compatible papier Lutze et al. 2023
+     Configuration inspirée de KUKA LWR / iiwa
+     TOTAL: 2 × 6 DoF = 12 DoF actuated
+-->
+<robot name="MAR_DualArm_6DoF">
+
+  <!-- ============================================ -->
+  <!--                BASE / TORSO                  -->
+  <!-- ============================================ -->
+  <link name="base_link">
+    <inertial>
+      <origin xyz="0 0 0" rpy="0 0 0"/>
+      <mass value="80.0"/>
+      <inertia ixx="5.0" ixy="0.0" ixz="0.0" 
+               iyy="5.0" iyz="0.0" izz="5.0"/>
+    </inertial>
+  </link>
+
+  <!-- ============================================ -->
+  <!--           ARM 1: RIGHT ARM (6-DoF)           -->
+  <!-- ============================================ -->
+  
+  <!-- Shoulder Yaw (Joint 1) -->
+  <link name="arm1_link1">
+    <inertial>
+      <origin xyz="0 0 0.1" rpy="0 0 0"/>
+      <mass value="4.0"/>
+      <inertia ixx="0.05" ixy="0.0" ixz="0.0"
+               iyy="0.05" iyz="0.0" izz="0.02"/>
+    </inertial>
+  </link>
+
+  <joint name="arm1_joint1" type="revolute">
+    <parent link="base_link"/>
+    <child link="arm1_link1"/>
+    <origin xyz="0.3 -0.4 0.2" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-2.96" upper="2.96" effort="176" velocity="1.71"/>
+  </joint>
+
+  <!-- Shoulder Pitch (Joint 2) -->
+  <link name="arm1_link2">
+    <inertial>
+      <origin xyz="0 0 0.15" rpy="0 0 0"/>
+      <mass value="4.0"/>
+      <inertia ixx="0.08" ixy="0.0" ixz="0.0"
+               iyy="0.08" iyz="0.0" izz="0.02"/>
+    </inertial>
+  </link>
+
+  <joint name="arm1_joint2" type="revolute">
+    <parent link="arm1_link1"/>
+    <child link="arm1_link2"/>
+    <origin xyz="0 0 0.2" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-2.09" upper="2.09" effort="176" velocity="1.71"/>
+  </joint>
+
+  <!-- Elbow (Joint 3) -->
+  <link name="arm1_link3">
+    <inertial>
+      <origin xyz="0 0 0.15" rpy="0 0 0"/>
+      <mass value="3.0"/>
+      <inertia ixx="0.06" ixy="0.0" ixz="0.0"
+               iyy="0.06" iyz="0.0" izz="0.015"/>
+    </inertial>
+  </link>
+
+  <joint name="arm1_joint3" type="revolute">
+    <parent link="arm1_link2"/>
+    <child link="arm1_link3"/>
+    <origin xyz="0 0 0.4" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-2.96" upper="2.96" effort="110" velocity="1.75"/>
+  </joint>
+
+  <!-- Wrist Yaw (Joint 4) -->
+  <link name="arm1_link4">
+    <inertial>
+      <origin xyz="0 0 0.1" rpy="0 0 0"/>
+      <mass value="2.5"/>
+      <inertia ixx="0.03" ixy="0.0" ixz="0.0"
+               iyy="0.03" iyz="0.0" izz="0.01"/>
+    </inertial>
+  </link>
+
+  <joint name="arm1_joint4" type="revolute">
+    <parent link="arm1_link3"/>
+    <child link="arm1_link4"/>
+    <origin xyz="0 0 0.39" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-2.96" upper="2.96" effort="110" velocity="2.26"/>
+  </joint>
+
+  <!-- Wrist Pitch (Joint 5) -->
+  <link name="arm1_link5">
+    <inertial>
+      <origin xyz="0 0 0.05" rpy="0 0 0"/>
+      <mass value="2.0"/>
+      <inertia ixx="0.02" ixy="0.0" ixz="0.0"
+               iyy="0.02" iyz="0.0" izz="0.008"/>
+    </inertial>
+  </link>
+
+  <joint name="arm1_joint5" type="revolute">
+    <parent link="arm1_link4"/>
+    <child link="arm1_link5"/>
+    <origin xyz="0 0 0.2" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-2.09" upper="2.09" effort="40" velocity="2.26"/>
+  </joint>
+
+  <!-- Wrist Roll (Joint 6 - End-effector) -->
+  <link name="arm1_link6">
+    <inertial>
+      <origin xyz="0 0 0.03" rpy="0 0 0"/>
+      <mass value="1.5"/>
+      <inertia ixx="0.01" ixy="0.0" ixz="0.0"
+               iyy="0.01" iyz="0.0" izz="0.005"/>
+    </inertial>
+  </link>
+
+  <joint name="arm1_joint6" type="revolute">
+    <parent link="arm1_link5"/>
+    <child link="arm1_link6"/>
+    <origin xyz="0 0 0.126" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-2.96" upper="2.96" effort="40" velocity="2.35"/>
+  </joint>
+
+  <!-- ============================================ -->
+  <!--           ARM 2: LEFT ARM (6-DoF)            -->
+  <!-- ============================================ -->
+  
+  <!-- Shoulder Yaw (Joint 1) -->
+  <link name="arm2_link1">
+    <inertial>
+      <origin xyz="0 0 0.1" rpy="0 0 0"/>
+      <mass value="4.0"/>
+      <inertia ixx="0.05" ixy="0.0" ixz="0.0"
+               iyy="0.05" iyz="0.0" izz="0.02"/>
+    </inertial>
+  </link>
+
+  <joint name="arm2_joint1" type="revolute">
+    <parent link="base_link"/>
+    <child link="arm2_link1"/>
+    <origin xyz="0.3 0.4 0.2" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-2.96" upper="2.96" effort="176" velocity="1.71"/>
+  </joint>
+
+  <!-- Shoulder Pitch (Joint 2) -->
+  <link name="arm2_link2">
+    <inertial>
+      <origin xyz="0 0 0.15" rpy="0 0 0"/>
+      <mass value="4.0"/>
+      <inertia ixx="0.08" ixy="0.0" ixz="0.0"
+               iyy="0.08" iyz="0.0" izz="0.02"/>
+    </inertial>
+  </link>
+
+  <joint name="arm2_joint2" type="revolute">
+    <parent link="arm2_link1"/>
+    <child link="arm2_link2"/>
+    <origin xyz="0 0 0.2" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-2.09" upper="2.09" effort="176" velocity="1.71"/>
+  </joint>
+
+  <!-- Elbow (Joint 3) -->
+  <link name="arm2_link3">
+    <inertial>
+      <origin xyz="0 0 0.15" rpy="0 0 0"/>
+      <mass value="3.0"/>
+      <inertia ixx="0.06" ixy="0.0" ixz="0.0"
+               iyy="0.06" iyz="0.0" izz="0.015"/>
+    </inertial>
+  </link>
+
+  <joint name="arm2_joint3" type="revolute">
+    <parent link="arm2_link2"/>
+    <child link="arm2_link3"/>
+    <origin xyz="0 0 0.4" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-2.96" upper="2.96" effort="110" velocity="1.75"/>
+  </joint>
+
+  <!-- Wrist Yaw (Joint 4) -->
+  <link name="arm2_link4">
+    <inertial>
+      <origin xyz="0 0 0.1" rpy="0 0 0"/>
+      <mass value="2.5"/>
+      <inertia ixx="0.03" ixy="0.0" ixz="0.0"
+               iyy="0.03" iyz="0.0" izz="0.01"/>
+    </inertial>
+  </link>
+
+  <joint name="arm2_joint4" type="revolute">
+    <parent link="arm2_link3"/>
+    <child link="arm2_link4"/>
+    <origin xyz="0 0 0.39" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-2.96" upper="2.96" effort="110" velocity="2.26"/>
+  </joint>
+
+  <!-- Wrist Pitch (Joint 5) -->
+  <link name="arm2_link5">
+    <inertial>
+      <origin xyz="0 0 0.05" rpy="0 0 0"/>
+      <mass value="2.0"/>
+      <inertia ixx="0.02" ixy="0.0" ixz="0.0"
+               iyy="0.02" iyz="0.0" izz="0.008"/>
+    </inertial>
+  </link>
+
+  <joint name="arm2_joint5" type="revolute">
+    <parent link="arm2_link4"/>
+    <child link="arm2_link5"/>
+    <origin xyz="0 0 0.2" rpy="0 0 0"/>
+    <axis xyz="0 1 0"/>
+    <limit lower="-2.09" upper="2.09" effort="40" velocity="2.26"/>
+  </joint>
+
+  <!-- Wrist Roll (Joint 6 - End-effector) -->
+  <link name="arm2_link6">
+    <inertial>
+      <origin xyz="0 0 0.03" rpy="0 0 0"/>
+      <mass value="1.5"/>
+      <inertia ixx="0.01" ixy="0.0" ixz="0.0"
+               iyy="0.01" iyz="0.0" izz="0.005"/>
+    </inertial>
+  </link>
+
+  <joint name="arm2_joint6" type="revolute">
+    <parent link="arm2_link5"/>
+    <child link="arm2_link6"/>
+    <origin xyz="0 0 0.126" rpy="0 0 0"/>
+    <axis xyz="0 0 1"/>
+    <limit lower="-2.96" upper="2.96" effort="40" velocity="2.35"/>
+  </joint>
+
+</robot>
