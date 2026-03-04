@@ -1,0 +1,48 @@
+==========================================================================================
+COMBINED RESULTS — Lutze et al. (2023) Three Benchmark Experiments
+==========================================================================================
+
+Experiment #1: Straight line crossing CoM
+----------------------------------------------------------------------
+  Metric                           Non-Optimized       Optimized     Improvement
+  ------------------------------ --------------- --------------- ---------------
+  Max |alpha| [deg]                      15.2049          5.9414           60.9%
+  Max |beta| [deg]                        4.5545          4.8648           -6.8%
+  Max |gamma| [deg]                       1.4237          0.2255           84.2%
+  RMS ||F_c|| [N]                            0.0             0.2
+  Max ||F_c|| [N]                            0.0             0.3
+  RMS tracking error [mm]               13013.62        12965.63
+  Max tracking error [mm]               15420.82        15317.33
+
+Experiment #2: Offset straight line
+----------------------------------------------------------------------
+  Metric                           Non-Optimized       Optimized     Improvement
+  ------------------------------ --------------- --------------- ---------------
+  Max |alpha| [deg]                       1.2033          1.9169          -59.3%
+  Max |beta| [deg]                        8.0766          0.5524           93.2%
+  Max |gamma| [deg]                       0.5968          0.1453           75.7%
+  RMS ||F_c|| [N]                            0.0             0.0
+  Max ||F_c|| [N]                            0.0             0.0
+  RMS tracking error [mm]                2888.31         2761.04
+  Max tracking error [mm]                3624.27         3227.19
+
+Experiment #3: Circular arc (20 deg)
+----------------------------------------------------------------------
+  Metric                           Non-Optimized       Optimized     Improvement
+  ------------------------------ --------------- --------------- ---------------
+  Max |alpha| [deg]                       2.3231          0.2873           87.6%
+  Max |beta| [deg]                        3.4498          2.0648           40.1%
+  Max |gamma| [deg]                       0.1314          0.0781           40.5%
+  RMS ||F_c|| [N]                            0.0             0.1
+  Max ||F_c|| [N]                            0.0             0.1
+  RMS tracking error [mm]                2024.91         2256.92
+  Max tracking error [mm]                2495.33         2678.67
+
+==========================================================================================
+CROSS-EXPERIMENT SUMMARY
+==========================================================================================
+  Experiment                              beta improvement
+  ----------------------------------- --------------------
+  Exp #1: Straight line crossing CoM                    -6.8%
+  Exp #2: Offset straight line                          93.2%
+  Exp #3: Circular arc (20 deg)                         40.1%
