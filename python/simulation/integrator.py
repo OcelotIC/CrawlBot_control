@@ -2,9 +2,9 @@
 
 Translated from integrate_dynamics.m.
 
-The satellite is modeled as the SPART base: its inertia is augmented into H0,
-and reaction wheel torque is added to the base wrench equation.  This way the
-satellite dynamics emerge naturally from the coupled equations of motion.
+The satellite is modeled as the SPART base: its inertia is augmented into H0.
+The satellite dynamics emerge naturally from the coupled equations of motion
+via conservation of angular momentum (no reaction wheels — matching the paper).
 """
 
 import numpy as np
@@ -16,7 +16,10 @@ def integrate_dynamics(state, tau_joints, Fc, sys, robot, dt, env):
 
     Uses Euler integration with Baumgarte constraint stabilization.
     The satellite inertia is added to the SPART base inertia (H0) so that
-    u0[:3] represents the satellite angular velocity.
+    u0[:3] represents the satellite angular velocity.  No reaction wheels
+    are used — the satellite rotates freely per angular momentum conservation,
+    and the QP controller minimizes disturbance through contact force
+    optimization (matching Lutze et al. 2023).
 
     Parameters
     ----------
@@ -44,9 +47,10 @@ def integrate_dynamics(state, tau_joints, Fc, sys, robot, dt, env):
     n_q = robot['n_q']
 
     # --- Augment base inertia with satellite inertia ---
-    # In the paper, the SPART base IS the satellite.  We add the satellite's
-    # mass and rotational inertia to H0 so the coupled dynamics naturally
-    # produce the correct (small) angular accelerations.
+    # In the paper (eq. 11), the SPART base IS the satellite.  We add the
+    # satellite's mass and rotational inertia to H0 so the coupled dynamics
+    # naturally produce the correct angular accelerations via momentum
+    # conservation.  No reaction wheels are modeled (matching the paper).
     I_sat = env['satellite']['inertia']     # (3,3) rotational inertia
     m_sat = env['satellite']['mass']        # scalar
     H0_sat = np.zeros((6, 6))
@@ -66,7 +70,7 @@ def integrate_dynamics(state, tau_joints, Fc, sys, robot, dt, env):
     ])
     u_full = np.concatenate([sys['u0'], state['um']])
 
-    # 2. Generalized efforts
+    # 2. Generalized efforts (no base actuation — satellite is free-floating)
     tau_full = np.concatenate([np.zeros(6), tau_joints])
 
     # 3. External forces via Jacobian
@@ -74,34 +78,7 @@ def integrate_dynamics(state, tau_joints, Fc, sys, robot, dt, env):
     Jm_T = sys['Jc_joints'].T
     F_ext = np.concatenate([J0_T @ Fc, Jm_T @ Fc])
 
-    # 4. Reaction wheel control torque on base
-    # RW acts to counteract satellite angular velocity (PD attitude control).
-    omega_sat = state['omega_satellite']
-    quat_sat = state.get('quat_satellite', np.array([0., 0., 0., 1.]))
-    e_quat_sat = 2.0 * quat_sat[:3]   # small-angle approx of attitude error
-
-    # High-gain PD controller
-    K_rw = 500.0    # Nm/rad   (attitude stiffness)
-    D_rw = 200.0    # Nms/rad  (rate damping)
-    tau_RW_cmd = -K_rw * e_quat_sat - D_rw * omega_sat
-
-    # Per-axis torque limit (~2 effective wheels per axis from pyramid config)
-    tau_rw_max = env['RW']['tau_max'] * 2.0
-    tau_RW = np.clip(tau_RW_cmd, -tau_rw_max, tau_rw_max)
-
-    # Check RW momentum storage limit
-    h_RW_old = state['h_RW_stored']
-    h_RW_new = h_RW_old - tau_RW * dt    # wheel absorbs reaction
-    h_max = env['RW']['h_total_max']
-    h_norm = np.linalg.norm(h_RW_new)
-    if h_norm > h_max:
-        h_RW_new = h_RW_new / h_norm * h_max
-        tau_RW = -(h_RW_new - h_RW_old) / dt  # effective torque after clamping
-
-    # Add RW torque to base angular wrench
-    tau_full[:3] += tau_RW
-
-    # 5. Baumgarte stabilization
+    # 4. Baumgarte stabilization
     alpha_stab = 5.0
     beta_stab = 10.0
     Phi_error = np.zeros(6)
@@ -110,10 +87,10 @@ def integrate_dynamics(state, tau_joints, Fc, sys, robot, dt, env):
     gamma_stab = -2 * alpha_stab * J_full @ u_full - beta_stab**2 * Phi_error
     stabilization_term = np.concatenate([J0_T, Jm_T], axis=0) @ gamma_stab
 
-    # 6. Equation of motion
+    # 5. Equation of motion
     rhs = tau_full + F_ext - C_full @ u_full + stabilization_term
 
-    # 7. Solve (robust)
+    # 6. Solve (robust)
     cond_H = np.linalg.cond(H_full)
     if cond_H > 1e10:
         H_full = H_full + 1e-6 * np.eye(H_full.shape[0])
@@ -134,14 +111,14 @@ def integrate_dynamics(state, tau_joints, Fc, sys, robot, dt, env):
     u0dot = udot_full[:6]
     umdot = udot_full[6:]
 
-    # 8. Euler integration
+    # 7. Euler integration
     state_next = dict(state)
     state_next['u_base'] = state['u_base'] + u0dot[3:6] * dt
     state_next['um'] = state['um'] + umdot * dt
     state_next['q_base'] = state['q_base'] + state_next['u_base'] * dt
     state_next['qm'] = state['qm'] + state_next['um'] * dt
 
-    # Base quaternion
+    # Base/satellite angular velocity (they are coupled via augmented inertia)
     omega_base_new = state['omega_base'] + u0dot[:3] * dt
     state_next['omega_base'] = omega_base_new
     if np.linalg.norm(omega_base_new) > 1e-8:
@@ -151,16 +128,13 @@ def integrate_dynamics(state, tau_joints, Fc, sys, robot, dt, env):
     else:
         state_next['quat_base'] = state['quat_base'].copy()
 
-    # 9. Satellite state (coupled to base via augmented inertia)
-    # The base angular velocity IS the satellite angular velocity
-    omega_sat_new = omega_base_new
-    state_next['omega_satellite'] = omega_sat_new
-    state_next['h_RW_stored'] = h_RW_new
+    # 8. Satellite state = base state (satellite IS the SPART base)
+    state_next['omega_satellite'] = omega_base_new
+    state_next['h_RW_stored'] = state['h_RW_stored']  # unchanged (no RW)
 
-    # Satellite quaternion
-    if np.linalg.norm(omega_sat_new) > 1e-12:
+    if np.linalg.norm(omega_base_new) > 1e-12:
         state_next['quat_satellite'] = quat_integrate(
-            state['quat_satellite'], omega_sat_new, dt
+            state['quat_satellite'], omega_base_new, dt
         )
     else:
         state_next['quat_satellite'] = state['quat_satellite'].copy()

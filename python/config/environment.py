@@ -58,14 +58,19 @@ def setup_environment():
     }
 
     # --- Control gains ---
+    # QP weights: Qr (tracking), Qb (satellite stabilization), Qc (wrench reg.)
+    # The paper uses a rigid-body robot where Fc fully controls the satellite
+    # disturbance.  For our multi-body model, joint dynamics create additional
+    # coupling, so we disable satellite state feedback (Kb=Db=0) to avoid
+    # feedback oscillations and let the QP minimize ||Ad'Fc||² directly.
     env['control'] = {
         'Qr': np.eye(6) * 1.0,       # Robot tracking
-        'Qb': np.eye(6) * 10.0,      # Base stabilization
-        'Qc': np.eye(6) * 0.1,       # Wrench regularization
+        'Qb': np.eye(6) * 10.0,      # Satellite wrench minimization
+        'Qc': np.eye(6) * 0.01,      # Wrench regularization
         'Kr': np.diag([50, 50, 50, 25, 25, 25]),
         'Dr': np.diag([10, 10, 10, 5, 5, 5]),
-        'Kb': np.diag([40, 40, 40]),
-        'Db': np.diag([8, 8, 8]),
+        'Kb': np.diag([0, 0, 0]),     # No satellite attitude feedback
+        'Db': np.diag([0, 0, 0]),     # No satellite rate feedback
     }
 
     return env
