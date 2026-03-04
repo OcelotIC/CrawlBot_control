@@ -1,15 +1,16 @@
 """
 sim_lutze.py — Single-step simulation with Lutze baseline controller.
 
-Replaces the NMPC + whole-body QP hierarchy with Lutze's single-step
-contact wrench optimizer.  Uses the same MuJoCo simulation, robot model,
-gait scheduler, and planners as sim_torso6d.py for a fair comparison.
+Architecture (fair comparison with sim_torso6d.py):
+    - Same WholeBodyQP for dynamics-consistent torque computation
+    - Same torso 6D task, EE tracking, posture regulation
+    - REPLACES NMPC with Lutze single-step QP for wrench references
+    - No horizon planning — reactive wrench optimization only
 
-Architecture:
-    - Stance arm A: Lutze QP computes optimal contact wrench Fc_a
-    - Swing arm B: Cartesian impedance to reach next anchor
-    - No NMPC, no whole-body QP — just wrench mapping + impedance
-    - Structure rotates freely (no active attitude control)
+The key difference from sim_torso6d.py is that lambda_ref (contact wrench
+references) come from the Lutze QP instead of the CentroidalNMPC.  This
+isolates the comparison to: proactive (NMPC) vs reactive (Lutze) wrench
+planning, with everything else identical.
 
 Usage:
     python -m lutze_baseline.sim_lutze --urdf models/VISPA_crawling_fixed.urdf \\
@@ -33,6 +34,7 @@ from locomotion_planner import LocomotionPlanner
 from swing_planner import SwingPlanner
 from ik import dock_configuration
 from simulation_loop import pinocchio_to_mujoco, mujoco_to_pinocchio
+from solvers.wholebody_qp import WholeBodyQP, WholeBodyQPConfig
 from solvers.contact_phase import ContactPhase
 from torso_planner import TorsoPlanner
 
@@ -41,14 +43,10 @@ from lutze_baseline.contact_adjoint import compute_dual_contact_adjoints
 from lutze_baseline.momentum_map import compute_momentum_map
 from lutze_baseline.lutze_feedforward import compute_feedforward, LutzeFeedforwardConfig
 from lutze_baseline.lutze_qp import LutzeQP, LutzeQPConfig
-from lutze_baseline.lutze_joint_torques import compute_joint_torques
-from lutze_baseline.lutze_swing_controller import (
-    compute_swing_torques, SwingImpedanceConfig,
-)
 
 
 # ═══════════════════════════════════════════════════════════════════
-#  Configuration (same as sim_torso6d.py for fair comparison)
+#  Configuration (identical to sim_torso6d.py)
 # ═══════════════════════════════════════════════════════════════════
 
 TORSO_MASS = 40.0       # kg (corrected from URDF)
@@ -59,27 +57,51 @@ T_DS = 0.5               # s double-support duration
 TORSO_FRAC = 0.70        # fraction of IK torso displacement
 TORSO_DELAY = 0.20       # fraction of swing before torso starts
 T_MAX = 12.0             # s max simulation time
-DT_CTRL = 0.01           # s control rate (= MuJoCo timestep)
+DT_LUTZE = 0.1           # s Lutze QP rate (same as NMPC rate)
 DT_MJ = 0.01             # s MuJoCo timestep
 CLEARANCE = 0.03         # m swing clearance
+
+
+def build_qp(alpha_torso, alpha_ee, alpha_posture,
+             kp_torso=8., kd_torso=6., kp_ee=8., kd_ee=6.,
+             q_nominal=None):
+    """Build WholeBodyQP — identical to sim_torso6d.py."""
+    c = WholeBodyQPConfig(
+        nq=12, nc_max=2, dt_qp=DT_MJ,
+        tau_max=TAU_MAX * np.ones(12),
+        alpha_com=0.0,              # DISABLED (same as MPC version)
+        alpha_torso=alpha_torso,    # torso 6D task
+        alpha_ee=alpha_ee,
+        alpha_posture=alpha_posture,
+        alpha_wrench=1e1,
+        alpha_torque=1e0,
+        alpha_reg=1e-2,
+        Kp_com=np.diag([3., 3., 5.]),
+        Kd_com=np.diag([3., 3., 4.]),
+        Kp_torso=np.array([kp_torso]*3 + [kp_torso*0.6]*3),
+        Kd_torso=np.array([kd_torso]*3 + [kd_torso*0.6]*3),
+        Kp_ee=kp_ee * np.ones(3),
+        Kd_ee=kd_ee * np.ones(3),
+        Kp_posture=1.0,
+        Kd_posture=1.5,
+    )
+    qp = WholeBodyQP(c)
+    if q_nominal is not None:
+        qp.set_nominal_posture(q_nominal)
+    return qp
 
 
 def run_simulation(urdf_path, mjcf_path, save_log=True, verbose=True):
     """Run single-step simulation with Lutze baseline controller.
 
-    Returns
-    -------
-    log : dict
-        Logged data arrays.
-    docked : bool
-        Whether real docking was achieved.
+    Same setup as sim_torso6d.py but replaces NMPC with Lutze QP
+    for wrench reference generation.
     """
-    # ── MuJoCo setup ──
+    # ── MuJoCo setup (identical to sim_torso6d.py) ──
     mj_model = mujoco.MjModel.from_xml_path(mjcf_path)
     mj_data = mujoco.MjData(mj_model)
     mj_model.opt.timestep = DT_MJ
 
-    # Correct torso mass
     tid = mujoco.mj_name2id(mj_model, mujoco.mjtObj.mjOBJ_BODY, 'torso')
     rat = TORSO_MASS / mj_model.body_mass[tid]
     mj_model.body_mass[tid] = TORSO_MASS
@@ -98,7 +120,7 @@ def run_simulation(urdf_path, mjcf_path, save_log=True, verbose=True):
         dt_ds=T_DS, dt_ss=T_SWING)
     plan = sched.plan_traversal(start_a=2, start_b=2, n_steps=1)
 
-    # ── IK: dock configurations ──
+    # ── IK (identical to sim_torso6d.py) ──
     q_dock = dock_configuration(
         model, sched.anchor_se3('a', 2), sched.anchor_se3('b', 2))
     pin.forwardKinematics(model, robot.data, q_dock)
@@ -115,14 +137,13 @@ def run_simulation(urdf_path, mjcf_path, save_log=True, verbose=True):
     p_t1_full = robot.data.oMi[1].translation.copy()
     R_t1_full = robot.data.oMi[1].rotation.copy()
 
-    # Torso target: TORSO_FRAC of full displacement
     dp = p_t1_full - p_t0
     dR = R_t0.T @ R_t1_full
     omega = pin.log3(dR)
     p_t1 = p_t0 + TORSO_FRAC * dp
     R_t1 = R_t0 @ pin.exp3(TORSO_FRAC * omega)
 
-    # ── Torso planner (used for CoM reference) ──
+    # ── Torso planner ──
     t_ss0 = plan.t_start[1]
     t_ss1 = plan.t_end[1]
     t_torso_start = t_ss0 + TORSO_DELAY * T_SWING
@@ -137,7 +158,7 @@ def run_simulation(urdf_path, mjcf_path, save_log=True, verbose=True):
         print(f"Swing: [{t_ss0:.1f}, {t_ss1:.1f}]s, "
               f"Torso: [{t_torso_start:.1f}, {t_ss1:.1f}]s")
 
-    # ── Initialize MuJoCo state ──
+    # ── Initialize MuJoCo state (identical) ──
     sp = mj_data.qpos[0:3].copy()
     mqp, _ = pinocchio_to_mujoco(
         q_dock, np.zeros(18),
@@ -165,22 +186,7 @@ def run_simulation(urdf_path, mjcf_path, save_log=True, verbose=True):
     sg_a_id = mujoco.mj_name2id(mj_model, mujoco.mjtObj.mjOBJ_SITE, 'gripper_a')
     sa_a_id = mujoco.mj_name2id(mj_model, mujoco.mjtObj.mjOBJ_SITE, 'anchor_3a')
 
-    # ── Weld map ──
-    wm = {}
-    for i in range(mj_model.neq):
-        nm = mujoco.mj_id2name(mj_model, mujoco.mjtObj.mjOBJ_EQUALITY, i)
-        if nm and nm.startswith('grip_'):
-            pts = nm.split('_to_')
-            arm = pts[0].split('_')[1]
-            wm[(arm, int(pts[1][0]) - 1)] = i
-
-    # Start: A docked, B docked (DS)
-    for eq in range(mj_model.neq):
-        mj_data.eq_active[eq] = 0
-    mj_data.eq_active[wm[('a', 2)]] = 1
-    mj_data.eq_active[wm[('b', 2)]] = 1
-
-    # ── Lutze controller setup ──
+    # ── Lutze QP setup (replaces NMPC) ──
     cfg_ff = LutzeFeedforwardConfig(
         Kr=np.diag([50.0, 50.0, 50.0]),
         Dr=np.diag([10.0, 10.0, 10.0]),
@@ -191,18 +197,42 @@ def run_simulation(urdf_path, mjcf_path, save_log=True, verbose=True):
         Qb=np.eye(3) * 10.0,
         f_max=25.0,
         tau_max=8.0,
-        tau_w_max=2.0,  # momentum rate constraint (matching MPC_crawling)
+        tau_w_max=2.0,  # momentum rate constraint
     )
-    qp = LutzeQP(cfg_qp)
-    cfg_swing = SwingImpedanceConfig(
-        Kp=np.diag([80.0, 80.0, 80.0]),
-        Kd=np.diag([15.0, 15.0, 15.0]),
-        F_max=15.0,
-    )
+    lutze_qp = LutzeQP(cfg_qp)
 
-    # ── Logging ──
+    # ── WholeBodyQP (identical to sim_torso6d.py) ──
+    q_nom = q_dock[7:19]
+    qp_ss = build_qp(
+        alpha_torso=5e2, alpha_ee=3e3, alpha_posture=2e1,
+        kp_torso=6., kd_torso=5., kp_ee=10., kd_ee=7.,
+        q_nominal=q_nom)
+    qp_ext = build_qp(
+        alpha_torso=5e1, alpha_ee=1e4, alpha_posture=5e0,
+        kp_torso=3., kd_torso=3., kp_ee=25., kd_ee=12.,
+        q_nominal=q_nom)
+
+    # ── Weld map ──
+    wm = {}
+    for i in range(mj_model.neq):
+        nm = mujoco.mj_id2name(mj_model, mujoco.mjtObj.mjOBJ_EQUALITY, i)
+        if nm and nm.startswith('grip_'):
+            pts = nm.split('_to_')
+            arm = pts[0].split('_')[1]
+            wm[(arm, int(pts[1][0]) - 1)] = i
+
+    for eq in range(mj_model.neq):
+        mj_data.eq_active[eq] = 0
+    mj_data.eq_active[wm[('a', 2)]] = 1
+    mj_data.eq_active[wm[('b', 2)]] = 1
+
+    # ── Simulation loop ──
+    nq_per = int(round(DT_LUTZE / DT_MJ))
+    hw = np.array([2., -1., 0.5])
+    hwm = np.full(3, -50.)
+    hwM = np.full(3, 50.)
     cc_ss = sched.contact_config_at(t_ss0 + 0.1)
-    hw = np.array([2., -1., 0.5])  # initial wheel momentum
+    r_end, v_end = plnr.reference_at(t_ss1 - 0.01)
 
     log = dict(
         t=[], p_torso=[], p_torso_ref=[], p_grip_b=[], p_grip_b_ref=[],
@@ -214,8 +244,8 @@ def run_simulation(urdf_path, mjcf_path, save_log=True, verbose=True):
     t = 0.0
     docked = False
     b_released = False
+    torso_hold_set = False
 
-    # ── Simulation loop ──
     while t < T_MAX and not docked:
         in_ds = t < t_ss0
         in_ss = t_ss0 <= t < t_ss1
@@ -227,90 +257,117 @@ def run_simulation(urdf_path, mjcf_path, save_log=True, verbose=True):
             mj_data.eq_active[wm[('b', 2)]] = 0
             b_released = True
 
-        # Contact configuration
-        active_a = True  # A always docked (stance)
-        active_b = in_ds  # B only during double support
+        # Freeze torso reference at EXT entry
+        if in_ext and not torso_hold_set:
+            pq, pv = mujoco_to_pinocchio(mj_data.qpos, mj_data.qvel)
+            rs_snap = robot.update(pq, pv)
+            torso_pl.set_hold(
+                rs_snap.oMf_torso.translation.copy(),
+                rs_snap.oMf_torso.rotation.copy())
+            torso_hold_set = True
 
-        # State
+        cc = cc_ss if (in_ss or in_ext) else sched.contact_config_at(t)
+        r_ref, v_ref = plnr.reference_at(min(t, t_ss1 - 0.01))
+        wbqp = qp_ext if in_ext else qp_ss
+        tref = torso_pl.reference_at(t)
+
+        # ── Lutze QP: compute wrench references (replaces NMPC) ──
         pq, pv = mujoco_to_pinocchio(mj_data.qpos, mj_data.qvel)
         rs = robot.update(pq, pv)
         cs = compute_centroidal_state(robot, rs)
 
-        # Structure state
-        struct_pos = mj_data.qpos[0:3].copy()
-        struct_quat_wxyz = mj_data.qpos[3:7].copy()  # MuJoCo: [w,x,y,z]
-        struct_omega = mj_data.qvel[3:6].copy()
-
-        # Reference: use torso planner for CoM reference
-        tref = torso_pl.reference_at(t)
-        r_ref = tref.p.copy()  # torso position as CoM proxy
-        v_ref = tref.v[:3].copy()  # linear velocity
-
-        # ── Lutze feedforward ──
-        F_d_r, F_d_b = compute_feedforward(
-            cs.r_com, cs.v_com, r_ref, v_ref,
-            struct_quat_wxyz=struct_quat_wxyz,
-            struct_omega=struct_omega,
-            cfg=cfg_ff,
-        )
-
-        # ── Contact adjoints and momentum map ──
+        active_a = True
+        active_b = in_ds
         Ad_a, Ad_b = compute_dual_contact_adjoints(
             rs, active_a=active_a, active_b=active_b)
         r_ca = rs.oMf_tool_a.translation if active_a else None
         r_cb = rs.oMf_tool_b.translation if active_b else None
         M_lam = compute_momentum_map(cs.r_com, r_ca, r_cb)
 
-        # ── Lutze QP ──
-        Fc_a, Fc_b, info = qp.solve(Ad_a, Ad_b, M_lam, F_d_r, F_d_b)
+        F_d_r, F_d_b = compute_feedforward(
+            cs.r_com, cs.v_com, r_ref, v_ref, cfg=cfg_ff)
 
-        # ── Joint torques from contact wrenches ──
-        tau = compute_joint_torques(
-            Fc_a, Fc_b, rs.J_tool_a, rs.J_tool_b,
-            active_a=active_a, active_b=active_b,
-            tau_max=TAU_MAX,
-        )
+        Fc_a, Fc_b, info_lutze = lutze_qp.solve(
+            Ad_a, Ad_b, M_lam, F_d_r, F_d_b)
 
-        # ── Swing arm control (during SS and EXT) ──
-        if in_ss or in_ext:
+        # Stack wrench reference: [Fc_a(6), Fc_b(6)]
+        lambda_ref = np.concatenate([Fc_a, Fc_b])
+
+        # Feedforward acceleration from wrench reference
+        a_com_ff = (Fc_a[3:] + Fc_b[3:]) / cs.mass  # simple F/m
+
+        # ── WholeBodyQP inner loop (identical to sim_torso6d.py) ──
+        tau_last = np.zeros(12)
+        for qs in range(nq_per):
+            tq = t + qs * DT_MJ
+            pq, pv = mujoco_to_pinocchio(mj_data.qpos, mj_data.qvel)
+            rs = robot.update(pq, pv)
+            Jc, Jdc = robot.get_contact_jacobians(
+                cc.active_contacts[0], cc.active_contacts[1])
+
+            # Torso task
+            tr = torso_pl.reference_at(tq)
+            tkw = dict(
+                J_torso=rs.J_torso,
+                Jdot_dq_torso=rs.Jdot_dq_torso,
+                p_torso=rs.oMf_torso.translation,
+                R_torso=rs.oMf_torso.rotation,
+                p_torso_ref=tr.p, R_torso_ref=tr.R,
+                v_torso_ref=tr.v, a_torso_ff=tr.a)
+
+            # EE task
+            ek = {}
             if in_ss:
-                sr = swp.reference_at(min(t, t_ss1 - 0.01))
-                p_ee_ref = sr.p_ee
-                v_ee_ref = sr.v_ee
-            else:  # EXT
+                sr = swp.reference_at(min(tq, t_ss1 - 0.01))
+                if sr.is_swinging and sr.swing_arm == 'b':
+                    ek = dict(
+                        J_ee=rs.J_tool_b,
+                        Jdot_dq_ee=rs.Jdot_dq_tool_b,
+                        p_ee=rs.oMf_tool_b.translation,
+                        p_ee_ref=sr.p_ee,
+                        v_ee_ref=sr.v_ee,
+                        a_ee_ff=sr.a_ee)
+            elif in_ext:
                 mujoco.mj_forward(mj_model, mj_data)
-                p_ee_ref = mj_data.site_xpos[sa_id].copy()
-                v_ee_ref = np.zeros(3)
+                p_tgt = mj_data.site_xpos[sa_id].copy()
+                ek = dict(
+                    J_ee=rs.J_tool_b,
+                    Jdot_dq_ee=rs.Jdot_dq_tool_b,
+                    p_ee=rs.oMf_tool_b.translation,
+                    p_ee_ref=p_tgt,
+                    v_ee_ref=np.zeros(3),
+                    a_ee_ff=np.zeros(3))
 
-            p_ee = rs.oMf_tool_b.translation
-            v_ee = (rs.J_tool_b @ pv)[:3]  # angular part — but we want linear
-            # Actually: J_tool_b is (6, 18), J@v gives [ang(3); lin(3)]
-            v_ee_cur = (rs.J_tool_b @ pv)[3:]  # linear velocity
+            try:
+                _, _, _, tau, _ = wbqp.solve(
+                    q_t=rs.q_torso, dq_t=rs.dq_torso,
+                    q=rs.q_joints, dq=rs.dq_joints,
+                    r_com_ref=r_ref, v_com_ref=v_ref,
+                    lambda_ref=lambda_ref, a_com_ff=a_com_ff,
+                    H_robot=rs.H, C_robot=rs.C,
+                    J_com=rs.J_com, Jdot_dq_com=rs.Jdot_dq_com,
+                    contact_config=cc,
+                    J_contacts=Jc, Jdot_dq_contacts=Jdc,
+                    hw_current=hw, hw_min=hwm, hw_max=hwM,
+                    r_com=rs.r_com,
+                    **tkw, **ek)
+            except Exception:
+                tau = np.zeros(12)
 
-            tau_swing = compute_swing_torques(
-                p_ee, v_ee_cur, p_ee_ref, v_ee_ref,
-                J_ee=rs.J_tool_b,
-                cfg=cfg_swing,
-                tau_max=TAU_MAX,
-            )
-            tau = tau + tau_swing
+            tau = np.clip(tau, -TAU_MAX, TAU_MAX)
+            tau_last = tau.copy()
+            mj_data.ctrl[:12] = tau
+            mujoco.mj_step(mj_model, mj_data)
 
-        # Clip total torques
-        tau = np.clip(tau, -TAU_MAX, TAU_MAX)
-
-        # ── Apply to MuJoCo ──
-        mj_data.ctrl[:12] = tau
-        mujoco.mj_step(mj_model, mj_data)
-
-        # ── AOCS momentum update ──
-        rs2 = robot.update(
-            *mujoco_to_pinocchio(mj_data.qpos, mj_data.qvel))
-        hw -= (rs2.L_com - rs.L_com) / DT_MJ * DT_MJ
-        hw = np.clip(hw, -50., 50.)
+            # AOCS momentum update
+            rs2 = robot.update(
+                *mujoco_to_pinocchio(mj_data.qpos, mj_data.qvel))
+            hw -= (rs2.L_com - rs.L_com) / DT_MJ * DT_MJ
+            hw = np.clip(hw, hwm, hwM)
 
         mujoco.mj_forward(mj_model, mj_data)
 
-        # Real docking check
+        # Docking check
         d_b = np.linalg.norm(
             mj_data.site_xpos[sg_id] - mj_data.site_xpos[sa_id])
         d_a = np.linalg.norm(
@@ -331,21 +388,20 @@ def run_simulation(urdf_path, mjcf_path, save_log=True, verbose=True):
             else mj_data.site_xpos[sa_id].copy())
         log['d_grip_b'].append(d_b)
         log['d_grip_a'].append(d_a)
-        log['tau'].append(tau.copy())
-        log['tau_max_joint'].append(np.max(np.abs(tau)))
+        log['tau'].append(tau_last.copy())
+        log['tau_max_joint'].append(np.max(np.abs(tau_last)))
         log['e_torso_pos'].append(
             np.linalg.norm(rs.oMf_torso.translation - tref.p))
-        log['struct_pos'].append(struct_pos.copy())
+        log['struct_pos'].append(mj_data.qpos[0:3].copy())
         log['phase'].append(phase_str)
         log['L_com'].append(cs.L_com.copy())
-        log['struct_quat'].append(struct_quat_wxyz.copy())
-        log['struct_omega'].append(struct_omega.copy())
+        log['struct_quat'].append(mj_data.qpos[3:7].copy())
+        log['struct_omega'].append(mj_data.qvel[3:6].copy())
 
-        t += DT_CTRL
+        t += DT_LUTZE
 
     wall = time.time() - t0_wall
 
-    # Convert for JSON
     for k in log:
         log[k] = [x.tolist() if hasattr(x, 'tolist') else x for x in log[k]]
 
@@ -354,8 +410,7 @@ def run_simulation(urdf_path, mjcf_path, save_log=True, verbose=True):
         t_arr = np.array(log['t'])
         pt = np.array(log['p_torso'])
         sp = np.array(log['struct_pos'])
-        sd = np.linalg.norm(
-            np.array(sp[-1]) - np.array(sp[0])) * 100
+        sd = np.linalg.norm(np.array(sp[-1]) - np.array(sp[0])) * 100
         L_arr = np.array(log['L_com'])
         L_max = np.max(np.linalg.norm(L_arr, axis=1)) if len(L_arr) > 0 else 0
 
