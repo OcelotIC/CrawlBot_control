@@ -64,14 +64,14 @@ def compute_feedforward_wrench(sys, traj_des, t_idx, gains):
     if np.linalg.norm(F_d_r) > F_d_r_max:
         F_d_r = F_d_r / np.linalg.norm(F_d_r) * F_d_r_max
 
-    # --- Base wrench (eq. 16) ---
-    omega_base = sys['t0'][:3]
-
-    # Quaternion error
-    if 'quat_base' in sys:
-        e_quat = 2.0 * sys['quat_base'][:3]  # Approximate: 2 * vector part
+    # --- Base/satellite stabilization wrench (eq. 16) ---
+    # Use satellite state (not robot base) for stabilization feedback
+    if 'quat_satellite' in sys:
+        omega_base = sys.get('omega_satellite', np.zeros(3))
+        e_quat = 2.0 * sys['quat_satellite'][:3]
     else:
-        e_quat = np.zeros(3)
+        omega_base = sys['t0'][:3]
+        e_quat = 2.0 * sys.get('quat_base', np.array([0, 0, 0, 1.0]))[:3]
 
     # Saturation
     e_quat_norm = np.linalg.norm(e_quat)

@@ -99,6 +99,7 @@ def compute_system_state(state, robot, env):
         # State references
         'r0': np.asarray(r0).ravel(),
         'quat_base': state['quat_base'],
+        'quat_satellite': state.get('quat_satellite', np.array([0., 0., 0., 1.])),
         'u0': u0,
         'omega_satellite': state['omega_satellite'],
     }
