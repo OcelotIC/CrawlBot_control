@@ -2,6 +2,8 @@
 
 Extends the paper's 6-dim QP (single contact) to 12-dim (dual arm).
 Minimizes satellite/structure disturbance while tracking desired robot motion.
+
+Wrench convention: [f(3), tau(3)] per contact (force first, matching MPC).
 """
 
 from dataclasses import dataclass, field
@@ -34,10 +36,10 @@ class LutzeQP:
         self._build_bounds()
 
     def _build_bounds(self):
-        """Build per-contact wrench bounds [torque(3); force(3)]."""
+        """Build per-contact wrench bounds [force(3); torque(3)]."""
         cfg = self.config
-        single_lb = np.array([-cfg.tau_max]*3 + [-cfg.F_max]*3)
-        single_ub = np.array([cfg.tau_max]*3 + [cfg.F_max]*3)
+        single_lb = np.array([-cfg.F_max]*3 + [-cfg.tau_max]*3)
+        single_ub = np.array([cfg.F_max]*3 + [cfg.tau_max]*3)
         # Dual contact: stack [Fc_a; Fc_b]
         self.lb_dual = np.tile(single_lb, 2)
         self.ub_dual = np.tile(single_ub, 2)

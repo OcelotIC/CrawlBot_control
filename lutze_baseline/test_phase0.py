@@ -66,7 +66,8 @@ def run_test(urdf_path):
     assert Ad_b.shape == (6, 6), f"Ad_b shape {Ad_b.shape}"
 
     # Unit force at tool_a → check world wrench is nonzero
-    F_unit = np.array([0, 0, 0, 1, 0, 0])  # unit Fx at contact
+    # Convention: [f(3), tau(3)] — force Fx is at index 0
+    F_unit = np.array([1, 0, 0, 0, 0, 0])  # unit Fx at contact
     F_world = Ad_a @ F_unit
     print(f"  Unit Fx at tool_a → world wrench = {F_world}")
     assert np.linalg.norm(F_world) > 0, "Force should be nonzero"
@@ -95,13 +96,15 @@ def run_test(urdf_path):
     assert M_none.shape == (3, 0), f"M_none shape {M_none.shape}"
 
     # Unit torque at contact A should pass through to L_dot
-    Fc_unit_torque = np.array([1, 0, 0, 0, 0, 0])
+    # Convention: [f(3), tau(3)] — torque tau_x is at index 3
+    Fc_unit_torque = np.array([0, 0, 0, 1, 0, 0])
     L_dot = M_single @ Fc_unit_torque
     print(f"  Unit tau_x at A → L_dot = {L_dot}")
     assert np.allclose(L_dot, [1, 0, 0]), "Pure torque should pass through"
 
     # Unit force at contact A should create lever-arm torque
-    Fc_unit_force = np.array([0, 0, 0, 1, 0, 0])
+    # Convention: [f(3), tau(3)] — force f_x is at index 0
+    Fc_unit_force = np.array([1, 0, 0, 0, 0, 0])
     L_dot_f = M_single @ Fc_unit_force
     lever = r_a - cs.r_com
     expected = skew(lever) @ np.array([1, 0, 0])

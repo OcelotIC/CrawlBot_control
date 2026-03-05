@@ -3,6 +3,8 @@
 Computes the 6x6 adjoint matrices that map a wrench expressed at each
 contact (gripper) frame to the equivalent wrench at the satellite/structure
 center of mass.
+
+Wrench convention: [f(3), tau(3)] per contact (force first, matching MPC).
 """
 
 import numpy as np
@@ -26,7 +28,7 @@ def compute_contact_adjoint(oMf):
 
         F_world = A @ F_contact
 
-    where F = [torque(3); force(3)] in spatial wrench convention.
+    where F = [force(3); torque(3)] (force first, matching MPC convention).
 
     Parameters
     ----------
@@ -40,9 +42,10 @@ def compute_contact_adjoint(oMf):
     R = oMf.rotation
     p = oMf.translation
     A = np.zeros((6, 6))
-    A[:3, :3] = R              # torque -> torque
-    A[:3, 3:] = skew(p) @ R   # force -> torque (lever arm)
-    A[3:, 3:] = R              # force -> force
+    A[:3, :3] = R              # force -> force
+    A[:3, 3:] = np.zeros((3, 3))  # torque does not contribute to force
+    A[3:, :3] = skew(p) @ R   # force -> torque (lever arm)
+    A[3:, 3:] = R              # torque -> torque
     return A
 
 

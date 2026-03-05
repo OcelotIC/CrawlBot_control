@@ -2,7 +2,10 @@
 
 During single-support phases, the free (swing) arm must track a trajectory
 to the next anchor.  This module computes the additional joint torques via
-Cartesian impedance control: tau = J^T @ [0; Kp*e + Kd*e_dot].
+Cartesian impedance control using Pinocchio Jacobians.
+
+The Pinocchio Jacobian in WORLD frame has rows [angular(3); linear(3)],
+so the spatial wrench must be [torque(3); force(3)] for J^T multiplication.
 """
 
 from dataclasses import dataclass, field

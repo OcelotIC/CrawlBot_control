@@ -52,8 +52,9 @@ def run_test(urdf_path):
     F_d_r, F_d_b = compute_feedforward(cs.r_com, cs.v_com, r_ref, v_ref, cfg=cfg_ff)
 
     assert F_d_r.shape == (6,), f"F_d_r shape {F_d_r.shape}"
-    assert np.linalg.norm(F_d_r[3:]) > 0, "Should have nonzero tracking force"
-    assert np.allclose(F_d_r[:3], 0), "No angular tracking for CoM"
+    # Convention: [f(3), tau(3)] — force at indices 0:3, torque at 3:6
+    assert np.linalg.norm(F_d_r[:3]) > 0, "Should have nonzero tracking force"
+    assert np.allclose(F_d_r[3:], 0), "No angular tracking for CoM"
     print(f"  F_d_r = {F_d_r}")
     print(f"  F_d_b = {F_d_b}")
 

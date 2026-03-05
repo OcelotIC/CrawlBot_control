@@ -45,8 +45,8 @@ def compute_feedforward(r_com, v_com, r_com_ref, v_com_ref,
 
     Returns
     -------
-    F_d_r : (6,) desired robot tracking wrench [torque(3); force(3)].
-    F_d_b : (6,) desired structure stabilization wrench [torque(3); force(3)].
+    F_d_r : (6,) desired robot tracking wrench [force(3); torque(3)].
+    F_d_b : (6,) desired structure stabilization wrench [force(3); torque(3)].
     """
     if cfg is None:
         cfg = LutzeFeedforwardConfig()
@@ -64,7 +64,8 @@ def compute_feedforward(r_com, v_com, r_com_ref, v_com_ref,
         e_vel = e_vel / e_vel_norm * cfg.vel_err_max
 
     f_trans = cfg.Kr_trans @ e_pos + cfg.Dr_trans @ e_vel
-    F_d_r = np.concatenate([np.zeros(3), f_trans])
+    # [f(3), tau(3)] convention: force first, zero torque for CoM tracking
+    F_d_r = np.concatenate([f_trans, np.zeros(3)])
 
     # Saturate total
     F_d_r_norm = np.linalg.norm(F_d_r)
@@ -81,7 +82,8 @@ def compute_feedforward(r_com, v_com, r_com_ref, v_com_ref,
             e_quat = e_quat / e_quat_norm * cfg.quat_err_max
 
         tau_b = cfg.Kb @ e_quat + cfg.Db @ (-struct_omega)
-        F_d_b[:3] = tau_b
+        # [f(3), tau(3)] convention: zero force, torque for attitude control
+        F_d_b[3:] = tau_b
 
         F_d_b_norm = np.linalg.norm(F_d_b)
         if F_d_b_norm > cfg.F_d_b_max:

@@ -4,10 +4,19 @@ Uses Pinocchio contact Jacobians to map spatial contact wrenches to
 the generalized force vector, then extracts the actuated joint torques.
 
     tau = J_a^T @ Fc_a + J_b^T @ Fc_b
+
+Wrench convention: [f(3), tau(3)] per contact (force first, matching MPC).
+Pinocchio Jacobians use [angular(3); linear(3)] row ordering, so wrenches
+are reordered to [tau(3); f(3)] before applying J^T.
 """
 
 import numpy as np
 import pinocchio as pin
+
+
+def _to_pinocchio_wrench(Fc):
+    """Convert [f(3), tau(3)] to Pinocchio spatial wrench [tau(3), f(3)]."""
+    return np.concatenate([Fc[3:6], Fc[0:3]])
 
 
 def compute_joint_torques(Fc_a, Fc_b, J_tool_a, J_tool_b,
@@ -16,10 +25,10 @@ def compute_joint_torques(Fc_a, Fc_b, J_tool_a, J_tool_b,
 
     Parameters
     ----------
-    Fc_a : (6,) - Contact wrench at tool_a [torque(3); force(3)].
-    Fc_b : (6,) - Contact wrench at tool_b.
-    J_tool_a : (6, nv) - Full Jacobian at tool_a frame.
-    J_tool_b : (6, nv) - Full Jacobian at tool_b frame.
+    Fc_a : (6,) - Contact wrench at tool_a [force(3); torque(3)].
+    Fc_b : (6,) - Contact wrench at tool_b [force(3); torque(3)].
+    J_tool_a : (6, nv) - Full Jacobian at tool_a (Pinocchio WORLD frame).
+    J_tool_b : (6, nv) - Full Jacobian at tool_b (Pinocchio WORLD frame).
     active_a : bool - Whether contact A is active.
     active_b : bool - Whether contact B is active.
     tau_max : float - Joint torque limit (Nm).
@@ -32,10 +41,10 @@ def compute_joint_torques(Fc_a, Fc_b, J_tool_a, J_tool_b,
     tau = np.zeros(nv)
 
     if active_a:
-        tau += J_tool_a.T @ Fc_a
+        tau += J_tool_a.T @ _to_pinocchio_wrench(Fc_a)
 
     if active_b:
-        tau += J_tool_b.T @ Fc_b
+        tau += J_tool_b.T @ _to_pinocchio_wrench(Fc_b)
 
     # Saturate
     tau = np.clip(tau, -tau_max, tau_max)

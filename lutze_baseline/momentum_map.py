@@ -3,6 +3,8 @@
 Computes M_lambda, the (3 x 6*nc) matrix that maps stacked contact
 wrenches [Fc_a; Fc_b] to the rate of change of angular momentum about the
 system center of mass.
+
+Wrench convention: [f(3), tau(3)] per contact (force first, matching MPC).
 """
 
 import numpy as np
@@ -20,12 +22,13 @@ def _skew(v):
 def compute_momentum_map(r_com, r_contact_a=None, r_contact_b=None):
     """Build the (3 x 12) or (3 x 6) momentum map matrix.
 
-    Each contact wrench Fc_j = [tau_j(3); f_j(3)] contributes to angular
+    Each contact wrench Fc_j = [f_j(3), tau_j(3)] contributes to angular
     momentum rate:
 
         L_dot_j = tau_j + (r_Cj - r_com) x f_j
 
-    So the 3x6 block for contact j is: [I_3, skew(r_Cj - r_com)]
+    So the 3x6 block for contact j is: [skew(r_Cj - r_com), I_3]
+    (force columns first, torque columns second).
 
     Parameters
     ----------
@@ -41,12 +44,12 @@ def compute_momentum_map(r_com, r_contact_a=None, r_contact_b=None):
 
     if r_contact_a is not None:
         lever_a = r_contact_a - r_com
-        M_a = np.hstack([np.eye(3), _skew(lever_a)])  # (3, 6)
+        M_a = np.hstack([_skew(lever_a), np.eye(3)])  # (3, 6)
         blocks.append(M_a)
 
     if r_contact_b is not None:
         lever_b = r_contact_b - r_com
-        M_b = np.hstack([np.eye(3), _skew(lever_b)])  # (3, 6)
+        M_b = np.hstack([_skew(lever_b), np.eye(3)])  # (3, 6)
         blocks.append(M_b)
 
     if len(blocks) == 0:
