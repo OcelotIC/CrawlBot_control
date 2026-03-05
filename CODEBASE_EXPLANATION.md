@@ -327,6 +327,65 @@ The key finding: **Lutze's reactive approach achieves equivalent tracking and do
 
 ---
 
+## Hybrid Dynamics: The Fundamental Architectural Gap
+
+### Locomotion as a Hybrid Dynamical System
+
+Multi-arm robot crawling is inherently a **hybrid dynamical system**: the dynamics switch discontinuously between discrete contact modes (dual-support, single-support A, single-support B) with impulsive reset maps at each contact transition. A locomotion controller must handle:
+
+1. **Mode-dependent continuous dynamics** — the equations of motion change when a gripper makes or breaks contact (different Jacobians, different constraint forces, different momentum exchange paths)
+2. **Discrete contact transitions** — the instant a gripper releases or grasps, there is a discontinuity in the constraint set, potentially with impulsive forces
+3. **Phase sequencing** — the controller must plan *when* to switch modes and coordinate the trajectory accordingly
+
+### What Lutze Does NOT Handle
+
+The Lutze QP framework assumes **permanent dual contact** throughout the entire simulation. Specifically:
+
+| Hybrid dynamics aspect | Lutze implementation |
+|------------------------|---------------------|
+| Contact mode transitions | Not implemented — no state machine, no mode switching logic |
+| Impact/reset maps | Not implemented — no handling of discrete dynamics at contact events |
+| Phase-encoded trajectories | Not present — 5th-order polynomial CoM trajectories contain zero information about dual-support vs. single-support timing |
+| Mode-dependent dynamics | Not present — the same QP formulation runs identically every timestep regardless of contact state |
+| Gait planning / contact scheduling | Not present — no concept of gait phases or step sequencing |
+
+The `lutze_qp.py` does accept `Ad_a=None` or `Ad_b=None` to handle single-contact situations, and `lutze_swing_controller.py` provides impedance control for a free arm — but these are **passive fallbacks**, not a coordinated hybrid control strategy. There is no state machine that orchestrates when to call them.
+
+### Why This Is Structurally Unfixable
+
+The limitation is not a matter of tuning. Lutze's single-step QP sees only the **current timestep**: it minimizes `||M_λ @ Fc||` (angular momentum rate) at time `t` without any knowledge of:
+
+- Whether a contact transition is approaching in 0.5 seconds
+- How much angular momentum budget remains before the next single-support phase
+- What the momentum state needs to be *at the transition instant* to remain feasible through single-support
+
+This is why the angular momentum constraint is violated (6.5 Nms vs. 5 Nms limit): the QP greedily minimizes momentum rate at each step, but **momentum accumulates across the gait cycle** in a way that only becomes apparent when viewed over the full phase sequence. By the time the system enters single-support, the momentum state is whatever happened to accumulate — there was no planning to ensure it would be within bounds.
+
+### How the MPC Controller Differs
+
+The centroidal MPC plans **across contact transitions**:
+
+```
+MPC horizon (N steps at 10Hz):
+  ├── dual-support phase ──┤── single-support A ──┤── dual-support ──┤
+  t=0                    t=T_switch              t=T_regrip         t=T_end
+
+  The MPC sees all three phases simultaneously and solves:
+    min  Σ_k  ||x_k - x_ref||² + ||u_k||²
+    s.t. x_{k+1} = f_σ(k)(x_k, u_k)         ← mode-dependent dynamics
+         ||L_com,k|| ≤ L_max    ∀k           ← enforced across ALL phases
+         u_k ∈ U_σ(k)                         ← mode-dependent wrench bounds
+```
+
+Key differences:
+- **Dynamics switch with the mode index σ(k)**: the prediction model uses different contact Jacobians and constraint sets for each phase
+- **Momentum constraint is enforced over the full horizon**: the optimizer sees that entering single-support with 4.8 Nms is dangerous and proactively reduces it during the preceding dual-support phase
+- **Contact timing is part of the plan**: the MPC knows exactly when transitions occur and shapes the wrench profile accordingly
+
+This is the core argument: **hybrid-aware planning is structurally necessary for momentum-constrained locomotion**. A reactive controller — no matter how well-tuned — cannot guarantee constraint satisfaction across contact transitions because it lacks the predictive horizon to see them coming.
+
+---
+
 ## Robot Models
 
 ### MAR_DualArm_6DoF (Paper)
