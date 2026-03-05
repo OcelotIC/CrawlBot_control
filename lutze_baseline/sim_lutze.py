@@ -220,10 +220,11 @@ def swing_trajectory(t, t0, t1, p_start, p_end, clearance=0.03):
 
 # ── Inverse Kinematics ───────────────────────────────────────────────────────
 
-def dock_configuration(model, oMf_a, oMf_b, q_init=None, max_iter=500, eps=1e-4):
+def dock_configuration(model, oMf_a, oMf_b, q_init=None, max_iter=2000, eps=1e-4):
     """Compute joint configuration that places tool_a at oMf_a and tool_b at oMf_b.
 
     Uses Pinocchio's inverse kinematics (iterative Jacobian-based).
+    Supports both fixed-base and free-flyer models.
 
     Parameters
     ----------
@@ -242,6 +243,11 @@ def dock_configuration(model, oMf_a, oMf_b, q_init=None, max_iter=500, eps=1e-4)
 
     q = q_init if q_init is not None else pin.neutral(model)
     q = q.copy()
+
+    # For free-flyer models, set initial base position to anchor midpoint
+    has_ff = (model.nq > model.nv)  # free-flyer adds 1 extra qpos (quaternion)
+    if has_ff and q_init is None:
+        q[0:3] = 0.5 * (oMf_a.translation + oMf_b.translation)
 
     dt_ik = 0.1
     damp = 1e-6
@@ -262,13 +268,33 @@ def dock_configuration(model, oMf_a, oMf_b, q_init=None, max_iter=500, eps=1e-4)
         pin.computeJointJacobians(model, data, q)
         J_a = pin.getFrameJacobian(model, data, fid_a, pin.LOCAL)
         J_b = pin.getFrameJacobian(model, data, fid_b, pin.LOCAL)
-        J = np.vstack([J_a, J_b])
 
-        # Damped least squares
-        JtJ = J.T @ J + damp * np.eye(model.nv)
-        dq = np.linalg.solve(JtJ, J.T @ err)
+        dq = np.zeros(model.nv)
+
+        if has_ff:
+            # Partitioned IK: solve arms first, then base (conservative)
+            Ja_arm = J_a[:, 6:12]
+            dq[6:12] = np.linalg.solve(
+                Ja_arm.T @ Ja_arm + damp * np.eye(6), Ja_arm.T @ err_a)
+            Jb_arm = J_b[:, 12:18]
+            dq[12:18] = np.linalg.solve(
+                Jb_arm.T @ Jb_arm + damp * np.eye(6), Jb_arm.T @ err_b)
+            # Base contribution (conservative scaling)
+            J_base = np.vstack([J_a[:, :6], J_b[:, :6]])
+            dq[:6] = np.linalg.solve(
+                J_base.T @ J_base + 1e-3 * np.eye(6),
+                J_base.T @ err) * 0.3
+        else:
+            J = np.vstack([J_a, J_b])
+            JtJ = J.T @ J + damp * np.eye(model.nv)
+            dq = np.linalg.solve(JtJ, J.T @ err)
 
         q = pin.integrate(model, q, dt_ik * dq)
+
+        # Clamp revolute joints to [-pi, pi] to respect joint limits
+        joint_start = 7 if has_ff else 0
+        q[joint_start:] = np.remainder(
+            q[joint_start:] + np.pi, 2 * np.pi) - np.pi
 
     return q
 
@@ -370,8 +396,9 @@ class SimulationLutze:
         self.mj_model.body_inertia[struct_id] *= ratio
         mujoco.mj_forward(self.mj_model, self.mj_data)
 
-        # --- Pinocchio ---
-        self.pin_model = pin.buildModelFromUrdf(self.urdf_path)
+        # --- Pinocchio (free-flyer for centroidal dynamics) ---
+        self.pin_model = pin.buildModelFromUrdf(
+            self.urdf_path, pin.JointModelFreeFlyer())
         self.pin_data = self.pin_model.createData()
 
         # --- Cache site IDs ---
@@ -424,45 +451,31 @@ class SimulationLutze:
         self.q_start = dock_configuration(
             self.pin_model, oMf_a_start, oMf_b_start)
 
-        # --- IK: end configuration (swing arm on target anchor) ---
-        swing = cfg.swing_arm
-        target = cfg.target_idx
-        if swing == 'b':
-            p_b_end = self._anchor_pos[('b', target)]
-            oMf_b_end = pin.SE3(np.eye(3), p_b_end)
-            self.q_end = dock_configuration(
-                self.pin_model, oMf_a_start, oMf_b_end, q_init=self.q_start)
-        else:
-            p_a_end = self._anchor_pos[('a', target)]
-            oMf_a_end = pin.SE3(np.eye(3), p_a_end)
-            self.q_end = dock_configuration(
-                self.pin_model, oMf_a_end, oMf_b_start, q_init=self.q_start)
-
-        # --- Compute CoM at start/end for trajectory planning ---
+        # --- Compute CoM at start for trajectory planning ---
         pin.forwardKinematics(self.pin_model, self.pin_data, self.q_start)
         pin.centerOfMass(self.pin_model, self.pin_data, self.q_start)
         self.r_com_start = self.pin_data.com[0].copy()
 
-        pin.forwardKinematics(self.pin_model, self.pin_data, self.q_end)
-        pin.centerOfMass(self.pin_model, self.pin_data, self.q_end)
-        r_com_end_full = self.pin_data.com[0].copy()
-
-        # Apply torso_frac to limit displacement
-        self.r_com_end = (self.r_com_start +
-                          cfg.torso_frac * (r_com_end_full - self.r_com_start))
+        # CoM target: shift by fraction of anchor displacement
+        swing = cfg.swing_arm
+        target = cfg.target_idx
+        from_idx = cfg.start_b if swing == 'b' else cfg.start_a
+        p_from = self._anchor_pos[(swing, from_idx)]
+        p_to = self._anchor_pos[(swing, target)]
+        anchor_disp = p_to - p_from
+        self.r_com_end = self.r_com_start + cfg.torso_frac * anchor_disp
 
         # --- Set MuJoCo initial state from IK ---
         struct_pos = self.mj_data.qpos[0:3].copy()
         struct_quat = self.mj_data.qpos[3:7].copy()
-        # Map Pinocchio q to MuJoCo qpos
         mj_qpos = np.zeros(26)
         mj_qpos[0:3] = struct_pos
         mj_qpos[3:7] = struct_quat
-        mj_qpos[7:10] = self.q_start[0:3]  # torso pos
+        mj_qpos[7:10] = self.q_start[0:3]       # torso pos
         # Pinocchio quat xyzw -> MuJoCo wxyz
         x, y, z, w_ = self.q_start[3:7]
         mj_qpos[10:14] = [w_, x, y, z]
-        mj_qpos[14:26] = self.q_start[7:19]  # joints
+        mj_qpos[14:26] = self.q_start[7:19]      # joints
         self.mj_data.qpos[:] = mj_qpos
         self.mj_data.qvel[:] = 0.0
         mujoco.mj_forward(self.mj_model, self.mj_data)
@@ -470,6 +483,8 @@ class SimulationLutze:
         # Settle
         for _ in range(cfg.n_settle_steps):
             mujoco.mj_step(self.mj_model, self.mj_data)
+        self.mj_data.qvel[:] = 0.0
+        mujoco.mj_forward(self.mj_model, self.mj_data)
 
         # --- Build controllers ---
         self.lutze_qp = LutzeQP(LutzeQPConfig(
@@ -497,6 +512,35 @@ class SimulationLutze:
         from_idx = cfg.start_b if swing == 'b' else cfg.start_a
         self.p_swing_start = self._anchor_site_pos(swing, from_idx)
         self.p_swing_end = self._anchor_site_pos(swing, cfg.target_idx)
+
+        # --- IK: end configuration for joint-space swing control ---
+        p_a_start = self._anchor_pos[('a', cfg.start_a)]
+        p_b_start = self._anchor_pos[('b', cfg.start_b)]
+        if swing == 'b':
+            p_b_end = self._anchor_pos[('b', target)]
+            oMf_b_end = pin.SE3(np.eye(3), p_b_end)
+            self.q_end = dock_configuration(
+                self.pin_model,
+                pin.SE3(np.eye(3), p_a_start),
+                oMf_b_end, q_init=self.q_start)
+        else:
+            p_a_end = self._anchor_pos[('a', target)]
+            oMf_a_end = pin.SE3(np.eye(3), p_a_end)
+            self.q_end = dock_configuration(
+                self.pin_model, oMf_a_end,
+                pin.SE3(np.eye(3), p_b_start),
+                q_init=self.q_start)
+
+        # Extract swing arm target joint angles for joint-space PD
+        if swing == 'b':
+            self.q_swing_start = self.q_start[13:19].copy()  # arm B joints
+            self.q_swing_end = self.q_end[13:19].copy()
+        else:
+            self.q_swing_start = self.q_start[7:13].copy()   # arm A joints
+            self.q_swing_end = self.q_end[7:13].copy()
+
+        # During EXT phase, also use Cartesian impedance for final approach
+        # (more effective near the target than joint-space PD)
 
         total_mass = pin.computeTotalMass(self.pin_model)
         print(f"[SimulationLutze] Initialized:")
@@ -707,33 +751,36 @@ class SimulationLutze:
                 active_a=qp_active_a, active_b=qp_active_b,
                 tau_max=cfg.tau_max)
 
-            # Swing arm impedance during SS/EXT
+            # Swing arm joint-space PD during SS/EXT
             if phase in ('SS', 'EXT'):
-                pin.updateFramePlacements(self.pin_model, self.pin_data)
-                fid_swing = fid_b if swing_arm == 'b' else fid_a
-                p_ee = self.pin_data.oMf[fid_swing].translation.copy()
-                J_swing = pin.getFrameJacobian(
-                    self.pin_model, self.pin_data,
-                    fid_swing, pin.WORLD)
-                v_ee = (J_swing[3:6, :] @ pin_v_inner)[:3]  # linear velocity
-
+                # Joint-space PD: interpolate from start to end joint angles
+                # This works better than Cartesian impedance for free-floating
+                # robots because it avoids the base counter-rotation issue.
                 if phase == 'SS':
-                    p_ee_ref, v_ee_ref = swing_trajectory(
+                    # Quintic interpolation of swing arm joint angles
+                    q_sw_ref, dq_sw_ref, _ = quintic_interp(
                         tq, t_swing_start, t_swing_end,
-                        self.p_swing_start, self.p_swing_end,
-                        clearance=cfg.swing_clearance)
-                else:  # EXT: drive toward anchor
-                    mujoco.mj_forward(self.mj_model, self.mj_data)
-                    p_ee_ref = self._anchor_site_pos(
-                        swing_arm, cfg.target_idx)
-                    v_ee_ref = np.zeros(3)
+                        self.q_swing_start, self.q_swing_end)
+                else:  # EXT: drive toward IK end configuration
+                    q_sw_ref = self.q_swing_end.copy()
+                    dq_sw_ref = np.zeros(6)
 
-                tau_swing = compute_swing_torques(
-                    p_ee, v_ee, p_ee_ref, v_ee_ref, J_swing,
-                    cfg=self.swing_config, tau_max=cfg.tau_max)
+                # Current swing arm joint state from MuJoCo
+                if swing_arm == 'b':
+                    q_sw_cur = self.mj_data.qpos[20:26].copy()
+                    dq_sw_cur = self.mj_data.qvel[18:24].copy()
+                    sw_slice = slice(12, 18)  # in generalized force vector
+                else:
+                    q_sw_cur = self.mj_data.qpos[14:20].copy()
+                    dq_sw_cur = self.mj_data.qvel[12:18].copy()
+                    sw_slice = slice(6, 12)
 
-                # Only add swing torques to swing arm joints
-                tau += tau_swing
+                # PD torques on swing arm joints
+                tau_sw = (cfg.swing_Kp * (q_sw_ref - q_sw_cur) +
+                          cfg.swing_Kd * (dq_sw_ref - dq_sw_cur))
+                tau_sw = np.clip(tau_sw, -cfg.tau_max, cfg.tau_max)
+                tau[sw_slice] += tau_sw
+
 
             # Clip total and apply
             tau_joints = np.clip(tau[6:18], -cfg.tau_max, cfg.tau_max)
