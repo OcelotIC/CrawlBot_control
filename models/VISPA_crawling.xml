@@ -1,0 +1,357 @@
+<!-- VISPA Dual-Arm Crawling Robot — MuJoCo MJCF
+     Floating-base in microgravity with structure anchor points.
+     
+     Kinematic chain:  torso (freejoint 6-DOF)
+                       ├── arm_a: 6R + tool (gripper site)
+                       └── arm_b: 6R + tool (gripper site)
+     
+     Structure: floating platform (high mass) with 12 anchor sites (2 rows × 6).
+     Gripper attachment: equality weld constraints (activate/deactivate in code).
+     
+     Convention: eulerseq="XYZ" (extrinsic) = URDF rpy convention.
+     All angles in radians, SI units throughout.
+-->
+<mujoco model="VISPA_crawling">
+
+  <!-- ==================== COMPILER ==================== -->
+  <compiler angle="radian" eulerseq="XYZ" autolimits="true"/>
+
+  <!-- ==================== OPTIONS ==================== -->
+  <option gravity="0 0 0" timestep="0.001" integrator="RK4">
+    <!-- RK4: best momentum conservation for coupled floating-base systems
+         In MuJoCo 3.5: Euler=0, RK4=1, implicit=2, implicitfast=3 -->
+    <flag energy="enable" contact="enable"/>
+  </option>
+
+  <!-- ==================== VISUAL ==================== -->
+  <visual>
+    <headlight diffuse="0.6 0.6 0.6" ambient="0.3 0.3 0.3"/>
+    <rgba com="0 1 0 0" contactforce="1 0 0 0.5"/>
+    <scale com="0.05" contactwidth="0.02" contactheight="0.05"
+           forcewidth="0.02" framelength="0.15" framewidth="0.005"/>
+  </visual>
+
+  <!-- ==================== DEFAULTS ==================== -->
+  <default>
+    <!-- Robot joints -->
+    <default class="robot_joint">
+      <joint damping="0.05" armature="0.05" limited="true"
+             range="-3.14159 3.14159"/>
+      <default class="arm_a">
+        <geom rgba="0.2 0.4 0.8 1" contype="0" conaffinity="0"/>
+      </default>
+      <default class="arm_b">
+        <geom rgba="0.8 0.3 0.2 1" contype="0" conaffinity="0"/>
+      </default>
+    </default>
+    <!-- Structure -->
+    <default class="structure">
+      <geom rgba="0.4 0.4 0.4 0.8" contype="2" conaffinity="2"/>
+    </default>
+    <!-- Anchor sites -->
+    <default class="anchor">
+      <site type="cylinder" size="0.025 0.005" rgba="0 1 0 0.8"/>
+    </default>
+    <!-- Gripper sites (on tool tips) -->
+    <default class="gripper">
+      <site type="sphere" size="0.03" rgba="1 1 0 0.8"/>
+    </default>
+  </default>
+
+  <!-- ==================== WORLDBODY ==================== -->
+  <worldbody>
+    <!-- Ambient light -->
+    <light pos="0 0 5" dir="0 0 -1" diffuse="0.8 0.8 0.8" castshadow="false"/>
+    <light pos="3 3 3" dir="-1 -1 -1" diffuse="0.5 0.5 0.5" castshadow="true"/>
+
+    <!-- ============ FLOATING STRUCTURE ============ -->
+    <!-- Large mass platform representing satellite/station segment.
+         freejoint allows measuring attitude disturbances from robot motion.
+         12 anchor sites: 2 rows (a/b) × 6 columns, spacing 0.8m along x,
+         rows separated by 0.6m along y.  -->
+    <body name="structure" pos="0 0 -1.8">
+      <freejoint name="structure_free"/>
+      <inertial pos="0 0 0" mass="500"
+                fullinertia="42 105 125 0 0 0"/>
+      <!-- Main beam -->
+      <geom class="structure" type="box" size="2.4 0.4 0.025" name="beam"/>
+      <!-- Cross-beams for rigidity visualization -->
+      <geom class="structure" type="box" size="0.02 0.4 0.04" pos="-1.6 0 0"/>
+      <geom class="structure" type="box" size="0.02 0.4 0.04" pos="0 0 0"/>
+      <geom class="structure" type="box" size="0.02 0.4 0.04" pos="1.6 0 0"/>
+
+      <!-- Anchor sites — row A (y = +0.3) -->
+      <site name="anchor_1a" class="anchor" pos="-2.0  0.3 0.025"/>
+      <site name="anchor_2a" class="anchor" pos="-1.2  0.3 0.025"/>
+      <site name="anchor_3a" class="anchor" pos="-0.4  0.3 0.025"/>
+      <site name="anchor_4a" class="anchor" pos=" 0.4  0.3 0.025"/>
+      <site name="anchor_5a" class="anchor" pos=" 1.2  0.3 0.025"/>
+      <site name="anchor_6a" class="anchor" pos=" 2.0  0.3 0.025"/>
+      <!-- Anchor sites — row B (y = -0.3) -->
+      <site name="anchor_1b" class="anchor" pos="-2.0 -0.3 0.025"/>
+      <site name="anchor_2b" class="anchor" pos="-1.2 -0.3 0.025"/>
+      <site name="anchor_3b" class="anchor" pos="-0.4 -0.3 0.025"/>
+      <site name="anchor_4b" class="anchor" pos=" 0.4 -0.3 0.025"/>
+      <site name="anchor_5b" class="anchor" pos=" 1.2 -0.3 0.025"/>
+      <site name="anchor_6b" class="anchor" pos=" 2.0 -0.3 0.025"/>
+    </body>
+
+    <!-- ============ ROBOT: TORSO (floating base) ============ -->
+    <body name="torso" pos="0 0 0">
+      <freejoint name="root"/>
+      <inertial pos="0 0 0" mass="0.627"
+                fullinertia="0.00281846 0.00281883 0.00379979 0 0 0"/>
+      <!-- Torso geom: flat box spanning between shoulder joints -->
+      <geom type="box" size="0.25 0.43 0.06" rgba="0.6 0.6 0.6 1"
+            contype="0" conaffinity="0" name="torso_geom"/>
+      <!-- Torso frame site for visualization -->
+      <site name="torso_imu" size="0.02" rgba="1 1 1 0.5"/>
+
+      <!-- ========== ARM A (blue) ========== -->
+      <!-- Joint_1_a: shoulder yaw -->
+      <body name="Link_1_a" pos="-0.240 0.41469 -0.064498"
+            euler="-2.0944 0 0.5236">
+        <joint name="Joint_1_a" class="robot_joint" type="hinge" axis="0 0 1"/>
+        <inertial pos="0 -0.029 -0.043" mass="2.328"
+                  fullinertia="0.012 0.007 0.008 0 0 0.003"/>
+        <geom class="arm_a" type="sphere" size="0.055" name="link1a_geom"/>
+
+        <!-- Joint_2_a: shoulder pitch -->
+        <body name="Link_2_a" pos="0 0 0"
+              euler="1.57079632679 -1.57079632679 0">
+          <joint name="Joint_2_a" class="robot_joint" type="hinge" axis="0 0 1"/>
+          <inertial pos="0.25 0 0.142" mass="3.995"
+                    fullinertia="0.010 0.578 0.574 0 0 0"/>
+          <geom class="arm_a" type="capsule" fromto="0 0 0  0.5 0 0"
+                size="0.04" name="link2a_geom"/>
+
+          <!-- Joint_3_a: elbow -->
+          <body name="Link_3_a" pos="0.5 0 0"
+                euler="0 0 -1.57079632679">
+            <joint name="Joint_3_a" class="robot_joint" type="hinge" axis="0 0 1"/>
+            <inertial pos="0 0.043 0.029" mass="2.328"
+                      fullinertia="0.012 0.008 0.007 0 0 0.003"/>
+            <geom class="arm_a" type="capsule" fromto="0 0 0  0 0.65 0"
+                  size="0.038" name="link3a_geom"/>
+
+            <!-- Joint_4_a: wrist 1 -->
+            <body name="Link_4_a" pos="0 0.65 0"
+                  euler="-1.57079632679 0 0">
+              <joint name="Joint_4_a" class="robot_joint" type="hinge" axis="0 0 1"/>
+              <inertial pos="0 -0.043 -0.210" mass="3.157"
+                        fullinertia="0.199 0.193 0.01 0 0 0.01"/>
+              <geom class="arm_a" type="capsule" fromto="0 0 0  0 0 -0.1"
+                    size="0.042" name="link4a_geom"/>
+
+              <!-- Joint_5_a: wrist 2 -->
+              <body name="Link_5_a" pos="0 0 -0.1"
+                    euler="1.57079632679 0 0">
+                <joint name="Joint_5_a" class="robot_joint" type="hinge" axis="0 0 1"/>
+                <inertial pos="0 0.125 -0.007" mass="2.695"
+                          fullinertia="0.029 0.006 0.027 0 0 -0.001"/>
+                <geom class="arm_a" type="capsule" fromto="0 0 0  0 0.325 0"
+                      size="0.036" name="link5a_geom"/>
+
+                <!-- Joint_6_a: wrist 3 -->
+                <body name="Link_6_a" pos="0 0.325 0"
+                      euler="-1.57079632679 0 0">
+                  <joint name="Joint_6_a" class="robot_joint" type="hinge" axis="0 0 1"/>
+                  <inertial pos="0 0 0" mass="0.924"
+                            fullinertia="0.002 0.002 0.001 0 0 0"/>
+                  <geom class="arm_a" type="cylinder" size="0.04 0.03"
+                        name="link6a_geom"/>
+
+                  <!-- tool_a (fixed to Link_6_a) -->
+                  <body name="tool_a" pos="0 0 0">
+                    <inertial pos="0 0 0" mass="0.1"
+                              fullinertia="0.0001 0.0001 0.0001 0 0 0"/>
+                    <geom class="arm_a" type="sphere" size="0.025"
+                          name="tool_a_geom" rgba="0.2 0.4 0.8 0.5"/>
+                    <!-- Gripper attachment site -->
+                    <site name="gripper_a" class="gripper"/>
+                  </body>
+
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+
+      <!-- ========== ARM B (red) ========== -->
+      <!-- Joint_1_b: shoulder yaw -->
+      <body name="Link_1_b" pos="-0.240 -0.41469 -0.064498"
+            euler="1.047197551 3.14159265359 -0.5236">
+        <joint name="Joint_1_b" class="robot_joint" type="hinge" axis="0 0 1"/>
+        <inertial pos="0 -0.029 -0.043" mass="2.328"
+                  fullinertia="0.012 0.007 0.008 0 0 0.003"/>
+        <geom class="arm_b" type="sphere" size="0.055" name="link1b_geom"/>
+
+        <!-- Joint_2_b: shoulder pitch -->
+        <body name="Link_2_b" pos="0 0 0"
+              euler="1.57079632679 -1.57079632679 0">
+          <joint name="Joint_2_b" class="robot_joint" type="hinge" axis="0 0 1"/>
+          <inertial pos="0.25 0 0.142" mass="3.995"
+                    fullinertia="0.010 0.578 0.574 0 0 0"/>
+          <geom class="arm_b" type="capsule" fromto="0 0 0  0.5 0 0"
+                size="0.04" name="link2b_geom"/>
+
+          <!-- Joint_3_b: elbow -->
+          <body name="Link_3_b" pos="0.5 0 0"
+                euler="0 0 -1.57079632679">
+            <joint name="Joint_3_b" class="robot_joint" type="hinge" axis="0 0 1"/>
+            <inertial pos="0 0.043 0.029" mass="2.328"
+                      fullinertia="0.012 0.008 0.007 0 0 0.003"/>
+            <geom class="arm_b" type="capsule" fromto="0 0 0  0 0.65 0"
+                  size="0.038" name="link3b_geom"/>
+
+            <!-- Joint_4_b: wrist 1 -->
+            <body name="Link_4_b" pos="0 0.65 0"
+                  euler="-1.57079632679 0 0">
+              <joint name="Joint_4_b" class="robot_joint" type="hinge" axis="0 0 1"/>
+              <inertial pos="0 -0.043 -0.210" mass="3.157"
+                        fullinertia="0.199 0.193 0.01 0 0 0.01"/>
+              <geom class="arm_b" type="capsule" fromto="0 0 0  0 0 -0.1"
+                    size="0.042" name="link4b_geom"/>
+
+              <!-- Joint_5_b: wrist 2 -->
+              <body name="Link_5_b" pos="0 0 -0.1"
+                    euler="1.57079632679 0 0">
+                <joint name="Joint_5_b" class="robot_joint" type="hinge" axis="0 0 1"/>
+                <inertial pos="0 0.125 -0.007" mass="2.695"
+                          fullinertia="0.029 0.006 0.027 0 0 -0.001"/>
+                <geom class="arm_b" type="capsule" fromto="0 0 0  0 0.325 0"
+                      size="0.036" name="link5b_geom"/>
+
+                <!-- Joint_6_b: wrist 3 -->
+                <body name="Link_6_b" pos="0 0.325 0"
+                      euler="-1.57079632679 0 0">
+                  <joint name="Joint_6_b" class="robot_joint" type="hinge" axis="0 0 1"/>
+                  <inertial pos="0 0 0" mass="0.924"
+                            fullinertia="0.002 0.002 0.001 0 0 0"/>
+                  <geom class="arm_b" type="cylinder" size="0.04 0.03"
+                        name="link6b_geom"/>
+
+                  <!-- tool_b (fixed to Link_6_b) -->
+                  <body name="tool_b" pos="0 0 0">
+                    <inertial pos="0 0 0" mass="0.1"
+                              fullinertia="0.0001 0.0001 0.0001 0 0 0"/>
+                    <geom class="arm_b" type="sphere" size="0.025"
+                          name="tool_b_geom" rgba="0.8 0.3 0.2 0.5"/>
+                    <!-- Gripper attachment site -->
+                    <site name="gripper_b" class="gripper"/>
+                  </body>
+
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+
+    </body> <!-- end torso -->
+  </worldbody>
+
+  <!-- ==================== ACTUATORS ==================== -->
+  <!-- Direct torque control: ctrl maps 1-to-1 to joint torque [N·m] -->
+  <actuator>
+    <!-- Arm A -->
+    <motor name="act_J1a" joint="Joint_1_a" gear="1" ctrlrange="-50 50"/>
+    <motor name="act_J2a" joint="Joint_2_a" gear="1" ctrlrange="-50 50"/>
+    <motor name="act_J3a" joint="Joint_3_a" gear="1" ctrlrange="-50 50"/>
+    <motor name="act_J4a" joint="Joint_4_a" gear="1" ctrlrange="-50 50"/>
+    <motor name="act_J5a" joint="Joint_5_a" gear="1" ctrlrange="-50 50"/>
+    <motor name="act_J6a" joint="Joint_6_a" gear="1" ctrlrange="-50 50"/>
+    <!-- Arm B -->
+    <motor name="act_J1b" joint="Joint_1_b" gear="1" ctrlrange="-50 50"/>
+    <motor name="act_J2b" joint="Joint_2_b" gear="1" ctrlrange="-50 50"/>
+    <motor name="act_J3b" joint="Joint_3_b" gear="1" ctrlrange="-50 50"/>
+    <motor name="act_J4b" joint="Joint_4_b" gear="1" ctrlrange="-50 50"/>
+    <motor name="act_J5b" joint="Joint_5_b" gear="1" ctrlrange="-50 50"/>
+    <motor name="act_J6b" joint="Joint_6_b" gear="1" ctrlrange="-50 50"/>
+  </actuator>
+
+  <!-- ==================== EQUALITY CONSTRAINTS (Gripper Welds) ==================== -->
+  <!-- Weld constraints attach gripper sites to anchor sites.
+       In Python, toggle via: mj_data.eq_active[i] = 0 or 1
+       Initially: arm_a attached to anchor_3a, arm_b attached to anchor_3b
+       (robot starts gripping the middle pair of anchors)
+       
+       Index mapping (for eq_active):
+         0 = grip_a_to_1a    6  = grip_b_to_1b
+         1 = grip_a_to_2a    7  = grip_b_to_2b
+         2 = grip_a_to_3a    8  = grip_b_to_3b  ← initially active
+         3 = grip_a_to_4a    9  = grip_b_to_4b
+         4 = grip_a_to_5a    10 = grip_b_to_5b
+         5 = grip_a_to_6a    11 = grip_b_to_6b
+  -->
+  <!-- Weld constraints: site-based (gripper site → anchor site).
+       MuJoCo pulls the gripper site to coincide with the anchor site.
+       solref=[0.003, 1.0]: tuned for rigid grasp under ±5 N·m (max drift < 3mm)
+       Toggle in Python: data.eq_active[i] = 0 or 1
+       
+       Index mapping:
+         0 = grip_a_to_1a    6  = grip_b_to_1b
+         1 = grip_a_to_2a    7  = grip_b_to_2b
+         2 = grip_a_to_3a    8  = grip_b_to_3b  ← initially active
+         3 = grip_a_to_4a    9  = grip_b_to_4b
+         4 = grip_a_to_5a    10 = grip_b_to_5b
+         5 = grip_a_to_6a    11 = grip_b_to_6b
+  -->
+  <equality>
+    <!-- Arm A → structure anchors (row A) -->
+    <weld name="grip_a_to_1a" site1="gripper_a" site2="anchor_1a" solref="0.003 1" active="false"/>
+    <weld name="grip_a_to_2a" site1="gripper_a" site2="anchor_2a" solref="0.003 1" active="false"/>
+    <weld name="grip_a_to_3a" site1="gripper_a" site2="anchor_3a" solref="0.003 1" active="true"/>
+    <weld name="grip_a_to_4a" site1="gripper_a" site2="anchor_4a" solref="0.003 1" active="false"/>
+    <weld name="grip_a_to_5a" site1="gripper_a" site2="anchor_5a" solref="0.003 1" active="false"/>
+    <weld name="grip_a_to_6a" site1="gripper_a" site2="anchor_6a" solref="0.003 1" active="false"/>
+
+    <!-- Arm B → structure anchors (row B) -->
+    <weld name="grip_b_to_1b" site1="gripper_b" site2="anchor_1b" solref="0.003 1" active="false"/>
+    <weld name="grip_b_to_2b" site1="gripper_b" site2="anchor_2b" solref="0.003 1" active="false"/>
+    <weld name="grip_b_to_3b" site1="gripper_b" site2="anchor_3b" solref="0.003 1" active="true"/>
+    <weld name="grip_b_to_4b" site1="gripper_b" site2="anchor_4b" solref="0.003 1" active="false"/>
+    <weld name="grip_b_to_5b" site1="gripper_b" site2="anchor_5b" solref="0.003 1" active="false"/>
+    <weld name="grip_b_to_6b" site1="gripper_b" site2="anchor_6b" solref="0.003 1" active="false"/>
+  </equality>
+
+  <!-- ==================== CONTACT PAIRS ==================== -->
+  <!-- Exclude self-collision within each arm chain for performance.
+       Only keep collisions between: arms ↔ structure, arm_a ↔ arm_b. -->
+  <!-- Contact exclusions not needed: all robot geoms have contype=0.
+       Re-enable if collision avoidance is added later. -->
+  <contact/>
+
+  <!-- ==================== SENSORS ==================== -->
+  <sensor>
+    <!-- Base pose and velocity (for MPC feedback) -->
+    <framepos    name="torso_pos"    objtype="body" objname="torso"/>
+    <framequat   name="torso_quat"   objtype="body" objname="torso"/>
+    <framelinvel name="torso_linvel" objtype="body" objname="torso"/>
+    <frameangvel name="torso_angvel" objtype="body" objname="torso"/>
+    <!-- Structure attitude (for disturbance measurement) -->
+    <framequat   name="struct_quat"   objtype="body" objname="structure"/>
+    <frameangvel name="struct_angvel" objtype="body" objname="structure"/>
+    <!-- End-effector positions -->
+    <framepos name="tool_a_pos" objtype="body" objname="tool_a"/>
+    <framepos name="tool_b_pos" objtype="body" objname="tool_b"/>
+    <!-- Joint torque sensors (for debugging/monitoring) -->
+    <jointactuatorfrc name="tau_J1a" joint="Joint_1_a"/>
+    <jointactuatorfrc name="tau_J1b" joint="Joint_1_b"/>
+  </sensor>
+
+  <!-- ==================== KEYFRAMES ==================== -->
+  <!-- Predefined configurations for testing -->
+  <keyframe>
+    <!-- Home: robot centered above structure, arms reaching down to anchors 3a/3b.
+         qpos layout: [torso_pos(3) torso_quat(4) struct_pos(3) struct_quat(4)
+                        J1a J2a J3a J4a J5a J6a J1b J2b J3b J4b J5b J6b]
+         Total: 7 + 7 + 12 = 26 DOF
+         Initial joint angles set to zero (need IK to reach anchors properly). -->
+    <key name="home" qpos="0 0 0  1 0 0 0
+                            0 0 -1.8  1 0 0 0
+                            0 0 0 0 0 0  0 0 0 0 0 0"/>
+  </keyframe>
+
+</mujoco>
