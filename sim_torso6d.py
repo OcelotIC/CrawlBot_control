@@ -54,7 +54,7 @@ T_SWING     = 6.0       # s single-support duration
 T_DS        = 0.5       # s double-support duration
 TORSO_FRAC  = 0.70      # fraction of IK torso displacement
 TORSO_DELAY = 0.20      # fraction of swing before torso starts
-T_MAX       = 18.0      # s max simulation time
+T_MAX       = 25.0      # s max simulation time
 DT_NMPC     = 0.1       # s NMPC rate
 DT_MJ       = 0.01      # s MuJoCo timestep
 CLEARANCE   = 0.03      # m swing clearance
@@ -171,7 +171,7 @@ def run_simulation(urdf_path, mjcf_path, save_log=True, verbose=True):
         nm = mujoco.mj_id2name(mj_model, mujoco.mjtObj.mjOBJ_EQUALITY, i)
         mj_data.eq_active[i] = 1 if nm in ('grip_a_to_3a', 'grip_b_to_3b') else 0
     mujoco.mj_forward(mj_model, mj_data)
-    for _ in range(200):
+    for _ in range(500):
         mujoco.mj_step(mj_model, mj_data)
 
     # ── Planners ──
@@ -202,8 +202,8 @@ def run_simulation(urdf_path, mjcf_path, save_log=True, verbose=True):
         kp_torso=6., kd_torso=5., kp_ee=10., kd_ee=7.,
         q_nominal=q_nom)
     qp_ext = build_qp(
-        alpha_torso=5e1, alpha_ee=1e4, alpha_posture=5e0,
-        kp_torso=3., kd_torso=3., kp_ee=25., kd_ee=12.,
+        alpha_torso=5e1, alpha_ee=2e4, alpha_posture=5e0,
+        kp_torso=3., kd_torso=3., kp_ee=40., kd_ee=22.,
         q_nominal=q_nom)
 
     # ── Weld map ──
