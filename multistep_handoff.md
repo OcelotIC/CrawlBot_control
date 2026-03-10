@@ -82,9 +82,9 @@ Point critique à ne pas oublier :
 | **R2** | `SwingPlanner` recalibré sur ancres MuJoCo live (vs nominales) | ✅ COMPLÉTÉ | — |
 | **R3** | `TorsoPlanner` live state + frame structure | ✅ COMPLÉTÉ | `a3744e9` |
 | **R4** | NMPC contact positions live (r_contact_A/B) | ✅ COMPLÉTÉ | ✅ pushed |
-| **R5** | Validation `SimulationLoop` boucle fermée `n_steps=3` | 🔴 **PROCHAIN** | — |
-| **R6** | Lancer sim complète → générer logs de locomotion | 🔴 PENDING | — |
-| **R7** | `plot_comparison` → figures finales papier | 🔴 PENDING | — |
+| **R5** | Validation `SimulationLoop` boucle fermée `n_steps=3` | ✅ COMPLÉTÉ | `e745200` |
+| **R6** | Lancer sim complète → générer logs de locomotion | ✅ COMPLÉTÉ | ✅ pushed |
+| **R7** | `plot_comparison` → figures finales papier | 🔴 **PROCHAIN** | — |
 
 ---
 
