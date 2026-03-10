@@ -17,12 +17,14 @@ import sys
 import time
 import numpy as np
 
+_root = os.path.join(os.path.dirname(__file__), '..')
+sys.path.insert(0, _root)
 os.environ.setdefault('MUJOCO_GL', 'disabled')
 
 from simulation_loop import SimulationLoop, SimConfig, SimLog
 
-URDF = 'models/VISPA_crawling_fixed.urdf'
-MJCF = 'models/VISPA_crawling.xml'
+URDF = os.path.join(_root, 'models', 'VISPA_crawling_fixed.urdf')
+MJCF = os.path.join(_root, 'models', 'VISPA_crawling.xml')
 
 
 def run_multistep():
@@ -48,8 +50,8 @@ def run_single_step_mpc():
     import sim_torso6d
     sys.argv = ['sim_torso6d', '--urdf', URDF, '--mjcf', MJCF]
     # sim_torso6d writes sim_torso6d_log.json on execution
-    exec(open('sim_torso6d.py').read(), {'__name__': '__run__'})
-    return SimLog.load('sim_torso6d_log.json')
+    exec(open(os.path.join(_root, 'scripts', 'sim_torso6d.py')).read(), {'__name__': '__run__'})
+    return SimLog.load(os.path.join(_root, 'results', 'logs', 'sim_torso6d_log.json'))
 
 
 def run_lutze_baseline():
@@ -58,8 +60,8 @@ def run_lutze_baseline():
     print('  R6 — Lutze baseline simulation')
     print('=' * 70)
     sys.argv = ['sim_lutze', '--urdf', URDF, '--mjcf', MJCF]
-    exec(open('lutze_baseline/sim_lutze.py').read(), {'__name__': '__run__'})
-    return SimLog.load('sim_lutze_log.json')
+    exec(open(os.path.join(_root, 'lutze_baseline', 'sim_lutze.py')).read(), {'__name__': '__run__'})
+    return SimLog.load(os.path.join(_root, 'results', 'logs', 'sim_lutze_log.json'))
 
 
 def print_summary(log_multi, log_mpc_path, log_lutze_path):
@@ -123,26 +125,30 @@ def print_summary(log_multi, log_mpc_path, log_lutze_path):
 
 
 if __name__ == '__main__':
+    _logs = os.path.join(_root, 'results', 'logs')
+    _figs = os.path.join(_root, 'results', 'figures')
+    os.makedirs(_logs, exist_ok=True)
+    os.makedirs(_figs, exist_ok=True)
+
     # 1. Multi-step MPC
     log_multi = run_multistep()
-    log_multi.save('r6_multistep_log.json')
-    print('  Saved: r6_multistep_log.json')
+    log_multi.save(os.path.join(_logs, 'r6_multistep_log.json'))
+    print('  Saved: results/logs/r6_multistep_log.json')
 
     # 2. Generate multi-step 7-panel figure
-    SimulationLoop.plot(log_multi, save_path='r6_multistep_7panel.png')
-    print('  Saved: r6_multistep_7panel.png')
+    SimulationLoop.plot(log_multi, save_path=os.path.join(_figs, 'r6_multistep_7panel.png'))
+    print('  Saved: results/figures/r6_multistep_7panel.png')
 
     # 3. Summary table (uses existing single-step logs)
-    if os.path.exists('sim_torso6d_log.json') and os.path.exists('sim_lutze_log.json'):
-        print_summary(log_multi, 'sim_torso6d_log.json', 'sim_lutze_log.json')
+    mpc_log = os.path.join(_logs, 'sim_torso6d_log.json')
+    lutze_log = os.path.join(_logs, 'sim_lutze_log.json')
+    if os.path.exists(mpc_log) and os.path.exists(lutze_log):
+        print_summary(log_multi, mpc_log, lutze_log)
     else:
         print('\n  [INFO] Run sim_torso6d.py and sim_lutze.py first for comparison data')
 
     print('\n' + '=' * 70)
     print('  R6 complete. Output files:')
-    print('    - r6_multistep_log.json')
-    print('    - r6_multistep_7panel.png')
-    print('    - sim_torso6d_log.json (single-step MPC)')
-    print('    - sim_lutze_log.json (single-step Lutze)')
-    print('    - comparison.png (Lutze vs MPC)')
+    print('    - results/logs/r6_multistep_log.json')
+    print('    - results/figures/r6_multistep_7panel.png')
     print('=' * 70)

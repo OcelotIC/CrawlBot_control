@@ -5,11 +5,11 @@ Key change: the QP tracks a 6D torso reference instead of a static CoM.
 The stance arm pushes the torso forward (inverted manipulator) while
 the swing arm reaches for the next anchor. Both tasks cooperate.
 """
-import sys, time, numpy as np
-sys.path.insert(0, '.')
+import sys, os, time, numpy as np
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
-URDF = '/mnt/user-data/uploads/VISPA_crawling_fixed.urdf'
-MJCF = '/mnt/user-data/uploads/VISPA_crawling.xml'
+URDF = os.path.join(os.path.dirname(__file__), '..', 'models', 'VISPA_crawling_fixed.urdf')
+MJCF = os.path.join(os.path.dirname(__file__), '..', 'models', 'VISPA_crawling.xml')
 TORSO_MASS = 40.0
 TAU_MAX = 10.0       # realistic space actuator
 WELD_R = 0.005       # 5 mm docking tolerance

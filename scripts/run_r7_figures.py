@@ -15,9 +15,12 @@ Usage:
     MUJOCO_GL=disabled python run_r7_figures.py
 """
 
+import os
 import json
 import numpy as np
 import matplotlib
+
+_root = os.path.join(os.path.dirname(__file__), '..')
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.patches import FancyBboxPatch
@@ -340,22 +343,23 @@ def print_latex_table(log_mpc, log_lutze, log_multi):
 # ═════════════════════════════════════════════════════════════════════
 
 if __name__ == '__main__':
+    _logs = os.path.join(_root, 'results', 'logs')
+    _figs = os.path.join(_root, 'results', 'figures')
+    os.makedirs(_figs, exist_ok=True)
+
     print('=' * 70)
     print('  R7 — Generating publication figures')
     print('=' * 70)
 
-    log_mpc = load_json('sim_torso6d_log.json')
-    log_lutze = load_json('sim_lutze_log.json')
-    log_multi = load_json('r6_multistep_log.json')
+    log_mpc = load_json(os.path.join(_logs, 'sim_torso6d_log.json'))
+    log_lutze = load_json(os.path.join(_logs, 'sim_lutze_log.json'))
+    log_multi = load_json(os.path.join(_logs, 'r6_multistep_log.json'))
 
-    fig1_single_step(log_mpc, log_lutze)
-    fig2_multistep(log_multi)
-    fig3_momentum(log_mpc, log_lutze, log_multi)
+    fig1_single_step(log_mpc, log_lutze, save_path=os.path.join(_figs, 'fig1_single_step_comparison.pdf'))
+    fig2_multistep(log_multi, save_path=os.path.join(_figs, 'fig2_multistep_locomotion.pdf'))
+    fig3_momentum(log_mpc, log_lutze, log_multi, save_path=os.path.join(_figs, 'fig3_momentum_comparison.pdf'))
     print_latex_table(log_mpc, log_lutze, log_multi)
 
     print('\n' + '=' * 70)
-    print('  R7 complete. Figures:')
-    print('    - fig1_single_step_comparison.pdf/.png')
-    print('    - fig2_multistep_locomotion.pdf/.png')
-    print('    - fig3_momentum_comparison.pdf/.png')
+    print('  R7 complete. Figures saved to results/figures/')
     print('=' * 70)

@@ -52,7 +52,7 @@ parser.add_argument('--urdf', default='models/VISPA_crawling_fixed.urdf')
 parser.add_argument('--mjcf', default='models/VISPA_crawling.xml')
 args = parser.parse_args()
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import mujoco
 import pinocchio as pin

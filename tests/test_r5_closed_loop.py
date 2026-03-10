@@ -26,9 +26,12 @@ import argparse
 import time
 import numpy as np
 
+_root = os.path.join(os.path.dirname(__file__), '..')
+sys.path.insert(0, _root)
+
 parser = argparse.ArgumentParser()
-parser.add_argument('--urdf', default='models/VISPA_crawling_fixed.urdf')
-parser.add_argument('--mjcf', default='models/VISPA_crawling.xml')
+parser.add_argument('--urdf', default=os.path.join(_root, 'models', 'VISPA_crawling_fixed.urdf'))
+parser.add_argument('--mjcf', default=os.path.join(_root, 'models', 'VISPA_crawling.xml'))
 parser.add_argument('--no-plots', action='store_true', help='Skip plot generation')
 args = parser.parse_args()
 
