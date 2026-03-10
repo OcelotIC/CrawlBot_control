@@ -164,8 +164,8 @@ class SimConfig:
     ext_Kd_com: float = 2.0
     ext_Kp_torso: float = 3.0
     ext_Kd_torso: float = 3.0
-    ext_Kp_ee: float = 25.0
-    ext_Kd_ee: float = 12.0
+    ext_Kp_ee: float = 40.0
+    ext_Kd_ee: float = 20.0
 
     # Swing planner
     swing_clearance: float = 0.03  # [m]
