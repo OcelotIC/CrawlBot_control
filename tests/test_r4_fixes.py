@@ -8,11 +8,13 @@ Usage:
     python test_r4_fixes.py --urdf models/VISPA_crawling_fixed.urdf \
                             --mjcf models/VISPA_crawling.xml
 """
-import sys, argparse, numpy as np
+import sys, os, argparse, numpy as np
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
+_root = os.path.join(os.path.dirname(__file__), '..')
 parser = argparse.ArgumentParser()
-parser.add_argument('--urdf', default='models/VISPA_crawling_fixed.urdf')
-parser.add_argument('--mjcf', default='models/VISPA_crawling.xml')
+parser.add_argument('--urdf', default=os.path.join(_root, 'models', 'VISPA_crawling_fixed.urdf'))
+parser.add_argument('--mjcf', default=os.path.join(_root, 'models', 'VISPA_crawling.xml'))
 args = parser.parse_args()
 
 import mujoco, pinocchio as pin

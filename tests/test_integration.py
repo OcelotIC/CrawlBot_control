@@ -38,7 +38,7 @@ parser.add_argument('urdf', help='Path to VISPA URDF')
 parser.add_argument('mjcf', help='Path to VISPA MJCF (.xml)')
 args = parser.parse_args()
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # ═══════════════════════════════════════════════════════════════════
 #  TEST 1: RobotInterface
