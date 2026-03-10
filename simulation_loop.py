@@ -187,6 +187,7 @@ class SimLog:
     p_torso: list = field(default_factory=list)
     p_torso_ref: list = field(default_factory=list)
     e_torso_pos: list = field(default_factory=list)
+    e_torso_ori: list = field(default_factory=list)  # orientation error [deg]
 
     # End-effector
     d_grip_swing: list = field(default_factory=list)
@@ -811,6 +812,9 @@ class SimulationLoop:
         log.p_torso_ref.append(tref.p.copy())
         log.e_torso_pos.append(float(np.linalg.norm(
             rs_f.oMf_torso.translation - tref.p)))
+        R_err = tref.R.T @ rs_f.oMf_torso.rotation
+        angle_err = np.arccos(np.clip((np.trace(R_err) - 1) / 2, -1, 1))
+        log.e_torso_ori.append(float(np.degrees(angle_err)))
         log.d_grip_swing.append(d_swing)
         log.d_grip_stance.append(d_stance)
         log.swing_arm.append(swing_arm)
@@ -871,7 +875,7 @@ class SimulationLoop:
 
     @staticmethod
     def plot(log, save_path=None, cfg=None):
-        """Generate 7-panel diagnostic plot."""
+        """Generate 8-panel diagnostic plot."""
         import matplotlib
         matplotlib.use('Agg')
         import matplotlib.pyplot as plt
@@ -905,7 +909,7 @@ class SimulationLoop:
                 if ph[i] != ph[i-1]:
                     ax.axvline(t[i], color='gray', ls=':', alpha=.5)
 
-        fig, axes = plt.subplots(7, 1, figsize=(14, 28), sharex=True)
+        fig, axes = plt.subplots(8, 1, figsize=(14, 32), sharex=True)
         nd = len(log.dock_events)
         fig.suptitle(
             f'VISPA — $L_{{max}}$={L_max}, $\\tau_w$={tw} Nm, '
@@ -962,9 +966,27 @@ class SimulationLoop:
         ax.plot(t, euler[:,1], 'g-', lw=1.5, label='pitch')
         ax.plot(t, euler[:,2], 'b-', lw=1.5, label='yaw')
         ax.plot(t, np.max(np.abs(euler), axis=1), 'k-', lw=2, label='max |angle|')
-        ax.set_ylabel('[deg]'); ax.set_xlabel('Temps [s]')
+        ax.set_ylabel('[deg]')
         ax.set_title('⑦ Orientation structure (Euler)')
         ax.legend(fontsize=9); ax.grid(True, alpha=.3)
+
+        # ⑧ Torso tracking error
+        e_pos = np.array(log.e_torso_pos) * 100  # [cm]
+        e_ori = np.array(log.e_torso_ori) if log.e_torso_ori else np.zeros(len(t))
+        ax1 = axes[7]; shade(ax1)
+        ax1.plot(t, e_pos, 'r-', lw=2.5, label='position error')
+        ax1.set_ylabel('Position [cm]', color='r')
+        ax1.tick_params(axis='y', labelcolor='r')
+        ax1.set_xlabel('Temps [s]')
+        ax1.set_title('⑧ Torso tracking error')
+        ax1.grid(True, alpha=.3)
+        ax2 = ax1.twinx()
+        ax2.plot(t, e_ori, 'b-', lw=2, alpha=.8, label='orientation error')
+        ax2.set_ylabel('Orientation [deg]', color='b')
+        ax2.tick_params(axis='y', labelcolor='b')
+        lines1, labels1 = ax1.get_legend_handles_labels()
+        lines2, labels2 = ax2.get_legend_handles_labels()
+        ax1.legend(lines1 + lines2, labels1 + labels2, fontsize=9, loc='upper left')
 
         plt.tight_layout()
         if save_path:
