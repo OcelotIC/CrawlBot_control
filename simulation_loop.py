@@ -694,13 +694,28 @@ class SimulationLoop:
         if L_com_prev is None:
             L_com_prev = rs.L_com.copy()
 
+        # --- Fix R4: ancres live en frame monde pour le NMPC ---
+        # cc_ss.r_contact_A/B sont les positions d'ancre en frame monde à t=0
+        # (figées à l'initialisation). rs.r_com est aussi en frame monde
+        # (Pinocchio). Le bras de levier (r_Cj - r_com) dans L_dot est donc
+        # calculé en frame monde dans les deux cas. Après dérive de structure,
+        # les ancres nominales restent à leur position initiale alors que les
+        # vraies ancres ont bougé avec la structure → erreur sur le bras de
+        # levier. On relit les positions monde live depuis mj_data.
+        mj_a_live, mj_b_live = read_anchors_from_mujoco(
+            self.mj_model, self.mj_data)
+        cc_nmpc = ContactConfig.from_phase(
+            cc_ss.phase,
+            mj_a_live[stance_a][:3].copy(),
+            mj_b_live[stance_b][:3].copy())
+
         # NMPC
         nmpc_ok = True
         try:
             rp, vp, _, lr, info_n = self.nmpc.solve(
                 r_com=rs.r_com, v_com=rs.v_com, L_com=rs.L_com,
                 hw_current=hw, r_com_ref=cref.r_com, v_com_ref=cref.v_com,
-                contact_config=cc_ss, warm_start=True)
+                contact_config=cc_nmpc, warm_start=True)
             af = self.nmpc.compute_feedforward_acceleration(lr)
             nmpc_ok = info_n.success
         except Exception:
