@@ -111,7 +111,7 @@ class SimConfig:
     dt_qp: float = 0.01           # QP/MuJoCo period [s] (100 Hz)
     t_ds: float = 0.5             # Double-support duration [s]
     t_swing: float = 6.0          # Single-support (swing) duration [s]
-    t_ext_max: float = 5.0        # Max extension phase before timeout [s]
+    t_ext_max: float = 10.0       # Max extension phase before timeout [s]
 
     # Torso trajectory
     torso_frac: float = 0.70      # Fraction of full IK displacement
