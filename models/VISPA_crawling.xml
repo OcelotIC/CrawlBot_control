@@ -99,8 +99,8 @@
     <!-- ============ ROBOT: TORSO (floating base) ============ -->
     <body name="torso" pos="0 0 0">
       <freejoint name="root"/>
-      <inertial pos="0 0 0" mass="0.627"
-                fullinertia="0.00281846 0.00281883 0.00379979 0 0 0"/>
+      <inertial pos="0 0 0" mass="40.0"
+                fullinertia="0.17980580 0.17982988 0.24241079 0 0 0"/>
       <!-- Torso geom: flat box spanning between shoulder joints -->
       <geom type="box" size="0.25 0.43 0.06" rgba="0.6 0.6 0.6 1"
             contype="0" conaffinity="0" name="torso_geom"/>

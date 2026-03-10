@@ -47,14 +47,14 @@ from torso_planner import TorsoPlanner
 #  Configuration
 # ═══════════════════════════════════════════════════════════════════
 
-TORSO_MASS  = 40.0      # kg (corrected from URDF)
+TORSO_MASS  = 40.0      # kg (matches URDF)
 TAU_MAX     = 10.0      # Nm per joint
 WELD_R      = 0.005     # 5 mm docking threshold
 T_SWING     = 6.0       # s single-support duration
 T_DS        = 0.5       # s double-support duration
 TORSO_FRAC  = 0.70      # fraction of IK torso displacement
 TORSO_DELAY = 0.20      # fraction of swing before torso starts
-T_MAX       = 12.0      # s max simulation time
+T_MAX       = 25.0      # s max simulation time
 DT_NMPC     = 0.1       # s NMPC rate
 DT_MJ       = 0.01      # s MuJoCo timestep
 CLEARANCE   = 0.03      # m swing clearance
@@ -82,6 +82,8 @@ def build_qp(alpha_torso, alpha_ee, alpha_posture,
         Kd_ee=kd_ee * np.ones(3),
         Kp_posture=1.0,
         Kd_posture=1.5,
+        L_max=5.0,
+        tau_w_max=2.0,
     )
     qp = WholeBodyQP(c)
     if q_nominal is not None:
@@ -104,17 +106,12 @@ def run_simulation(urdf_path, mjcf_path, save_log=True, verbose=True):
     mj_data = mujoco.MjData(mj_model)
     mj_model.opt.timestep = DT_MJ
 
-    # Correct torso mass
-    tid = mujoco.mj_name2id(mj_model, mujoco.mjtObj.mjOBJ_BODY, 'torso')
-    rat = TORSO_MASS / mj_model.body_mass[tid]
-    mj_model.body_mass[tid] = TORSO_MASS
-    mj_model.body_inertia[tid] *= rat
     mujoco.mj_forward(mj_model, mj_data)
 
     mj_a, mj_b = read_anchors_from_mujoco(mj_model, mj_data)
 
     # ── Pinocchio setup ──
-    robot = RobotInterface(urdf_path, gravity='zero', torso_mass=TORSO_MASS)
+    robot = RobotInterface(urdf_path, gravity='zero')
     model = robot.model
 
     # ── Contact scheduler ──
@@ -174,7 +171,7 @@ def run_simulation(urdf_path, mjcf_path, save_log=True, verbose=True):
         nm = mujoco.mj_id2name(mj_model, mujoco.mjtObj.mjOBJ_EQUALITY, i)
         mj_data.eq_active[i] = 1 if nm in ('grip_a_to_3a', 'grip_b_to_3b') else 0
     mujoco.mj_forward(mj_model, mj_data)
-    for _ in range(200):
+    for _ in range(500):
         mujoco.mj_step(mj_model, mj_data)
 
     # ── Planners ──
@@ -194,7 +191,8 @@ def run_simulation(urdf_path, mjcf_path, save_log=True, verbose=True):
     nmpc = CentroidalNMPC(CentroidalNMPCConfig(
         robot_mass=rs.total_mass, N=8, dt=DT_NMPC,
         f_max=25., tau_max=8.,
-        hw_min=np.full(3, -50), hw_max=np.full(3, 50)))
+        hw_min=np.full(3, -50), hw_max=np.full(3, 50),
+        L_max=5.0, tau_w_max=2.0))
     nmpc.build()
 
     # ── QP instances ──
@@ -204,8 +202,8 @@ def run_simulation(urdf_path, mjcf_path, save_log=True, verbose=True):
         kp_torso=6., kd_torso=5., kp_ee=10., kd_ee=7.,
         q_nominal=q_nom)
     qp_ext = build_qp(
-        alpha_torso=5e1, alpha_ee=1e4, alpha_posture=5e0,
-        kp_torso=3., kd_torso=3., kp_ee=25., kd_ee=12.,
+        alpha_torso=5e1, alpha_ee=2e4, alpha_posture=5e0,
+        kp_torso=3., kd_torso=3., kp_ee=40., kd_ee=22.,
         q_nominal=q_nom)
 
     # ── Weld map ──
@@ -234,7 +232,8 @@ def run_simulation(urdf_path, mjcf_path, save_log=True, verbose=True):
     log = dict(
         t=[], p_torso=[], p_torso_ref=[], p_grip_b=[], p_grip_b_ref=[],
         d_grip_b=[], d_grip_a=[], tau=[], tau_max_joint=[],
-        e_torso_pos=[], struct_pos=[], phase=[])
+        e_torso_pos=[], struct_pos=[], phase=[],
+        L_com=[], L_com_norm=[])
 
     t0_wall = time.time()
     t = 0.0
@@ -377,6 +376,8 @@ def run_simulation(urdf_path, mjcf_path, save_log=True, verbose=True):
             np.linalg.norm(rs.oMf_torso.translation - tref.p))
         log['struct_pos'].append(mj_data.qpos[0:3].copy())
         log['phase'].append(phase_str)
+        log['L_com'].append(rs.L_com.copy())
+        log['L_com_norm'].append(float(np.linalg.norm(rs.L_com)))
 
         t += DT_NMPC
 
