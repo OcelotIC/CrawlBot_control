@@ -84,7 +84,7 @@ Point critique à ne pas oublier :
 | **R4** | NMPC contact positions live (r_contact_A/B) | ✅ COMPLÉTÉ | ✅ pushed |
 | **R5** | Validation `SimulationLoop` boucle fermée `n_steps=3` | ✅ COMPLÉTÉ | `e745200` |
 | **R6** | Lancer sim complète → générer logs de locomotion | ✅ COMPLÉTÉ | ✅ pushed |
-| **R7** | `plot_comparison` → figures finales papier | 🔴 **PROCHAIN** | — |
+| **R7** | `plot_comparison` → figures finales papier | ✅ COMPLÉTÉ | ✅ pushed |
 
 ---
 
