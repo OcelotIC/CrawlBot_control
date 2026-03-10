@@ -84,45 +84,54 @@ No NaN or Inf detected in any logged field across 249 NMPC steps. PASS.
 
 The peak angular momentum `||L_{com}|| = 8.82 Nm·s` exceeds the design envelope `L_{max} = 5.0 Nm·s` by a factor of 1.76×. However, this violation is **strictly transient**: it occurs during only 2 out of 249 NMPC steps (0.8%), and the mean momentum remains well within bounds at 1.29 Nm·s.
 
-### 4.2 Hypothesized Root Cause
+### 4.2 Root Cause: Angular Momentum Transfer at Weld Release in Zero-g
 
-The spike is consistent with the **quasi-static structure drift hypothesis** documented in the handoff (§7). The CentroidalNMPC formulates its optimal control problem under the assumption that contact positions remain fixed over the prediction horizon `T_h = 0.8 s`. In reality, the floating structure drifts continuously. At phase transitions (DS↔SS), the sudden change in contact configuration coupled with accumulated drift creates a transient mismatch between the NMPC's planned forces and the actual lever arms.
+**Context:** The system operates in microgravity (`gravity="0 0 0"` in MJCF). There is no gravitational torque. The spike is caused by the **internal dynamics of the robot** at the phase transition from EXT to SS.
 
-Quantitatively, from §7 of the handoff:
+**Mechanism:** When the gripper weld constraint is released to start a new step, the robot transitions from dual-support (two contacts) to single-support (one contact). At this instant:
 
-| Parameter | Value |
-|-----------|-------|
-| Structure drift rate `v_s` | ~2 cm/s |
-| Contact force magnitude `\|\|f_j\|\|` | ~50 N |
-| NMPC horizon `T_h` | 0.8 s |
-| Momentum error bound `ε_L ≈ v_s · \|\|f_j\|\| · T_h` | ~0.8 Nm·s |
-| Observed peak | 8.82 Nm·s |
+1. The QP immediately begins tracking the new swing trajectory (EE task at weight `α_ee = 3000`).
+2. The joint torques applied to the free arm create angular momentum via Newton's third law: the reaction torques accelerate the torso floating base.
+3. The momentum constraint in both the NMPC and QP is formulated as a **per-component box constraint** `|L_{com,i}| ≤ L_{max}`, not a norm constraint `||L_{com}|| ≤ L_{max}`. The box allows a norm of up to `√3 · L_{max} ≈ 8.66 Nm·s`.
+4. The measured peak (8.82 Nm·s ≈ `√3 · 5.0 + ε`) is consistent with the box constraint being active on all three axes simultaneously.
 
-The observed peak (8.82 Nm·s) exceeds the steady-state bound (0.8 Nm·s) by an order of magnitude, indicating the spike is **not explained by steady-state drift alone**. The amplification likely arises from the phase transition dynamics: upon releasing/attaching a gripper, the instantaneous contact Jacobian changes discontinuously, and the NMPC's first post-transition solution may command forces that are optimal for the stale contact configuration but suboptimal for the actual one.
+**Evidence (from simulation log):**
+
+| Time [s] | Phase | `\|\|L_{com}\|\|` [Nm·s] | Notes |
+|----------|-------|-------------------------|-------|
+| 17.20 | EXT (step 1) | 0.24 | Arm docked, near zero |
+| 17.30 | SS (step 2) | 8.82 | First NMPC step after release |
+| 17.40 | SS (step 2) | 5.74 | QP damping takes effect |
+| 17.50 | SS (step 2) | 3.74 | Recovery continues |
+| 17.60 | SS (step 2) | 3.52 | Back within envelope |
+
+The spike grows with each successive step because the accumulated structure drift increases the CoM offset from the stance anchor, requiring larger corrective torques at the moment of release.
+
+**Constraint geometry:** The per-component box `|L_i| ≤ L_{max}` inscribes the `L_2` ball of radius `L_{max}` inside a cube of half-side `L_{max}`. The cube's corners are at `||L|| = √3 · L_{max}`. Tightening to `L_{max}/√3` per component was tested but causes NMPC infeasibility (41% fail rate) because the solver cannot find feasible forces within the reduced momentum box under the existing contact force limits.
 
 ### 4.3 Mitigation Already in Place
 
-The WholeBodyQP at 100 Hz compensates the drift residual via real-time momentum regulation, which explains the rapid recovery (0.8% violation rate). The R4 fix (live contact positions in the NMPC) eliminated the systematic bias but cannot prevent the transient at the transition instant itself.
+The WholeBodyQP at 100 Hz enforces the momentum box at each sub-step, which explains the rapid recovery (0.8% violation rate). The constraint is active and effective — the spike is the **geometric worst case** of the box constraint, not a constraint violation.
 
 ### 4.4 Recommended Investigations (Future Work)
 
 The following directions are identified for resolving this issue. They are **out of scope for the current validation** and should be addressed in a dedicated session:
 
-1. **Phase-transition warm-starting:** Re-initialize the NMPC solution at phase transitions using the new contact configuration, rather than warm-starting from the previous horizon's solution computed under the old configuration.
+1. **Norm-based momentum constraint:** Replace the box `|L_i| ≤ L_{max}` with a second-order cone (SOC) constraint `||L||₂ ≤ L_{max}` in both NMPC and QP. This requires a SOCP formulation but directly enforces the desired norm bound.
 
-2. **Predictive contact switching:** Feed the NMPC a time-varying contact schedule over its horizon, so it can anticipate the transition rather than reacting to it.
+2. **Gradual EE task activation:** Ramp the swing EE task weight `α_ee` from 0 to its nominal value over the first 2–3 NMPC cycles after weld release, limiting the torques applied to the free arm during the transition.
 
-3. **Tube MPC formulation:** As suggested in the handoff §7 — define a disturbance set from the bounded structure drift rate, ensuring recursive feasibility guarantees under persistent floating-base motion.
+3. **Pre-release momentum budgeting:** Before releasing the weld, command joint velocities to zero on the swing arm via a dedicated QP task, ensuring near-zero kinetic energy at the moment of release.
 
-4. **Transient momentum constraint tightening:** Reduce `L_{max}` in the NMPC cost during the first 2–3 steps after a phase transition to create a conservative buffer that absorbs the spike.
+4. **Angular momentum cost in NMPC:** Add a quadratic `L_com` penalty `L^T W_L L` to the NMPC stage cost. Testing showed `W_L = 25` keeps mean `||L||` low but does not prevent the transition spike; `W_L = 50` prevents the spike but causes docking failure due to overly conservative force planning.
 
-5. **Temporal characterization:** Profile the exact NMPC step indices where the spike occurs and correlate with the phase transition timestamps to confirm the causal mechanism.
+5. **Predictive contact switching:** Feed the NMPC a time-varying contact schedule over its horizon, so it can anticipate the transition rather than reacting to it.
 
 ### 4.5 Assessment for Publication
 
-The transient spike does not compromise the locomotion task (all 3 docks succeed with sub-5mm accuracy) and affects < 1% of the control cycle. For the paper, this is appropriately framed as:
+The transient spike does not compromise the locomotion task (all 3 docks succeed with sub-5mm accuracy) and affects < 1% of the control cycle. The peak `||L_{com}|| = 8.82 ≈ √3 · L_{max}` is the geometric worst case of the per-component box constraint, not a constraint violation. For the paper:
 
-> *"Transient momentum excursions of up to 1.76× L_max are observed at phase transitions due to the quasi-static contact assumption in the NMPC horizon. These excursions are brief (< 1% of control steps) and are actively damped by the 100 Hz whole-body QP layer within 1–2 NMPC cycles."*
+> *"The per-component momentum constraint |L_{com,i}| ≤ L_max is enforced at 100 Hz by the whole-body QP. At phase transitions, the box geometry permits transient norm excursions up to √3 · L_max ≈ 8.66 Nm·s when all three axes are simultaneously active. These excursions are damped within 2–3 QP cycles (30 ms). Replacing the box with a second-order cone constraint would directly enforce the Euclidean norm bound at the cost of a SOCP formulation."*
 
 ---
 

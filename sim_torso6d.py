@@ -54,7 +54,7 @@ T_SWING     = 6.0       # s single-support duration
 T_DS        = 0.5       # s double-support duration
 TORSO_FRAC  = 0.70      # fraction of IK torso displacement
 TORSO_DELAY = 0.20      # fraction of swing before torso starts
-T_MAX       = 12.0      # s max simulation time
+T_MAX       = 18.0      # s max simulation time
 DT_NMPC     = 0.1       # s NMPC rate
 DT_MJ       = 0.01      # s MuJoCo timestep
 CLEARANCE   = 0.03      # m swing clearance
@@ -82,6 +82,8 @@ def build_qp(alpha_torso, alpha_ee, alpha_posture,
         Kd_ee=kd_ee * np.ones(3),
         Kp_posture=1.0,
         Kd_posture=1.5,
+        L_max=5.0,
+        tau_w_max=2.0,
     )
     qp = WholeBodyQP(c)
     if q_nominal is not None:
@@ -194,7 +196,8 @@ def run_simulation(urdf_path, mjcf_path, save_log=True, verbose=True):
     nmpc = CentroidalNMPC(CentroidalNMPCConfig(
         robot_mass=rs.total_mass, N=8, dt=DT_NMPC,
         f_max=25., tau_max=8.,
-        hw_min=np.full(3, -50), hw_max=np.full(3, 50)))
+        hw_min=np.full(3, -50), hw_max=np.full(3, 50),
+        L_max=5.0, tau_w_max=2.0))
     nmpc.build()
 
     # ── QP instances ──
