@@ -47,7 +47,7 @@ from torso_planner import TorsoPlanner
 #  Configuration
 # ═══════════════════════════════════════════════════════════════════
 
-TORSO_MASS  = 40.0      # kg (corrected from URDF)
+TORSO_MASS  = 40.0      # kg (matches URDF)
 TAU_MAX     = 10.0      # Nm per joint
 WELD_R      = 0.005     # 5 mm docking threshold
 T_SWING     = 6.0       # s single-support duration
@@ -106,17 +106,12 @@ def run_simulation(urdf_path, mjcf_path, save_log=True, verbose=True):
     mj_data = mujoco.MjData(mj_model)
     mj_model.opt.timestep = DT_MJ
 
-    # Correct torso mass
-    tid = mujoco.mj_name2id(mj_model, mujoco.mjtObj.mjOBJ_BODY, 'torso')
-    rat = TORSO_MASS / mj_model.body_mass[tid]
-    mj_model.body_mass[tid] = TORSO_MASS
-    mj_model.body_inertia[tid] *= rat
     mujoco.mj_forward(mj_model, mj_data)
 
     mj_a, mj_b = read_anchors_from_mujoco(mj_model, mj_data)
 
     # ── Pinocchio setup ──
-    robot = RobotInterface(urdf_path, gravity='zero', torso_mass=TORSO_MASS)
+    robot = RobotInterface(urdf_path, gravity='zero')
     model = robot.model
 
     # ── Contact scheduler ──

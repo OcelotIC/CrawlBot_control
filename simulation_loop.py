@@ -119,7 +119,6 @@ class SimConfig:
 
     # Joint limits
     tau_max: float = 10.0         # Joint torque limit [Nm]
-    torso_mass: float = 40.0      # Corrected torso mass [kg]
 
     # Docking
     weld_radius: float = 0.005    # Real dock threshold [m]
@@ -165,13 +164,13 @@ class SimConfig:
     ext_Kp_torso: float = 3.0
     ext_Kd_torso: float = 3.0
     ext_Kp_ee: float = 40.0
-    ext_Kd_ee: float = 25.0
+    ext_Kd_ee: float = 22.0
 
     # Swing planner
     swing_clearance: float = 0.03  # [m]
 
     # MuJoCo settling
-    n_settle_steps: int = 200
+    n_settle_steps: int = 500
 
 
 # ── Simulation log ───────────────────────────────────────────────────────────
@@ -297,18 +296,17 @@ class SimulationLoop:
         self.mj_data = mujoco.MjData(self.mj_model)
         self.mj_model.opt.timestep = cfg.dt_qp
 
-        # Correct torso mass
+        # Verify torso mass matches expectations
         tid = mujoco.mj_name2id(self.mj_model, mujoco.mjtObj.mjOBJ_BODY, 'torso')
-        ratio = cfg.torso_mass / self.mj_model.body_mass[tid]
-        self.mj_model.body_mass[tid] = cfg.torso_mass
-        self.mj_model.body_inertia[tid] *= ratio
+        assert abs(self.mj_model.body_mass[tid] - 40.0) < 0.1, \
+            f"Torso mass mismatch: {self.mj_model.body_mass[tid]}"
         mujoco.mj_forward(self.mj_model, self.mj_data)
 
         mj_a, mj_b = read_anchors_from_mujoco(self.mj_model, self.mj_data)
 
         # Pinocchio
         self.robot = RobotInterface(
-            self.urdf_path, gravity='zero', torso_mass=cfg.torso_mass)
+            self.urdf_path, gravity='zero')
 
         # Scheduler
         self.sched = ContactScheduler(
@@ -381,7 +379,7 @@ class SimulationLoop:
             cfg.ext_Kp_ee, cfg.ext_Kd_ee)
 
         print(f"[SimulationLoop] Initialized:")
-        print(f"  Robot mass:     {rs0.total_mass:.1f} kg (torso {cfg.torso_mass} kg)")
+        print(f"  Robot mass:     {rs0.total_mass:.1f} kg")
         print(f"  NMPC:           {1/cfg.dt_nmpc:.0f} Hz, N={cfg.nmpc_N}")
         print(f"  QP:             {1/cfg.dt_qp:.0f} Hz, {self.n_qp_per_nmpc} per NMPC")
         print(f"  Gait:           {n_steps} step(s), T_swing={cfg.t_swing}s")
