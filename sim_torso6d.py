@@ -234,7 +234,8 @@ def run_simulation(urdf_path, mjcf_path, save_log=True, verbose=True):
     log = dict(
         t=[], p_torso=[], p_torso_ref=[], p_grip_b=[], p_grip_b_ref=[],
         d_grip_b=[], d_grip_a=[], tau=[], tau_max_joint=[],
-        e_torso_pos=[], struct_pos=[], phase=[])
+        e_torso_pos=[], struct_pos=[], phase=[],
+        L_com=[], L_com_norm=[])
 
     t0_wall = time.time()
     t = 0.0
@@ -377,6 +378,8 @@ def run_simulation(urdf_path, mjcf_path, save_log=True, verbose=True):
             np.linalg.norm(rs.oMf_torso.translation - tref.p))
         log['struct_pos'].append(mj_data.qpos[0:3].copy())
         log['phase'].append(phase_str)
+        log['L_com'].append(rs.L_com.copy())
+        log['L_com_norm'].append(float(np.linalg.norm(rs.L_com)))
 
         t += DT_NMPC
 
