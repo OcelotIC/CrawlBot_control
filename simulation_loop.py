@@ -175,7 +175,7 @@ class SimConfig:
     nmpc_f_max: float = 25.0
     nmpc_tau_max: float = 8.0
     nmpc_Wv: float = 10.0         # NMPC velocity tracking weight (default)
-    n_settle_post: int = 200      # Post-dock settling steps (MuJoCo steps)
+    t_settle_final: float = 20.0   # Duration of final DS settling phase [s]
 
     # QP weights — Single-support phase
     ss_alpha_com: float = 2e2
@@ -265,6 +265,10 @@ class SimLog:
     nmpc_ok: list = field(default_factory=list)
     qp_ok: list = field(default_factory=list)
     lambda_ref_norm: list = field(default_factory=list)
+
+    # Solver timing
+    nmpc_time_ms: list = field(default_factory=list)
+    qp_time_ms: list = field(default_factory=list)
 
     # Dock events
     dock_events: list = field(default_factory=list)
@@ -721,7 +725,44 @@ class SimulationLoop:
                     step_idx += 1
                     i += 2  # skip SS phase (already processed)
                 else:
-                    # Trailing DS (end of gait), skip
+                    # Trailing DS (end of gait): run settling phase
+                    t_ds_start = plan.t_start[i]
+                    t_ds_settle = t + cfg.t_settle_final
+                    cc_ds = self.sched.contact_config_at(t_ds_start + 0.1)
+
+                    # Use last swing step's info for logging
+                    last_swing = 'b'; last_stance = 'a'
+                    last_sa = plan.phases[i].anchor_a_idx if hasattr(plan.phases[i], 'anchor_a_idx') else 0
+                    last_sb = plan.phases[i].anchor_b_idx if hasattr(plan.phases[i], 'anchor_b_idx') else 0
+                    if i > 0 and plan.phases[i-1].swing_arm:
+                        last_swing = plan.phases[i-1].swing_arm
+                        last_stance = 'a' if last_swing == 'b' else 'b'
+                        last_sa = plan.phases[i-1].anchor_a_idx
+                        last_sb = plan.phases[i-1].anchor_b_idx
+
+                    if verbose:
+                        print(f"  DS settle: {t:.2f} → +{cfg.t_settle_final}s")
+
+                    # Capture torso hold for settling
+                    pq, pv = mujoco_to_pinocchio(
+                        self.mj_data.qpos, self.mj_data.qvel)
+                    rs_hold = self.robot.update(pq, pv)
+                    p_se = self.mj_data.qpos[0:3].copy()
+                    w, x, y, z = self.mj_data.qpos[3:7]
+                    R_se = pin.Quaternion(w, x, y, z).toRotationMatrix()
+                    self.torso_planner.set_hold(
+                        rs_hold.oMf_torso.translation.copy(),
+                        rs_hold.oMf_torso.rotation.copy(),
+                        r_com=rs_hold.r_com.copy(),
+                        p_struct=p_se, R_struct=R_se)
+
+                    while t < t_ds_settle:
+                        hw, L_com_prev = self._step(
+                            t, 'DS', step_idx - 1, last_swing, last_stance,
+                            cc_ds, 0, last_sa, last_sb,
+                            hw, L_com_prev, log, ss_end=t)
+                        t += cfg.dt_nmpc
+
                     i += 1
             else:
                 # Standalone SS phase (shouldn't happen in normal plan)
@@ -777,6 +818,7 @@ class SimulationLoop:
 
         # NMPC
         nmpc_ok = True
+        t_nmpc_start = time.perf_counter()
         try:
             rp, vp, _, lr, info_n = self.nmpc.solve(
                 r_com=rs.r_com, v_com=rs.v_com, L_com=rs.L_com,
@@ -787,12 +829,14 @@ class SimulationLoop:
         except Exception:
             rp, vp, lr, af = cref.r_com, cref.v_com, np.zeros(12), np.zeros(3)
             nmpc_ok = False
+        t_nmpc_ms = (time.perf_counter() - t_nmpc_start) * 1000
 
         # QP inner loop
         qp = self.qp_ext if phase == 'EXT' else self.qp_ss
         tau_last = np.zeros(12)
         tau_w_last = np.zeros(3)
         qp_ok = True
+        t_qp_start = time.perf_counter()
 
         if ss_end is None:
             ss_end = t + cfg.dt_nmpc  # fallback
@@ -879,6 +923,8 @@ class SimulationLoop:
                 hw -= (rs2.L_com - rs.L_com) / cfg.dt_qp * cfg.dt_qp
             hw = np.clip(hw, cfg.hw_min, cfg.hw_max)
 
+        t_qp_ms = (time.perf_counter() - t_qp_start) * 1000
+
         # Logging
         mujoco.mj_forward(self.mj_model, self.mj_data)
         rs_f = self.robot.update(
@@ -928,6 +974,8 @@ class SimulationLoop:
         log.nmpc_ok.append(nmpc_ok)
         log.qp_ok.append(qp_ok)
         log.lambda_ref_norm.append(float(np.linalg.norm(lr)))
+        log.nmpc_time_ms.append(t_nmpc_ms)
+        log.qp_time_ms.append(t_qp_ms)
 
         return hw, rs_f.L_com.copy()
 
