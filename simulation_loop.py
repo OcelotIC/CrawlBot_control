@@ -130,6 +130,33 @@ MJ_IDX_TORSO_POS   = slice(10, 13)
 MJ_IDX_TORSO_QUAT  = slice(13, 17)
 MJ_IDX_JOINTS      = slice(17, 29)
 
+# Anchor positions in structure body frame (from MJCF CAD).
+# Used to reconstruct r_struct from active anchor world position.
+ANCHOR_OFFSETS_LOCAL = {
+    ('a', 0): np.array([-2.0,  0.3, 0.025]),
+    ('a', 1): np.array([-1.2,  0.3, 0.025]),
+    ('a', 2): np.array([-0.4,  0.3, 0.025]),
+    ('a', 3): np.array([ 0.4,  0.3, 0.025]),
+    ('a', 4): np.array([ 1.2,  0.3, 0.025]),
+    ('a', 5): np.array([ 2.0,  0.3, 0.025]),
+    ('b', 0): np.array([-2.0, -0.3, 0.025]),
+    ('b', 1): np.array([-1.2, -0.3, 0.025]),
+    ('b', 2): np.array([-0.4, -0.3, 0.025]),
+    ('b', 3): np.array([ 0.4, -0.3, 0.025]),
+    ('b', 4): np.array([ 1.2, -0.3, 0.025]),
+    ('b', 5): np.array([ 2.0, -0.3, 0.025]),
+}
+
+
+def estimate_r_struct(r_anchor_world, anchor_arm, anchor_idx):
+    """Reconstruct structure CoM from active anchor world position.
+
+    Assumes R_struct ~ I (structure doesn't rotate significantly).
+    r_struct = r_anchor_world - offset_local
+    """
+    offset = ANCHOR_OFFSETS_LOCAL[(anchor_arm, anchor_idx)]
+    return r_anchor_world - offset
+
 
 # ── Configuration ────────────────────────────────────────────────────────────
 
@@ -152,7 +179,7 @@ class SimConfig:
     tau_max: float = 10.0         # Joint torque limit [Nm]
 
     # Docking
-    weld_radius: float = 0.020    # Real dock threshold [m] (20 mm — relaxed for constrained hw)
+    weld_radius: float = 0.005    # Real dock threshold [m]
 
     # Momentum constraints
     hw_init: np.ndarray = field(default_factory=lambda: np.zeros(3))
@@ -760,13 +787,20 @@ class SimulationLoop:
             mj_a_live[stance_a][:3].copy(),
             mj_b_live[stance_b][:3].copy())
 
+        # Reconstruct structure CoM from stance anchor (orbital correction)
+        r_stance_live = mj_a_live[stance_a][:3] if stance_arm == 'a' \
+            else mj_b_live[stance_b][:3]
+        stance_idx = stance_a if stance_arm == 'a' else stance_b
+        r_struct_est = estimate_r_struct(r_stance_live, stance_arm, stance_idx)
+
         # NMPC
         nmpc_ok = True
         try:
             rp, vp, _, lr, info_n = self.nmpc.solve(
                 r_com=rs.r_com, v_com=rs.v_com, L_com=rs.L_com,
                 hw_current=hw, r_com_ref=cref.r_com, v_com_ref=cref.v_com,
-                contact_config=cc_nmpc, warm_start=True)
+                contact_config=cc_nmpc, r_struct=r_struct_est,
+                warm_start=True)
             af = self.nmpc.compute_feedforward_acceleration(lr)
             nmpc_ok = info_n.success
         except Exception:
