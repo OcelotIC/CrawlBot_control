@@ -143,7 +143,7 @@ def pinocchio_to_mujoco(pin_q, pin_v, struct_pos=None, struct_quat=None,
     # Torso in structure frame → world frame
     p_local = pin_q[0:3]
     x, y, z, w_ = pin_q[3:7]                       # Pinocchio xyzw
-    R_local = pin.Quaternion(x, y, z, w_).toRotationMatrix()
+    R_local = pin.Quaternion(w_, x, y, z).toRotationMatrix()  # ctor: (w,x,y,z)
 
     p_world = s_pos + R_s @ p_local
     R_world = R_s @ R_local
