@@ -140,7 +140,6 @@ class CentroidalNMPC:
 
             r_C1 = p[6:9]
             r_C2 = p[9:12]
-            r_struct = p[12:15]
 
             # Linear momentum: m v̇ = Σf_j  (no gravity in orbit)
             v_dot = (f1 + f2) / m
@@ -150,10 +149,13 @@ class CentroidalNMPC:
             L_dot = (ca.cross(r_C1 - r_com, f1) + tau1 +
                      ca.cross(r_C2 - r_com, f2) + tau2)
 
-            # Wheel momentum: conservation about structure CoM (fixed point)
-            # ḣ_w = -Σ [(r_Cj - r_struct) × f_j + τ_j]
-            #      = -L̇_com - (r_com - r_struct) × Σf_j
-            orbital = ca.cross(r_com - r_struct, f1 + f2)
+            # Wheel momentum: conservation about fixed point on structure.
+            # Use midpoint of contacts as proxy for structure CoM (both
+            # contacts are on the structure, their midpoint approximates
+            # a fixed point without additional parameters).
+            # ḣ_w = -L̇_com - (r_com - r_mid) × Σf_j
+            r_mid = (r_C1 + r_C2) / 2
+            orbital = ca.cross(r_com - r_mid, f1 + f2)
             hw_dot = -L_dot - orbital
 
             return ca.vertcat(v_com, v_dot, L_dot, hw_dot)
@@ -280,7 +282,6 @@ class CentroidalNMPC:
         r_com_ref: np.ndarray,
         v_com_ref: np.ndarray,
         contact_config: ContactConfig,
-        r_struct: Optional[np.ndarray] = None,
         warm_start: bool = True,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, NMPCSolveInfo]:
         """Solve the centroidal NMPC.
@@ -301,9 +302,6 @@ class CentroidalNMPC:
             Desired CoM velocity reference.
         contact_config : ContactConfig
             Current contact phase and positions.
-        r_struct : ndarray (3,), optional
-            Structure CoM position for orbital momentum correction.
-            If None, defaults to midpoint of contact positions (fallback).
         warm_start : bool
             Use previous solution as initial guess.
 
@@ -336,17 +334,11 @@ class CentroidalNMPC:
         # --- Assemble initial state ---
         x0 = np.concatenate([r_com, v_com, L_com, hw_current])
 
-        # --- Structure CoM for orbital correction ---
-        if r_struct is None:
-            r_struct = 0.5 * (contact_config.r_contact_A +
-                              contact_config.r_contact_B)
-
         # --- Assemble parameters ---
         params = np.concatenate([
             r_com_ref, v_com_ref,
             contact_config.r_contact_A,
             contact_config.r_contact_B,
-            r_struct,
         ])
 
         # --- Solve ---
@@ -376,7 +368,6 @@ class CentroidalNMPC:
         r_com_ref: np.ndarray,
         v_com_ref: np.ndarray,
         contact_config: ContactConfig,
-        r_struct: Optional[np.ndarray] = None,
     ) -> Tuple[np.ndarray, np.ndarray, NMPCSolveInfo]:
         """Solve and return the full predicted trajectory over the horizon.
 
@@ -394,14 +385,10 @@ class CentroidalNMPC:
         self._apply_contact_bounds(contact_config)
 
         x0 = np.concatenate([r_com, v_com, L_com, hw_current])
-        if r_struct is None:
-            r_struct = 0.5 * (contact_config.r_contact_A +
-                              contact_config.r_contact_B)
         params = np.concatenate([
             r_com_ref, v_com_ref,
             contact_config.r_contact_A,
             contact_config.r_contact_B,
-            r_struct,
         ])
 
         x_opt, u_opt, info = self._nmpc.solve(x0, params=params)
