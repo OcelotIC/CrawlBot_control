@@ -173,6 +173,8 @@ class CentroidalNMPC:
             cfg.Wu_f * np.ones(3), cfg.Wu_tau * np.ones(3),   # contact 2
         ]))
 
+        W_hw = cfg.W_hw
+
         def stage_cost(x, u, p):
             r_com = x[0:3]
             v_com = x[3:6]
@@ -189,8 +191,6 @@ class CentroidalNMPC:
         # --- Terminal cost ---
         Qf_r = np.diag(cfg.Qf_r)
         Qf_v = np.diag(cfg.Qf_v)
-
-        W_hw = cfg.W_hw
 
         def terminal_cost(x, p):
             r_com = x[0:3]
