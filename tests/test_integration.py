@@ -86,9 +86,17 @@ from ik import dock_configuration
 mj_model = mujoco.MjModel.from_xml_path(args.mjcf)
 mj_data = mujoco.MjData(mj_model)
 mujoco.mj_forward(mj_model, mj_data)
-mj_a, mj_b = read_anchors_from_mujoco(mj_model, mj_data)
+mj_a_world, mj_b_world = read_anchors_from_mujoco(mj_model, mj_data)
 
-check('6 anchors per arm', len(mj_a) == 6 and len(mj_b) == 6)
+check('6 anchors per arm', len(mj_a_world) == 6 and len(mj_b_world) == 6)
+
+# Convert anchors to structure-local frame (as SimulationLoop does)
+import pinocchio as pin
+p_s0 = mj_data.qpos[0:3].copy()
+_w, _x, _y, _z = mj_data.qpos[3:7]
+R_s0 = pin.Quaternion(_w, _x, _y, _z).toRotationMatrix()
+mj_a = [R_s0.T @ (a - p_s0) for a in mj_a_world]
+mj_b = [R_s0.T @ (b - p_s0) for b in mj_b_world]
 
 sched = ContactScheduler(anchors_a=mj_a, anchors_b=mj_b)
 anchor_a = sched.anchor_se3('a', 2)
@@ -104,7 +112,9 @@ err_a = np.linalg.norm(rs_dock.oMf_tool_a.translation - mj_a[2])
 err_b = np.linalg.norm(rs_dock.oMf_tool_b.translation - mj_b[2])
 check(f'tool_a error < 1e-6', err_a < 1e-6, f'{err_a:.2e}')
 check(f'tool_b error < 1e-6', err_b < 1e-6, f'{err_b:.2e}')
-check(f'CoM below structure', rs_dock.r_com[2] < mj_a[2][2],
+# In structure frame, robot hangs below structure → CoM z < anchor z
+check(f'CoM below structure surface (struct frame)',
+      rs_dock.r_com[2] < mj_a[2][2],
       f'CoM_z={rs_dock.r_com[2]:.3f} vs anchor_z={mj_a[2][2]:.3f}')
 
 J_c_dock, _ = robot.get_contact_jacobians(True, True)
