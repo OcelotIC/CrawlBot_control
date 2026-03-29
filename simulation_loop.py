@@ -1048,7 +1048,7 @@ class SimulationLoop:
                 if ph[i] != ph[i-1]:
                     ax.axvline(t[i], color='gray', ls=':', alpha=.5)
 
-        fig, axes = plt.subplots(8, 1, figsize=(14, 32), sharex=True)
+        fig, axes = plt.subplots(9, 1, figsize=(14, 36), sharex=True)
         nd = len(log.dock_events)
         fig.suptitle(
             f'VISPA — $L_{{max}}$={L_max}, $\\tau_w$={tw} Nm, '
@@ -1109,23 +1109,26 @@ class SimulationLoop:
         ax.set_title('⑦ Orientation structure (Euler)')
         ax.legend(fontsize=9); ax.grid(True, alpha=.3)
 
-        # ⑧ Torso tracking error
-        e_pos = np.array(log.e_torso_pos) * 100  # [cm]
+        # ⑧ Torso position tracking error (components + norm)
+        e_pos_vec = (pt - pt_ref) * 100  # (N,3) in cm
+        e_pos_norm = np.array(log.e_torso_pos) * 100  # [cm]
+        ax = axes[7]; shade(ax)
+        ax.plot(t, e_pos_vec[:,0], 'r-', lw=1.2, alpha=.7, label='$e_x$')
+        ax.plot(t, e_pos_vec[:,1], 'g-', lw=1.2, alpha=.7, label='$e_y$')
+        ax.plot(t, e_pos_vec[:,2], 'b-', lw=1.2, alpha=.7, label='$e_z$')
+        ax.plot(t, e_pos_norm, 'k-', lw=2.5, label='$\\|e_{pos}\\|$')
+        ax.set_ylabel('[cm]')
+        ax.set_title('⑧ Erreur tracking torso — position')
+        ax.legend(fontsize=9, ncol=4); ax.grid(True, alpha=.3)
+
+        # ⑨ Torso orientation tracking error (geodesic angle)
         e_ori = np.array(log.e_torso_ori) if log.e_torso_ori else np.zeros(len(t))
-        ax1 = axes[7]; shade(ax1)
-        ax1.plot(t, e_pos, 'r-', lw=2.5, label='position error')
-        ax1.set_ylabel('Position [cm]', color='r')
-        ax1.tick_params(axis='y', labelcolor='r')
-        ax1.set_xlabel('Temps [s]')
-        ax1.set_title('⑧ Torso tracking error')
-        ax1.grid(True, alpha=.3)
-        ax2 = ax1.twinx()
-        ax2.plot(t, e_ori, 'b-', lw=2, alpha=.8, label='orientation error')
-        ax2.set_ylabel('Orientation [deg]', color='b')
-        ax2.tick_params(axis='y', labelcolor='b')
-        lines1, labels1 = ax1.get_legend_handles_labels()
-        lines2, labels2 = ax2.get_legend_handles_labels()
-        ax1.legend(lines1 + lines2, labels1 + labels2, fontsize=9, loc='upper left')
+        ax = axes[8]; shade(ax)
+        ax.plot(t, e_ori, 'b-', lw=2.5)
+        ax.set_ylabel('[deg]')
+        ax.set_xlabel('Temps [s]')
+        ax.set_title('⑨ Erreur tracking torso — orientation (angle géodésique)')
+        ax.grid(True, alpha=.3)
 
         plt.tight_layout()
         if save_path:
