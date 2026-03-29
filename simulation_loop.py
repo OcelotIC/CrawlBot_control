@@ -175,6 +175,7 @@ class SimConfig:
     nmpc_f_max: float = 25.0
     nmpc_tau_max: float = 8.0
     nmpc_Wv: float = 10.0         # NMPC velocity tracking weight (default)
+    n_settle_post: int = 200      # Post-dock settling steps (MuJoCo steps)
 
     # QP weights — Single-support phase
     ss_alpha_com: float = 2e2
