@@ -74,6 +74,31 @@ class SwingPlanner:
         self.scheduler = scheduler
         self.clearance = clearance
         self.away_normal = away_normal / np.linalg.norm(away_normal)
+        # Live anchor overrides (set by simulation loop each step)
+        self._live_anchors_a = None  # ndarray (6,3) or None
+        self._live_anchors_b = None
+
+    def set_live_anchors(self, anchors_a, anchors_b):
+        """Update anchor positions with live readings from MuJoCo.
+
+        Parameters
+        ----------
+        anchors_a, anchors_b : ndarray (n_anchors, 3+)
+            Live anchor positions in world frame.
+        """
+        self._live_anchors_a = anchors_a
+        self._live_anchors_b = anchors_b
+
+    def _anchor_pos(self, arm, idx):
+        """Get anchor position, preferring live override."""
+        if arm == 'b':
+            if self._live_anchors_b is not None:
+                return self._live_anchors_b[idx][:3].copy()
+            return self.scheduler.anchors_b[idx].copy()
+        else:
+            if self._live_anchors_a is not None:
+                return self._live_anchors_a[idx][:3].copy()
+            return self.scheduler.anchors_a[idx].copy()
 
     @property
     def plan(self) -> GaitPlan:
@@ -150,7 +175,9 @@ class SwingPlanner:
         T = gp.duration
         tau = np.clip((t - t_start) / T, 0.0, 1.0)
 
-        # Anchor positions (start and end)
+        # Anchor positions (start and end) from scheduler (nominal).
+        # Live anchor tracking is handled in the EXT phase of _step(),
+        # not here — the quintic must stay consistent over the swing.
         if gp.swing_arm == 'b':
             p_start = self.scheduler.anchors_b[gp.swing_from_idx].copy()
             p_end = self.scheduler.anchors_b[gp.swing_to_idx].copy()
@@ -235,11 +262,8 @@ class SwingPlanner:
         if not gp_ss.swing_arm:
             return self.reference_at(min(t, plan.t_end[-1] - 1e-6))
 
-        # Target position
-        if gp_ss.swing_arm == 'b':
-            p_end = self.scheduler.anchors_b[gp_ss.swing_to_idx].copy()
-        else:
-            p_end = self.scheduler.anchors_a[gp_ss.swing_to_idx].copy()
+        # Target position — use live if available
+        p_end = self._anchor_pos(gp_ss.swing_arm, gp_ss.swing_to_idx)
 
         # Remaining displacement
         dp = p_end - p_ee_current
@@ -320,16 +344,12 @@ class SwingPlanner:
         for i in range(current_idx - 1, -1, -1):
             gp_prev = plan.phases[i]
             if gp_prev.swing_arm:
-                # That arm landed at swing_to_idx
-                if gp_prev.swing_arm == 'b':
-                    p = self.scheduler.anchors_b[gp_prev.swing_to_idx]
-                else:
-                    p = self.scheduler.anchors_a[gp_prev.swing_to_idx]
-                return gp_prev.swing_arm, p.copy()
+                p = self._anchor_pos(gp_prev.swing_arm, gp_prev.swing_to_idx)
+                return gp_prev.swing_arm, p
 
         # No previous swing found → first DS phase, return arm B at start
         gp0 = plan.phases[0]
-        return 'b', self.scheduler.anchors_b[gp0.anchor_b_idx].copy()
+        return 'b', self._anchor_pos('b', gp0.anchor_b_idx)
 
     def swing_trajectory(
         self,

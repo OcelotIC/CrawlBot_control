@@ -766,6 +766,9 @@ class SimulationLoop:
             mj_a_live[stance_a][:3].copy(),
             mj_b_live[stance_b][:3].copy())
 
+        # Update swing planner with live anchor positions
+        self.swing_planner.set_live_anchors(mj_a_live, mj_b_live)
+
         # NMPC
         nmpc_ok = True
         try:
