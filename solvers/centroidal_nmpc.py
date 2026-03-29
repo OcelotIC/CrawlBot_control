@@ -72,8 +72,8 @@ class CentroidalNMPCConfig:
     tau_max: float = 300.0                   # Max contact torque norm [Nm]
 
     # Momentum envelope (the "box")
-    hw_min: np.ndarray = field(default_factory=lambda: -50.0 * np.ones(3))  # [Nms]
-    hw_max: np.ndarray = field(default_factory=lambda: 50.0 * np.ones(3))   # [Nms]
+    hw_min: np.ndarray = field(default_factory=lambda: -5.0 * np.ones(3))  # [Nms]
+    hw_max: np.ndarray = field(default_factory=lambda: 5.0 * np.ones(3))   # [Nms]
     safety_margin: float = 0.1               # ε_safety (10% margin)
 
     # Robot angular momentum constraints (what the wheels must absorb)

@@ -68,36 +68,67 @@ from solvers.contact_phase import ContactConfig
 def mujoco_to_pinocchio(mj_qpos, mj_qvel):
     """Convert MuJoCo state to Pinocchio convention.
 
-    MuJoCo: qpos = [struct_pos(3), struct_quat_wxyz(4),
-                     torso_pos(3), torso_quat_wxyz(4), joints(12)]
+    Supports both original (nq=26) and RWA-3 (nq=29) layouts.
+
+    Original layout (nq=26, nv=24):
+      qpos = [struct_pos(3), struct_quat(4), torso_pos(3), torso_quat(4), joints(12)]
+      qvel = [struct_vel(3), struct_omega(3), torso_vel(3), torso_omega(3), joints(12)]
+
+    RWA-3 layout (nq=29, nv=27):
+      qpos = [struct_pos(3), struct_quat(4), rw_xyz(3), torso_pos(3), torso_quat(4), joints(12)]
+      qvel = [struct_vel(3), struct_omega(3), rw_vel(3), torso_vel(3), torso_omega(3), joints(12)]
+
     Pinocchio: q = [torso_pos(3), torso_quat_xyzw(4), joints(12)]
     """
+    rwa = len(mj_qpos) >= 29
+    off_q = 3 if rwa else 0
+    off_v = 3 if rwa else 0
+
     pin_q = np.zeros(19)
     pin_v = np.zeros(18)
-    pin_q[0:3] = mj_qpos[7:10]
-    w, x, y, z = mj_qpos[10:14]
+    pin_q[0:3] = mj_qpos[7 + off_q : 10 + off_q]
+    w, x, y, z = mj_qpos[10 + off_q : 14 + off_q]
     pin_q[3:7] = [x, y, z, w]
-    pin_q[7:19] = mj_qpos[14:26]
-    pin_v[0:3] = mj_qvel[6:9]
-    pin_v[3:6] = mj_qvel[9:12]
-    pin_v[6:18] = mj_qvel[12:24]
+    pin_q[7:19] = mj_qpos[14 + off_q : 26 + off_q]
+    pin_v[0:3] = mj_qvel[6 + off_v : 9 + off_v]
+    pin_v[3:6] = mj_qvel[9 + off_v : 12 + off_v]
+    pin_v[6:18] = mj_qvel[12 + off_v : 24 + off_v]
     return pin_q, pin_v
 
 
-def pinocchio_to_mujoco(pin_q, pin_v, struct_pos=None, struct_quat=None):
-    """Convert Pinocchio state to MuJoCo convention."""
-    mj_qpos = np.zeros(26)
-    mj_qvel = np.zeros(24)
+def pinocchio_to_mujoco(pin_q, pin_v, struct_pos=None, struct_quat=None,
+                        rwa=False):
+    """Convert Pinocchio state to MuJoCo convention.
+
+    If rwa=True, produces the RWA-3 layout (nq=29, nv=27) with zero wheel angles/vels.
+    """
+    off_q = 3 if rwa else 0
+    off_v = 3 if rwa else 0
+    nq = 29 if rwa else 26
+    nv = 27 if rwa else 24
+
+    mj_qpos = np.zeros(nq)
+    mj_qvel = np.zeros(nv)
     mj_qpos[0:3] = struct_pos if struct_pos is not None else np.zeros(3)
     mj_qpos[3:7] = struct_quat if struct_quat is not None else [1, 0, 0, 0]
-    mj_qpos[7:10] = pin_q[0:3]
+    # rw angles stay at 0
+    mj_qpos[7 + off_q : 10 + off_q] = pin_q[0:3]
     x, y, z, w_ = pin_q[3:7]
-    mj_qpos[10:14] = [w_, x, y, z]
-    mj_qpos[14:26] = pin_q[7:19]
-    mj_qvel[6:9] = pin_v[0:3]
-    mj_qvel[9:12] = pin_v[3:6]
-    mj_qvel[12:24] = pin_v[6:18]
+    mj_qpos[10 + off_q : 14 + off_q] = [w_, x, y, z]
+    mj_qpos[14 + off_q : 26 + off_q] = pin_q[7:19]
+    mj_qvel[6 + off_v : 9 + off_v] = pin_v[0:3]
+    mj_qvel[9 + off_v : 12 + off_v] = pin_v[3:6]
+    mj_qvel[12 + off_v : 24 + off_v] = pin_v[6:18]
     return mj_qpos, mj_qvel
+
+
+# MuJoCo index slices for RWA-3 layout (nq=29, nv=27)
+MJ_IDX_STRUCT_POS  = slice(0, 3)
+MJ_IDX_STRUCT_QUAT = slice(3, 7)
+MJ_IDX_RW_ANGLES   = slice(7, 10)
+MJ_IDX_TORSO_POS   = slice(10, 13)
+MJ_IDX_TORSO_QUAT  = slice(13, 17)
+MJ_IDX_JOINTS      = slice(17, 29)
 
 
 # ── Configuration ────────────────────────────────────────────────────────────
@@ -121,14 +152,19 @@ class SimConfig:
     tau_max: float = 10.0         # Joint torque limit [Nm]
 
     # Docking
-    weld_radius: float = 0.005    # Real dock threshold [m]
+    weld_radius: float = 0.020    # Real dock threshold [m] (20 mm — relaxed for constrained hw)
 
     # Momentum constraints
-    hw_init: np.ndarray = field(default_factory=lambda: np.array([2., -1., 0.5]))
-    hw_min: np.ndarray = field(default_factory=lambda: np.full(3, -50.))
-    hw_max: np.ndarray = field(default_factory=lambda: np.full(3, 50.))
-    L_max: float = 5.0            # Robot angular momentum limit [Nms]
-    tau_w_max: float = 2.0        # Reaction wheel torque limit [Nm]
+    hw_init: np.ndarray = field(default_factory=lambda: np.zeros(3))
+    hw_min: np.ndarray = field(default_factory=lambda: np.full(3, -5.0))
+    hw_max: np.ndarray = field(default_factory=lambda: np.full(3, 5.0))
+    L_max: float = 50.0           # Robot angular momentum limit [Nms] (relaxed — physical RWA handles hw)
+    tau_w_max: float = 20.0       # Reaction wheel torque limit [Nm] (relaxed — physical RWA handles hw)
+
+    # AOCS parameters (for physical RWA model)
+    aocs_K_hw: float = 2.0        # Feedback gain [1/s]
+    aocs_tau_w_max: float = 0.5   # Max wheel torque [Nm]
+    rwa_I_w: float = 0.01         # Wheel spin inertia [kg.m2]
 
     # NMPC parameters
     nmpc_N: int = 8
@@ -205,6 +241,11 @@ class SimLog:
     L_dot: list = field(default_factory=list)
     L_dot_norm: list = field(default_factory=list)
     hw: list = field(default_factory=list)
+
+    # RWA physical (from MuJoCo wheel speeds)
+    hw_physical: list = field(default_factory=list)
+    tau_w: list = field(default_factory=list)
+    rw_speed: list = field(default_factory=list)
 
     # Torques
     tau: list = field(default_factory=list)
@@ -285,6 +326,7 @@ class SimulationLoop:
         self._weld_map = {}
         self._site_ids = {}
         self.plan = None
+        self.has_rwa = False  # Set True if model has reaction wheels
 
     # ── Setup ────────────────────────────────────────────────────────────
 
@@ -296,6 +338,13 @@ class SimulationLoop:
         self.mj_model = mujoco.MjModel.from_xml_path(self.mjcf_path)
         self.mj_data = mujoco.MjData(self.mj_model)
         self.mj_model.opt.timestep = cfg.dt_qp
+
+        # Detect RWA model (3 reaction wheels → nq=29, nv=27, nu=15)
+        rw_jid = mujoco.mj_name2id(self.mj_model, mujoco.mjtObj.mjOBJ_JOINT, 'rw_x')
+        self.has_rwa = rw_jid >= 0
+        if self.has_rwa:
+            assert self.mj_model.nq == 29, f"RWA model expects nq=29, got {self.mj_model.nq}"
+            assert self.mj_model.nu == 15, f"RWA model expects nu=15, got {self.mj_model.nu}"
 
         # Verify torso mass matches expectations
         tid = mujoco.mj_name2id(self.mj_model, mujoco.mjtObj.mjOBJ_BODY, 'torso')
@@ -331,7 +380,8 @@ class SimulationLoop:
         sp = self.mj_data.qpos[0:3].copy()
         sq = self.mj_data.qpos[3:7].copy()
         mj_qpos, _ = pinocchio_to_mujoco(
-            self.q_dock_init, np.zeros(18), struct_pos=sp, struct_quat=sq)
+            self.q_dock_init, np.zeros(18), struct_pos=sp, struct_quat=sq,
+            rwa=self.has_rwa)
         self.mj_data.qpos[:] = mj_qpos
         self.mj_data.qvel[:] = 0.0
 
@@ -381,11 +431,13 @@ class SimulationLoop:
 
         print(f"[SimulationLoop] Initialized:")
         print(f"  Robot mass:     {rs0.total_mass:.1f} kg")
+        print(f"  RWA model:      {'YES (3 wheels)' if self.has_rwa else 'NO'}")
         print(f"  NMPC:           {1/cfg.dt_nmpc:.0f} Hz, N={cfg.nmpc_N}")
         print(f"  QP:             {1/cfg.dt_qp:.0f} Hz, {self.n_qp_per_nmpc} per NMPC")
         print(f"  Gait:           {n_steps} step(s), T_swing={cfg.t_swing}s")
         print(f"  Constraints:    L_max={cfg.L_max} Nms, tau_w={cfg.tau_w_max} Nm, "
               f"tau_joint={cfg.tau_max} Nm")
+        print(f"  hw bounds:      [{cfg.hw_min[0]:.1f}, {cfg.hw_max[0]:.1f}] Nms")
         print(f"  Dock threshold: {cfg.weld_radius*1000:.1f} mm")
 
     def _build_qp(self, ac, at, ae, ap, aw, kpc, kdc, kpt, kdt, kpe, kde):
@@ -724,6 +776,7 @@ class SimulationLoop:
         # QP inner loop
         qp = self.qp_ext if phase == 'EXT' else self.qp_ss
         tau_last = np.zeros(12)
+        tau_w_last = np.zeros(3)
         qp_ok = True
 
         if ss_end is None:
@@ -787,11 +840,28 @@ class SimulationLoop:
             tau = np.clip(tau, -cfg.tau_max, cfg.tau_max)
             tau_last = tau.copy()
             self.mj_data.ctrl[:12] = tau
+
+            # AOCS: compute and apply reaction wheel torques
+            if self.has_rwa:
+                rw_vel = self.mj_data.qvel[6:9]  # rw_x, rw_y, rw_z angular velocities
+                hw_phys = cfg.rwa_I_w * rw_vel    # physical wheel momentum
+                L_dot_est_qp = (rs.L_com - L_com_prev) / cfg.dt_qp if L_com_prev is not None else np.zeros(3)
+                hw_error = np.clip(hw_phys, cfg.hw_min, cfg.hw_max) - hw_phys
+                tau_w_cmd = -L_dot_est_qp - cfg.aocs_K_hw * hw_error
+                tau_w_cmd = np.clip(tau_w_cmd, -cfg.aocs_tau_w_max, cfg.aocs_tau_w_max)
+                self.mj_data.ctrl[12:15] = tau_w_cmd
+                tau_w_last = tau_w_cmd.copy()
+
             mujoco.mj_step(self.mj_model, self.mj_data)
 
             rs2 = self.robot.update(
                 *mujoco_to_pinocchio(self.mj_data.qpos, self.mj_data.qvel))
-            hw -= (rs2.L_com - rs.L_com) / cfg.dt_qp * cfg.dt_qp
+
+            if self.has_rwa:
+                # Read hw from physical wheel speeds
+                hw = cfg.rwa_I_w * self.mj_data.qvel[6:9].copy()
+            else:
+                hw -= (rs2.L_com - rs.L_com) / cfg.dt_qp * cfg.dt_qp
             hw = np.clip(hw, cfg.hw_min, cfg.hw_max)
 
         # Logging
@@ -826,6 +896,15 @@ class SimulationLoop:
         log.L_dot.append(L_dot_est.copy())
         log.L_dot_norm.append(float(np.linalg.norm(L_dot_est)))
         log.hw.append(hw.copy())
+        if self.has_rwa:
+            rw_vel_f = self.mj_data.qvel[6:9].copy()
+            log.hw_physical.append((cfg.rwa_I_w * rw_vel_f).copy())
+            log.tau_w.append(tau_w_last.copy())
+            log.rw_speed.append(rw_vel_f.copy())
+        else:
+            log.hw_physical.append(hw.copy())
+            log.tau_w.append(np.zeros(3))
+            log.rw_speed.append(np.zeros(3))
         log.tau.append(tau_last.copy())
         log.tau_max_joint.append(float(np.max(np.abs(tau_last))))
         log.struct_pos.append(self.mj_data.qpos[0:3].copy())
@@ -870,6 +949,13 @@ class SimulationLoop:
         nf_qp = sum(1 for x in log.qp_ok if not x)
         print(f"NMPC fails:       {nf_nmpc}/{len(log.nmpc_ok)}")
         print(f"QP fails:         {nf_qp}/{len(log.qp_ok)}")
+        if log.hw_physical:
+            hw_phys = np.array(log.hw_physical)
+            hw_norms = np.linalg.norm(hw_phys, axis=1)
+            print(f"max ||hw_phys||:  {hw_norms.max():.2f} Nms (lim {self.cfg.hw_max[0]:.1f})")
+            n_viol = np.sum(hw_norms > self.cfg.hw_max[0])
+            print(f"hw violation:     {n_viol}/{len(hw_norms)} "
+                  f"({100*n_viol/max(len(hw_norms),1):.1f}%)")
 
     # ── Plotting ─────────────────────────────────────────────────────────
 
