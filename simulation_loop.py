@@ -206,7 +206,7 @@ class SimConfig:
 
     # AOCS parameters (for physical RWA model)
     aocs_K_hw: float = 2.0        # Feedback gain [1/s]
-    aocs_tau_w_max: float = 0.5   # Max wheel torque [Nm]
+    aocs_tau_w_max: float = 5.0   # Max wheel torque [Nm] (matches NMPC tau_w_max)
     rwa_I_w: float = 0.01         # Wheel spin inertia [kg.m2]
 
     # Passivity penalty on hw (drives wheels toward zero in NMPC)
@@ -832,6 +832,8 @@ class SimulationLoop:
         if ss_end is None:
             ss_end = t + cfg.dt_nmpc  # fallback
 
+        _L_com_qp_prev = rs.L_com.copy()  # for AOCS L_dot estimate
+
         for qs in range(self.n_qp_per_nmpc):
             tq = t + qs * cfg.dt_qp
             pq, pv = mujoco_to_pinocchio(self.mj_data.qpos, self.mj_data.qvel)
@@ -889,22 +891,23 @@ class SimulationLoop:
 
             # AOCS: compute and apply reaction wheel torques
             if self.has_rwa:
-                rw_vel = self.mj_data.qvel[6:9]  # rw_x, rw_y, rw_z angular velocities
-                hw_phys = cfg.rwa_I_w * rw_vel    # physical wheel momentum
-                L_dot_est_qp = (rs.L_com - L_com_prev) / cfg.dt_qp if L_com_prev is not None else np.zeros(3)
+                rw_vel = self.mj_data.qvel[6:9]
+                hw_phys = cfg.rwa_I_w * rw_vel
+                # L_dot estimate from consecutive QP sub-steps (not NMPC steps)
+                L_dot_est_qp = (rs.L_com - _L_com_qp_prev) / cfg.dt_qp
                 hw_error = np.clip(hw_phys, cfg.hw_min, cfg.hw_max) - hw_phys
                 tau_w_cmd = -L_dot_est_qp - cfg.aocs_K_hw * hw_error
                 tau_w_cmd = np.clip(tau_w_cmd, -cfg.aocs_tau_w_max, cfg.aocs_tau_w_max)
                 self.mj_data.ctrl[12:15] = tau_w_cmd
                 tau_w_last = tau_w_cmd.copy()
 
+            _L_com_qp_prev = rs.L_com.copy()
             mujoco.mj_step(self.mj_model, self.mj_data)
 
             rs2 = self.robot.update(
                 *mujoco_to_pinocchio(self.mj_data.qpos, self.mj_data.qvel))
 
             if self.has_rwa:
-                # Read hw from physical wheel speeds
                 hw = cfg.rwa_I_w * self.mj_data.qvel[6:9].copy()
             else:
                 hw -= (rs2.L_com - rs.L_com) / cfg.dt_qp * cfg.dt_qp
