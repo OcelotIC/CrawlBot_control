@@ -67,13 +67,16 @@ class CentroidalNMPCConfig:
     Qf_r: np.ndarray = field(default_factory=lambda: 1000.0 * np.ones(3))  # Terminal position
     Qf_v: np.ndarray = field(default_factory=lambda: 100.0 * np.ones(3))   # Terminal velocity
 
+    # Passivity penalty on hw (drives wheels toward zero)
+    W_hw: float = 0.0                           # Penalty weight on ‖hw‖² in stage cost
+
     # Contact wrench limits (HOTDOCK specs)
     f_max: float = 3000.0                    # Max contact force norm [N]
     tau_max: float = 300.0                   # Max contact torque norm [Nm]
 
     # Momentum envelope (the "box")
-    hw_min: np.ndarray = field(default_factory=lambda: -50.0 * np.ones(3))  # [Nms]
-    hw_max: np.ndarray = field(default_factory=lambda: 50.0 * np.ones(3))   # [Nms]
+    hw_min: np.ndarray = field(default_factory=lambda: -5.0 * np.ones(3))  # [Nms]
+    hw_max: np.ndarray = field(default_factory=lambda: 5.0 * np.ones(3))   # [Nms]
     safety_margin: float = 0.1               # ε_safety (10% margin)
 
     # Robot angular momentum constraints (what the wheels must absorb)
@@ -144,13 +147,19 @@ class CentroidalNMPC:
             # Linear momentum: m v̇ = Σf_j  (no gravity in orbit)
             v_dot = (f1 + f2) / m
 
-            # Angular momentum rate about robot CoM:
-            # L̇ = Σ [(r_Cj - r_com) × f_j + τ_j]
+            # Centroidal angular momentum rate (about robot CoM, for tracking):
+            # L̇_com = Σ [(r_Cj - r_com) × f_j + τ_j]
             L_dot = (ca.cross(r_C1 - r_com, f1) + tau1 +
                      ca.cross(r_C2 - r_com, f2) + tau2)
 
-            # Wheel momentum: conservation law ḣ_w = -L̇_robot
-            hw_dot = -L_dot
+            # Wheel momentum: conservation about fixed point on structure.
+            # Use midpoint of contacts as proxy for structure CoM (both
+            # contacts are on the structure, their midpoint approximates
+            # a fixed point without additional parameters).
+            # ḣ_w = -L̇_com - (r_com - r_mid) × Σf_j
+            r_mid = (r_C1 + r_C2) / 2
+            orbital = ca.cross(r_com - r_mid, f1 + f2)
+            hw_dot = -L_dot - orbital
 
             return ca.vertcat(v_com, v_dot, L_dot, hw_dot)
 
@@ -181,16 +190,22 @@ class CentroidalNMPC:
         Qf_r = np.diag(cfg.Qf_r)
         Qf_v = np.diag(cfg.Qf_v)
 
+        W_hw = cfg.W_hw
+
         def terminal_cost(x, p):
             r_com = x[0:3]
             v_com = x[3:6]
+            hw = x[9:12]
             r_ref = p[0:3]
             v_ref = p[3:6]
 
             e_r = r_com - r_ref
             e_v = v_com - v_ref
 
-            return e_r.T @ Qf_r @ e_r + e_v.T @ Qf_v @ e_v
+            cost = e_r.T @ Qf_r @ e_r + e_v.T @ Qf_v @ e_v
+            if W_hw > 0:
+                cost = cost + W_hw * ca.dot(hw, hw)
+            return cost
 
         nmpc.set_terminal_cost(terminal_cost)
 
