@@ -149,7 +149,7 @@ class SimConfig:
     torso_delay: float = 0.20     # Delay before torso starts (fraction of t_swing)
 
     # Joint limits
-    tau_max: float = 10.0         # Joint torque limit [Nm]
+    tau_max: float = 20.0         # Joint torque limit [Nm]
 
     # Docking
     weld_radius: float = 0.005    # Real dock threshold [m]
