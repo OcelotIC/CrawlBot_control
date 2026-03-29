@@ -75,8 +75,8 @@
     <!-- ============ FLOATING STRUCTURE ============ -->
     <body name="structure" pos="0 0 -1.8">
       <freejoint name="structure_free"/>
-      <inertial pos="0 0 0" mass="71000"
-                fullinertia="5964 14910 17750 0 0 0"/>
+      <inertial pos="0 0 0" mass="7110"
+                fullinertia="597 1493 1777 0 0 0"/>
       <!-- Main beam -->
       <geom class="structure" type="box" size="2.4 0.4 0.025" name="beam"/>
       <!-- Cross-beams for rigidity visualization -->
