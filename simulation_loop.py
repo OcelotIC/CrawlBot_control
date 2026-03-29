@@ -890,10 +890,11 @@ class SimulationLoop:
             self.mj_data.ctrl[:12] = tau
 
             # AOCS: compute and apply reaction wheel torques
+            # Feedforward: compensate centroidal L_dot (not total — the orbital
+            # term m*(r_com × v_com) is too large/noisy for the wheel budget).
             if self.has_rwa:
                 rw_vel = self.mj_data.qvel[6:9]
                 hw_phys = cfg.rwa_I_w * rw_vel
-                # L_dot estimate from consecutive QP sub-steps (not NMPC steps)
                 L_dot_est_qp = (rs.L_com - _L_com_qp_prev) / cfg.dt_qp
                 hw_error = np.clip(hw_phys, cfg.hw_min, cfg.hw_max) - hw_phys
                 tau_w_cmd = -L_dot_est_qp - cfg.aocs_K_hw * hw_error
