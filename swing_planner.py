@@ -77,6 +77,19 @@ class SwingPlanner:
         # Live anchor overrides (set by simulation loop each step)
         self._live_anchors_a = None  # ndarray (6,3) or None
         self._live_anchors_b = None
+        # Initial structure pose (for nominal → live transform)
+        self._p_struct_init = np.zeros(3)
+        self._R_struct_init_inv = np.eye(3)
+
+    def set_initial_struct_pose(self, p_struct: np.ndarray, R_struct: np.ndarray):
+        """Capture the structure pose at simulation start (t=0).
+
+        Anchor positions in the scheduler are in the world frame at this
+        initial pose. This is needed to transform them to the current
+        world frame when the structure has drifted.
+        """
+        self._p_struct_init = p_struct.copy()
+        self._R_struct_init_inv = R_struct.T.copy()  # R^{-1} = R^T
 
     def set_live_anchors(self, anchors_a, anchors_b):
         """Update anchor positions with live readings from MuJoCo.
@@ -143,16 +156,23 @@ class SwingPlanner:
 
     # ── Main query ───────────────────────────────────────────────
 
-    def reference_at(self, t: float) -> SwingReference:
+    def reference_at(self, t: float,
+                     p_struct: Optional[np.ndarray] = None,
+                     R_struct: Optional[np.ndarray] = None) -> SwingReference:
         """Get the swing arm reference at time t.
 
-        During double-support phases, returns the docked anchor position
-        with zero velocity and is_swinging=False.
+        When p_struct/R_struct are provided, anchor positions are
+        reconstructed in the current world frame using the live structure
+        pose (same pattern as TorsoPlanner Fix 3).
 
         Parameters
         ----------
         t : float
             Simulation time [s].
+        p_struct : ndarray (3,), optional
+            Current structure CoM position in world frame.
+        R_struct : ndarray (3,3), optional
+            Current structure rotation matrix.
 
         Returns
         -------
@@ -163,9 +183,9 @@ class SwingPlanner:
 
         # ── Double support: no swing ─────────────────────────────
         if gp.phase == ContactPhase.DOUBLE:
-            # Return the position of the arm that was LAST swinging.
-            # Look backward to find the most recent single-support.
             arm, p_ee = self._last_swing_position(idx)
+            if p_struct is not None and R_struct is not None:
+                p_ee = self._nominal_to_live(p_ee, p_struct, R_struct)
             return SwingReference(
                 p_ee=p_ee, v_ee=np.zeros(3), a_ee=np.zeros(3),
                 swing_arm=arm, is_swinging=False, phase_progress=1.0)
@@ -175,9 +195,7 @@ class SwingPlanner:
         T = gp.duration
         tau = np.clip((t - t_start) / T, 0.0, 1.0)
 
-        # Anchor positions (start and end) from scheduler (nominal).
-        # Live anchor tracking is handled in the EXT phase of _step(),
-        # not here — the quintic must stay consistent over the swing.
+        # Anchor positions from scheduler (nominal world frame at t=0)
         if gp.swing_arm == 'b':
             p_start = self.scheduler.anchors_b[gp.swing_from_idx].copy()
             p_end = self.scheduler.anchors_b[gp.swing_to_idx].copy()
@@ -187,29 +205,51 @@ class SwingPlanner:
         else:
             raise ValueError(f"SS phase without swing_arm set at idx={idx}")
 
-        # Displacement in the structure plane
+        # Displacement in the structure plane (invariant to structure pose)
         dp = p_end - p_start
 
-        # Position
+        # Position in nominal frame
         s = self._quintic(tau)
         bump = self._bump(tau)
         p_ee = p_start + dp * s + self.clearance * self.away_normal * bump
 
+        # Transform to live structure frame if available
+        if p_struct is not None and R_struct is not None:
+            p_ee = self._nominal_to_live(p_ee, p_struct, R_struct)
+            # dp in live frame (rotation only, dp is a displacement vector)
+            dp_live = R_struct @ self._R_struct_init_inv @ dp
+            n_live = R_struct @ self._R_struct_init_inv @ self.away_normal
+        else:
+            dp_live = dp
+            n_live = self.away_normal
+
         # Velocity (chain rule: dp/dt = dp/dτ · 1/T)
         s_dot = self._quintic_dot(tau) / T
         bump_dot = self._bump_dot(tau) / T
-        v_ee = dp * s_dot + self.clearance * self.away_normal * bump_dot
+        v_ee = dp_live * s_dot + self.clearance * n_live * bump_dot
 
         # Acceleration (d²p/dt² = d²p/dτ² · 1/T²)
         s_ddot = self._quintic_ddot(tau) / (T * T)
         bump_ddot = self._bump_ddot(tau) / (T * T)
-        a_ee = dp * s_ddot + self.clearance * self.away_normal * bump_ddot
+        a_ee = dp_live * s_ddot + self.clearance * n_live * bump_ddot
 
         return SwingReference(
             p_ee=p_ee, v_ee=v_ee, a_ee=a_ee,
             swing_arm=gp.swing_arm,
             is_swinging=True,
             phase_progress=tau)
+
+    def _nominal_to_live(self, p_nominal, p_struct, R_struct):
+        """Transform a point from nominal world frame to live world frame.
+
+        The anchors in the scheduler are in the world frame at t=0 when
+        the structure was at (p_struct_init, R_struct_init). This method
+        converts to the current world frame given the live structure pose.
+
+        p_live = p_struct + R_struct @ R_init^T @ (p_nominal - p_struct_init)
+        """
+        p_local = self._R_struct_init_inv @ (p_nominal - self._p_struct_init)
+        return p_struct + R_struct @ p_local
 
     # ── Adaptive re-planning ────────────────────────────────────
 

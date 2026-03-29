@@ -371,6 +371,11 @@ class SimulationLoop:
 
         # Swing planner
         self.swing_planner = SwingPlanner(self.sched, clearance=cfg.swing_clearance)
+        # Capture initial structure pose for nominal → live transform
+        p_s0 = self.mj_data.qpos[0:3].copy()
+        w, x, y, z = self.mj_data.qpos[3:7]
+        R_s0 = pin.Quaternion(w, x, y, z).toRotationMatrix()
+        self.swing_planner.set_initial_struct_pose(p_s0, R_s0)
 
         # Torso planner (reconfigured per step)
         self.torso_planner = TorsoPlanner()
