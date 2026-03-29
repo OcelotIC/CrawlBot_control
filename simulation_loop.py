@@ -174,6 +174,7 @@ class SimConfig:
     nmpc_dt: float = 0.1
     nmpc_f_max: float = 25.0
     nmpc_tau_max: float = 8.0
+    nmpc_Wv: float = 10.0         # NMPC velocity tracking weight (default)
 
     # QP weights — Single-support phase
     ss_alpha_com: float = 2e2
@@ -416,7 +417,8 @@ class SimulationLoop:
             f_max=cfg.nmpc_f_max, tau_max=cfg.nmpc_tau_max,
             hw_min=cfg.hw_min, hw_max=cfg.hw_max,
             L_max=cfg.L_max, tau_w_max=cfg.tau_w_max,
-            W_hw=cfg.nmpc_W_hw))
+            W_hw=cfg.nmpc_W_hw,
+            Wv=cfg.nmpc_Wv * np.ones(3)))
         self.nmpc.build()
 
         # QP variants
