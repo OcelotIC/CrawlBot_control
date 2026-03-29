@@ -916,6 +916,9 @@ class SimulationLoop:
         mujoco.mj_forward(self.mj_model, self.mj_data)
         rs_f = self.robot.update(
             *mujoco_to_pinocchio(self.mj_data.qpos, self.mj_data.qvel))
+        # Recompute torso reference at the actual logged time (after QP steps)
+        t_log = t + cfg.dt_nmpc
+        tref_log = self.torso_planner.reference_at(t_log)
         d_swing = self._gripper_distance(swing_arm, target_anchor)
         d_stance = self._gripper_distance(
             stance_arm, stance_a if stance_arm == 'a' else stance_b)
@@ -927,10 +930,10 @@ class SimulationLoop:
         log.phase.append(phase)
         log.step_idx.append(step_idx)
         log.p_torso.append(rs_f.oMf_torso.translation.copy())
-        log.p_torso_ref.append(tref.p.copy())
+        log.p_torso_ref.append(tref_log.p.copy())
         log.e_torso_pos.append(float(np.linalg.norm(
-            rs_f.oMf_torso.translation - tref.p)))
-        R_err = tref.R.T @ rs_f.oMf_torso.rotation
+            rs_f.oMf_torso.translation - tref_log.p)))
+        R_err = tref_log.R.T @ rs_f.oMf_torso.rotation
         angle_err = np.arccos(np.clip((np.trace(R_err) - 1) / 2, -1, 1))
         log.e_torso_ori.append(float(np.degrees(angle_err)))
         log.d_grip_swing.append(d_swing)
