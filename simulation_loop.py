@@ -166,6 +166,9 @@ class SimConfig:
     aocs_tau_w_max: float = 0.5   # Max wheel torque [Nm]
     rwa_I_w: float = 0.01         # Wheel spin inertia [kg.m2]
 
+    # Passivity penalty on hw (drives wheels toward zero in NMPC)
+    nmpc_W_hw: float = 0.0        # Penalty weight on ‖hw‖² in terminal cost (0=disabled)
+
     # NMPC parameters
     nmpc_N: int = 8
     nmpc_dt: float = 0.1
@@ -412,7 +415,8 @@ class SimulationLoop:
             N=cfg.nmpc_N, dt=cfg.nmpc_dt,
             f_max=cfg.nmpc_f_max, tau_max=cfg.nmpc_tau_max,
             hw_min=cfg.hw_min, hw_max=cfg.hw_max,
-            L_max=cfg.L_max, tau_w_max=cfg.tau_w_max))
+            L_max=cfg.L_max, tau_w_max=cfg.tau_w_max,
+            W_hw=cfg.nmpc_W_hw))
         self.nmpc.build()
 
         # QP variants

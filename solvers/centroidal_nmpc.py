@@ -67,6 +67,9 @@ class CentroidalNMPCConfig:
     Qf_r: np.ndarray = field(default_factory=lambda: 1000.0 * np.ones(3))  # Terminal position
     Qf_v: np.ndarray = field(default_factory=lambda: 100.0 * np.ones(3))   # Terminal velocity
 
+    # Passivity penalty on hw (drives wheels toward zero)
+    W_hw: float = 0.0                           # Penalty weight on ‖hw‖² in stage cost
+
     # Contact wrench limits (HOTDOCK specs)
     f_max: float = 3000.0                    # Max contact force norm [N]
     tau_max: float = 300.0                   # Max contact torque norm [Nm]
@@ -187,16 +190,22 @@ class CentroidalNMPC:
         Qf_r = np.diag(cfg.Qf_r)
         Qf_v = np.diag(cfg.Qf_v)
 
+        W_hw = cfg.W_hw
+
         def terminal_cost(x, p):
             r_com = x[0:3]
             v_com = x[3:6]
+            hw = x[9:12]
             r_ref = p[0:3]
             v_ref = p[3:6]
 
             e_r = r_com - r_ref
             e_v = v_com - v_ref
 
-            return e_r.T @ Qf_r @ e_r + e_v.T @ Qf_v @ e_v
+            cost = e_r.T @ Qf_r @ e_r + e_v.T @ Qf_v @ e_v
+            if W_hw > 0:
+                cost = cost + W_hw * ca.dot(hw, hw)
+            return cost
 
         nmpc.set_terminal_cost(terminal_cost)
 
