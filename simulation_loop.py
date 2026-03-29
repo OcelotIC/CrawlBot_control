@@ -158,8 +158,8 @@ class SimConfig:
     hw_init: np.ndarray = field(default_factory=lambda: np.zeros(3))
     hw_min: np.ndarray = field(default_factory=lambda: np.full(3, -5.0))
     hw_max: np.ndarray = field(default_factory=lambda: np.full(3, 5.0))
-    L_max: float = 50.0           # Robot angular momentum limit [Nms] (relaxed — physical RWA handles hw)
-    tau_w_max: float = 20.0       # Reaction wheel torque limit [Nm] (relaxed — physical RWA handles hw)
+    L_max: float = 8.0            # Robot angular momentum limit [Nms]
+    tau_w_max: float = 1.0        # Reaction wheel torque limit [Nm]
 
     # AOCS parameters (for physical RWA model)
     aocs_K_hw: float = 2.0        # Feedback gain [1/s]
