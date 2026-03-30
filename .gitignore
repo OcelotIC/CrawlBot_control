@@ -12,3 +12,7 @@ __pycache__/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Test outputs (generated at root by some tests)
+/*.json
+/*.png
