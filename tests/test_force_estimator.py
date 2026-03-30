@@ -331,38 +331,47 @@ for i in range(50):
     rs = robot4.update(pq, pv)
     m_r = rs.total_mass
 
+    # H_{r/O}: robot AM about O (structure CoM), in structure frame
     H_rO = rs.L_com + np.cross(rs.r_com, m_r * rs.v_com)
 
     w, x, y, z = mj_data3.qpos[3:7]
     R_s = pin.Quaternion(w, x, y, z).toRotationMatrix()
-    omega_s_world = mj_data3.qvel[3:6]
+    omega_s_world = mj_data3.qvel[3:6]  # world frame (verified)
+
+    # All quantities transformed to world frame, about point O.
+    #
+    # Conservation about O (≈ fixed when structure barely moves):
+    #   H_{r/O}^world + h_w^world + L_struct_spin^O ≈ 0
+    #
+    # No orbital term for structure (O IS its CoM).
+    # No transport term for robot (H_{r/O} already about O).
 
     H_rO_world = R_s @ H_rO
+
+    # Wheel spin momentum (hinge velocities are in structure body frame)
     h_w_body = I_w * mj_data3.qvel[6:9]
     h_w_world = R_s @ h_w_body
 
+    # Structure spin AM about its own CoM = O
     omega_s_body = R_s.T @ omega_s_world
-    L_struct_world = R_s @ (I_struct @ omega_s_body)
+    L_struct_spin_world = R_s @ (I_struct @ omega_s_body)
 
-    # Structure orbital AM (small but include for completeness)
-    v_s_world = R_s @ mj_data3.qvel[0:3]
-    L_struct_orb = m_struct * np.cross(mj_data3.qpos[0:3], v_s_world)
-
-    L_total = H_rO_world + h_w_world + L_struct_world + L_struct_orb
+    # Conservation check (all about O, in world frame)
+    L_total = H_rO_world + h_w_world + L_struct_spin_world
     violations.append(np.linalg.norm(L_total))
 
 if violations:
     mean_viol = np.mean(violations)
     max_viol = np.max(violations)
-    # With proper initialization and 7110 kg structure, expect small violations
-    # from weld compliance and wheel body orbital AM (not included here).
-    # Residual from: weld compliance (soft constraints), wheel body orbital AM
-    # (not included here), and integration drift. Expect ~2-6 Nms residual.
-    check('T4a — mean |L_total| < 5.0 Nms (weld compliance residual)',
-          mean_viol < 5.0,
+    # Residual sources: weld compliance (MuJoCo soft constraints inject small
+    # amounts of momentum), O not perfectly fixed, integration drift.
+    # p_total = 0 for isolated system ⟹ d/dt(L^O) = v_O × p_total = 0
+    # so L^O conserved exactly in theory; residual is purely numerical.
+    check('T4a — mean |L_total| < 1.5 Nms (weld compliance + numerics)',
+          mean_viol < 1.5,
           f'mean={mean_viol:.4f} Nms')
-    check('T4b — max |L_total| < 10.0 Nms',
-          max_viol < 10.0,
+    check('T4b — max |L_total| < 4.0 Nms',
+          max_viol < 4.0,
           f'max={max_viol:.4f} Nms')
 
 
