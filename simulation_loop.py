@@ -66,39 +66,67 @@ from solvers.contact_phase import ContactConfig
 # ── State conversions ────────────────────────────────────────────────────────
 
 def mujoco_to_pinocchio(mj_qpos, mj_qvel):
-    """Convert MuJoCo state to Pinocchio convention.
+    """Convert MuJoCo state to Pinocchio convention **in structure frame**.
+
+    The torso pose and twist are expressed relative to the floating structure
+    body.  This makes all Pinocchio outputs (r_com, v_com, L_com, Jacobians,
+    etc.) invariant to structure drift in the inertial frame.
 
     Supports both original (nq=26) and RWA-3 (nq=29) layouts.
 
-    Original layout (nq=26, nv=24):
-      qpos = [struct_pos(3), struct_quat(4), torso_pos(3), torso_quat(4), joints(12)]
-      qvel = [struct_vel(3), struct_omega(3), torso_vel(3), torso_omega(3), joints(12)]
-
-    RWA-3 layout (nq=29, nv=27):
-      qpos = [struct_pos(3), struct_quat(4), rw_xyz(3), torso_pos(3), torso_quat(4), joints(12)]
-      qvel = [struct_vel(3), struct_omega(3), rw_vel(3), torso_vel(3), torso_omega(3), joints(12)]
-
-    Pinocchio: q = [torso_pos(3), torso_quat_xyzw(4), joints(12)]
+    Returns
+    -------
+    pin_q : ndarray (19,)
+        [torso_pos_struct(3), torso_quat_xyzw_struct(4), joints(12)]
+    pin_v : ndarray (18,)
+        [torso_vel_struct(3), torso_omega_struct(3), joint_vel(12)]
     """
     rwa = len(mj_qpos) >= 29
     off_q = 3 if rwa else 0
     off_v = 3 if rwa else 0
 
+    # Structure pose / twist in world
+    p_s = mj_qpos[0:3]
+    qw_s, qx_s, qy_s, qz_s = mj_qpos[3:7]
+    R_s = pin.Quaternion(qw_s, qx_s, qy_s, qz_s).toRotationMatrix()
+    v_s = mj_qvel[0:3]
+    omega_s = mj_qvel[3:6]
+
+    # Torso pose / twist in world
+    p_t = mj_qpos[7 + off_q : 10 + off_q]
+    qw_t, qx_t, qy_t, qz_t = mj_qpos[10 + off_q : 14 + off_q]
+    R_t = pin.Quaternion(qw_t, qx_t, qy_t, qz_t).toRotationMatrix()
+    v_t = mj_qvel[6 + off_v : 9 + off_v]
+    omega_t = mj_qvel[9 + off_v : 12 + off_v]
+
+    # Transform torso to structure frame
+    dp = p_t - p_s
+    p_local = R_s.T @ dp
+    R_local = R_s.T @ R_t
+    v_local = R_s.T @ (v_t - v_s - np.cross(omega_s, dp))
+    omega_local = R_s.T @ (omega_t - omega_s)
+
+    # Pinocchio quaternion convention: xyzw
+    q_local = pin.Quaternion(R_local)
+    coeffs = q_local.coeffs()  # [x, y, z, w]
+
     pin_q = np.zeros(19)
     pin_v = np.zeros(18)
-    pin_q[0:3] = mj_qpos[7 + off_q : 10 + off_q]
-    w, x, y, z = mj_qpos[10 + off_q : 14 + off_q]
-    pin_q[3:7] = [x, y, z, w]
+    pin_q[0:3] = p_local
+    pin_q[3:7] = coeffs
     pin_q[7:19] = mj_qpos[14 + off_q : 26 + off_q]
-    pin_v[0:3] = mj_qvel[6 + off_v : 9 + off_v]
-    pin_v[3:6] = mj_qvel[9 + off_v : 12 + off_v]
+    pin_v[0:3] = v_local
+    pin_v[3:6] = omega_local
     pin_v[6:18] = mj_qvel[12 + off_v : 24 + off_v]
     return pin_q, pin_v
 
 
 def pinocchio_to_mujoco(pin_q, pin_v, struct_pos=None, struct_quat=None,
                         rwa=False):
-    """Convert Pinocchio state to MuJoCo convention.
+    """Convert Pinocchio state (structure frame) to MuJoCo convention (world frame).
+
+    pin_q/pin_v are in the structure body frame.  The torso is transformed back
+    to the MuJoCo world frame using the provided structure pose.
 
     If rwa=True, produces the RWA-3 layout (nq=29, nv=27) with zero wheel angles/vels.
     """
@@ -107,17 +135,32 @@ def pinocchio_to_mujoco(pin_q, pin_v, struct_pos=None, struct_quat=None,
     nq = 29 if rwa else 26
     nv = 27 if rwa else 24
 
+    s_pos  = np.asarray(struct_pos, dtype=float)  if struct_pos  is not None else np.zeros(3)
+    s_quat = np.asarray(struct_quat, dtype=float) if struct_quat is not None else np.array([1., 0., 0., 0.])
+    qw_s, qx_s, qy_s, qz_s = s_quat
+    R_s = pin.Quaternion(qw_s, qx_s, qy_s, qz_s).toRotationMatrix()
+
+    # Torso in structure frame → world frame
+    p_local = pin_q[0:3]
+    x, y, z, w_ = pin_q[3:7]                       # Pinocchio xyzw
+    R_local = pin.Quaternion(w_, x, y, z).toRotationMatrix()  # ctor: (w,x,y,z)
+
+    p_world = s_pos + R_s @ p_local
+    R_world = R_s @ R_local
+    q_world = pin.Quaternion(R_world)
+    cw = q_world.coeffs()                           # [x, y, z, w]
+
     mj_qpos = np.zeros(nq)
     mj_qvel = np.zeros(nv)
-    mj_qpos[0:3] = struct_pos if struct_pos is not None else np.zeros(3)
-    mj_qpos[3:7] = struct_quat if struct_quat is not None else [1, 0, 0, 0]
-    # rw angles stay at 0
-    mj_qpos[7 + off_q : 10 + off_q] = pin_q[0:3]
-    x, y, z, w_ = pin_q[3:7]
-    mj_qpos[10 + off_q : 14 + off_q] = [w_, x, y, z]
+    mj_qpos[0:3] = s_pos
+    mj_qpos[3:7] = s_quat
+    mj_qpos[7 + off_q : 10 + off_q] = p_world
+    mj_qpos[10 + off_q : 14 + off_q] = [cw[3], cw[0], cw[1], cw[2]]  # wxyz
     mj_qpos[14 + off_q : 26 + off_q] = pin_q[7:19]
-    mj_qvel[6 + off_v : 9 + off_v] = pin_v[0:3]
-    mj_qvel[9 + off_v : 12 + off_v] = pin_v[3:6]
+
+    # Velocities: struct → world (assumes v_struct ≈ 0 at setup)
+    mj_qvel[6 + off_v : 9 + off_v]   = R_s @ pin_v[0:3]
+    mj_qvel[9 + off_v : 12 + off_v]  = R_s @ pin_v[3:6]
     mj_qvel[12 + off_v : 24 + off_v] = pin_v[6:18]
     return mj_qpos, mj_qvel
 
@@ -163,7 +206,7 @@ class SimConfig:
 
     # AOCS parameters (for physical RWA model)
     aocs_K_hw: float = 2.0        # Feedback gain [1/s]
-    aocs_tau_w_max: float = 0.5   # Max wheel torque [Nm]
+    aocs_tau_w_max: float = 5.0   # Max wheel torque [Nm] (matches NMPC tau_w_max)
     rwa_I_w: float = 0.01         # Wheel spin inertia [kg.m2]
 
     # Passivity penalty on hw (drives wheels toward zero in NMPC)
@@ -361,26 +404,27 @@ class SimulationLoop:
             f"Torso mass mismatch: {self.mj_model.body_mass[tid]}"
         mujoco.mj_forward(self.mj_model, self.mj_data)
 
-        mj_a, mj_b = read_anchors_from_mujoco(self.mj_model, self.mj_data)
+        # Read anchor sites in world frame and convert to structure-local frame
+        mj_a_world, mj_b_world = read_anchors_from_mujoco(self.mj_model, self.mj_data)
+        p_s0 = self.mj_data.qpos[0:3].copy()
+        w, x, y, z = self.mj_data.qpos[3:7]
+        R_s0 = pin.Quaternion(w, x, y, z).toRotationMatrix()
+        anchors_a_local = [R_s0.T @ (a - p_s0) for a in mj_a_world]
+        anchors_b_local = [R_s0.T @ (b - p_s0) for b in mj_b_world]
 
         # Pinocchio
         self.robot = RobotInterface(
             self.urdf_path, gravity='zero')
 
-        # Scheduler
+        # Scheduler (anchors in structure-local frame)
         self.sched = ContactScheduler(
-            anchors_a=mj_a, anchors_b=mj_b,
+            anchors_a=anchors_a_local, anchors_b=anchors_b_local,
             dt_ds=cfg.t_ds, dt_ss=cfg.t_swing)
         self.plan = self.sched.plan_traversal(
             start_a=start_a, start_b=start_b, n_steps=n_steps)
 
-        # Swing planner
+        # Swing planner (anchors already in structure frame — no transforms needed)
         self.swing_planner = SwingPlanner(self.sched, clearance=cfg.swing_clearance)
-        # Capture initial structure pose for nominal → live transform
-        p_s0 = self.mj_data.qpos[0:3].copy()
-        w, x, y, z = self.mj_data.qpos[3:7]
-        R_s0 = pin.Quaternion(w, x, y, z).toRotationMatrix()
-        self.swing_planner.set_initial_struct_pose(p_s0, R_s0)
 
         # Torso planner (reconfigured per step)
         self.torso_planner = TorsoPlanner()
@@ -520,57 +564,41 @@ class SimulationLoop:
         return float(np.linalg.norm(
             self.mj_data.site_xpos[grip_sid] - self.mj_data.site_xpos[anch_sid]))
 
-    def _anchor_site_pos(self, arm, anchor_idx):
-        anch_sid = self._site_ids.get(f'anchor_{anchor_idx+1}{arm}', -1)
-        if anch_sid < 0:
-            return np.zeros(3)
-        return self.mj_data.site_xpos[anch_sid].copy()
-
     # ── Torso planner setup per step ─────────────────────────────────────
 
     def _setup_torso_for_step(self, t_ss_start, t_ss_end, swing_arm,
                               stance_a, stance_b, target_arm, target_idx):
+        """Plan torso trajectory for a crawling step.
+
+        All computation is in structure frame (Pinocchio outputs and scheduler
+        anchors are both in this frame).  No live-anchor reading or
+        structure-pose capture is needed.
+        """
         cfg = self.cfg
         model = self.robot.model
 
-        # Nominal anchor orientations (unchanged — structure rotations negligible)
-        se3_a_nom = self.sched.anchor_se3('a', stance_a)
-        se3_b_nom = self.sched.anchor_se3('b', stance_b)
-
-        # --- Fix 1: IK start — use live MuJoCo torso state ---
-        # The robot has been simulating for several seconds; reading the actual
-        # torso pose from mj_data avoids a fictitious IK-computed starting pose
-        # that would introduce a non-zero initial tracking error into the QP.
+        # IK start: use live MuJoCo torso state (structure frame via mujoco_to_pinocchio)
         pq_live, pv_live = mujoco_to_pinocchio(
             self.mj_data.qpos, self.mj_data.qvel)
         rs_s = self.robot.update(pq_live, pv_live)
-        p_t0   = rs_s.oMf_torso.translation.copy()
-        R_t0   = rs_s.oMf_torso.rotation.copy()
-        r_com0 = rs_s.r_com.copy()
+        p_t0   = rs_s.oMf_torso.translation.copy()     # struct frame
+        R_t0   = rs_s.oMf_torso.rotation.copy()         # struct frame
+        r_com0 = rs_s.r_com.copy()                       # struct frame
         delta0 = R_t0.T @ (r_com0 - p_t0)
-        # q_start is the live configuration, not a re-computed IK guess
         q_start = pq_live.copy()
 
-        # --- Fix 2: IK end — use live anchor positions for BOTH stance and target ---
-        # After structure drift the stance anchor has also moved in world frame.
-        # Using its live position ensures p_t1 (the torso goal) is geometrically
-        # consistent with where the robot will actually be constrained.
-        mj_a, mj_b = read_anchors_from_mujoco(self.mj_model, self.mj_data)
+        # IK end: use constant structure-frame anchors (no live reading needed)
+        se3_a = self.sched.anchor_se3('a', stance_a)
+        se3_b = self.sched.anchor_se3('b', stance_b)
         if target_arm == 'b':
-            p_tgt      = mj_b[target_idx][:3]           # target  anchor live
-            p_stance_a = mj_a[stance_a][:3]             # stance  anchor live  ← fix 2
-            se3_b_end  = pin.SE3(se3_b_nom.rotation, p_tgt)
-            se3_a_live = pin.SE3(se3_a_nom.rotation, p_stance_a)
-            q_end = dock_configuration(model, se3_a_live, se3_b_end)
+            se3_b_end = self.sched.anchor_se3('b', target_idx)
+            q_end = dock_configuration(model, se3_a, se3_b_end)
         else:
-            p_tgt      = mj_a[target_idx][:3]           # target  anchor live
-            p_stance_b = mj_b[stance_b][:3]             # stance  anchor live  ← fix 2
-            se3_a_end  = pin.SE3(se3_a_nom.rotation, p_tgt)
-            se3_b_live = pin.SE3(se3_b_nom.rotation, p_stance_b)
-            q_end = dock_configuration(model, se3_a_end, se3_b_live)
+            se3_a_end = self.sched.anchor_se3('a', target_idx)
+            q_end = dock_configuration(model, se3_a_end, se3_b)
 
         rs_e = self.robot.update(q_end, np.zeros(18))
-        p_t1_full = rs_e.oMf_torso.translation.copy()
+        p_t1_full = rs_e.oMf_torso.translation.copy()   # struct frame
         R_t1_full = rs_e.oMf_torso.rotation.copy()
         r_com1_full = rs_e.r_com.copy()
         delta1_full = R_t1_full.T @ (r_com1_full - p_t1_full)
@@ -583,23 +611,14 @@ class SimulationLoop:
         R_t1 = R_t0 @ pin.exp3(frac * omega)
         delta1 = (1 - frac) * delta0 + frac * delta1_full
 
-        # --- Fix 3: capture structure pose at planning time ---
-        # The trajectory is stored in the structure body frame so that it
-        # automatically follows structure drift during execution.
-        p_struct_plan = self.mj_data.qpos[0:3].copy()
-        w, x, y, z   = self.mj_data.qpos[3:7]
-        R_struct_plan = pin.Quaternion(w, x, y, z).toRotationMatrix()
-
+        # Trajectory stored directly in structure frame (no Fix 3 conversion)
         t_torso_start = t_ss_start + cfg.torso_delay * cfg.t_swing
         self.torso_planner.clear_phases()
-        self.torso_planner.set_hold(
-            p_t0, R_t0, r_com=r_com0,
-            p_struct=p_struct_plan, R_struct=R_struct_plan)
+        self.torso_planner.set_hold(p_t0, R_t0, r_com=r_com0)
         self.torso_planner.add_phase(
             t_torso_start, t_ss_end,
             p_t0, R_t0, p_t1, R_t1,
-            delta_com_start=delta0, delta_com_end=delta1,
-            p_struct=p_struct_plan, R_struct=R_struct_plan)
+            delta_com_start=delta0, delta_com_end=delta1)
 
         return q_start
 
@@ -675,18 +694,14 @@ class SimulationLoop:
                             hw, L_com_prev, log, ss_end=t_ss_end)
                         t += cfg.dt_nmpc
 
-                    # EXT: capture torso hold in structure frame (Fix 3)
+                    # EXT: capture torso hold (already in structure frame)
                     pq, pv = mujoco_to_pinocchio(
                         self.mj_data.qpos, self.mj_data.qvel)
                     rs_snap = self.robot.update(pq, pv)
-                    p_se   = self.mj_data.qpos[0:3].copy()
-                    w, x, y, z = self.mj_data.qpos[3:7]
-                    R_se   = pin.Quaternion(w, x, y, z).toRotationMatrix()
                     self.torso_planner.set_hold(
                         rs_snap.oMf_torso.translation.copy(),
                         rs_snap.oMf_torso.rotation.copy(),
-                        r_com=rs_snap.r_com.copy(),
-                        p_struct=p_se, R_struct=R_se)
+                        r_com=rs_snap.r_com.copy())
 
                     if verbose:
                         print(f"  EXT: {t:.2f} → dock or +{cfg.t_ext_max}s")
@@ -743,18 +758,14 @@ class SimulationLoop:
                     if verbose:
                         print(f"  DS settle: {t:.2f} → +{cfg.t_settle_final}s")
 
-                    # Capture torso hold for settling
+                    # Capture torso hold for settling (already in structure frame)
                     pq, pv = mujoco_to_pinocchio(
                         self.mj_data.qpos, self.mj_data.qvel)
                     rs_hold = self.robot.update(pq, pv)
-                    p_se = self.mj_data.qpos[0:3].copy()
-                    w, x, y, z = self.mj_data.qpos[3:7]
-                    R_se = pin.Quaternion(w, x, y, z).toRotationMatrix()
                     self.torso_planner.set_hold(
                         rs_hold.oMf_torso.translation.copy(),
                         rs_hold.oMf_torso.rotation.copy(),
-                        r_com=rs_hold.r_com.copy(),
-                        p_struct=p_se, R_struct=R_se)
+                        r_com=rs_hold.r_com.copy())
 
                     while t < t_ds_settle:
                         hw, L_com_prev = self._step(
@@ -777,44 +788,24 @@ class SimulationLoop:
     def _step(self, t, phase, step_idx, swing_arm, stance_arm,
               cc_ss, target_anchor, stance_a, stance_b,
               hw, L_com_prev, log, ss_end=None):
+        """Single NMPC+QP step.  All quantities are in structure frame."""
         cfg = self.cfg
 
-        # --- Fix 3: read live structure state for trajectory reconstruction ---
-        p_struct    = self.mj_data.qpos[0:3].copy()
-        v_struct    = self.mj_data.qvel[0:3].copy()
-        omega_struct = self.mj_data.qvel[3:6].copy()
-        w, x, y, z = self.mj_data.qpos[3:7]
-        R_struct    = pin.Quaternion(w, x, y, z).toRotationMatrix()
+        # Torso/CoM references (structure frame — no struct pose needed)
+        tref = self.torso_planner.reference_at(t)
+        cref = self.torso_planner.com_reference_at(t)
 
-        tref = self.torso_planner.reference_at(
-            t, p_struct=p_struct, R_struct=R_struct,
-            v_struct=v_struct, omega_struct=omega_struct)
-        cref = self.torso_planner.com_reference_at(
-            t, p_struct=p_struct, R_struct=R_struct,
-            v_struct=v_struct, omega_struct=omega_struct)
-
+        # Robot state in structure frame
         pq, pv = mujoco_to_pinocchio(self.mj_data.qpos, self.mj_data.qvel)
         rs = self.robot.update(pq, pv)
         if L_com_prev is None:
             L_com_prev = rs.L_com.copy()
 
-        # --- Fix R4: ancres live en frame monde pour le NMPC ---
-        # cc_ss.r_contact_A/B sont les positions d'ancre en frame monde à t=0
-        # (figées à l'initialisation). rs.r_com est aussi en frame monde
-        # (Pinocchio). Le bras de levier (r_Cj - r_com) dans L_dot est donc
-        # calculé en frame monde dans les deux cas. Après dérive de structure,
-        # les ancres nominales restent à leur position initiale alors que les
-        # vraies ancres ont bougé avec la structure → erreur sur le bras de
-        # levier. On relit les positions monde live depuis mj_data.
-        mj_a_live, mj_b_live = read_anchors_from_mujoco(
-            self.mj_model, self.mj_data)
+        # Contact config from constant structure-frame anchors (no live reading)
         cc_nmpc = ContactConfig.from_phase(
             cc_ss.phase,
-            mj_a_live[stance_a][:3].copy(),
-            mj_b_live[stance_b][:3].copy())
-
-        # Update swing planner with live anchor positions
-        self.swing_planner.set_live_anchors(mj_a_live, mj_b_live)
+            self.sched.anchors_a[stance_a].copy(),
+            self.sched.anchors_b[stance_b].copy())
 
         # NMPC
         nmpc_ok = True
@@ -841,6 +832,8 @@ class SimulationLoop:
         if ss_end is None:
             ss_end = t + cfg.dt_nmpc  # fallback
 
+        _L_com_qp_prev = rs.L_com.copy()
+
         for qs in range(self.n_qp_per_nmpc):
             tq = t + qs * cfg.dt_qp
             pq, pv = mujoco_to_pinocchio(self.mj_data.qpos, self.mj_data.qvel)
@@ -848,15 +841,8 @@ class SimulationLoop:
             Jc, Jdc = self.robot.get_contact_jacobians(
                 cc_ss.active_contacts[0], cc_ss.active_contacts[1])
 
-            # Update struct state at QP rate (mj_data already advanced by mj_step)
-            p_sq     = self.mj_data.qpos[0:3].copy()
-            v_sq     = self.mj_data.qvel[0:3].copy()
-            om_sq    = self.mj_data.qvel[3:6].copy()
-            w, x, y, z = self.mj_data.qpos[3:7]
-            R_sq     = pin.Quaternion(w, x, y, z).toRotationMatrix()
-            tr = self.torso_planner.reference_at(
-                tq, p_struct=p_sq, R_struct=R_sq,
-                v_struct=v_sq, omega_struct=om_sq)
+            # Torso reference (structure frame — no struct pose needed at QP rate)
+            tr = self.torso_planner.reference_at(tq)
             tkw = dict(
                 J_torso=rs.J_torso, Jdot_dq_torso=rs.Jdot_dq_torso,
                 p_torso=rs.oMf_torso.translation,
@@ -873,8 +859,11 @@ class SimulationLoop:
                               p_ee=p_ee, p_ee_ref=sr.p_ee,
                               v_ee_ref=sr.v_ee, a_ee_ff=sr.a_ee)
             elif phase == 'EXT':
-                mujoco.mj_forward(self.mj_model, self.mj_data)
-                p_tgt = self._anchor_site_pos(swing_arm, target_anchor)
+                # Target anchor in structure frame (constant)
+                if swing_arm == 'b':
+                    p_tgt = self.sched.anchors_b[target_anchor].copy()
+                else:
+                    p_tgt = self.sched.anchors_a[target_anchor].copy()
                 J_ee, Jdq_ee, p_ee = self._get_ee_data(rs, swing_arm)
                 ek = dict(J_ee=J_ee, Jdot_dq_ee=Jdq_ee,
                           p_ee=p_ee, p_ee_ref=p_tgt,
@@ -900,24 +889,27 @@ class SimulationLoop:
             tau_last = tau.copy()
             self.mj_data.ctrl[:12] = tau
 
-            # AOCS: compute and apply reaction wheel torques
+            # AOCS: compensate centroidal L_dot via reaction wheels.
+            # Only the spin component (L_com) is compensated — the orbital
+            # term (r_com - r_mid) × Σf cannot be reliably estimated
+            # (lambda_qp ≠ MuJoCo forces; finite-diff a_com too noisy).
             if self.has_rwa:
-                rw_vel = self.mj_data.qvel[6:9]  # rw_x, rw_y, rw_z angular velocities
-                hw_phys = cfg.rwa_I_w * rw_vel    # physical wheel momentum
-                L_dot_est_qp = (rs.L_com - L_com_prev) / cfg.dt_qp if L_com_prev is not None else np.zeros(3)
+                rw_vel = self.mj_data.qvel[6:9]
+                hw_phys = cfg.rwa_I_w * rw_vel
+                L_dot_est = (rs.L_com - _L_com_qp_prev) / cfg.dt_qp
                 hw_error = np.clip(hw_phys, cfg.hw_min, cfg.hw_max) - hw_phys
-                tau_w_cmd = -L_dot_est_qp - cfg.aocs_K_hw * hw_error
+                tau_w_cmd = -L_dot_est - cfg.aocs_K_hw * hw_error
                 tau_w_cmd = np.clip(tau_w_cmd, -cfg.aocs_tau_w_max, cfg.aocs_tau_w_max)
                 self.mj_data.ctrl[12:15] = tau_w_cmd
                 tau_w_last = tau_w_cmd.copy()
 
+            _L_com_qp_prev = rs.L_com.copy()
             mujoco.mj_step(self.mj_model, self.mj_data)
 
             rs2 = self.robot.update(
                 *mujoco_to_pinocchio(self.mj_data.qpos, self.mj_data.qvel))
 
             if self.has_rwa:
-                # Read hw from physical wheel speeds
                 hw = cfg.rwa_I_w * self.mj_data.qvel[6:9].copy()
             else:
                 hw -= (rs2.L_com - rs.L_com) / cfg.dt_qp * cfg.dt_qp
@@ -929,6 +921,9 @@ class SimulationLoop:
         mujoco.mj_forward(self.mj_model, self.mj_data)
         rs_f = self.robot.update(
             *mujoco_to_pinocchio(self.mj_data.qpos, self.mj_data.qvel))
+        # Recompute torso reference at the actual logged time (after QP steps)
+        t_log = t + cfg.dt_nmpc
+        tref_log = self.torso_planner.reference_at(t_log)
         d_swing = self._gripper_distance(swing_arm, target_anchor)
         d_stance = self._gripper_distance(
             stance_arm, stance_a if stance_arm == 'a' else stance_b)
@@ -940,10 +935,10 @@ class SimulationLoop:
         log.phase.append(phase)
         log.step_idx.append(step_idx)
         log.p_torso.append(rs_f.oMf_torso.translation.copy())
-        log.p_torso_ref.append(tref.p.copy())
+        log.p_torso_ref.append(tref_log.p.copy())
         log.e_torso_pos.append(float(np.linalg.norm(
-            rs_f.oMf_torso.translation - tref.p)))
-        R_err = tref.R.T @ rs_f.oMf_torso.rotation
+            rs_f.oMf_torso.translation - tref_log.p)))
+        R_err = tref_log.R.T @ rs_f.oMf_torso.rotation
         angle_err = np.arccos(np.clip((np.trace(R_err) - 1) / 2, -1, 1))
         log.e_torso_ori.append(float(np.degrees(angle_err)))
         log.d_grip_swing.append(d_swing)
@@ -1058,7 +1053,7 @@ class SimulationLoop:
                 if ph[i] != ph[i-1]:
                     ax.axvline(t[i], color='gray', ls=':', alpha=.5)
 
-        fig, axes = plt.subplots(8, 1, figsize=(14, 32), sharex=True)
+        fig, axes = plt.subplots(9, 1, figsize=(14, 36), sharex=True)
         nd = len(log.dock_events)
         fig.suptitle(
             f'VISPA — $L_{{max}}$={L_max}, $\\tau_w$={tw} Nm, '
@@ -1119,23 +1114,26 @@ class SimulationLoop:
         ax.set_title('⑦ Orientation structure (Euler)')
         ax.legend(fontsize=9); ax.grid(True, alpha=.3)
 
-        # ⑧ Torso tracking error
-        e_pos = np.array(log.e_torso_pos) * 100  # [cm]
+        # ⑧ Torso position tracking error (components + norm)
+        e_pos_vec = (pt - pt_ref) * 100  # (N,3) in cm
+        e_pos_norm = np.array(log.e_torso_pos) * 100  # [cm]
+        ax = axes[7]; shade(ax)
+        ax.plot(t, e_pos_vec[:,0], 'r-', lw=1.2, alpha=.7, label='$e_x$')
+        ax.plot(t, e_pos_vec[:,1], 'g-', lw=1.2, alpha=.7, label='$e_y$')
+        ax.plot(t, e_pos_vec[:,2], 'b-', lw=1.2, alpha=.7, label='$e_z$')
+        ax.plot(t, e_pos_norm, 'k-', lw=2.5, label='$\\|e_{pos}\\|$')
+        ax.set_ylabel('[cm]')
+        ax.set_title('⑧ Erreur tracking torso — position')
+        ax.legend(fontsize=9, ncol=4); ax.grid(True, alpha=.3)
+
+        # ⑨ Torso orientation tracking error (geodesic angle)
         e_ori = np.array(log.e_torso_ori) if log.e_torso_ori else np.zeros(len(t))
-        ax1 = axes[7]; shade(ax1)
-        ax1.plot(t, e_pos, 'r-', lw=2.5, label='position error')
-        ax1.set_ylabel('Position [cm]', color='r')
-        ax1.tick_params(axis='y', labelcolor='r')
-        ax1.set_xlabel('Temps [s]')
-        ax1.set_title('⑧ Torso tracking error')
-        ax1.grid(True, alpha=.3)
-        ax2 = ax1.twinx()
-        ax2.plot(t, e_ori, 'b-', lw=2, alpha=.8, label='orientation error')
-        ax2.set_ylabel('Orientation [deg]', color='b')
-        ax2.tick_params(axis='y', labelcolor='b')
-        lines1, labels1 = ax1.get_legend_handles_labels()
-        lines2, labels2 = ax2.get_legend_handles_labels()
-        ax1.legend(lines1 + lines2, labels1 + labels2, fontsize=9, loc='upper left')
+        ax = axes[8]; shade(ax)
+        ax.plot(t, e_ori, 'b-', lw=2.5)
+        ax.set_ylabel('[deg]')
+        ax.set_xlabel('Temps [s]')
+        ax.set_title('⑨ Erreur tracking torso — orientation (angle géodésique)')
+        ax.grid(True, alpha=.3)
 
         plt.tight_layout()
         if save_path:

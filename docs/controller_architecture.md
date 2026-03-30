@@ -22,10 +22,18 @@ TorsoPlanner ──→ CoM ref ──→ CentroidalNMPC (Stage 1, 10 Hz)
                            mj_data.ctrl[12:15] = τ_w (AOCS)
 ```
 
-**Repère commun :** toutes les quantités (positions, vitesses, forces,
-moments) sont exprimées dans le **repère monde inertiel** de MuJoCo.
-Pinocchio et MuJoCo partagent ce repère (aux conventions de quaternions
-près : wxyz MuJoCo vs xyzw Pinocchio, géré par `mujoco_to_pinocchio()`).
+**Repère commun :** toutes les quantités internes (positions, vitesses,
+forces, moments) sont exprimées dans le **repère body de la structure**
+(frame solidaire de la poutre/satellite). `mujoco_to_pinocchio()` transforme
+la pose et le twist du torso depuis le repère monde MuJoCo vers ce repère
+structure. MuJoCo reste en repère monde ; la conversion se fait aux
+interfaces.
+
+Les ancres de contact, les trajectoires torso/swing, les références NMPC
+et QP sont toutes dans ce même repère structure. Les avantages :
+- Les ancres sont des **constantes géométriques** (positions CAD)
+- Aucune correction n'est nécessaire pour la dérive de la structure
+- Les Fix 3 / Fix R4 / live anchors sont supprimés
 
 ---
 
@@ -47,10 +55,10 @@ x = [r_com(3), v_com(3), L_com(3), hw(3)]
 
 | Variable | Dim | Description | Repère |
 |----------|-----|-------------|--------|
-| `r_com` | 3 | Position CoM du robot | Monde inertiel |
-| `v_com` | 3 | Vitesse CoM du robot | Monde inertiel |
-| `L_com` | 3 | Moment centroïdal du robot (autour du CoM robot) | Monde inertiel |
-| `hw` | 3 | Moment cinétique des roues à réaction | Monde inertiel (approx, R_struct ≈ I) |
+| `r_com` | 3 | Position CoM du robot | Structure body |
+| `v_com` | 3 | Vitesse CoM du robot | Structure body |
+| `L_com` | 3 | Moment centroïdal du robot (autour du CoM robot) | Structure body |
+| `hw` | 3 | Moment cinétique des roues à réaction | Structure body (≈ monde si R_struct ≈ I) |
 
 **Source des états initiaux (à chaque appel) :**
 - `r_com, v_com, L_com` : calculés par Pinocchio (`rs.r_com`, `rs.v_com`,
@@ -82,10 +90,10 @@ p = [r_ref(3), v_ref(3), r_C1(3), r_C2(3)]
 
 | Paramètre | Dim | Source |
 |-----------|-----|--------|
-| `r_ref` | 3 | Référence CoM position (TorsoPlanner → com_reference_at) |
-| `v_ref` | 3 | Référence CoM vitesse (TorsoPlanner) |
-| `r_C1` | 3 | Position monde du contact A (ancre stance, lue live depuis MuJoCo) |
-| `r_C2` | 3 | Position monde du contact B (ancre stance, lue live depuis MuJoCo) |
+| `r_ref` | 3 | Référence CoM position (TorsoPlanner → com_reference_at) [struct frame] |
+| `v_ref` | 3 | Référence CoM vitesse (TorsoPlanner) [struct frame] |
+| `r_C1` | 3 | Position du contact A (ancre stance, constante en repère structure) |
+| `r_C2` | 3 | Position du contact B (ancre stance, constante en repère structure) |
 
 **Paramètres constants gelés à l'horizon :** r_ref, v_ref, r_C1, r_C2 sont
 les mêmes pour tous les pas de l'horizon (pas de variation temporelle).
@@ -175,7 +183,7 @@ z = [q̈_t(6), q̈(12), λ(12), τ_q(12)]
 
 ### Entrées
 
-**Depuis Pinocchio (état robot, repère monde) :**
+**Depuis Pinocchio (état robot, repère structure) :**
 
 | Entrée | Dim | Description |
 |--------|-----|-------------|
@@ -199,7 +207,7 @@ z = [q̈_t(6), q̈(12), λ(12), τ_q(12)]
 | `λ_ref` | 12 | Wrenches référence (= λ_plan du NMPC) |
 | `a_com_ff` | 3 | Accélération feedforward (= (f1+f2)/m du NMPC) |
 
-**Depuis le TorsoPlanner (trajectoire 6D, repère monde) :**
+**Depuis le TorsoPlanner (trajectoire 6D, repère structure) :**
 
 | Entrée | Dim | Description |
 |--------|-----|-------------|
@@ -208,7 +216,7 @@ z = [q̈_t(6), q̈(12), λ(12), τ_q(12)]
 | `v_torso_ref` | 6 | Twist torso référence [lin, ang] |
 | `a_torso_ff` | 6 | Accélération torso feedforward |
 
-**Depuis le SwingPlanner (effecteur en mouvement, repère monde) :**
+**Depuis le SwingPlanner (effecteur en mouvement, repère structure) :**
 
 | Entrée | Dim | Description |
 |--------|-----|-------------|
@@ -390,23 +398,31 @@ se dégrade.
 
 ## 6. Flux de données par pas NMPC
 
+Toutes les grandeurs ci-dessous sont en **repère structure** sauf indication
+contraire.
+
 ```
-1. Lire MuJoCo: qpos, qvel
+1. Lire MuJoCo: qpos, qvel (repère monde)
 2. Convertir: mujoco_to_pinocchio(qpos, qvel) → pin_q, pin_v
+   Transforme le torso en repère structure:
+     p_local = R_s^T · (p_torso_monde - p_struct)
+     R_local = R_s^T · R_torso_monde
+     v_local = R_s^T · (v_torso - v_struct - ω_struct × Δp)
+     ω_local = R_s^T · (ω_torso - ω_struct)
 3. Pinocchio: rs = robot.update(pin_q, pin_v)
    → r_com, v_com, L_com, H, C, J_com, J_torso, J_ee, ...
-4. Lire ancres live: read_anchors_from_mujoco → r_C1, r_C2
-5. Lire pose structure: qpos[0:3] → p_struct, qpos[3:7] → R_struct
-6. TorsoPlanner: reference_at(t, p_struct, R_struct) → p_ref, R_ref, v_ref, a_ff
-7. TorsoPlanner: com_reference_at(t, ...) → r_com_ref, v_com_ref
-8. NMPC: solve(r_com, v_com, L_com, hw, r_com_ref, v_com_ref, contacts)
+   (tout en repère structure)
+4. Contact config: r_C1, r_C2 = sched.anchors_a/b (constantes locales)
+5. TorsoPlanner: reference_at(t) → p_ref, R_ref, v_ref, a_ff
+6. TorsoPlanner: com_reference_at(t) → r_com_ref, v_com_ref
+7. NMPC: solve(r_com, v_com, L_com, hw, r_com_ref, v_com_ref, contacts)
    → r_com_plan, v_com_plan, λ_ref, a_com_ff
-9. Boucle QP interne (×10):
-   a. Relire état MuJoCo + Pinocchio
-   b. Relire pose structure (pour TorsoPlanner)
+8. Boucle QP interne (×10):
+   a. Relire état MuJoCo → mujoco_to_pinocchio (repère structure)
+   b. TorsoPlanner.reference_at(tq) (repère structure direct)
    c. QP: solve(...) → τ_q
    d. clip τ_q à ±τ_max
-   e. AOCS: calculer τ_w
+   e. AOCS: calculer τ_w (hw lu depuis roues physiques)
    f. Appliquer: ctrl[0:12] = τ_q, ctrl[12:15] = τ_w
    g. mj_step()
    h. Mettre à jour hw depuis qvel roues

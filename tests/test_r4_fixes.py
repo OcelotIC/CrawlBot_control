@@ -1,8 +1,13 @@
 #!/usr/bin/env python3
-"""Tests R4 : r_contact_A/B live en frame monde pour le NMPC.
+"""Tests structure-frame: anchors constant, lever arm invariant to drift.
 
-Valide que les positions d'ancre passées au CentroidalNMPC sont lues
-en temps réel depuis MuJoCo (world frame) plutôt que figées à t=0.
+After the structure-frame refactoring, contact anchor positions are constant
+in the structure body frame and are never re-read from MuJoCo during the
+control loop. This test validates:
+
+  TEST I:  Scheduler anchors match initial MuJoCo sites (after frame transform)
+  TEST J:  Lever arm (r_Cj - r_com) is invariant to structure drift
+  TEST K:  Regression — run test_r3_fixes
 
 Usage:
     python test_r4_fixes.py --urdf models/VISPA_crawling_fixed.urdf \
@@ -27,7 +32,7 @@ n_pass = n_fail = 0
 def check(name, cond, detail=''):
     global n_pass, n_fail
     if cond: n_pass += 1; print(f'  [{PASS}] {name}')
-    else:    n_fail += 1; print(f'  [{FAIL}] {name}  → {detail}')
+    else:    n_fail += 1; print(f'  [{FAIL}] {name}  -> {detail}')
 
 sim = SimulationLoop(mjcf_path=args.mjcf, urdf_path=args.urdf)
 sim.setup(n_steps=2, start_a=2, start_b=2)
@@ -36,69 +41,83 @@ t_ss0    = sim.plan.t_start[1]
 stance_a = ss_gp.anchor_a_idx; stance_b = ss_gp.anchor_b_idx
 
 print('\n' + '='*60)
-print('  TEST I — Cohérence live vs nominal à t=0')
+print('  TEST I - Scheduler anchors consistent with MuJoCo sites')
 print('='*60)
-mj_a0, mj_b0 = read_anchors_from_mujoco(sim.mj_model, sim.mj_data)
-cc_nom = sim.sched.contact_config_at(t_ss0 + 0.1)
-err_A = np.linalg.norm(mj_a0[stance_a][:3] - cc_nom.r_contact_A)
-print(f'  r_cA nominal : {cc_nom.r_contact_A}')
-print(f'  r_cA live    : {mj_a0[stance_a][:3]}')
-print(f'  Offset A     : {err_A*1000:.1f} mm  (grid vs cinématique réelle)')
-check('Live et nominal cohérents — offset < 5 cm (même ancre)', err_A < 0.05,
-      f'{err_A*100:.1f} cm')
+
+# Read live world-frame sites and convert to struct frame for comparison
+mj_a_world, _ = read_anchors_from_mujoco(sim.mj_model, sim.mj_data)
+p_s = sim.mj_data.qpos[0:3].copy()
+w, x, y, z = sim.mj_data.qpos[3:7]
+R_s = pin.Quaternion(w, x, y, z).toRotationMatrix()
+mj_a_local = R_s.T @ (mj_a_world[stance_a] - p_s)
+
+sched_a = sim.sched.anchors_a[stance_a]
+err_A = np.linalg.norm(sched_a - mj_a_local)
+print(f'  r_cA scheduler (struct frame) : {sched_a}')
+print(f'  r_cA from MuJoCo (converted)  : {mj_a_local}')
+print(f'  Error                         : {err_A*1000:.3f} mm')
+check('Scheduler anchor matches MuJoCo site (< 0.01 mm)', err_A < 1e-5,
+      f'{err_A*1000:.3f} mm')
 
 print('\n' + '='*60)
-print('  TEST J — Dérive structure : r_contact_live suit exactement')
+print('  TEST J - Lever arm invariant under structure drift')
 print('='*60)
+
+# Compute lever arm before drift
+pq0, pv0 = mujoco_to_pinocchio(sim.mj_data.qpos, sim.mj_data.qvel)
+rs0 = sim.robot.update(pq0, pv0)
+r_cA = sim.sched.anchors_a[stance_a]
+lever_before = r_cA - rs0.r_com
+print(f'  lever arm before drift: {lever_before}')
+
+# Inject drift: +10 cm x, +5 cm y
 DRIFT = np.array([0.10, 0.05, 0.0])
-r_cA_before = mj_a0[stance_a][:3].copy()
-sim.mj_data.qpos[0:3]  += DRIFT
-sim.mj_data.qpos[7:10] += DRIFT
+sim.mj_data.qpos[0:3] += DRIFT
+# Also shift torso by same amount (rigid body motion, no relative change)
+off_q = 3 if sim.has_rwa else 0
+sim.mj_data.qpos[7 + off_q: 10 + off_q] += DRIFT
 mujoco.mj_forward(sim.mj_model, sim.mj_data)
-mj_a1, _ = read_anchors_from_mujoco(sim.mj_model, sim.mj_data)
-r_cA_after = mj_a1[stance_a][:3]
-delta_A = r_cA_after - r_cA_before
-print(f'  Dérive injectée   : {DRIFT*100} cm')
-print(f'  Delta r_cA_live   : {delta_A*100} cm')
-check('r_cA_live suit la dérive en x (< 1 mm)',
-      abs(delta_A[0] - DRIFT[0]) < 1e-3)
-check('r_cA_live suit la dérive en y (< 1 mm)',
-      abs(delta_A[1] - DRIFT[1]) < 1e-3)
 
-print('\n' + '='*60)
-print('  TEST J2 — Bras de levier invariant à dérive solidaire')
-print('='*60)
-pq0, _ = mujoco_to_pinocchio(np.concatenate([
-    sim.mj_data.qpos[0:3] - DRIFT, sim.mj_data.qpos[3:7],
-    sim.mj_data.qpos[7:10] - DRIFT, sim.mj_data.qpos[10:26]
-]), np.zeros(24))
-rs0 = sim.robot.update(pq0, np.zeros(18))
-lever_before = r_cA_before - rs0.r_com
+# Recompute in structure frame — should give same lever arm
 pq1, pv1 = mujoco_to_pinocchio(sim.mj_data.qpos, sim.mj_data.qvel)
 rs1 = sim.robot.update(pq1, pv1)
-lever_live = r_cA_after          - rs1.r_com
-lever_nom  = cc_nom.r_contact_A  - rs1.r_com
-err_live = np.linalg.norm(lever_live - lever_before)
-err_nom  = np.linalg.norm(lever_nom  - lever_before)
-print(f'  err bras de levier live  : {err_live*1000:.3f} mm')
-print(f'  err bras de levier nom   : {err_nom*1000:.1f} mm  (erreur évitée par R4)')
-check('Bras de levier live invariant (< 1 mm)', err_live < 1e-3, f'{err_live*1000:.3f} mm')
-check('Bras de levier nominal biaisé > 2 cm sans le fix', err_nom > 0.02,
-      f'{err_nom*100:.1f} cm')
+lever_after = r_cA - rs1.r_com  # r_cA is constant (struct frame)
+err_lever = np.linalg.norm(lever_after - lever_before)
+print(f'  lever arm after drift:  {lever_after}')
+print(f'  error:                  {err_lever*1000:.3f} mm')
+check('Lever arm invariant to rigid drift (< 0.01 mm)', err_lever < 1e-5,
+      f'{err_lever*1000:.3f} mm')
+
+# Verify that r_com in struct frame is the same (rigid drift = no relative motion)
+err_rcom = np.linalg.norm(rs1.r_com - rs0.r_com)
+print(f'  r_com struct before: {rs0.r_com}')
+print(f'  r_com struct after:  {rs1.r_com}')
+check('r_com invariant in struct frame (< 0.01 mm)', err_rcom < 1e-5,
+      f'{err_rcom*1000:.3f} mm')
+
+# Undo drift
+sim.mj_data.qpos[0:3] -= DRIFT
+sim.mj_data.qpos[7 + off_q: 10 + off_q] -= DRIFT
+mujoco.mj_forward(sim.mj_model, sim.mj_data)
 
 print('\n' + '='*60)
-print('  TEST K — Régression R1–R3')
+print('  TEST K - Regression R3')
 print('='*60)
-import subprocess, os
+import subprocess
+env = os.environ.copy()
+env['PYTHONPATH'] = _root
+env['MUJOCO_GL'] = 'disabled'
 result = subprocess.run(
-    ['python3', 'test_r3_fixes.py', '--urdf', args.urdf, '--mjcf', args.mjcf],
-    capture_output=True, text=True,
+    ['python3', 'test_r3_fixes.py',
+     '--urdf', os.path.abspath(args.urdf),
+     '--mjcf', os.path.abspath(args.mjcf)],
+    capture_output=True, text=True, env=env,
     cwd=os.path.dirname(os.path.abspath(__file__)))
-final = [l for l in result.stdout.split('\n') if 'RÉSULTATS' in l]
+final = [l for l in result.stdout.split('\n') if 'RESULTATS' in l]
 print(f'  {final[0].strip() if final else "no summary"}')
-check('R3 regression : 11 PASS 0 FAIL', result.returncode == 0)
+check('R3 regression passes', result.returncode == 0)
 
 print('\n' + '='*60)
-print(f'  RÉSULTATS R4 : {n_pass} PASS, {n_fail} FAIL')
+print(f'  RESULTATS R4 : {n_pass} PASS, {n_fail} FAIL')
 print('='*60)
 sys.exit(0 if n_fail == 0 else 1)

@@ -89,10 +89,13 @@ d.qpos[12] = 3.0   # torso z
 d.qpos[13:17] = [1, 0, 0, 0]  # identity quat wxyz
 
 pin_q, pin_v = mujoco_to_pinocchio(d.qpos, d.qvel)
-check('T3a — pin_q[0:3] == torso pos',
-      np.allclose(pin_q[0:3], [1.0, 2.0, 3.0]),
-      f'got {pin_q[0:3]}')
-# xyzw from wxyz=(1,0,0,0) -> (0,0,0,1)
+# Structure at [0,0,-1.8], torso at [1,2,3] → struct frame = [1, 2, 4.8]
+p_s = d.qpos[0:3]  # struct pos
+p_t_expected = np.array([1.0, 2.0, 3.0]) - p_s  # R_s=I → simple subtraction
+check('T3a — pin_q[0:3] == torso pos in struct frame',
+      np.allclose(pin_q[0:3], p_t_expected, atol=1e-10),
+      f'got {pin_q[0:3]}, expected {p_t_expected}')
+# xyzw from wxyz=(1,0,0,0) -> (0,0,0,1) — same relative rotation (both identity)
 check('T3b — pin_q[3:7] quat xyzw correct',
       np.allclose(pin_q[3:7], [0, 0, 0, 1]),
       f'got {pin_q[3:7]}')
@@ -105,9 +108,11 @@ d_orig.qpos[8] = 2.0
 d_orig.qpos[9] = 3.0
 d_orig.qpos[10:14] = [1, 0, 0, 0]
 pin_q2, _ = mujoco_to_pinocchio(d_orig.qpos, d_orig.qvel)
-check('T3c — backward compat: original layout still works',
-      np.allclose(pin_q2[0:3], [1.0, 2.0, 3.0]),
-      f'got {pin_q2[0:3]}')
+p_s2 = d_orig.qpos[0:3]
+p_t2_expected = np.array([1.0, 2.0, 3.0]) - p_s2
+check('T3c — original layout: torso in struct frame',
+      np.allclose(pin_q2[0:3], p_t2_expected, atol=1e-10),
+      f'got {pin_q2[0:3]}, expected {p_t2_expected}')
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # T4–T7 — Full simulation tests (need pinocchio + casadi)
