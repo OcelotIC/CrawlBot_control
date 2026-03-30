@@ -366,7 +366,11 @@ class CentroidalNMPC:
         L_com_plan = x_opt[6:9, 1]
         lambda_plan = u_opt[:, 0]
 
-        return r_com_plan, v_com_plan, L_com_plan, lambda_plan, info
+        # hw_dot planned: rate of change the NMPC expects for the wheels.
+        # This is the feedforward signal for the AOCS.
+        hw_dot_plan = (x_opt[9:12, 1] - hw_current) / self.config.dt
+
+        return r_com_plan, v_com_plan, L_com_plan, lambda_plan, hw_dot_plan, info
 
     def get_full_trajectory(
         self,
