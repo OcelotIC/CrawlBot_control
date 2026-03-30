@@ -152,13 +152,10 @@ class CentroidalNMPC:
             L_dot = (ca.cross(r_C1 - r_com, f1) + tau1 +
                      ca.cross(r_C2 - r_com, f2) + tau2)
 
-            # Wheel momentum: conservation about O (structure CoM).
-            # In structure frame, O = origin (MJCF inertial pos="0 0 0"),
-            # so r_com is already relative to O.
-            #
-            # ḣ_w = -dH_{r/O}/dt = -[L̇_com + r_com × Σf_j]
-            #      = -[Σ(r_Cj × f_j + τ_j)]   (moment about O)
-            orbital = ca.cross(r_com, f1 + f2)
+            # Wheel momentum: conservation about midpoint of contacts.
+            # ḣ_w = -L̇_com - (r_com - r_mid) × Σf_j
+            r_mid = (r_C1 + r_C2) / 2
+            orbital = ca.cross(r_com - r_mid, f1 + f2)
             hw_dot = -L_dot - orbital
 
             return ca.vertcat(v_com, v_dot, L_dot, hw_dot)
