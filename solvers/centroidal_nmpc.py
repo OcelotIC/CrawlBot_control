@@ -234,11 +234,13 @@ class CentroidalNMPC:
                 ca.dot(tau2, tau2) - tau_max_sq,
             )
 
-            # L̇_robot rate constraint: |L̇| ≤ τ_w_max
-            # L̇ = Σ [(r_Cj - r_com) × fj + τj]
+            # L̇_com rate constraint: |L̇_com| ≤ τ_w_max
+            # Constrains the centroidal (spin) component only. The full
+            # torque demand on wheels (spin + orbital) is handled by the
+            # hw box constraint via the corrected ODE (hw_dot = -L̇ - orbital).
             L_dot = (ca.cross(r_C1 - r_com, f1) + tau1 +
                      ca.cross(r_C2 - r_com, f2) + tau2)
-            # Bilateral: -τ_w_max ≤ L̇ ≤ τ_w_max → L̇ - τ_w ≤ 0  and  -L̇ - τ_w ≤ 0
+            # Bilateral: -τ_w_max ≤ L̇ ≤ τ_w_max
             tw = cfg.tau_w_max
             Ldot_ineq = ca.vertcat(L_dot - tw, -L_dot - tw)
 
