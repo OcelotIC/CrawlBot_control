@@ -61,6 +61,7 @@ from ik import dock_configuration
 from solvers.centroidal_nmpc import CentroidalNMPC, CentroidalNMPCConfig
 from solvers.wholebody_qp import WholeBodyQP, WholeBodyQPConfig
 from solvers.contact_phase import ContactConfig
+from force_estimator import MomentumDisturbanceEstimator, EstimatorConfig, compute_aocs_command
 
 
 # ── State conversions ────────────────────────────────────────────────────────
@@ -205,9 +206,16 @@ class SimConfig:
     tau_w_max: float = 5.0        # Reaction wheel torque limit [Nm]
 
     # AOCS parameters (for physical RWA model)
-    aocs_K_hw: float = 2.0        # Feedback gain [1/s]
+    aocs_K_hw: float = 2.0        # Legacy feedback gain [1/s] (used if aocs_use_H_estimator=False)
     aocs_tau_w_max: float = 5.0   # Max wheel torque [Nm] (matches NMPC tau_w_max)
     rwa_I_w: float = 0.01         # Wheel spin inertia [kg.m2]
+
+    # H_{r/O} momentum estimator AOCS (new)
+    aocs_use_H_estimator: bool = True   # Use H_{r/O} estimator instead of L_dot-only
+    aocs_filter_tau: float = 0.016      # EMA filter time constant [s] (~10 Hz cutoff)
+    aocs_K_omega: float = 50.0          # Attitude damping gain [Nm·s/rad]
+    aocs_K_h: float = 0.5              # Desaturation gain [1/s]
+    aocs_hw_target: np.ndarray = field(default_factory=lambda: np.zeros(3))  # Target hw for desaturation
 
     # Passivity penalty on hw (drives wheels toward zero in NMPC)
     nmpc_W_hw: float = 0.0        # Penalty weight on ‖hw‖² in terminal cost (0=disabled)
@@ -294,6 +302,12 @@ class SimLog:
     hw_physical: list = field(default_factory=list)
     tau_w: list = field(default_factory=list)
     rw_speed: list = field(default_factory=list)
+
+    # H_{r/O} estimator diagnostics
+    H_rO: list = field(default_factory=list)              # H_{r/O} vector (3,)
+    H_dot_est: list = field(default_factory=list)         # dH/dt estimate (3,)
+    omega_struct: list = field(default_factory=list)       # Structure angular velocity (3,)
+    qfrc_constraint_torque: list = field(default_factory=list)  # MuJoCo constraint torque on structure (3,)
 
     # Torques
     tau: list = field(default_factory=list)
@@ -489,9 +503,22 @@ class SimulationLoop:
             cfg.ext_Kp_torso, cfg.ext_Kd_torso,
             cfg.ext_Kp_ee, cfg.ext_Kd_ee)
 
+        # H_{r/O} momentum disturbance estimator for AOCS
+        self.H_estimator = MomentumDisturbanceEstimator(
+            robot_mass=rs0.total_mass,
+            dt=cfg.dt_qp,
+            config=EstimatorConfig(
+                robot_mass=rs0.total_mass,
+                dt=cfg.dt_qp,
+                filter_tau=cfg.aocs_filter_tau,
+                include_transport=True,
+            ),
+        )
+
         print(f"[SimulationLoop] Initialized:")
         print(f"  Robot mass:     {rs0.total_mass:.1f} kg")
         print(f"  RWA model:      {'YES (3 wheels)' if self.has_rwa else 'NO'}")
+        print(f"  AOCS estimator: {'H_{r/O}' if cfg.aocs_use_H_estimator else 'L_dot (legacy)'}")
         print(f"  NMPC:           {1/cfg.dt_nmpc:.0f} Hz, N={cfg.nmpc_N}")
         print(f"  QP:             {1/cfg.dt_qp:.0f} Hz, {self.n_qp_per_nmpc} per NMPC")
         print(f"  Gait:           {n_steps} step(s), T_swing={cfg.t_swing}s")
@@ -826,6 +853,7 @@ class SimulationLoop:
         qp = self.qp_ext if phase == 'EXT' else self.qp_ss
         tau_last = np.zeros(12)
         tau_w_last = np.zeros(3)
+        _omega_s_last = np.zeros(3)
         qp_ok = True
         t_qp_start = time.perf_counter()
 
@@ -889,19 +917,37 @@ class SimulationLoop:
             tau_last = tau.copy()
             self.mj_data.ctrl[:12] = tau
 
-            # AOCS: compensate centroidal L_dot via reaction wheels.
-            # Only the spin component (L_com) is compensated — the orbital
-            # term (r_com - r_mid) × Σf cannot be reliably estimated
-            # (lambda_qp ≠ MuJoCo forces; finite-diff a_com too noisy).
+            # AOCS: reaction wheel torque command.
             if self.has_rwa:
                 rw_vel = self.mj_data.qvel[6:9]
                 hw_phys = cfg.rwa_I_w * rw_vel
-                L_dot_est = (rs.L_com - _L_com_qp_prev) / cfg.dt_qp
-                hw_error = np.clip(hw_phys, cfg.hw_min, cfg.hw_max) - hw_phys
-                tau_w_cmd = -L_dot_est - cfg.aocs_K_hw * hw_error
-                tau_w_cmd = np.clip(tau_w_cmd, -cfg.aocs_tau_w_max, cfg.aocs_tau_w_max)
+                omega_s = self.mj_data.qvel[3:6]
+
+                if cfg.aocs_use_H_estimator:
+                    # H_{r/O} estimator: feedforward on full robot angular
+                    # momentum about O (spin + orbital), with attitude
+                    # damping and desaturation feedback.
+                    H_dot_est = self.H_estimator.update(
+                        r_com=rs.r_com, v_com=rs.v_com,
+                        L_com=rs.L_com, omega_s=omega_s)
+                    tau_w_cmd = compute_aocs_command(
+                        H_dot_est=H_dot_est,
+                        omega_s=omega_s,
+                        hw_current=hw_phys,
+                        hw_target=cfg.aocs_hw_target,
+                        K_omega=cfg.aocs_K_omega,
+                        K_h=cfg.aocs_K_h,
+                        tau_w_max=cfg.aocs_tau_w_max)
+                else:
+                    # Legacy AOCS: L_dot feedforward only (spin component).
+                    L_dot_est = (rs.L_com - _L_com_qp_prev) / cfg.dt_qp
+                    hw_error = np.clip(hw_phys, cfg.hw_min, cfg.hw_max) - hw_phys
+                    tau_w_cmd = -L_dot_est - cfg.aocs_K_hw * hw_error
+                    tau_w_cmd = np.clip(tau_w_cmd, -cfg.aocs_tau_w_max, cfg.aocs_tau_w_max)
+
                 self.mj_data.ctrl[12:15] = tau_w_cmd
                 tau_w_last = tau_w_cmd.copy()
+                _omega_s_last = omega_s.copy()
 
             _L_com_qp_prev = rs.L_com.copy()
             mujoco.mj_step(self.mj_model, self.mj_data)
@@ -961,6 +1007,21 @@ class SimulationLoop:
             log.hw_physical.append(hw.copy())
             log.tau_w.append(np.zeros(3))
             log.rw_speed.append(np.zeros(3))
+
+        # H_{r/O} estimator diagnostics
+        if self.has_rwa and cfg.aocs_use_H_estimator:
+            log.H_rO.append(self.H_estimator.H_rO.copy())
+            log.H_dot_est.append(self.H_estimator.H_dot.copy())
+            log.omega_struct.append(_omega_s_last.copy())
+            # MuJoCo ground truth: constraint torque on structure about O
+            mujoco.mj_forward(self.mj_model, self.mj_data)
+            log.qfrc_constraint_torque.append(
+                self.mj_data.qfrc_constraint[3:6].copy())
+        else:
+            log.H_rO.append(np.zeros(3))
+            log.H_dot_est.append(np.zeros(3))
+            log.omega_struct.append(np.zeros(3))
+            log.qfrc_constraint_torque.append(np.zeros(3))
         log.tau.append(tau_last.copy())
         log.tau_max_joint.append(float(np.max(np.abs(tau_last))))
         log.struct_pos.append(self.mj_data.qpos[0:3].copy())
