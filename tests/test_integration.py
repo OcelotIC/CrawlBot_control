@@ -208,8 +208,10 @@ from simulation_loop import pinocchio_to_mujoco, mujoco_to_pinocchio
 
 struct_pos = mj_data.qpos[0:3].copy()
 struct_quat = mj_data.qpos[3:7].copy()
+_rwa = mj_model.nq >= 29
 mj_qpos, mj_qvel = pinocchio_to_mujoco(
-    q_dock, np.zeros(18), struct_pos=struct_pos, struct_quat=struct_quat)
+    q_dock, np.zeros(18), struct_pos=struct_pos, struct_quat=struct_quat,
+    rwa=_rwa)
 q_back, v_back = mujoco_to_pinocchio(mj_qpos, mj_qvel)
 
 check('roundtrip q', np.allclose(q_back, q_dock, atol=1e-12),
@@ -343,7 +345,8 @@ print('='*60)
 # Set MuJoCo to IK config
 mj_model.opt.timestep = 0.008
 mj_qpos, _ = pinocchio_to_mujoco(
-    q_dock, np.zeros(18), struct_pos=struct_pos, struct_quat=struct_quat)
+    q_dock, np.zeros(18), struct_pos=struct_pos, struct_quat=struct_quat,
+    rwa=_rwa)
 mj_data.qpos[:] = mj_qpos
 mj_data.qvel[:] = 0
 

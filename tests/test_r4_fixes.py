@@ -104,9 +104,14 @@ print('\n' + '='*60)
 print('  TEST K - Regression R3')
 print('='*60)
 import subprocess
+env = os.environ.copy()
+env['PYTHONPATH'] = _root
+env['MUJOCO_GL'] = 'disabled'
 result = subprocess.run(
-    ['python3', 'test_r3_fixes.py', '--urdf', args.urdf, '--mjcf', args.mjcf],
-    capture_output=True, text=True,
+    ['python3', 'test_r3_fixes.py',
+     '--urdf', os.path.abspath(args.urdf),
+     '--mjcf', os.path.abspath(args.mjcf)],
+    capture_output=True, text=True, env=env,
     cwd=os.path.dirname(os.path.abspath(__file__)))
 final = [l for l in result.stdout.split('\n') if 'RESULTATS' in l]
 print(f'  {final[0].strip() if final else "no summary"}')

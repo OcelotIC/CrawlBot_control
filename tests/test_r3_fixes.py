@@ -96,8 +96,8 @@ R_t_expected = R_s.T @ R_t_world
 # Get from mujoco_to_pinocchio
 pq, pv = mujoco_to_pinocchio(sim.mj_data.qpos, sim.mj_data.qvel)
 p_t_from_func = pq[0:3]
-x_q, y_q, z_q, w_q = pq[3:7]
-R_t_from_func = pin.Quaternion(x_q, y_q, z_q, w_q).toRotationMatrix()
+x_q, y_q, z_q, w_q = pq[3:7]  # Pinocchio stores xyzw
+R_t_from_func = pin.Quaternion(w_q, x_q, y_q, z_q).toRotationMatrix()  # ctor: (w,x,y,z)
 
 err_pos = np.linalg.norm(p_t_from_func - p_t_expected)
 err_rot = np.linalg.norm(R_t_from_func - R_t_expected)

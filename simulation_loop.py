@@ -135,8 +135,8 @@ def pinocchio_to_mujoco(pin_q, pin_v, struct_pos=None, struct_quat=None,
     nq = 29 if rwa else 26
     nv = 27 if rwa else 24
 
-    s_pos  = struct_pos  if struct_pos  is not None else np.zeros(3)
-    s_quat = struct_quat if struct_quat is not None else np.array([1, 0, 0, 0])
+    s_pos  = np.asarray(struct_pos, dtype=float)  if struct_pos  is not None else np.zeros(3)
+    s_quat = np.asarray(struct_quat, dtype=float) if struct_quat is not None else np.array([1., 0., 0., 0.])
     qw_s, qx_s, qy_s, qz_s = s_quat
     R_s = pin.Quaternion(qw_s, qx_s, qy_s, qz_s).toRotationMatrix()
 
