@@ -288,10 +288,10 @@
     <motor name="act_J4b" joint="Joint_4_b" gear="1" ctrlrange="-50 50"/>
     <motor name="act_J5b" joint="Joint_5_b" gear="1" ctrlrange="-50 50"/>
     <motor name="act_J6b" joint="Joint_6_b" gear="1" ctrlrange="-50 50"/>
-    <!-- RWA actuators (ctrl indices 12, 13, 14) -->
-    <motor name="act_rw_x" joint="rw_x" gear="1" ctrlrange="-0.5 0.5"/>
-    <motor name="act_rw_y" joint="rw_y" gear="1" ctrlrange="-0.5 0.5"/>
-    <motor name="act_rw_z" joint="rw_z" gear="1" ctrlrange="-0.5 0.5"/>
+    <!-- RWA actuators (ctrl indices 12, 13, 14) — ctrlrange must match tau_w_max -->
+    <motor name="act_rw_x" joint="rw_x" gear="1" ctrlrange="-5 5"/>
+    <motor name="act_rw_y" joint="rw_y" gear="1" ctrlrange="-5 5"/>
+    <motor name="act_rw_z" joint="rw_z" gear="1" ctrlrange="-5 5"/>
   </actuator>
 
   <!-- ==================== EQUALITY CONSTRAINTS (Gripper Welds) ==================== -->
