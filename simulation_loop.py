@@ -832,7 +832,7 @@ class SimulationLoop:
         if ss_end is None:
             ss_end = t + cfg.dt_nmpc  # fallback
 
-        _L_com_qp_prev = rs.L_com.copy()  # for AOCS L_dot estimate
+        _L_com_qp_prev = rs.L_com.copy()
 
         for qs in range(self.n_qp_per_nmpc):
             tq = t + qs * cfg.dt_qp
@@ -889,15 +889,16 @@ class SimulationLoop:
             tau_last = tau.copy()
             self.mj_data.ctrl[:12] = tau
 
-            # AOCS: compute and apply reaction wheel torques
-            # Feedforward: compensate centroidal L_dot (not total — the orbital
-            # term m*(r_com × v_com) is too large/noisy for the wheel budget).
+            # AOCS: compensate centroidal L_dot via reaction wheels.
+            # Only the spin component (L_com) is compensated — the orbital
+            # term (r_com - r_mid) × Σf cannot be reliably estimated
+            # (lambda_qp ≠ MuJoCo forces; finite-diff a_com too noisy).
             if self.has_rwa:
                 rw_vel = self.mj_data.qvel[6:9]
                 hw_phys = cfg.rwa_I_w * rw_vel
-                L_dot_est_qp = (rs.L_com - _L_com_qp_prev) / cfg.dt_qp
+                L_dot_est = (rs.L_com - _L_com_qp_prev) / cfg.dt_qp
                 hw_error = np.clip(hw_phys, cfg.hw_min, cfg.hw_max) - hw_phys
-                tau_w_cmd = -L_dot_est_qp - cfg.aocs_K_hw * hw_error
+                tau_w_cmd = -L_dot_est - cfg.aocs_K_hw * hw_error
                 tau_w_cmd = np.clip(tau_w_cmd, -cfg.aocs_tau_w_max, cfg.aocs_tau_w_max)
                 self.mj_data.ctrl[12:15] = tau_w_cmd
                 tau_w_last = tau_w_cmd.copy()
