@@ -160,14 +160,13 @@ class SimulationLoop:
         # Site IDs
         self._cache_site_ids()
 
-        # NMPC
+        # NMPC — plans robot motion only (hw managed by AOCS independently)
         self.nmpc = CentroidalNMPC(CentroidalNMPCConfig(
             robot_mass=rs0.total_mass,
             N=cfg.nmpc_N, dt=cfg.nmpc_dt,
             f_max=cfg.nmpc_f_max, tau_max=cfg.nmpc_tau_max,
-            hw_min=cfg.hw_min, hw_max=cfg.hw_max,
             L_max=cfg.L_max, tau_w_max=cfg.tau_w_max,
-            W_hw=cfg.nmpc_W_hw,
+            p_max=cfg.nmpc_p_max,
             Wv=cfg.nmpc_Wv * np.ones(3)))
         self.nmpc.build()
 

@@ -53,12 +53,12 @@ class SimConfig:
     aocs_hw_target: np.ndarray = field(default_factory=lambda: np.zeros(3))
 
     # ── NMPC solver ─────────────────────────────────────────────
-    nmpc_W_hw: float = 0.0        # Passivity penalty (0=disabled)
     nmpc_N: int = 8
     nmpc_dt: float = 0.1
     nmpc_f_max: float = 25.0
     nmpc_tau_max: float = 8.0
     nmpc_Wv: float = 10.0
+    nmpc_p_max: float = 50.0      # Linear momentum bound [kg·m/s]
     t_settle_final: float = 20.0
 
     # ── QP weights — Single-support ─────────────────────────────
