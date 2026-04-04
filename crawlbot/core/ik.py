@@ -4,7 +4,7 @@ import numpy as np
 from typing import Dict, Tuple
 import pinocchio as pin
 
-from dynamics import FRAME_TOOL_A, FRAME_TOOL_B
+from crawlbot.core.robot_interface import FRAME_TOOL_A, FRAME_TOOL_B
 
 
 def solve_ik(

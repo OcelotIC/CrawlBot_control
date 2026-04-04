@@ -80,6 +80,8 @@ def centroidal_nmpc():
         f_max=25.0, tau_max=8.0,
         hw_min=-5.0 * np.ones(3),
         hw_max=5.0 * np.ones(3),
+        L_max=10.0,
+        tau_w_max=5.0,
         solver_opts={'ipopt.print_level': 0, 'print_time': 0,
                      'ipopt.max_iter': 200},
     )

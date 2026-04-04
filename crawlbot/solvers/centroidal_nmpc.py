@@ -22,10 +22,11 @@ Control vector (nu=12, for nc_max=2):
     - τ_j:   Contact moment at contact j
     Inactive contacts are zeroed via bounds.
 
-Parameters (np=12):
-    p = [r_ref (3), v_ref (3), r_C1 (3), r_C2 (3)]
+Parameters (np=15):
+    p = [r_ref (3), v_ref (3), r_C1 (3), r_C2 (3), r_struct (3)]
     - r_ref, v_ref: CoM reference position/velocity
     - r_C1, r_C2:   Contact point positions in R_s
+    - r_struct:      Structure CoM position in R_s (= origin by convention)
 
 Constraints:
     - Dynamics:  RK4 integration of centroidal equations
@@ -100,7 +101,7 @@ class CentroidalNMPC:
     # Dimensions (fixed)
     NX = 12    # [r_com(3), v_com(3), L_com(3), hw(3)]
     NU = 12    # [f1(3), τ1(3), f2(3), τ2(3)]
-    NP = 12    # [r_ref(3), v_ref(3), r_C1(3), r_C2(3)]
+    NP = 15    # [r_ref(3), v_ref(3), r_C1(3), r_C2(3), r_struct(3)]
 
     def __init__(self, config: Optional[CentroidalNMPCConfig] = None):
         if config is None:
@@ -152,10 +153,12 @@ class CentroidalNMPC:
             L_dot = (ca.cross(r_C1 - r_com, f1) + tau1 +
                      ca.cross(r_C2 - r_com, f2) + tau2)
 
-            # Wheel momentum: conservation about midpoint of contacts.
-            # ḣ_w = -L̇_com - (r_com - r_mid) × Σf_j
-            r_mid = (r_C1 + r_C2) / 2
-            orbital = ca.cross(r_com - r_mid, f1 + f2)
+            # Wheel momentum: conservation about structure CoM O.
+            # ḣ_w = -L̇_com - (r_com - r_struct) × Σf_j
+            # In structure frame, O is at origin → r_struct = p[12:15].
+            # See docs/momentum_conservation_analysis.md §6.2.
+            r_struct = p[12:15]
+            orbital = ca.cross(r_com - r_struct, f1 + f2)
             hw_dot = -L_dot - orbital
 
             return ca.vertcat(v_com, v_dot, L_dot, hw_dot)
@@ -291,6 +294,7 @@ class CentroidalNMPC:
         v_com_ref: np.ndarray,
         contact_config: ContactConfig,
         warm_start: bool = True,
+        r_struct: Optional[np.ndarray] = None,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, NMPCSolveInfo]:
         """Solve the centroidal NMPC.
 
@@ -343,10 +347,13 @@ class CentroidalNMPC:
         x0 = np.concatenate([r_com, v_com, L_com, hw_current])
 
         # --- Assemble parameters ---
+        if r_struct is None:
+            r_struct = np.zeros(3)  # structure CoM = origin in R_s
         params = np.concatenate([
             r_com_ref, v_com_ref,
             contact_config.r_contact_A,
             contact_config.r_contact_B,
+            r_struct,
         ])
 
         # --- Solve ---
@@ -380,6 +387,7 @@ class CentroidalNMPC:
         r_com_ref: np.ndarray,
         v_com_ref: np.ndarray,
         contact_config: ContactConfig,
+        r_struct: Optional[np.ndarray] = None,
     ) -> Tuple[np.ndarray, np.ndarray, NMPCSolveInfo]:
         """Solve and return the full predicted trajectory over the horizon.
 
@@ -396,11 +404,14 @@ class CentroidalNMPC:
 
         self._apply_contact_bounds(contact_config)
 
+        if r_struct is None:
+            r_struct = np.zeros(3)
         x0 = np.concatenate([r_com, v_com, L_com, hw_current])
         params = np.concatenate([
             r_com_ref, v_com_ref,
             contact_config.r_contact_A,
             contact_config.r_contact_B,
+            r_struct,
         ])
 
         x_opt, u_opt, info = self._nmpc.solve(x0, params=params)

@@ -34,7 +34,7 @@ except ImportError:
 from crawlbot.core.robot_interface import RobotInterface
 from crawlbot.core.state_conversions import (
     mujoco_to_pinocchio, pinocchio_to_mujoco, quat_wxyz_to_euler_deg)
-from crawlbot.core.ik import dock_configuration
+from crawlbot.core.ik import dock_configuration, solve_ik
 from crawlbot.planning.contact_scheduler import ContactScheduler, read_anchors_from_mujoco
 from crawlbot.planning.locomotion_planner import LocomotionPlanner
 from crawlbot.planning.swing_planner import SwingPlanner
@@ -467,14 +467,30 @@ class SimulationLoop:
                     if verbose:
                         print(f"  DS settle: {t:.2f} → +{cfg.t_settle_final}s")
 
-                    # Capture torso hold for settling (already in structure frame)
+                    # Compute DS equilibrium via IK: both tools at anchors.
+                    # This gives the true static configuration rather than
+                    # the transient pose at dock time (which has residual
+                    # velocity and doesn't match the welded equilibrium).
                     pq, pv = mujoco_to_pinocchio(
                         self.mj_data.qpos, self.mj_data.qvel)
                     rs_hold = self.robot.update(pq, pv)
-                    self.torso_planner.set_hold(
-                        rs_hold.oMf_torso.translation.copy(),
-                        rs_hold.oMf_torso.rotation.copy(),
-                        r_com=rs_hold.r_com.copy())
+                    try:
+                        anchor_a_se3 = self.sched.anchor_se3('a', last_sa)
+                        anchor_b_se3 = self.sched.anchor_se3('b', last_sb)
+                        q_eq = dock_configuration(
+                            self.robot.model, anchor_a_se3, anchor_b_se3,
+                            torso_pos=rs_hold.oMf_torso.translation.copy())
+                        rs_eq = self.robot.update(q_eq, np.zeros(18))
+                        self.torso_planner.set_hold(
+                            rs_eq.oMf_torso.translation.copy(),
+                            rs_eq.oMf_torso.rotation.copy(),
+                            r_com=rs_eq.r_com.copy())
+                    except RuntimeError:
+                        # IK failed — fall back to current state
+                        self.torso_planner.set_hold(
+                            rs_hold.oMf_torso.translation.copy(),
+                            rs_hold.oMf_torso.rotation.copy(),
+                            r_com=rs_hold.r_com.copy())
 
                     while t < t_ds_settle:
                         hw, L_com_prev = self._step(
