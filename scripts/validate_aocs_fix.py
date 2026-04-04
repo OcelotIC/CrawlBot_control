@@ -23,7 +23,7 @@ from crawlbot.simulation.plotting import plot_simulation
 
 URDF = os.path.join(_root, 'models', 'VISPA_crawling_fixed.urdf')
 MJCF_SMALL = os.path.join(_root, 'models', 'VISPA_crawling_rwa3_8pct.xml')
-MJCF_BIG = os.path.join(_root, 'models', 'VISPA_crawling_rwa3_8pct_hw50.xml')
+MJCF_BIG = os.path.join(_root, 'models', 'VISPA_crawling_rwa3_8pct_hw100.xml')
 OUTDIR = os.path.join(_root, 'results', 'figures')
 LOGDIR = os.path.join(_root, 'results', 'logs')
 os.makedirs(OUTDIR, exist_ok=True)
@@ -78,65 +78,83 @@ cfg_legacy = SimConfig(
     L_max=10.0, tau_w_max=5.0, rwa_I_w=0.01,
     nmpc_Wv=10.0, nmpc_W_hw=0.0, t_settle_final=20.0,
     aocs_mode='legacy', aocs_use_H_estimator=False,
-    aocs_K_hw=2.0, aocs_tau_w_max=0.5,
+    aocs_K_hw=2.0, aocs_tau_w_max=5.0,        # match MuJoCo ctrlrange (±5 Nm)
 )
 
 # ── Config B: H_est AOCS (full H_{r/O} + attitude damping) ─────────────────
-# Gains tuned for the small wheel model (tau_w_max=0.5 Nm):
-#   K_omega = 0.5 (gentle damping — wheels only have 0.5 Nm authority)
-#   K_h = 0.1 (slow desaturation — don't compete with feedforward)
-#   filter_tau = 0.05 (heavier filtering to reduce noise-induced torque)
+# MuJoCo ctrlrange is ±5 Nm — the previous 0.5 Nm was a config bug.
+# With 5 Nm available, we can use meaningful gains:
+#   K_omega = 5.0 (attitude damping: 5 Nm at 1 rad/s)
+#   K_h = 0.2 (slow desaturation)
+#   filter_tau = 0.05 (3 Hz cutoff at 100 Hz sampling — heavy smoothing)
 cfg_H_est = SimConfig(
     tau_max=20.0,
     hw_min=np.full(3, -5.0), hw_max=np.full(3, 5.0),
     L_max=10.0, tau_w_max=5.0, rwa_I_w=0.01,
     nmpc_Wv=10.0, nmpc_W_hw=0.0, t_settle_final=20.0,
     aocs_mode='H_est', aocs_use_H_estimator=True,
-    aocs_K_hw=2.0, aocs_tau_w_max=0.5,
+    aocs_K_hw=2.0, aocs_tau_w_max=5.0,         # match MuJoCo ctrlrange
     aocs_filter_tau=0.05,
-    aocs_K_omega=0.5,
-    aocs_K_h=0.1,
+    aocs_K_omega=5.0,
+    aocs_K_h=0.2,
 )
 
-# ── Config C: H_est AOCS with big wheels (50 Nms capacity, 2 Nm torque) ────
+# ── Config C: NMPC-planned AOCS with big wheels (100 Nms, 20 Nm torque) ────
+# Uses the NMPC's own hw_dot prediction (now correct with orbital fix)
+# instead of the noisy finite-difference estimator.
+cfg_nmpc_plan = SimConfig(
+    tau_max=20.0,
+    hw_min=np.full(3, -5.0), hw_max=np.full(3, 5.0),
+    L_max=10.0, tau_w_max=5.0, rwa_I_w=1.0,        # 100 Nms capacity
+    nmpc_Wv=10.0, nmpc_W_hw=0.0, t_settle_final=20.0,
+    aocs_mode='nmpc_plan', aocs_use_H_estimator=False,
+    aocs_K_hw=2.0, aocs_tau_w_max=20.0,             # 20 Nm authority
+)
+
+# ── Config D: H_est AOCS with big wheels + heavy filtering ─────────────────
+# Much heavier filter (tau=0.2s → ~1 Hz cutoff) to suppress estimator noise.
 cfg_H_est_big = SimConfig(
     tau_max=20.0,
     hw_min=np.full(3, -5.0), hw_max=np.full(3, 5.0),
-    L_max=10.0, tau_w_max=5.0, rwa_I_w=0.1,      # bigger wheels
+    L_max=10.0, tau_w_max=5.0, rwa_I_w=1.0,
     nmpc_Wv=10.0, nmpc_W_hw=0.0, t_settle_final=20.0,
     aocs_mode='H_est', aocs_use_H_estimator=True,
-    aocs_K_hw=2.0, aocs_tau_w_max=2.0,             # 2 Nm authority
-    aocs_filter_tau=0.05,
-    aocs_K_omega=5.0,                               # moderate damping
-    aocs_K_h=0.2,
+    aocs_K_hw=2.0, aocs_tau_w_max=20.0,
+    aocs_filter_tau=0.2,                             # heavy filter: ~1 Hz cutoff
+    aocs_K_omega=2.0,                                # gentle damping
+    aocs_K_h=0.1,
 )
 
 # ── Run simulations ────────────────────────────────────────────────────────
 log_legacy, sim_legacy = run_sim(cfg_legacy, 'A: Legacy AOCS (small wheels, spin-only)')
 log_H_est, sim_H_est = run_sim(cfg_H_est, 'B: H_est AOCS (small wheels)', mjcf=MJCF_SMALL)
-log_H_big, sim_H_big = run_sim(cfg_H_est_big, 'C: H_est AOCS (big wheels, 2 Nm)', mjcf=MJCF_BIG)
+log_nmpc, sim_nmpc = run_sim(cfg_nmpc_plan, 'C: NMPC-planned AOCS (100 Nms, 20 Nm)', mjcf=MJCF_BIG)
+log_H_big, sim_H_big = run_sim(cfg_H_est_big, 'D: H_est heavy filter (100 Nms, 20 Nm)', mjcf=MJCF_BIG)
 
 # Save logs
 log_legacy.save(os.path.join(LOGDIR, 'aocs_legacy_8pct.json'))
 log_H_est.save(os.path.join(LOGDIR, 'aocs_H_est_small_8pct.json'))
+log_nmpc.save(os.path.join(LOGDIR, 'aocs_nmpc_plan_8pct.json'))
 log_H_big.save(os.path.join(LOGDIR, 'aocs_H_est_big_8pct.json'))
 
 # ── Metrics comparison ─────────────────────────────────────────────────────
 print(f'\n\n{"="*70}')
 print(f'  AOCS COMPARISON — 8% mass ratio (888 kg structure)')
 print(f'{"="*70}')
-m_legacy = extract_metrics(log_legacy, 'A: Legacy (spin-only, small wheels)')
-m_H_est = extract_metrics(log_H_est, 'B: H_est (small wheels)')
-m_H_big = extract_metrics(log_H_big, 'C: H_est (big wheels, 2 Nm)')
+m_legacy = extract_metrics(log_legacy, 'A: Legacy (small wheels, spin-only)')
+m_H_est = extract_metrics(log_H_est, 'B: H_est (small wheels, 5 Nm)')
+m_nmpc = extract_metrics(log_nmpc, 'C: NMPC-plan (big wheels, 20 Nm)')
+m_H_big = extract_metrics(log_H_big, 'D: H_est heavy filter (big, 20 Nm)')
 
-print(f'\n  {"="*75}')
-print(f'  {"Mode":<35} | {"Docks":>5} | {"Rotation":>8} | {"L_peak":>7} | {"Torso err":>9} | {"NMPC":>4}')
-print(f'  {"─"*75}')
+print(f'\n  {"="*80}')
+print(f'  {"Mode":<40} | {"Docks":>5} | {"Rotation":>8} | {"L_peak":>7} | {"Torso err":>9} | {"NMPC":>4}')
+print(f'  {"─"*80}')
 for tag, m in [('A: Legacy (small, spin-only)', m_legacy),
-               ('B: H_est (small, 0.5 Nm)', m_H_est),
-               ('C: H_est (big, 2.0 Nm)', m_H_big)]:
-    print(f'  {tag:<35} | {m["docks"]}/3   | {m["rot"]:6.2f}°  | {m["L_peak"]:5.2f}  | {m["torso_err_mean"]:5.1f} cm   | {m["nmpc_fails"]:>4}')
-print(f'  {"="*75}')
+               ('B: H_est (small, 5 Nm)', m_H_est),
+               ('C: NMPC-plan (big, 20 Nm)', m_nmpc),
+               ('D: H_est heavy filt (big, 20 Nm)', m_H_big)]:
+    print(f'  {tag:<40} | {m["docks"]}/3   | {m["rot"]:6.2f}°  | {m["L_peak"]:5.2f}  | {m["torso_err_mean"]:5.1f} cm   | {m["nmpc_fails"]:>4}')
+print(f'  {"="*80}')
 
 
 # ── Generate 9-panel diagnostic plots ──────────────────────────────────────
@@ -146,9 +164,9 @@ import matplotlib.pyplot as plt
 
 print('\n  Generating diagnostic plots...')
 plot_simulation(log_legacy, save_path=os.path.join(OUTDIR, 'diag_legacy_8pct.png'), cfg=cfg_legacy)
-plot_simulation(log_H_est, save_path=os.path.join(OUTDIR, 'diag_H_est_small_8pct.png'), cfg=cfg_H_est)
+plot_simulation(log_nmpc, save_path=os.path.join(OUTDIR, 'diag_nmpc_plan_8pct.png'), cfg=cfg_nmpc_plan)
 plot_simulation(log_H_big, save_path=os.path.join(OUTDIR, 'diag_H_est_big_8pct.png'), cfg=cfg_H_est_big)
-print(f'  Saved: diag_legacy_8pct.png, diag_H_est_small_8pct.png, diag_H_est_big_8pct.png')
+print(f'  Saved: diag_legacy_8pct.png, diag_nmpc_plan_8pct.png, diag_H_est_big_8pct.png')
 
 
 # ── Side-by-side comparison plot ───────────────────────────────────────────
@@ -157,9 +175,9 @@ fig.suptitle('AOCS Comparison — 8% mass ratio, 3 steps',
              fontsize=14, fontweight='bold')
 
 configs = [
-    (log_legacy, 'A: Legacy (spin-only, 0.5 Nm)', '--', 'C3'),
-    (log_H_est, 'B: H_est (small wheels, 0.5 Nm)', ':', 'C1'),
-    (log_H_big, 'C: H_est (big wheels, 2.0 Nm)', '-', 'C0'),
+    (log_legacy, 'A: Legacy (spin-only, 5 Nm)', '--', 'C3'),
+    (log_nmpc, 'C: NMPC-plan (big, 20 Nm)', '-', 'C0'),
+    (log_H_big, 'D: H_est heavy filt (big, 20 Nm)', ':', 'C2'),
 ]
 
 # Panel 1: Structure rotation
@@ -216,9 +234,11 @@ print(f'  Saved: {save_path}')
 try:
     import mujoco
     # Use the best-performing sim for rendering
-    best_sim = sim_H_big if m_H_big['docks'] >= m_legacy['docks'] else sim_legacy
-    best_cfg = cfg_H_est_big if m_H_big['docks'] >= m_legacy['docks'] else cfg_legacy
-    best_mjcf = MJCF_BIG if m_H_big['docks'] >= m_legacy['docks'] else MJCF_SMALL
+    best_results = [(m_legacy, sim_legacy, cfg_legacy, MJCF_SMALL),
+                    (m_nmpc, sim_nmpc, cfg_nmpc_plan, MJCF_BIG),
+                    (m_H_big, sim_H_big, cfg_H_est_big, MJCF_BIG)]
+    best_results.sort(key=lambda x: x[0]['docks'], reverse=True)
+    _, best_sim, best_cfg, best_mjcf = best_results[0]
     renderer = mujoco.Renderer(best_sim.mj_model, height=480, width=640)
 
     print('\n  Rendering robot frames...')
