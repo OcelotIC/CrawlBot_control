@@ -75,6 +75,7 @@ def dock_configuration(
     anchor_a: pin.SE3,
     anchor_b: pin.SE3,
     torso_pos: np.ndarray = None,
+    q_init: np.ndarray = None,
 ) -> np.ndarray:
     """
     Convenience: compute a valid configuration with both tools at anchors.
@@ -84,12 +85,18 @@ def dock_configuration(
     model : pin.Model
     anchor_a, anchor_b : SE3 target poses for tool_a, tool_b
     torso_pos : (3,) initial torso position guess (default: midpoint of anchors)
+    q_init : (nq,) full configuration to use as seed. If provided, used
+             instead of neutral + torso_pos. This ensures the IK converges
+             to the same branch as the current robot configuration.
 
     Returns
     -------
     q : (nq,) valid docking configuration
     """
-    q0 = pin.neutral(model)
+    if q_init is not None:
+        q0 = q_init.copy()
+    else:
+        q0 = pin.neutral(model)
     if torso_pos is None:
         torso_pos = 0.5 * (anchor_a.translation + anchor_b.translation)
     q0[:3] = torso_pos

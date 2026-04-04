@@ -478,7 +478,7 @@ class SimulationLoop:
                         anchor_b_se3 = self.sched.anchor_se3('b', last_sb)
                         q_eq = dock_configuration(
                             self.robot.model, anchor_a_se3, anchor_b_se3,
-                            torso_pos=rs_hold.oMf_torso.translation.copy())
+                            q_init=pq)
                         rs_eq = self.robot.update(q_eq, np.zeros(18))
                         self.torso_planner.set_hold(
                             rs_eq.oMf_torso.translation.copy(),
