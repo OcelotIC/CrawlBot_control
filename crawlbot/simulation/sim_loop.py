@@ -520,9 +520,11 @@ class SimulationLoop:
         tref = self.torso_planner.reference_at(t)
         cref = self.torso_planner.com_reference_at(t)
 
-        # Robot state in structure frame
+        # Robot state in structure frame.
+        # Extract structure angular velocity for non-inertial corrections.
+        omega_s = self.mj_data.qvel[3:6].copy()
         pq, pv = mujoco_to_pinocchio(self.mj_data.qpos, self.mj_data.qvel)
-        rs = self.robot.update(pq, pv)
+        rs = self.robot.update(pq, pv, omega_struct=omega_s)
         if L_com_prev is None:
             L_com_prev = rs.L_com.copy()
 
@@ -563,8 +565,9 @@ class SimulationLoop:
 
         for qs in range(self.n_qp_per_nmpc):
             tq = t + qs * cfg.dt_qp
+            omega_s = self.mj_data.qvel[3:6].copy()
             pq, pv = mujoco_to_pinocchio(self.mj_data.qpos, self.mj_data.qvel)
-            rs = self.robot.update(pq, pv)
+            rs = self.robot.update(pq, pv, omega_struct=omega_s)
             Jc, Jdc = self.robot.get_contact_jacobians(
                 cc_ss.active_contacts[0], cc_ss.active_contacts[1])
 
@@ -659,8 +662,10 @@ class SimulationLoop:
             _L_com_qp_prev = rs.L_com.copy()
             mujoco.mj_step(self.mj_model, self.mj_data)
 
+            omega_s_post = self.mj_data.qvel[3:6].copy()
             rs2 = self.robot.update(
-                *mujoco_to_pinocchio(self.mj_data.qpos, self.mj_data.qvel))
+                *mujoco_to_pinocchio(self.mj_data.qpos, self.mj_data.qvel),
+                omega_struct=omega_s_post)
 
             if self.has_rwa:
                 hw = cfg.rwa_I_w * self.mj_data.qvel[6:9].copy()

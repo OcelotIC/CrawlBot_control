@@ -149,7 +149,8 @@ class RobotInterface:
         # State placeholder
         self._state: Optional[RobotState] = None
 
-    def update(self, q: np.ndarray, v: np.ndarray) -> RobotState:
+    def update(self, q: np.ndarray, v: np.ndarray,
+               omega_struct: Optional[np.ndarray] = None) -> 'RobotState':
         """Compute all controller-required quantities from (q, v).
 
         Parameters
@@ -158,6 +159,13 @@ class RobotInterface:
             Pinocchio generalized positions.
         v : ndarray (18,)
             Pinocchio generalized velocities.
+        omega_struct : ndarray (3,), optional
+            Structure angular velocity in the structure body frame [rad/s].
+            Reserved for future non-inertial frame corrections.
+            Currently stored but not used in dynamics computation —
+            see docs/test_findings_report.md for analysis of why Layers 1
+            (apparent gravity) and 2 (J̇ correction) destabilize the
+            existing controller gains.
 
         Returns
         -------
@@ -166,6 +174,14 @@ class RobotInterface:
         """
         model = self.model
         data = self.data
+
+        # Store structure angular velocity for diagnostics / future use.
+        # Non-inertial corrections (centrifugal gravity, J̇ += ad(ω_s)·J)
+        # are NOT applied: they are mathematically correct but destabilize
+        # the existing QP gains. The controller was designed assuming a
+        # quasi-static (inertial) structure frame. Adding non-inertial
+        # terms requires re-tuning all QP weights and AOCS gains.
+        self._omega_struct = omega_struct.copy() if omega_struct is not None else None
 
         # ── Kinematics + dynamics in one pass ────────────────────
         # computeAllTerms computes: CRBA, RNEA(bias), CoM, Jacobians, etc.
@@ -218,6 +234,15 @@ class RobotInterface:
             model, data, FRAME_TOOL_A, pin.LOCAL_WORLD_ALIGNED)
         dJ_b = pin.getFrameJacobianTimeVariation(
             model, data, FRAME_TOOL_B, pin.LOCAL_WORLD_ALIGNED)
+
+        # ── Non-inertial frame correction (Layer 2) — DISABLED ──
+        # In a rotating frame, J̇_true = J̇_pinocchio + ad(ξ_s)·J
+        # where ad(0,ω_s) = diag([ω_s]×, [ω_s]×) for LOCAL_WORLD_ALIGNED.
+        # This is mathematically correct but destabilizes the QP because
+        # the controller gains were tuned assuming an inertial frame.
+        # Enabling requires re-tuning all QP weights and feedback gains.
+        # See docs/test_findings_report.md for experimental evidence.
+
         Jdot_dq_tool_a = (dJ_a @ v).copy()
         Jdot_dq_tool_b = (dJ_b @ v).copy()
 
