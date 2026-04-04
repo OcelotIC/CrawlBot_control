@@ -2,6 +2,8 @@
 
 Covers cold-start build+solve, warm-start re-solve, full trajectory
 extraction, and feedforward acceleration computation.
+
+NMPC state: x = [r_com(3), v_com(3), L_com(3)]  (NX=9)
 """
 import io
 import contextlib
@@ -22,8 +24,7 @@ def _make_nmpc():
         N=8, dt=0.1,
         robot_mass=71.0,
         f_max=25.0, tau_max=8.0,
-        hw_min=-5.0 * np.ones(3),
-        hw_max=5.0 * np.ones(3),
+        L_max=10.0, tau_w_max=5.0, p_max=50.0,
         solver_opts={'ipopt.print_level': 0, 'print_time': 0,
                      'ipopt.max_iter': 200},
     )
@@ -46,7 +47,6 @@ def _nominal_inputs():
         r_com=np.array([0.35, 0.0, 0.0]),
         v_com=np.zeros(3),
         L_com=np.zeros(3),
-        hw_current=np.zeros(3),
         r_com_ref=np.array([0.35, 0.0, 0.0]),
         v_com_ref=np.zeros(3),
     )
@@ -70,7 +70,6 @@ def test_bench_nmpc_cold_start(benchmark):
         return result
 
     result = benchmark.pedantic(cold_start, rounds=5, warmup_rounds=1)
-    # Unpack: r_com_plan, v_com_plan, L_com_plan, lambda_plan, hw_dot_plan, info
     assert result is not None
     assert len(result) >= 5
 
@@ -86,7 +85,7 @@ def test_bench_nmpc_warm_start(benchmark, centroidal_nmpc,
     # Warmup solve (outside benchmark)
     centroidal_nmpc.solve(
         r_com=inp['r_com'], v_com=inp['v_com'], L_com=inp['L_com'],
-        hw_current=inp['hw'], r_com_ref=inp['r_ref'], v_com_ref=inp['v_ref'],
+        r_com_ref=inp['r_ref'], v_com_ref=inp['v_ref'],
         contact_config=double_contact_config,
         warm_start=False,
     )
@@ -94,8 +93,7 @@ def test_bench_nmpc_warm_start(benchmark, centroidal_nmpc,
     def warm_solve():
         return centroidal_nmpc.solve(
             r_com=inp['r_com'], v_com=inp['v_com'], L_com=inp['L_com'],
-            hw_current=inp['hw'], r_com_ref=inp['r_ref'],
-            v_com_ref=inp['v_ref'],
+            r_com_ref=inp['r_ref'], v_com_ref=inp['v_ref'],
             contact_config=double_contact_config,
             warm_start=True,
         )
@@ -117,7 +115,7 @@ def test_bench_nmpc_full_trajectory(benchmark, centroidal_nmpc,
     # Ensure solver is warmed up
     centroidal_nmpc.solve(
         r_com=inp['r_com'], v_com=inp['v_com'], L_com=inp['L_com'],
-        hw_current=inp['hw'], r_com_ref=inp['r_ref'], v_com_ref=inp['v_ref'],
+        r_com_ref=inp['r_ref'], v_com_ref=inp['v_ref'],
         contact_config=double_contact_config,
         warm_start=False,
     )
@@ -125,15 +123,14 @@ def test_bench_nmpc_full_trajectory(benchmark, centroidal_nmpc,
     def full_traj():
         return centroidal_nmpc.get_full_trajectory(
             r_com=inp['r_com'], v_com=inp['v_com'], L_com=inp['L_com'],
-            hw_current=inp['hw'], r_com_ref=inp['r_ref'],
-            v_com_ref=inp['v_ref'],
+            r_com_ref=inp['r_ref'], v_com_ref=inp['v_ref'],
             contact_config=double_contact_config,
         )
 
     result = benchmark(full_traj)
     assert result is not None
     x_opt = result[0]
-    assert x_opt.shape[0] == 12  # NX = 12
+    assert x_opt.shape[0] == 9  # NX = 9
 
 
 # ---------------------------------------------------------------------------

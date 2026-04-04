@@ -48,10 +48,9 @@ def _make_feasible_nmpc():
         N=8, dt=0.1,
         robot_mass=71.0,
         f_max=25.0, tau_max=8.0,
-        hw_min=-5.0 * np.ones(3),
-        hw_max=5.0 * np.ones(3),
         tau_w_max=5.0,
         L_max=10.0,
+        p_max=50.0,
         solver_opts={'ipopt.print_level': 0, 'print_time': 0,
                      'ipopt.max_iter': 200},
     )
@@ -71,7 +70,6 @@ def _feasible_nmpc_inputs():
         r_com=r_com,
         v_com=np.zeros(3),
         L_com=np.zeros(3),
-        hw_current=np.zeros(3),
         r_com_ref=r_com.copy(),
         v_com_ref=np.zeros(3),
         contact_config=_make_double_contact(),
@@ -88,26 +86,25 @@ class TestL1SilentExceptionSwallowing:
     failure.  We cannot easily mock SimulationLoop internals, so we verify
     that the underlying solvers properly report failure via info.success."""
 
-    def test_nmpc_infeasible_hw_reports_failure(self):
-        """hw_current far outside [hw_min, hw_max] should make the problem
+    def test_nmpc_infeasible_L_reports_failure(self):
+        """L_com far outside [-L_max, L_max] should make the problem
         infeasible.  Verify info.success == False."""
         nmpc = _make_feasible_nmpc()
         cc = _make_double_contact()
 
-        # hw_min/hw_max are +/-5 Nms; push hw_current to +/-100
-        _, _, _, _, _, info = nmpc.solve(
+        # L_max = 10; push L_com to 100 → infeasible initial state
+        _, _, _, _, info = nmpc.solve(
             r_com=np.array([0.0, 0.0, 0.05]),
             v_com=np.zeros(3),
-            L_com=np.zeros(3),
-            hw_current=np.array([100.0, 100.0, 100.0]),
+            L_com=np.array([100.0, 100.0, 100.0]),
             r_com_ref=np.array([0.0, 0.0, 0.05]),
             v_com_ref=np.zeros(3),
             contact_config=cc,
             warm_start=False,
         )
         assert info.success is False, (
-            "NMPC should report failure when hw_current is far outside "
-            "the momentum envelope, but info.success was True."
+            "NMPC should report failure when L_com is far outside "
+            "[-L_max, L_max], but info.success was True."
         )
 
     def test_nmpc_nan_input_does_not_silently_succeed(self):
@@ -117,11 +114,10 @@ class TestL1SilentExceptionSwallowing:
         cc = _make_double_contact()
 
         r_com_nan = np.array([np.nan, 0.0, 0.0])
-        _, _, _, _, _, info = nmpc.solve(
+        _, _, _, _, info = nmpc.solve(
             r_com=r_com_nan,
             v_com=np.zeros(3),
             L_com=np.zeros(3),
-            hw_current=np.zeros(3),
             r_com_ref=np.zeros(3),
             v_com_ref=np.zeros(3),
             contact_config=cc,
@@ -306,7 +302,6 @@ class TestL4MissingSolverValidation:
                 r_com=np.zeros(2),  # Wrong shape!
                 v_com=np.zeros(3),
                 L_com=np.zeros(3),
-                hw_current=np.zeros(3),
                 r_com_ref=np.zeros(3),
                 v_com_ref=np.zeros(3),
                 contact_config=cc,
@@ -359,12 +354,11 @@ class TestL5StaleWarmStart:
             f"First feasible solve should succeed, got status={info1.status}"
         )
 
-        # Step 2: Infeasible solve (hw far outside bounds)
+        # Step 2: Infeasible solve (L_com far outside bounds)
         result2 = nmpc.solve(
             r_com=np.array([0.0, 0.0, 0.05]),
             v_com=np.zeros(3),
-            L_com=np.zeros(3),
-            hw_current=np.array([100.0, 100.0, 100.0]),
+            L_com=np.array([100.0, 100.0, 100.0]),
             r_com_ref=np.array([0.0, 0.0, 0.05]),
             v_com_ref=np.zeros(3),
             contact_config=cc,
@@ -374,7 +368,7 @@ class TestL5StaleWarmStart:
         # This should fail (infeasible)
         assert info2.success is False, (
             "Infeasible solve unexpectedly succeeded -- "
-            "hw_current=100 is far outside [hw_min, hw_max]=[-5,5]"
+            "L_com=100 is far outside [-L_max, L_max]=[-10,10]"
         )
 
         # Step 3: Feasible solve again -- should still work

@@ -534,19 +534,18 @@ class SimulationLoop:
             self.sched.anchors_a[stance_a].copy(),
             self.sched.anchors_b[stance_b].copy())
 
-        # NMPC
+        # NMPC — plans robot motion only; AOCS manages wheels independently.
         nmpc_ok = True
         t_nmpc_start = time.perf_counter()
         try:
-            rp, vp, _, lr, hw_dot_plan, info_n = self.nmpc.solve(
+            rp, vp, _, lr, info_n = self.nmpc.solve(
                 r_com=rs.r_com, v_com=rs.v_com, L_com=rs.L_com,
-                hw_current=hw, r_com_ref=cref.r_com, v_com_ref=cref.v_com,
+                r_com_ref=cref.r_com, v_com_ref=cref.v_com,
                 contact_config=cc_nmpc, warm_start=True)
             af = self.nmpc.compute_feedforward_acceleration(lr)
             nmpc_ok = info_n.success
         except Exception:
             rp, vp, lr, af = cref.r_com, cref.v_com, np.zeros(12), np.zeros(3)
-            hw_dot_plan = np.zeros(3)
             nmpc_ok = False
         t_nmpc_ms = (time.perf_counter() - t_nmpc_start) * 1000
 
@@ -625,15 +624,7 @@ class SimulationLoop:
                 hw_phys = cfg.rwa_I_w * rw_vel
                 omega_s = self.mj_data.qvel[3:6]
 
-                if cfg.aocs_mode == 'nmpc_plan':
-                    # NMPC-planned feedforward: use hw_dot from the NMPC's
-                    # own trajectory (self-consistent, no estimation needed).
-                    # hw_dot_plan is computed once per NMPC step and held
-                    # constant across the 10 QP substeps.
-                    hw_error = np.clip(hw_phys, cfg.hw_min, cfg.hw_max) - hw_phys
-                    tau_w_cmd = hw_dot_plan - cfg.aocs_K_hw * hw_error
-                    tau_w_cmd = np.clip(tau_w_cmd, -cfg.aocs_tau_w_max, cfg.aocs_tau_w_max)
-                elif cfg.aocs_mode == 'H_est' or cfg.aocs_use_H_estimator:
+                if cfg.aocs_mode == 'H_est' or cfg.aocs_use_H_estimator:
                     # H_{r/O} estimator: feedforward on full robot angular
                     # momentum about O (spin + orbital), with attitude
                     # damping and desaturation feedback.

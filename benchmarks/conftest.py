@@ -78,10 +78,9 @@ def centroidal_nmpc():
         N=8, dt=0.1,
         robot_mass=71.0,
         f_max=25.0, tau_max=8.0,
-        hw_min=-5.0 * np.ones(3),
-        hw_max=5.0 * np.ones(3),
         L_max=10.0,
         tau_w_max=5.0,
+        p_max=50.0,
         solver_opts={'ipopt.print_level': 0, 'print_time': 0,
                      'ipopt.max_iter': 200},
     )
@@ -126,7 +125,6 @@ def nmpc_nominal_inputs():
         r_com=np.array([0.35, 0.0, 0.0]),
         v_com=np.zeros(3),
         L_com=np.zeros(3),
-        hw=np.zeros(3),
         r_ref=np.array([0.35, 0.0, 0.0]),
         v_ref=np.zeros(3),
     )

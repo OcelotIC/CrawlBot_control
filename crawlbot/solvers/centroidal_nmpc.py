@@ -9,12 +9,14 @@ Architecture:
     Stage 1 of the two-stage controller (see Chelikh et al., IEEE Access 2024).
     Runs at 20 Hz with a 1-second prediction horizon (N=20, dt=0.05s).
 
-State vector (nx=12):
-    x = [r_com (3), v_com (3), L_com (3), h_w (3)]
+State vector (nx=9):
+    x = [r_com (3), v_com (3), L_com (3)]
     - r_com: Robot CoM position in spacecraft frame R_s
     - v_com: Robot CoM velocity in R_s
     - L_com: Robot centroidal angular momentum about CoM, in R_s
-    - h_w:   Spacecraft wheel angular momentum (propagated for constraint enforcement)
+
+    Note: h_w (wheel momentum) removed — AOCS manages wheels independently.
+    Linear momentum ||m·v_com|| is bounded to limit orbital disturbance.
 
 Control vector (nu=12, for nc_max=2):
     u = [f_1 (3), τ_1 (3), f_2 (3), τ_2 (3)]
@@ -22,15 +24,15 @@ Control vector (nu=12, for nc_max=2):
     - τ_j:   Contact moment at contact j
     Inactive contacts are zeroed via bounds.
 
-Parameters (np=15):
-    p = [r_ref (3), v_ref (3), r_C1 (3), r_C2 (3), r_struct (3)]
+Parameters (np=12):
+    p = [r_ref (3), v_ref (3), r_C1 (3), r_C2 (3)]
     - r_ref, v_ref: CoM reference position/velocity
     - r_C1, r_C2:   Contact point positions in R_s
-    - r_struct:      Structure CoM position in R_s (= origin by convention)
 
 Constraints:
     - Dynamics:  RK4 integration of centroidal equations
-    - Momentum:  h_min <= h_w <= h_max  (state bounds on wheel momentum)
+    - Angular:   |L_com,i| <= L_max     (angular momentum bounds)
+    - Linear:    ||m·v_com||² <= p_max² (linear momentum → orbital bound)
     - SOC:       ||f_j||² <= f_max²     (force norm limits)
     - SOC:       ||τ_j||² <= τ_max²     (torque norm limits)
 
@@ -68,21 +70,15 @@ class CentroidalNMPCConfig:
     Qf_r: np.ndarray = field(default_factory=lambda: 1000.0 * np.ones(3))  # Terminal position
     Qf_v: np.ndarray = field(default_factory=lambda: 100.0 * np.ones(3))   # Terminal velocity
 
-    # Passivity penalty on hw (drives wheels toward zero)
-    W_hw: float = 0.0                           # Penalty weight on ‖hw‖² in stage cost
-
     # Contact wrench limits (HOTDOCK specs)
     f_max: float = 3000.0                    # Max contact force norm [N]
     tau_max: float = 300.0                   # Max contact torque norm [Nm]
 
-    # Momentum envelope (the "box")
-    hw_min: np.ndarray = field(default_factory=lambda: -5.0 * np.ones(3))  # [Nms]
-    hw_max: np.ndarray = field(default_factory=lambda: 5.0 * np.ones(3))   # [Nms]
-    safety_margin: float = 0.1               # ε_safety (10% margin)
-
-    # Robot angular momentum constraints (what the wheels must absorb)
-    L_max: float = np.inf                    # |L_robot| ≤ L_max [Nms]
-    tau_w_max: float = np.inf                # |L̇_robot| ≤ τ_w_max [Nm]
+    # 6D centroidal momentum constraints
+    L_max: float = np.inf                    # |L_com,i| ≤ L_max [Nms]  (angular)
+    tau_w_max: float = np.inf                # |L̇_com,i| ≤ τ_w_max [Nm] (angular rate)
+    p_max: float = np.inf                    # ||m·v_com|| ≤ p_max [kg·m/s] (linear momentum)
+                                             # Bounds orbital disturbance: τ_orbital ≤ |r_com|·p_max
 
     # Solver
     solver_name: str = 'ipopt'
@@ -99,9 +95,9 @@ class CentroidalNMPC:
     """
 
     # Dimensions (fixed)
-    NX = 12    # [r_com(3), v_com(3), L_com(3), hw(3)]
+    NX = 9     # [r_com(3), v_com(3), L_com(3)]  — hw removed, AOCS independent
     NU = 12    # [f1(3), τ1(3), f2(3), τ2(3)]
-    NP = 15    # [r_ref(3), v_ref(3), r_C1(3), r_C2(3), r_struct(3)]
+    NP = 12    # [r_ref(3), v_ref(3), r_C1(3), r_C2(3)]
 
     def __init__(self, config: Optional[CentroidalNMPCConfig] = None):
         if config is None:
@@ -109,10 +105,6 @@ class CentroidalNMPC:
         self.config = config
         self._nmpc: Optional[NMPCSolver] = None
         self._built = False
-
-        # Apply safety margin to envelope
-        self._hw_min_safe = (1 + config.safety_margin) * config.hw_min
-        self._hw_max_safe = (1 - config.safety_margin) * config.hw_max
 
     def build(self, solver_opts: Optional[Dict[str, Any]] = None) -> None:
         """Build the NMPC solver.
@@ -133,11 +125,12 @@ class CentroidalNMPC:
         nmpc.set_parameters(self.NP)
 
         # --- Continuous dynamics (RK4 integration) ---
+        # State: x = [r_com(3), v_com(3), L_com(3)]  — NX=9
+        # hw removed: AOCS manages wheels independently.
         def centroidal_ode(x, u, p):
             r_com = x[0:3]
             v_com = x[3:6]
-            # L_com = x[6:9]   (not needed directly in ODE, just its derivative)
-            # hw    = x[9:12]
+            # L_com = x[6:9]
 
             f1 = u[0:3];  tau1 = u[3:6]
             f2 = u[6:9];  tau2 = u[9:12]
@@ -148,20 +141,12 @@ class CentroidalNMPC:
             # Linear momentum: m v̇ = Σf_j  (no gravity in orbit)
             v_dot = (f1 + f2) / m
 
-            # Centroidal angular momentum rate (about robot CoM, for tracking):
+            # Centroidal angular momentum rate (about robot CoM):
             # L̇_com = Σ [(r_Cj - r_com) × f_j + τ_j]
             L_dot = (ca.cross(r_C1 - r_com, f1) + tau1 +
                      ca.cross(r_C2 - r_com, f2) + tau2)
 
-            # Wheel momentum: conservation about structure CoM O.
-            # ḣ_w = -L̇_com - (r_com - r_struct) × Σf_j
-            # In structure frame, O is at origin → r_struct = p[12:15].
-            # See docs/momentum_conservation_analysis.md §6.2.
-            r_struct = p[12:15]
-            orbital = ca.cross(r_com - r_struct, f1 + f2)
-            hw_dot = -L_dot - orbital
-
-            return ca.vertcat(v_com, v_dot, L_dot, hw_dot)
+            return ca.vertcat(v_com, v_dot, L_dot)
 
         nmpc.set_continuous_dynamics(centroidal_ode)
 
@@ -172,8 +157,6 @@ class CentroidalNMPC:
             cfg.Wu_f * np.ones(3), cfg.Wu_tau * np.ones(3),   # contact 1
             cfg.Wu_f * np.ones(3), cfg.Wu_tau * np.ones(3),   # contact 2
         ]))
-
-        W_hw = cfg.W_hw
 
         def stage_cost(x, u, p):
             r_com = x[0:3]
@@ -195,17 +178,13 @@ class CentroidalNMPC:
         def terminal_cost(x, p):
             r_com = x[0:3]
             v_com = x[3:6]
-            hw = x[9:12]
             r_ref = p[0:3]
             v_ref = p[3:6]
 
             e_r = r_com - r_ref
             e_v = v_com - v_ref
 
-            cost = e_r.T @ Qf_r @ e_r + e_v.T @ Qf_v @ e_v
-            if W_hw > 0:
-                cost = cost + W_hw * ca.dot(hw, hw)
-            return cost
+            return e_r.T @ Qf_r @ e_r + e_v.T @ Qf_v @ e_v
 
         nmpc.set_terminal_cost(terminal_cost)
 
@@ -218,11 +197,14 @@ class CentroidalNMPC:
         f_max_sq = cfg.f_max ** 2
         tau_max_sq = cfg.tau_max ** 2
 
+        p_max_sq = (cfg.p_max ** 2) if np.isfinite(cfg.p_max) else np.inf
+
         def path_constraints(x, u, p):
             f1 = u[0:3];  tau1 = u[3:6]
             f2 = u[6:9];  tau2 = u[9:12]
 
             r_com = x[0:3]
+            v_com = x[3:6]
             r_C1 = p[6:9]
             r_C2 = p[9:12]
 
@@ -234,34 +216,35 @@ class CentroidalNMPC:
                 ca.dot(tau2, tau2) - tau_max_sq,
             )
 
-            # L̇_com rate constraint: |L̇_com| ≤ τ_w_max
-            # Constrains the centroidal (spin) component only. The full
-            # torque demand on wheels (spin + orbital) is handled by the
-            # hw box constraint via the corrected ODE (hw_dot = -L̇ - orbital).
+            # L̇_com rate constraint: |L̇_com,i| ≤ τ_w_max
             L_dot = (ca.cross(r_C1 - r_com, f1) + tau1 +
                      ca.cross(r_C2 - r_com, f2) + tau2)
-            # Bilateral: -τ_w_max ≤ L̇ ≤ τ_w_max
             tw = cfg.tau_w_max
             Ldot_ineq = ca.vertcat(L_dot - tw, -L_dot - tw)
 
-            return ca.vertcat(soc, Ldot_ineq)
+            # Linear momentum constraint: ||m·v_com||² ≤ p_max²
+            # Bounds the orbital angular momentum rate: τ_orbital ≤ |r_com|·p_max
+            # This prevents the robot from building up velocity that the
+            # AOCS wheels cannot reject through the orbital lever arm.
+            p_lin = m * v_com
+            p_ineq = ca.dot(p_lin, p_lin) - p_max_sq
 
-        ng_path = 4 + 6  # 4 SOC + 6 L̇ bilateral
+            return ca.vertcat(soc, Ldot_ineq, p_ineq)
+
+        ng_path = 4 + 6 + 1  # 4 SOC + 6 L̇ bilateral + 1 linear momentum
         nmpc.set_path_constraints(path_constraints, ng=ng_path)
 
         # --- State bounds ---
-        L_max_safe = (1 - cfg.safety_margin) * cfg.L_max
+        L_max_safe = cfg.L_max
         x_min = np.concatenate([
             np.full(3, -np.inf),         # r_com: unbounded
-            np.full(3, -np.inf),         # v_com: unbounded
+            np.full(3, -np.inf),         # v_com: unbounded (norm bounded via path constraint)
             np.full(3, -L_max_safe),     # L_com: bounded by wheel capacity
-            self._hw_min_safe,           # hw: the BOX (lower)
         ])
         x_max = np.concatenate([
             np.full(3, np.inf),
             np.full(3, np.inf),
             np.full(3, L_max_safe),      # L_com: bounded by wheel capacity
-            self._hw_max_safe,           # hw: the BOX (upper)
         ])
         nmpc.set_state_bounds(x_min, x_max)
 
@@ -289,13 +272,12 @@ class CentroidalNMPC:
         r_com: np.ndarray,
         v_com: np.ndarray,
         L_com: np.ndarray,
-        hw_current: np.ndarray,
         r_com_ref: np.ndarray,
         v_com_ref: np.ndarray,
         contact_config: ContactConfig,
         warm_start: bool = True,
-        r_struct: Optional[np.ndarray] = None,
-    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, NMPCSolveInfo]:
+        hw_current: Optional[np.ndarray] = None,  # deprecated, ignored
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, 'NMPCSolveInfo']:
         """Solve the centroidal NMPC.
 
         Parameters
@@ -343,17 +325,14 @@ class CentroidalNMPC:
         # --- Apply contact phase to control bounds ---
         self._apply_contact_bounds(contact_config)
 
-        # --- Assemble initial state ---
-        x0 = np.concatenate([r_com, v_com, L_com, hw_current])
+        # --- Assemble initial state (NX=9, no hw) ---
+        x0 = np.concatenate([r_com, v_com, L_com])
 
         # --- Assemble parameters ---
-        if r_struct is None:
-            r_struct = np.zeros(3)  # structure CoM = origin in R_s
         params = np.concatenate([
             r_com_ref, v_com_ref,
             contact_config.r_contact_A,
             contact_config.r_contact_B,
-            r_struct,
         ])
 
         # --- Solve ---
@@ -366,35 +345,29 @@ class CentroidalNMPC:
             self._nmpc.shift_warm_start()
 
         # --- Extract first-step references for Stage 2 ---
-        # Use step 1 (predicted next state) as reference
         r_com_plan = x_opt[0:3, 1]
         v_com_plan = x_opt[3:6, 1]
         L_com_plan = x_opt[6:9, 1]
         lambda_plan = u_opt[:, 0]
 
-        # hw_dot planned: rate of change the NMPC expects for the wheels.
-        # This is the feedforward signal for the AOCS.
-        hw_dot_plan = (x_opt[9:12, 1] - hw_current) / self.config.dt
-
-        return r_com_plan, v_com_plan, L_com_plan, lambda_plan, hw_dot_plan, info
+        return r_com_plan, v_com_plan, L_com_plan, lambda_plan, info
 
     def get_full_trajectory(
         self,
         r_com: np.ndarray,
         v_com: np.ndarray,
         L_com: np.ndarray,
-        hw_current: np.ndarray,
         r_com_ref: np.ndarray,
         v_com_ref: np.ndarray,
         contact_config: ContactConfig,
-        r_struct: Optional[np.ndarray] = None,
+        hw_current: Optional[np.ndarray] = None,  # deprecated, ignored
     ) -> Tuple[np.ndarray, np.ndarray, NMPCSolveInfo]:
         """Solve and return the full predicted trajectory over the horizon.
 
         Returns
         -------
-        x_opt : ndarray (12, N+1)
-            Full state trajectory.
+        x_opt : ndarray (9, N+1)
+            Full state trajectory [r_com, v_com, L_com].
         u_opt : ndarray (12, N)
             Full control trajectory.
         info : NMPCSolveInfo
@@ -404,14 +377,11 @@ class CentroidalNMPC:
 
         self._apply_contact_bounds(contact_config)
 
-        if r_struct is None:
-            r_struct = np.zeros(3)
-        x0 = np.concatenate([r_com, v_com, L_com, hw_current])
+        x0 = np.concatenate([r_com, v_com, L_com])
         params = np.concatenate([
             r_com_ref, v_com_ref,
             contact_config.r_contact_A,
             contact_config.r_contact_B,
-            r_struct,
         ])
 
         x_opt, u_opt, info = self._nmpc.solve(x0, params=params)
