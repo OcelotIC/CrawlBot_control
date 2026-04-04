@@ -295,7 +295,11 @@ class SimulationLoop:
         delta0 = R_t0.T @ (r_com0 - p_t0)
         q_start = pq_live.copy()
 
-        # IK end: use constant structure-frame anchors (no live reading needed)
+        # IK end: use constant structure-frame anchors.
+        # Use neutral seed (not current config) — the end-pose IK needs
+        # to find the geometrically centered solution, not a local minimum
+        # near the current arm configuration. The neutral seed gives a
+        # torso position centered between the two anchor targets.
         se3_a = self.sched.anchor_se3('a', stance_a)
         se3_b = self.sched.anchor_se3('b', stance_b)
         if target_arm == 'b':
