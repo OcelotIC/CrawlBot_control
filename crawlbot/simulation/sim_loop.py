@@ -31,12 +31,12 @@ try:
 except ImportError:
     pin = None
 
-from crawlbot.core.robot_interface import RobotInterface
+from crawlbot.core.robot_interface import RobotInterface, FRAME_TOOL_A, FRAME_TOOL_B
 from crawlbot.core.state_conversions import (
     mujoco_to_pinocchio, pinocchio_to_mujoco, quat_wxyz_to_euler_deg)
-from crawlbot.core.ik import dock_configuration, solve_ik
+from crawlbot.core.ik import dock_configuration, solve_ik, solve_ik_waypoints
 from crawlbot.planning.contact_scheduler import ContactScheduler, read_anchors_from_mujoco
-from crawlbot.planning.locomotion_planner import LocomotionPlanner
+# LocomotionPlanner removed — CoM reference comes from TorsoPlanner
 from crawlbot.planning.swing_planner import SwingPlanner
 from crawlbot.planning.torso_planner import TorsoPlanner
 from crawlbot.solvers.centroidal_nmpc import CentroidalNMPC, CentroidalNMPCConfig
@@ -152,10 +152,7 @@ class SimulationLoop:
         # CoM calibration
         rs0 = self.robot.update(
             *mujoco_to_pinocchio(self.mj_data.qpos, self.mj_data.qvel))
-        am = sum(self.robot.model.inertias[i].mass for i in range(2, 8))
-        self.loco_planner = LocomotionPlanner(
-            self.sched, arm_mass=am, total_mass=rs0.total_mass)
-        self.loco_planner.calibrate_from_config(rs0.r_com)
+        # LocomotionPlanner removed — CoM reference from TorsoPlanner
 
         # Site IDs
         self._cache_site_ids()
@@ -276,63 +273,67 @@ class SimulationLoop:
 
     def _setup_torso_for_step(self, t_ss_start, t_ss_end, swing_arm,
                               stance_a, stance_b, target_arm, target_idx):
-        """Plan torso trajectory for a crawling step.
+        """Plan torso trajectory for a crawling step via IK waypoint chain.
 
-        All computation is in structure frame (Pinocchio outputs and scheduler
-        anchors are both in this frame).  No live-anchor reading or
-        structure-pose capture is needed.
+        Computes a chain of kinematically feasible configurations from the
+        current state to the target anchor. The torso/CoM trajectory is
+        extracted from these configurations.
+
+        The trajectory extends through SS + EXT phases (no frozen hold).
         """
         cfg = self.cfg
         model = self.robot.model
 
-        # IK start: use live MuJoCo torso state (structure frame via mujoco_to_pinocchio)
+        # Current robot state in structure frame
         pq_live, pv_live = mujoco_to_pinocchio(
             self.mj_data.qpos, self.mj_data.qvel)
-        rs_s = self.robot.update(pq_live, pv_live)
-        p_t0   = rs_s.oMf_torso.translation.copy()     # struct frame
-        R_t0   = rs_s.oMf_torso.rotation.copy()         # struct frame
-        r_com0 = rs_s.r_com.copy()                       # struct frame
-        delta0 = R_t0.T @ (r_com0 - p_t0)
-        q_start = pq_live.copy()
 
-        # IK end: use constant structure-frame anchors.
-        # Use neutral seed (not current config) — the end-pose IK needs
-        # to find the geometrically centered solution, not a local minimum
-        # near the current arm configuration. The neutral seed gives a
-        # torso position centered between the two anchor targets.
-        se3_a = self.sched.anchor_se3('a', stance_a)
-        se3_b = self.sched.anchor_se3('b', stance_b)
-        if target_arm == 'b':
-            se3_b_end = self.sched.anchor_se3('b', target_idx)
-            q_end = dock_configuration(model, se3_a, se3_b_end)
+        # Determine stance/swing frames and anchor positions.
+        # The swing arm departs from its current anchor (stance_b for arm B,
+        # stance_a for arm A) and goes to target_idx.
+        if swing_arm == 'b':
+            stance_frame = FRAME_TOOL_A
+            swing_frame = FRAME_TOOL_B
+            stance_se3 = self.sched.anchor_se3('a', stance_a)
+            swing_start = self.sched.anchors_b[stance_b]
+            swing_end = self.sched.anchors_b[target_idx]
         else:
-            se3_a_end = self.sched.anchor_se3('a', target_idx)
-            q_end = dock_configuration(model, se3_a_end, se3_b)
+            stance_frame = FRAME_TOOL_B
+            swing_frame = FRAME_TOOL_A
+            stance_se3 = self.sched.anchor_se3('b', stance_b)
+            swing_start = self.sched.anchors_a[stance_a]
+            swing_end = self.sched.anchors_a[target_idx]
 
-        rs_e = self.robot.update(q_end, np.zeros(18))
-        p_t1_full = rs_e.oMf_torso.translation.copy()   # struct frame
-        R_t1_full = rs_e.oMf_torso.rotation.copy()
-        r_com1_full = rs_e.r_com.copy()
-        delta1_full = R_t1_full.T @ (r_com1_full - p_t1_full)
+        # Compute IK waypoint chain
+        q_waypoints = solve_ik_waypoints(
+            model, pq_live,
+            stance_frame=stance_frame,
+            stance_target=stance_se3,
+            swing_frame=swing_frame,
+            swing_start=swing_start,
+            swing_end=swing_end,
+            n_waypoints=10,
+            clearance=cfg.swing_clearance)
 
-        frac = cfg.torso_frac
-        dp = p_t1_full - p_t0
-        dR = R_t0.T @ R_t1_full
-        omega = pin.log3(dR)
-        p_t1 = p_t0 + frac * dp
-        R_t1 = R_t0 @ pin.exp3(frac * omega)
-        delta1 = (1 - frac) * delta0 + frac * delta1_full
+        # Extract torso and CoM at each waypoint
+        torso_wps = []
+        com_wps = []
+        for q in q_waypoints:
+            rs = self.robot.update(q, np.zeros(18))
+            torso_wps.append((rs.oMf_torso.translation.copy(),
+                              rs.oMf_torso.rotation.copy()))
+            com_wps.append(rs.r_com.copy())
 
-        # Trajectory stored directly in structure frame (no Fix 3 conversion)
+        # Build trajectory covering SS + EXT (no frozen hold at SS end).
+        # The planner interpolates smoothly through all waypoints.
         t_torso_start = t_ss_start + cfg.torso_delay * cfg.t_swing
-        self.torso_planner.clear_phases()
-        self.torso_planner.set_hold(p_t0, R_t0, r_com=r_com0)
-        self.torso_planner.add_phase(
-            t_torso_start, t_ss_end,
-            p_t0, R_t0, p_t1, R_t1,
-            delta_com_start=delta0, delta_com_end=delta1)
+        t_torso_end = t_ss_end + cfg.t_ext_max
+        self.torso_planner.set_from_waypoints(
+            t_torso_start, t_torso_end,
+            torso_wps, com_wps)
 
-        return q_start
+        # Nominal posture from final waypoint (for QP regularization)
+        return q_waypoints[-1]
 
     # ── Run ──────────────────────────────────────────────────────────────
 
@@ -406,15 +407,8 @@ class SimulationLoop:
                             hw, L_com_prev, log, ss_end=t_ss_end)
                         t += cfg.dt_nmpc
 
-                    # EXT: capture torso hold (already in structure frame)
-                    pq, pv = mujoco_to_pinocchio(
-                        self.mj_data.qpos, self.mj_data.qvel)
-                    rs_snap = self.robot.update(pq, pv)
-                    self.torso_planner.set_hold(
-                        rs_snap.oMf_torso.translation.copy(),
-                        rs_snap.oMf_torso.rotation.copy(),
-                        r_com=rs_snap.r_com.copy())
-
+                    # EXT: torso trajectory continues (set_from_waypoints
+                    # extends through EXT). No frozen hold needed.
                     if verbose:
                         print(f"  EXT: {t:.2f} → dock or +{cfg.t_ext_max}s")
 

@@ -23,7 +23,6 @@ class SimConfig:
     t_ext_max: float = 10.0       # Max extension phase before timeout [s]
 
     # ── Torso trajectory ────────────────────────────────────────
-    torso_frac: float = 0.70      # Fraction of full IK displacement
     torso_delay: float = 0.20     # Delay before torso starts (fraction of t_swing)
 
     # ── Actuator limits ─────────────────────────────────────────
@@ -46,7 +45,7 @@ class SimConfig:
 
     # Mode: 'legacy' | 'H_est' | 'nmpc_plan'
     aocs_mode: str = 'legacy'
-    aocs_use_H_estimator: bool = True
+    aocs_use_H_estimator: bool = False     # use aocs_mode to select
     aocs_filter_tau: float = 0.016
     aocs_K_omega: float = 50.0
     aocs_K_h: float = 0.5

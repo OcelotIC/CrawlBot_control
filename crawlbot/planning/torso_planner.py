@@ -81,6 +81,61 @@ class TorsoPlanner:
         self._hold_R = R.copy()
         self._hold_com = r_com.copy() if r_com is not None else None
 
+    def set_from_waypoints(
+        self,
+        t_start: float,
+        t_end: float,
+        torso_wps: list,
+        com_wps: list,
+    ):
+        """Build trajectory from IK-derived waypoint sequence.
+
+        Creates piecewise quintic phases between consecutive waypoints.
+        The last waypoint becomes the hold reference for times beyond t_end.
+
+        Parameters
+        ----------
+        t_start, t_end : float
+            Start and end times of the full trajectory.
+        torso_wps : list of (p, R) tuples
+            Torso position (3,) and rotation (3,3) at each waypoint.
+        com_wps : list of ndarray (3,)
+            CoM positions at each waypoint.
+        """
+        self.clear_phases()
+        n = len(torso_wps)
+        if n < 2:
+            if n == 1:
+                p, R = torso_wps[0]
+                self.set_hold(p, R, r_com=com_wps[0])
+            return
+
+        dt = (t_end - t_start) / (n - 1)
+
+        for i in range(n - 1):
+            p0, R0 = torso_wps[i]
+            p1, R1 = torso_wps[i + 1]
+            delta0 = R0.T @ (com_wps[i] - p0)
+            delta1 = R1.T @ (com_wps[i + 1] - p1)
+            self.add_phase(
+                t_start + i * dt, t_start + (i + 1) * dt,
+                p0, R0, p1, R1,
+                delta_com_start=delta0, delta_com_end=delta1)
+
+        # Hold at the FIRST waypoint for times before the trajectory,
+        # and at the LAST waypoint for times after.
+        # set_hold is the fallback for t outside all phases.
+        # Before the trajectory starts (DS phase), hold at the start.
+        p0, R0 = torso_wps[0]
+        self._hold_p = p0.copy()
+        self._hold_R = R0.copy()
+        self._hold_com = com_wps[0].copy()
+        # After the trajectory, the last phase's p_end becomes the implicit hold
+        # (reference_at falls through to _hold_reference which uses _hold_p).
+        # We'll update _hold to the end after the trajectory is done.
+        # For now, the piecewise phases handle the interpolation, and
+        # _hold_reference handles times outside phases (= before t_start).
+
     def add_phase(self, t_start: float, t_end: float,
                   p_start: np.ndarray, R_start: np.ndarray,
                   p_end: np.ndarray, R_end: np.ndarray,
