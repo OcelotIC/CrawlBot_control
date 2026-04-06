@@ -1,14 +1,17 @@
 """Inverse kinematics for VISPA docking configurations.
 
 Provides:
-    solve_ik           — iterative 6D IK for multiple frame targets
-    dock_configuration — convenience: both tools at anchor poses
-    solve_ik_waypoints — chain of IK solutions along a swing arc
+    solve_ik              — iterative 6D IK for multiple frame targets
+    dock_configuration    — convenience: both tools at anchor poses
+    manipulability_config — optimal-manipulability configuration for a dock pair
+    precompute_torso_map  — offline map of optimal configs for all anchor pairs
+    solve_ik_waypoints    — chain of IK solutions along a swing arc
 """
 
 import numpy as np
 from typing import Dict, List, Tuple, Optional
 import pinocchio as pin
+from scipy.optimize import minimize as scipy_minimize
 
 from crawlbot.core.robot_interface import FRAME_TOOL_A, FRAME_TOOL_B
 
@@ -126,6 +129,143 @@ def dock_configuration(
     if err > 1e-4:
         raise RuntimeError(f"IK failed to converge: err={err:.2e}")
     return q
+
+
+def manipulability_config(
+    model: pin.Model,
+    anchor_a: pin.SE3,
+    anchor_b: pin.SE3,
+) -> Tuple[np.ndarray, float]:
+    """Find the configuration maximizing combined arm manipulability.
+
+    Optimizes the torso (base) position to maximize the product of
+    Yoshikawa manipulability indices for both arms, subject to both
+    tools reaching their respective anchors via IK.
+
+    Parameters
+    ----------
+    model : pin.Model
+    anchor_a, anchor_b : SE3
+        Target poses for tool_a and tool_b.
+
+    Returns
+    -------
+    q_opt : ndarray (nq,)
+        Optimal configuration.
+    w_product : float
+        Manipulability product w_a * w_b at the optimum.
+    """
+    data = model.createData()
+    targets = {FRAME_TOOL_A: anchor_a, FRAME_TOOL_B: anchor_b}
+    midpoint = 0.5 * (anchor_a.translation + anchor_b.translation)
+
+    # Cache for IK solutions at each torso position.
+    # Reuse previous solution as seed to avoid singularity traps.
+    _cache = {'q_prev': None}
+
+    def cost(torso_xyz):
+        q0 = pin.neutral(model)
+        q0[:3] = torso_xyz
+        # Also try seeding from previous successful solve
+        candidates = [q0]
+        if _cache['q_prev'] is not None:
+            q_seed = _cache['q_prev'].copy()
+            q_seed[:3] = torso_xyz
+            candidates.insert(0, q_seed)
+
+        best_score = -1.0
+        best_q = None
+        for q_try in candidates:
+            q, err = solve_ik(model, q_try, targets, max_iter=500)
+            if err > 1e-3:
+                continue
+            pin.forwardKinematics(model, data, q)
+            pin.updateFramePlacements(model, data)
+            pin.computeJointJacobians(model, data, q)
+
+            Ja = pin.getFrameJacobian(
+                model, data, FRAME_TOOL_A, pin.LOCAL)[:, 6:12]
+            Jb = pin.getFrameJacobian(
+                model, data, FRAME_TOOL_B, pin.LOCAL)[:, 12:18]
+            # Minimum singular value: distance from singularity
+            sigma_a = np.linalg.svd(Ja, compute_uv=False)[-1]
+            sigma_b = np.linalg.svd(Jb, compute_uv=False)[-1]
+            score = sigma_a * sigma_b
+            if score > best_score:
+                best_score = score
+                best_q = q
+
+        if best_q is not None:
+            _cache['q_prev'] = best_q
+        return -best_score if best_score > 0 else 1e6
+
+    # Run Nelder-Mead from multiple starting points to escape singularities
+    best_result = None
+    best_cost = 1e6
+    for dz in [0.0, -0.3, -0.6]:
+        x0 = midpoint.copy()
+        x0[2] += dz
+        result = scipy_minimize(cost, x0, method='Nelder-Mead',
+                                options={'xatol': 1e-3, 'fatol': 1e-8,
+                                         'maxiter': 200, 'adaptive': True})
+        if result.fun < best_cost:
+            best_cost = result.fun
+            best_result = result
+        _cache['q_prev'] = None  # reset cache between starts
+
+    # Recover the optimal configuration
+    q0 = pin.neutral(model)
+    q0[:3] = best_result.x
+    q_opt, err = solve_ik(model, q0, targets, max_iter=1000)
+    if err > 1e-4:
+        # Fallback: use midpoint
+        q_opt = dock_configuration(model, anchor_a, anchor_b)
+
+    # Compute final manipulability
+    pin.forwardKinematics(model, data, q_opt)
+    pin.updateFramePlacements(model, data)
+    pin.computeJointJacobians(model, data, q_opt)
+    Ja = pin.getFrameJacobian(model, data, FRAME_TOOL_A, pin.LOCAL)[:, 6:12]
+    Jb = pin.getFrameJacobian(model, data, FRAME_TOOL_B, pin.LOCAL)[:, 12:18]
+    w_a = np.sqrt(max(np.linalg.det(Ja @ Ja.T), 0.0))
+    w_b = np.sqrt(max(np.linalg.det(Jb @ Jb.T), 0.0))
+
+    return q_opt, w_a * w_b
+
+
+def precompute_torso_map(
+    model: pin.Model,
+    anchors_a: np.ndarray,
+    anchors_b: np.ndarray,
+) -> Dict[Tuple[int, int], np.ndarray]:
+    """Precompute optimal configurations for all anchor pairs.
+
+    Returns a lookup table mapping (anchor_a_idx, anchor_b_idx) to the
+    configuration that maximizes combined arm manipulability with both
+    tools at their respective anchors.
+
+    Parameters
+    ----------
+    model : pin.Model
+    anchors_a : (N, 3) array of anchor positions for tool A.
+    anchors_b : (M, 3) array of anchor positions for tool B.
+
+    Returns
+    -------
+    torso_map : dict
+        {(a_idx, b_idx): q_opt} for each feasible pair.
+    """
+    torso_map = {}
+    for ai in range(len(anchors_a)):
+        for bi in range(len(anchors_b)):
+            se3_a = pin.SE3(np.eye(3), anchors_a[ai].copy())
+            se3_b = pin.SE3(np.eye(3), anchors_b[bi].copy())
+            try:
+                q_opt, w = manipulability_config(model, se3_a, se3_b)
+                torso_map[(ai, bi)] = q_opt
+            except RuntimeError:
+                pass  # infeasible pair — skip
+    return torso_map
 
 
 def solve_ik_waypoints(

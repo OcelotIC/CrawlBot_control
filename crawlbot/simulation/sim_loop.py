@@ -34,7 +34,10 @@ except ImportError:
 from crawlbot.core.robot_interface import RobotInterface, FRAME_TOOL_A, FRAME_TOOL_B
 from crawlbot.core.state_conversions import (
     mujoco_to_pinocchio, pinocchio_to_mujoco, quat_wxyz_to_euler_deg)
-from crawlbot.core.ik import dock_configuration, solve_ik, solve_ik_waypoints
+from crawlbot.core.ik import (
+    dock_configuration, solve_ik, solve_ik_waypoints,
+    manipulability_config, precompute_torso_map,
+)
 from crawlbot.planning.contact_scheduler import ContactScheduler, read_anchors_from_mujoco
 # LocomotionPlanner removed — CoM reference comes from TorsoPlanner
 from crawlbot.planning.swing_planner import SwingPlanner
@@ -124,6 +127,22 @@ class SimulationLoop:
 
         # Torso planner (reconfigured per step)
         self.torso_planner = TorsoPlanner()
+
+        # Precompute manipulability-optimal configs for anchor pairs
+        # used in this gait. Only compute the pairs we actually need.
+        needed_pairs = set()
+        for gp in self.plan.phases:
+            needed_pairs.add((gp.anchor_a_idx, gp.anchor_b_idx))
+        self.torso_map = {}
+        for (ai, bi) in needed_pairs:
+            se3_a = self.sched.anchor_se3('a', ai)
+            se3_b = self.sched.anchor_se3('b', bi)
+            try:
+                q_opt, w = manipulability_config(
+                    self.robot.model, se3_a, se3_b)
+                self.torso_map[(ai, bi)] = q_opt
+            except RuntimeError:
+                pass
 
         # Initial IK
         self.q_dock_init = dock_configuration(
@@ -273,67 +292,58 @@ class SimulationLoop:
 
     def _setup_torso_for_step(self, t_ss_start, t_ss_end, swing_arm,
                               stance_a, stance_b, target_arm, target_idx):
-        """Plan torso trajectory for a crawling step via IK waypoint chain.
+        """Plan torso trajectory for a crawling step.
 
-        Computes a chain of kinematically feasible configurations from the
-        current state to the target anchor. The torso/CoM trajectory is
-        extracted from these configurations.
-
-        The trajectory extends through SS + EXT phases (no frozen hold).
+        Uses the precomputed manipulability-optimal configuration as the
+        endpoint. The trajectory is a quintic interpolation from the
+        current state to the optimal endpoint, extending through SS + EXT.
         """
         cfg = self.cfg
         model = self.robot.model
 
-        # Current robot state in structure frame
+        # Current robot state (structure frame)
         pq_live, pv_live = mujoco_to_pinocchio(
             self.mj_data.qpos, self.mj_data.qvel)
+        rs_s = self.robot.update(pq_live, pv_live)
+        p_t0 = rs_s.oMf_torso.translation.copy()
+        R_t0 = rs_s.oMf_torso.rotation.copy()
+        r_com0 = rs_s.r_com.copy()
+        delta0 = R_t0.T @ (r_com0 - p_t0)
 
-        # Determine stance/swing frames and anchor positions.
-        # The swing arm departs from its current anchor (stance_b for arm B,
-        # stance_a for arm A) and goes to target_idx.
-        if swing_arm == 'b':
-            stance_frame = FRAME_TOOL_A
-            swing_frame = FRAME_TOOL_B
-            stance_se3 = self.sched.anchor_se3('a', stance_a)
-            swing_start = self.sched.anchors_b[stance_b]
-            swing_end = self.sched.anchors_b[target_idx]
+        # End configuration from manipulability map.
+        # The target anchor pair after docking:
+        if target_arm == 'b':
+            end_a, end_b = stance_a, target_idx
         else:
-            stance_frame = FRAME_TOOL_B
-            swing_frame = FRAME_TOOL_A
-            stance_se3 = self.sched.anchor_se3('b', stance_b)
-            swing_start = self.sched.anchors_a[stance_a]
-            swing_end = self.sched.anchors_a[target_idx]
+            end_a, end_b = target_idx, stance_b
 
-        # Compute IK waypoint chain
-        q_waypoints = solve_ik_waypoints(
-            model, pq_live,
-            stance_frame=stance_frame,
-            stance_target=stance_se3,
-            swing_frame=swing_frame,
-            swing_start=swing_start,
-            swing_end=swing_end,
-            n_waypoints=10,
-            clearance=cfg.swing_clearance)
+        q_end = self.torso_map.get((end_a, end_b))
+        if q_end is None:
+            # Fallback: dock_configuration from neutral
+            se3_a = self.sched.anchor_se3('a', end_a)
+            se3_b = self.sched.anchor_se3('b', end_b)
+            q_end = dock_configuration(model, se3_a, se3_b)
 
-        # Extract torso and CoM at each waypoint
-        torso_wps = []
-        com_wps = []
-        for q in q_waypoints:
-            rs = self.robot.update(q, np.zeros(18))
-            torso_wps.append((rs.oMf_torso.translation.copy(),
-                              rs.oMf_torso.rotation.copy()))
-            com_wps.append(rs.r_com.copy())
+        rs_e = self.robot.update(q_end, np.zeros(18))
+        p_t1 = rs_e.oMf_torso.translation.copy()
+        R_t1 = rs_e.oMf_torso.rotation.copy()
+        r_com1 = rs_e.r_com.copy()
+        delta1 = R_t1.T @ (r_com1 - p_t1)
 
-        # Build trajectory covering SS + EXT (no frozen hold at SS end).
-        # The planner interpolates smoothly through all waypoints.
+        # Trajectory: quintic from current to optimal endpoint.
+        # The trajectory covers SS and the first portion of EXT, giving
+        # the controller time to converge before docking.
         t_torso_start = t_ss_start + cfg.torso_delay * cfg.t_swing
         t_torso_end = t_ss_end + cfg.t_ext_max
-        self.torso_planner.set_from_waypoints(
-            t_torso_start, t_torso_end,
-            torso_wps, com_wps)
 
-        # Nominal posture from final waypoint (for QP regularization)
-        return q_waypoints[-1]
+        self.torso_planner.clear_phases()
+        self.torso_planner.set_hold(p_t0, R_t0, r_com=r_com0)
+        self.torso_planner.add_phase(
+            t_torso_start, t_torso_end,
+            p_t0, R_t0, p_t1, R_t1,
+            delta_com_start=delta0, delta_com_end=delta1)
+
+        return q_end
 
     # ── Run ──────────────────────────────────────────────────────────────
 
@@ -407,13 +417,14 @@ class SimulationLoop:
                             hw, L_com_prev, log, ss_end=t_ss_end)
                         t += cfg.dt_nmpc
 
-                    # EXT: torso trajectory continues (set_from_waypoints
-                    # extends through EXT). No frozen hold needed.
+                    # EXT: torso trajectory continues toward optimal endpoint.
+                    # When EE gets close, freeze torso to let QP close the gap.
                     if verbose:
                         print(f"  EXT: {t:.2f} → dock or +{cfg.t_ext_max}s")
 
                     t_ext_start = t
                     docked = False
+                    torso_frozen = False
                     while t < t_ext_start + cfg.t_ext_max and not docked:
                         hw, L_com_prev = self._step(
                             t, 'EXT', step_idx, swing_arm, stance_arm,
@@ -423,6 +434,19 @@ class SimulationLoop:
 
                         mujoco.mj_forward(self.mj_model, self.mj_data)
                         d = self._gripper_distance(swing_arm, target_idx)
+
+                        # Freeze torso when EE is within approach distance
+                        # to prevent overshoot while QP closes the gap.
+                        if not torso_frozen and d < 0.05:
+                            pq_snap, pv_snap = mujoco_to_pinocchio(
+                                self.mj_data.qpos, self.mj_data.qvel)
+                            rs_snap = self.robot.update(pq_snap, pv_snap)
+                            self.torso_planner.set_hold(
+                                rs_snap.oMf_torso.translation.copy(),
+                                rs_snap.oMf_torso.rotation.copy(),
+                                r_com=rs_snap.r_com.copy())
+                            torso_frozen = True
+
                         if d < cfg.weld_radius:
                             docked = True
                             log.dock_events.append({
