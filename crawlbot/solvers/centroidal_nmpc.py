@@ -79,6 +79,7 @@ class CentroidalNMPCConfig:
     tau_w_max: float = np.inf                # |L̇_com,i| ≤ τ_w_max [Nm] (angular rate)
     p_max: float = np.inf                    # ||m·v_com|| ≤ p_max [kg·m/s] (linear momentum)
                                              # Bounds orbital disturbance: τ_orbital ≤ |r_com|·p_max
+    tau_struct_max: float = np.inf           # |Ḣ_s,i| ≤ tau_struct_max [Nm] (structure disturbance)
 
     # Solver
     solver_name: str = 'ipopt'
@@ -198,6 +199,7 @@ class CentroidalNMPC:
         tau_max_sq = cfg.tau_max ** 2
 
         p_max_sq = (cfg.p_max ** 2) if np.isfinite(cfg.p_max) else np.inf
+        has_Hdot_s = np.isfinite(cfg.tau_struct_max)
 
         def path_constraints(x, u, p):
             f1 = u[0:3];  tau1 = u[3:6]
@@ -222,16 +224,29 @@ class CentroidalNMPC:
             tw = cfg.tau_w_max
             Ldot_ineq = ca.vertcat(L_dot - tw, -L_dot - tw)
 
+            parts = [soc, Ldot_ineq]
+
+            # Structure disturbance constraint: Ḣ_s = Σ [r_Cⱼ × fⱼ + τⱼ]
+            # r_Cⱼ are lever arms from structure CoM (= origin in R_s).
+            # Unlike L̇_com which uses (r_Cⱼ - r_com), this uses r_Cⱼ directly
+            # to bound the torque the structure AOCS must absorb.
+            if has_Hdot_s:
+                H_dot_s = (ca.cross(r_C1, f1) + tau1 +
+                           ca.cross(r_C2, f2) + tau2)
+                ts = cfg.tau_struct_max
+                Hdot_s_ineq = ca.vertcat(H_dot_s - ts, -H_dot_s - ts)
+                parts.append(Hdot_s_ineq)
+
             # Linear momentum constraint: ||m·v_com||² ≤ p_max²
-            # Bounds the orbital angular momentum rate: τ_orbital ≤ |r_com|·p_max
-            # This prevents the robot from building up velocity that the
-            # AOCS wheels cannot reject through the orbital lever arm.
             p_lin = m * v_com
             p_ineq = ca.dot(p_lin, p_lin) - p_max_sq
+            parts.append(p_ineq)
 
-            return ca.vertcat(soc, Ldot_ineq, p_ineq)
+            return ca.vertcat(*parts)
 
         ng_path = 4 + 6 + 1  # 4 SOC + 6 L̇ bilateral + 1 linear momentum
+        if has_Hdot_s:
+            ng_path += 6        # + 6 Ḣ_s bilateral
         nmpc.set_path_constraints(path_constraints, ng=ng_path)
 
         # --- State bounds ---

@@ -179,6 +179,7 @@ class SimulationLoop:
             N=cfg.nmpc_N, dt=cfg.nmpc_dt,
             f_max=cfg.nmpc_f_max, tau_max=cfg.nmpc_tau_max,
             L_max=cfg.L_max, tau_w_max=cfg.tau_w_max,
+            tau_struct_max=cfg.tau_struct_max,
             p_max=cfg.nmpc_p_max,
             Wv=cfg.nmpc_Wv * np.ones(3)))
         self.nmpc.build()
@@ -533,6 +534,20 @@ class SimulationLoop:
                             off_v = 3 if self.has_rwa else 0
                             self.mj_data.qvel[6+off_v:] = mj_qvel_post[6+off_v:]
                             mujoco.mj_forward(self.mj_model, self.mj_data)
+
+                    # Inter-step settle: damp velocities before next swing
+                    if cfg.t_settle_inter > 0 and docked:
+                        t_settle_end = t + cfg.t_settle_inter
+                        cc_settle = self.sched.contact_config_at(t)
+                        if verbose:
+                            print(f"  Inter-step settle: {t:.2f} → +{cfg.t_settle_inter}s")
+                        while t < t_settle_end:
+                            hw, L_com_prev = self._step(
+                                t, 'DS', step_idx, swing_arm, stance_arm,
+                                cc_settle, target_idx, stance_a, stance_b,
+                                hw, L_com_prev, log, ss_end=t,
+                                settle_mode=True)
+                            t += cfg.dt_nmpc
 
                     step_idx += 1
                     i += 2  # skip SS phase (already processed)

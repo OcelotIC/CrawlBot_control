@@ -46,6 +46,7 @@ class SimConfig:
     hw_max: np.ndarray = field(default_factory=lambda: np.full(3, 5.0))
     L_max: float = 10.0           # Robot angular momentum limit [Nms]
     tau_w_max: float = 5.0        # Reaction wheel torque limit [Nm]
+    tau_struct_max: float = np.inf  # Structure disturbance torque limit [Nm]
 
     # ── AOCS ────────────────────────────────────────────────────
     aocs_K_hw: float = 2.0        # Legacy feedback gain [1/s]
@@ -68,6 +69,7 @@ class SimConfig:
     nmpc_Wv: float = 10.0
     nmpc_p_max: float = 50.0      # Linear momentum bound [kg·m/s]
     t_settle_final: float = 20.0
+    t_settle_inter: float = 0.0   # Inter-step settle duration [s]
 
     # ── QP weights — Single-support ─────────────────────────────
     ss_alpha_com: float = 2e2
