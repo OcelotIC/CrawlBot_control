@@ -461,10 +461,42 @@ class SimulationLoop:
                         print(f"  TIMEOUT step {step_idx}: "
                               f"min d={min(recent)*1000:.1f}mm")
 
-                    # Post-dock: activate weld
+                    # Post-dock: activate weld + inelastic impact projection
                     if docked:
                         self._activate_weld(swing_arm, target_idx)
                         mujoco.mj_forward(self.mj_model, self.mj_data)
+
+                        # Inelastic impact: project velocity onto new constraint
+                        # manifold. The weld creates a bilateral constraint that
+                        # the pre-dock velocity likely violates.
+                        pq_dock, pv_dock = mujoco_to_pinocchio(
+                            self.mj_data.qpos, self.mj_data.qvel)
+                        rs_dock = self.robot.update(pq_dock, pv_dock)
+                        Jc_both, _ = self.robot.get_contact_jacobians(True, True)
+                        if Jc_both is not None:
+                            # v_constraint = Jc @ v (should be ~0 after projection)
+                            v_pre = Jc_both @ pv_dock
+                            # v_post = v - M^{-1} Jc^T (Jc M^{-1} Jc^T)^{-1} Jc v
+                            MiJcT = np.linalg.solve(rs_dock.H, Jc_both.T)
+                            Lambda_inv = Jc_both @ MiJcT
+                            impulse = np.linalg.solve(Lambda_inv, v_pre)
+                            pv_post = pv_dock - MiJcT @ impulse
+
+                            dv = np.linalg.norm(pv_post - pv_dock)
+                            if verbose:
+                                print(f"  Impact: ||dv||={dv:.4f}, "
+                                      f"||Jc@v_pre||={np.linalg.norm(v_pre):.4f}")
+
+                            # Write corrected velocity back to MuJoCo
+                            _, mj_qvel_post = pinocchio_to_mujoco(
+                                pq_dock, pv_post,
+                                struct_pos=self.mj_data.qpos[0:3],
+                                struct_quat=self.mj_data.qpos[3:7],
+                                rwa=self.has_rwa)
+                            # Only overwrite torso + joint velocities, keep structure
+                            off_v = 3 if self.has_rwa else 0
+                            self.mj_data.qvel[6+off_v:] = mj_qvel_post[6+off_v:]
+                            mujoco.mj_forward(self.mj_model, self.mj_data)
 
                     step_idx += 1
                     i += 2  # skip SS phase (already processed)
@@ -618,9 +650,21 @@ class SimulationLoop:
                 else:
                     p_tgt = self.sched.anchors_a[target_anchor].copy()
                 J_ee, Jdq_ee, p_ee = self._get_ee_data(rs, swing_arm)
+
+                # Approach velocity control: within 20mm, command a velocity
+                # reference proportional to the error. This creates a first-order
+                # approach (v_ref → 0 as d → 0) that prevents EE pass-through.
+                d_ee = np.linalg.norm(p_tgt - p_ee)
+                if d_ee < 0.020:
+                    # First-order approach: v_ref = gain * error direction
+                    # At 20mm: v_ref ≈ 4mm/s. At 5mm: v_ref ≈ 1mm/s.
+                    v_approach = 0.2 * (p_tgt - p_ee)  # gain = 0.2 [1/s]
+                else:
+                    v_approach = np.zeros(3)
+
                 ek = dict(J_ee=J_ee, Jdot_dq_ee=Jdq_ee,
                           p_ee=p_ee, p_ee_ref=p_tgt,
-                          v_ee_ref=np.zeros(3), a_ee_ff=np.zeros(3))
+                          v_ee_ref=v_approach, a_ee_ff=np.zeros(3))
 
             # Reaction null-space: coupling block H_base ← swing_arm
             sw_slice = (self.robot.arm_b_v_slice if swing_arm == 'b'

@@ -380,6 +380,38 @@ class RobotInterface:
 
     # ── Convenience methods ──────────────────────────────────────
 
+    def compute_gjm(self, swing_arm: str) -> np.ndarray:
+        """Generalized Jacobian Matrix for the swing arm.
+
+        Accounts for base recoil: J_GJM = J_arm - J_base @ inv(H_bb) @ H_ba.
+        When the swing arm accelerates, the base recoils. The GJM gives the
+        net EE motion in the inertial (structure) frame.
+
+        Parameters
+        ----------
+        swing_arm : 'a' or 'b'
+
+        Returns
+        -------
+        J_GJM : ndarray (6, n_arm)
+            Generalized Jacobian for the swing arm's tool frame.
+        """
+        s = self.state
+        if swing_arm == 'a':
+            J_full = s.J_tool_a
+            arm_slice = self.arm_a_v_slice
+        else:
+            J_full = s.J_tool_b
+            arm_slice = self.arm_b_v_slice
+
+        J_base = J_full[:, :6]           # (6, 6)
+        J_arm = J_full[:, arm_slice]     # (6, n_arm)
+        H_bb = s.H[:6, :6]              # (6, 6) base inertia
+        H_ba = s.H[:6, arm_slice]       # (6, n_arm) coupling
+
+        # J_GJM = J_arm - J_base @ H_bb^{-1} @ H_ba
+        return J_arm - J_base @ np.linalg.solve(H_bb, H_ba)
+
     def get_contact_jacobians(
         self, active_A: bool, active_B: bool
     ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
