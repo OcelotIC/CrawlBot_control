@@ -212,6 +212,57 @@ class TorsoPlanner:
             p=self._hold_p.copy(), R=self._hold_R.copy(),
             v=np.zeros(6), a=np.zeros(6))
 
+    def _trapezoidal_params(self, t: float, phase: dict):
+        """Compute smooth trapezoidal velocity profile parameters.
+
+        Uses half-cosine ramps for C¹-continuous acceleration (no
+        discontinuities at ramp/cruise transitions). The velocity
+        profile is:
+            ramp-up:   v(tau) = v_cruise * 0.5 * (1 - cos(pi * tau / ramp))
+            cruise:    v(tau) = v_cruise
+            ramp-down: v(tau) = v_cruise * 0.5 * (1 + cos(pi * (tau - 1 + ramp) / ramp))
+
+        Returns (tau, s, ds, dds) matching the quintic interface:
+            s   : position fraction [0, 1]
+            ds  : ds/dt [1/s]
+            dds : d²s/dt² [1/s²]
+        """
+        T = phase['duration']
+        tau = np.clip((t - phase['t_start']) / T, 0.0, 1.0)
+        ramp = 0.35  # fraction of total time for each ramp
+
+        # Cruise velocity such that total displacement = 1:
+        # Area = ramp*v_c/2 + (1-2*ramp)*v_c + ramp*v_c/2 = (1-ramp)*v_c = 1
+        v_c = 1.0 / (1.0 - ramp)
+        pi = np.pi
+
+        if tau < ramp:
+            # Ramp up: half-cosine velocity profile
+            phi = pi * tau / ramp
+            s = v_c * (tau / 2.0 - ramp / (2.0 * pi) * np.sin(phi))
+            ds = v_c * 0.5 * (1.0 - np.cos(phi)) / T
+            dds = v_c * pi / (2.0 * ramp) * np.sin(phi) / (T**2)
+        elif tau < 1.0 - ramp:
+            # Cruise: constant velocity, zero acceleration
+            s_ramp = v_c * ramp / 2.0  # area under ramp-up
+            s = s_ramp + v_c * (tau - ramp)
+            ds = v_c / T
+            dds = 0.0
+        else:
+            # Ramp down: mirror of ramp-up
+            tau_d = 1.0 - tau
+            phi = pi * tau_d / ramp
+            s_tail = v_c * (tau_d / 2.0 - ramp / (2.0 * pi) * np.sin(phi))
+            s = 1.0 - s_tail
+            ds = v_c * 0.5 * (1.0 - np.cos(phi)) / T
+            dds = -v_c * pi / (2.0 * ramp) * np.sin(phi) / (T**2)
+
+        return tau, s, ds, dds
+
+    def _profile_params(self, t: float, phase: dict):
+        """Compute time-scaling parameters using trapezoidal profile."""
+        return self._trapezoidal_params(t, phase)
+
     def _quintic_params(self, t: float, phase: dict):
         """Compute quintic time scaling parameters."""
         T = phase['duration']
@@ -222,8 +273,8 @@ class TorsoPlanner:
         return tau, s, ds, dds
 
     def _interpolate_phase(self, t: float, phase: dict) -> TorsoReference:
-        """Interpolate quintic in structure frame."""
-        _, s, ds, dds = self._quintic_params(t, phase)
+        """Interpolate trajectory phase in structure frame."""
+        _, s, ds, dds = self._profile_params(t, phase)
 
         dp    = phase['p_end'] - phase['p_start']
         p     = phase['p_start'] + s * dp
@@ -245,7 +296,7 @@ class TorsoPlanner:
 
     def _interpolate_com(self, t: float, phase: dict) -> ComReference:
         """Derive CoM reference from torso trajectory + interpolated δ_com."""
-        _, s, ds, _ = self._quintic_params(t, phase)
+        _, s, ds, _ = self._profile_params(t, phase)
 
         d0 = phase['delta_com_start']
         d1 = phase['delta_com_end']
