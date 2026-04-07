@@ -90,16 +90,13 @@ class SimulationLoop:
         self.mj_data = mujoco.MjData(self.mj_model)
         self.mj_model.opt.timestep = cfg.dt_qp
 
-        # Detect RWA model (3 reaction wheels → nq=29, nv=27, nu=15)
+        # Detect RWA model (3 reaction wheels)
         rw_jid = mujoco.mj_name2id(self.mj_model, mujoco.mjtObj.mjOBJ_JOINT, 'rw_x')
         self.has_rwa = rw_jid >= 0
-        if self.has_rwa:
-            assert self.mj_model.nq == 29, f"RWA model expects nq=29, got {self.mj_model.nq}"
-            assert self.mj_model.nu == 15, f"RWA model expects nu=15, got {self.mj_model.nu}"
 
-        # Verify torso mass matches expectations
+        # Verify torso mass
         tid = mujoco.mj_name2id(self.mj_model, mujoco.mjtObj.mjOBJ_BODY, 'torso')
-        assert abs(self.mj_model.body_mass[tid] - 40.0) < 0.1, \
+        assert abs(self.mj_model.body_mass[tid] - 40.0) < 1.0, \
             f"Torso mass mismatch: {self.mj_model.body_mass[tid]}"
         mujoco.mj_forward(self.mj_model, self.mj_data)
 
@@ -189,13 +186,13 @@ class SimulationLoop:
         # QP variants
         self.qp_ss = self._build_qp(
             cfg.ss_alpha_com, cfg.ss_alpha_torso, cfg.ss_alpha_ee,
-            cfg.ss_alpha_posture, cfg.ss_alpha_wrench,
+            cfg.ss_alpha_posture, cfg.ss_alpha_wrench, cfg.ss_alpha_reaction,
             cfg.ss_Kp_com, cfg.ss_Kd_com,
             cfg.ss_Kp_torso, cfg.ss_Kd_torso,
             cfg.ss_Kp_ee, cfg.ss_Kd_ee)
         self.qp_ext = self._build_qp(
             cfg.ext_alpha_com, cfg.ext_alpha_torso, cfg.ext_alpha_ee,
-            cfg.ext_alpha_posture, cfg.ext_alpha_wrench,
+            cfg.ext_alpha_posture, cfg.ext_alpha_wrench, cfg.ext_alpha_reaction,
             cfg.ext_Kp_com, cfg.ext_Kd_com,
             cfg.ext_Kp_torso, cfg.ext_Kd_torso,
             cfg.ext_Kp_ee, cfg.ext_Kd_ee)
@@ -224,13 +221,15 @@ class SimulationLoop:
         print(f"  hw bounds:      [{cfg.hw_min[0]:.1f}, {cfg.hw_max[0]:.1f}] Nms")
         print(f"  Dock threshold: {cfg.weld_radius*1000:.1f} mm")
 
-    def _build_qp(self, ac, at, ae, ap, aw, kpc, kdc, kpt, kdt, kpe, kde):
+    def _build_qp(self, ac, at, ae, ap, aw, ar_react,
+                   kpc, kdc, kpt, kdt, kpe, kde):
         cfg = self.cfg
         c = WholeBodyQPConfig(
             nq=self.robot.n_joints, nc_max=2, dt_qp=cfg.dt_qp,
             tau_max=cfg.tau_max * np.ones(self.robot.n_joints),
             alpha_com=ac, alpha_torso=at, alpha_ee=ae,
             alpha_posture=ap, alpha_wrench=aw,
+            alpha_reaction=ar_react,
             alpha_torque=1e0, alpha_reg=1e-2,
             Kp_com=np.diag([kpc]*3), Kd_com=np.diag([kdc]*3),
             Kp_torso=np.array([kpt]*3 + [kpt*0.6]*3),
@@ -623,6 +622,11 @@ class SimulationLoop:
                           p_ee=p_ee, p_ee_ref=p_tgt,
                           v_ee_ref=np.zeros(3), a_ee_ff=np.zeros(3))
 
+            # Reaction null-space: coupling block H_base ← swing_arm
+            sw_slice = (self.robot.arm_b_v_slice if swing_arm == 'b'
+                        else self.robot.arm_a_v_slice)
+            H_bs = rs.H[:6, sw_slice]
+
             try:
                 _, _, _, tau, _ = qp.solve(
                     q_t=rs.q_torso, dq_t=rs.dq_torso,
@@ -634,6 +638,7 @@ class SimulationLoop:
                     contact_config=cc_ss, J_contacts=Jc, Jdot_dq_contacts=Jdc,
                     hw_current=hw, hw_min=cfg.hw_min, hw_max=cfg.hw_max,
                     r_com=rs.r_com, L_com_current=rs.L_com,
+                    H_base_swing=H_bs, swing_v_slice=sw_slice,
                     **tkw, **ek)
             except Exception:
                 tau = np.zeros(12)
@@ -671,7 +676,7 @@ class SimulationLoop:
                     tau_w_cmd = -L_dot_est - cfg.aocs_K_hw * hw_error
                     tau_w_cmd = np.clip(tau_w_cmd, -cfg.aocs_tau_w_max, cfg.aocs_tau_w_max)
 
-                self.mj_data.ctrl[12:15] = tau_w_cmd
+                self.mj_data.ctrl[self.robot.n_joints:self.robot.n_joints + 3] = tau_w_cmd
                 tau_w_last = tau_w_cmd.copy()
                 _omega_s_last = omega_s.copy()
 

@@ -74,6 +74,7 @@ class WholeBodyQPConfig:
     alpha_posture: float = 1e2    # Posture regulation
     alpha_wrench: float = 1e1     # Wrench tracking (from NMPC)
     alpha_torque: float = 1e0     # Joint torque minimization
+    alpha_reaction: float = 0.0   # Reaction null-space (minimize base disturbance from swing arm)
     alpha_reg: float = 1e-2       # Acceleration regularization (lowest)
 
     # PD gains for CoM tracking (Eq. VI-F.4)
@@ -197,6 +198,9 @@ class WholeBodyQP:
         R_torso_ref: Optional[np.ndarray] = None,    # (3,3) desired torso rotation
         v_torso_ref: Optional[np.ndarray] = None,    # (6,) desired torso twist [lin(3), ang(3)]
         a_torso_ff: Optional[np.ndarray] = None,     # (6,) feedforward torso accel [lin(3), ang(3)]
+        # Reaction null-space (minimize base disturbance from swing arm)
+        H_base_swing: Optional[np.ndarray] = None,  # (6, n_swing) coupling block
+        swing_v_slice: Optional[slice] = None,       # velocity-space slice of swing arm joints
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, QPSolveInfo]:
         """Solve the whole-body QP.
 
@@ -510,6 +514,24 @@ class WholeBodyQP:
         b_wrench = lambda_ref
 
         qp.add_task(A_wrench, b_wrench, cfg.alpha_wrench, priority=4)
+
+        # --- Task 3b: Reaction null-space (minimize base disturbance from swing arm) ---
+        # Penalizes ||H_bt @ qdd_swing||² where H_bt is the base-swing coupling.
+        # This makes the QP prefer swing arm motions that don't torque the base.
+        if (cfg.alpha_reaction > 0 and H_base_swing is not None
+                and swing_v_slice is not None):
+            n_sw = swing_v_slice.stop - swing_v_slice.start
+            # Map swing arm qdd to base reaction: tau_base = H_bt @ qdd_swing
+            # In the QP, qdd_swing is part of the qdd block.
+            # qdd indices in z: idx['qdd'][0] + (swing_v_slice.start - 6)
+            # because qdd block starts after qdd_t(6), and swing_v_slice
+            # is in velocity space (starting from 6 for first arm joint).
+            sw_offset = swing_v_slice.start - 6  # offset within qdd block
+            A_react = np.zeros((6, n))
+            A_react[:, idx['qdd'][0] + sw_offset:
+                       idx['qdd'][0] + sw_offset + n_sw] = H_base_swing
+            b_react = np.zeros(6)
+            qp.add_task(A_react, b_react, cfg.alpha_reaction, priority=4)
 
         # --- Task 4: Joint torque minimization ---
         A_torque = np.zeros((nq, n))

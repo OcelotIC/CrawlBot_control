@@ -66,6 +66,7 @@ class SimConfig:
     ss_alpha_ee: float = 3e3
     ss_alpha_posture: float = 2e1
     ss_alpha_wrench: float = 1e2
+    ss_alpha_reaction: float = 0.0   # Reaction null-space (0 = disabled)
 
     # ── QP weights — Extension ──────────────────────────────────
     ext_alpha_com: float = 1e2
@@ -73,6 +74,7 @@ class SimConfig:
     ext_alpha_ee: float = 1e4
     ext_alpha_posture: float = 5e0
     ext_alpha_wrench: float = 1e2
+    ext_alpha_reaction: float = 0.0  # Reaction null-space (0 = disabled)
 
     # ── QP gains — Single-support ──────────────────────────────
     ss_Kp_com: float = 3.0

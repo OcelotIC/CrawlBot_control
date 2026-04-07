@@ -15,15 +15,20 @@ from scipy.optimize import minimize as scipy_minimize
 
 from crawlbot.core.robot_interface import FRAME_TOOL_A, FRAME_TOOL_B, _detect_arm_slices
 
+
+def _get_tool_frames(model: pin.Model):
+    """Get tool frame IDs from model by name lookup."""
+    return model.getFrameId("tool_a"), model.getFrameId("tool_b")
+
 # Cache arm slices per model (by id) to avoid recomputing
 _arm_slice_cache: Dict[int, dict] = {}
 
 def _get_arm_slices(model: pin.Model) -> dict:
-    """Get arm velocity-space slices for a model, cached."""
-    mid = id(model)
-    if mid not in _arm_slice_cache:
-        _arm_slice_cache[mid] = _detect_arm_slices(model)
-    return _arm_slice_cache[mid]
+    """Get arm velocity-space slices for a model, cached by (id, nv)."""
+    key = (id(model), model.nv)
+    if key not in _arm_slice_cache:
+        _arm_slice_cache[key] = _detect_arm_slices(model)
+    return _arm_slice_cache[key]
 
 
 def _arm_v_slice(model: pin.Model, frame_id: int) -> slice:
@@ -152,7 +157,8 @@ def dock_configuration(
     if torso_pos is not None:
         q0[:3] = torso_pos
 
-    targets = {FRAME_TOOL_A: anchor_a, FRAME_TOOL_B: anchor_b}
+    fid_a, fid_b = _get_tool_frames(model)
+    targets = {fid_a: anchor_a, fid_b: anchor_b}
     q, err = solve_ik(model, q0, targets, max_iter=2000)
     if err > 1e-4:
         raise RuntimeError(f"IK failed to converge: err={err:.2e}")
@@ -184,7 +190,8 @@ def manipulability_config(
         Manipulability product w_a * w_b at the optimum.
     """
     data = model.createData()
-    targets = {FRAME_TOOL_A: anchor_a, FRAME_TOOL_B: anchor_b}
+    fid_a, fid_b = _get_tool_frames(model)
+    targets = {fid_a: anchor_a, fid_b: anchor_b}
     midpoint = 0.5 * (anchor_a.translation + anchor_b.translation)
 
     # Cache for IK solutions at each torso position.
@@ -211,12 +218,12 @@ def manipulability_config(
             pin.updateFramePlacements(model, data)
             pin.computeJointJacobians(model, data, q)
 
-            sl_a = _arm_v_slice(model, FRAME_TOOL_A)
-            sl_b = _arm_v_slice(model, FRAME_TOOL_B)
+            sl_a = _arm_v_slice(model, fid_a)
+            sl_b = _arm_v_slice(model, fid_b)
             Ja = pin.getFrameJacobian(
-                model, data, FRAME_TOOL_A, pin.LOCAL)[:, sl_a]
+                model, data, fid_a, pin.LOCAL)[:, sl_a]
             Jb = pin.getFrameJacobian(
-                model, data, FRAME_TOOL_B, pin.LOCAL)[:, sl_b]
+                model, data, fid_b, pin.LOCAL)[:, sl_b]
             # Minimum singular value: distance from singularity
             sigma_a = np.linalg.svd(Ja, compute_uv=False)[-1]
             sigma_b = np.linalg.svd(Jb, compute_uv=False)[-1]
@@ -255,10 +262,10 @@ def manipulability_config(
     pin.forwardKinematics(model, data, q_opt)
     pin.updateFramePlacements(model, data)
     pin.computeJointJacobians(model, data, q_opt)
-    sl_a = _arm_v_slice(model, FRAME_TOOL_A)
-    sl_b = _arm_v_slice(model, FRAME_TOOL_B)
-    Ja = pin.getFrameJacobian(model, data, FRAME_TOOL_A, pin.LOCAL)[:, sl_a]
-    Jb = pin.getFrameJacobian(model, data, FRAME_TOOL_B, pin.LOCAL)[:, sl_b]
+    sl_a = _arm_v_slice(model, fid_a)
+    sl_b = _arm_v_slice(model, fid_b)
+    Ja = pin.getFrameJacobian(model, data, fid_a, pin.LOCAL)[:, sl_a]
+    Jb = pin.getFrameJacobian(model, data, fid_b, pin.LOCAL)[:, sl_b]
     w_a = np.sqrt(max(np.linalg.det(Ja @ Ja.T), 0.0))
     w_b = np.sqrt(max(np.linalg.det(Jb @ Jb.T), 0.0))
 

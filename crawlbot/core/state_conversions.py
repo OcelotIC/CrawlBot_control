@@ -52,7 +52,10 @@ def mujoco_to_pinocchio(mj_qpos, mj_qvel):
     pin_v : ndarray (6+N,)
         [torso_vel_struct(3), torso_omega_struct(3), joint_vel(N)]
     """
-    rwa = len(mj_qpos) >= 29  # at least 29 for 6-DOF arms with RWA
+    # Detect RWA: without RWA nq = 14+N (even for even N), with RWA nq = 17+N.
+    # Structure(7) + torso(7) = 14 base DOFs. RWA adds 3.
+    # N_joints must be even (equal arms). So nq-14 even → no RWA, nq-14 odd → RWA (3 extra).
+    rwa = (len(mj_qpos) - 14) % 2 == 1
     off_q = _MJ_RWA_NQ if rwa else 0
     off_v = _MJ_RWA_NV if rwa else 0
     n_joints = _infer_n_joints(mj_qpos, rwa)
