@@ -102,6 +102,7 @@ class RobotState:
     # ── Dynamics ─────────────────────────────────────────────
     H: np.ndarray           # (18,18) Mass matrix (CRBA)
     C: np.ndarray           # (18,) Bias term (Coriolis + gravity via RNEA)
+    C_matrix: np.ndarray    # (18,18) Coriolis matrix C(q,v) for GMO
 
     # ── Center of Mass ───────────────────────────────────────
     r_com: np.ndarray       # (3,) CoM position
@@ -277,6 +278,10 @@ class RobotInterface:
         # computeAllTerms already computed nle (non-linear effects)
         C = data.nle.copy()
 
+        # ── Coriolis matrix C(q,v) for GMO ───────────────────────
+        pin.computeCoriolisMatrix(model, data, q, v)
+        C_matrix = data.C.copy()
+
         # ── Center of Mass ───────────────────────────────────────
         r_com = data.com[0].copy()
 
@@ -349,6 +354,7 @@ class RobotInterface:
             dq_torso=v[0:6].copy(),
             H=H,
             C=C,
+            C_matrix=C_matrix,
             r_com=r_com,
             v_com=v_com,
             J_com=J_com,

@@ -209,10 +209,26 @@ class SimulationLoop:
             ),
         )
 
+        # GMO contact estimator
+        from crawlbot.estimation.contact_estimator import (
+            GeneralizedMomentumObserver, ContactStateMachine,
+            ContactObserverConfig, ContactState)
+        obs_cfg = ContactObserverConfig(
+            K_O=cfg.gmo_K_O, dt=cfg.dt_qp, nv=self.robot.model.nv,
+            F_threshold=cfg.gmo_F_threshold,
+            d_proximity=cfg.gmo_d_proximity,
+            d_contact=cfg.gmo_d_contact,
+            d_reset=cfg.gmo_d_reset,
+            debounce_count=cfg.gmo_debounce_count)
+        self.gmo = GeneralizedMomentumObserver(obs_cfg)
+        self.contact_sm = ContactStateMachine(obs_cfg)
+        self._contact_confirmed = False
+
         print(f"[SimulationLoop] Initialized:")
         print(f"  Robot mass:     {rs0.total_mass:.1f} kg")
         print(f"  RWA model:      {'YES (3 wheels)' if self.has_rwa else 'NO'}")
         print(f"  AOCS estimator: {'H_{r/O}' if cfg.aocs_use_H_estimator else 'L_dot (legacy)'}")
+        print(f"  GMO dock:       {'YES' if cfg.use_gmo_dock else 'NO (legacy kinematic)'}")
         print(f"  NMPC:           {1/cfg.dt_nmpc:.0f} Hz, N={cfg.nmpc_N}")
         print(f"  QP:             {1/cfg.dt_qp:.0f} Hz, {self.n_qp_per_nmpc} per NMPC")
         print(f"  Gait:           {n_steps} step(s), T_swing={cfg.t_swing}s")
@@ -406,6 +422,13 @@ class SimulationLoop:
                     # SS: release swing arm
                     old_anchor = ss_gp.swing_from_idx
                     self._deactivate_weld(swing_arm, old_anchor)
+                    # Reset GMO on phase transition (contact force discontinuity)
+                    pq_r, pv_r = mujoco_to_pinocchio(
+                        self.mj_data.qpos, self.mj_data.qvel)
+                    rs_r = self.robot.update(pq_r, pv_r)
+                    self.gmo.reset(rs_r.H, rs_r.v)
+                    self.contact_sm.reset()
+                    self._contact_confirmed = False
                     if verbose:
                         print(f"  SS: [{t_ss_start:.2f}, {t_ss_end:.2f}] "
                               f"released {swing_arm}@{old_anchor}")
@@ -446,12 +469,18 @@ class SimulationLoop:
                                 r_com=rs_snap.r_com.copy())
                             torso_frozen = True
 
-                        if d < cfg.weld_radius:
-                            docked = True
+                        # Dock detection: GMO (100 Hz) or legacy kinematic (10 Hz)
+                        if cfg.use_gmo_dock:
+                            docked = self._contact_confirmed
+                        else:
+                            docked = d < cfg.weld_radius
+
+                        if docked:
                             log.dock_events.append({
                                 't': round(t, 3), 'step': step_idx,
                                 'd_mm': round(d*1000, 2),
-                                'arm': swing_arm, 'anchor': target_idx})
+                                'arm': swing_arm, 'anchor': target_idx,
+                                'method': 'gmo' if cfg.use_gmo_dock else 'kinematic'})
                             if verbose:
                                 print(f"  *** DOCK step {step_idx}: t={t:.2f}s "
                                       f"d={d*1000:.1f}mm ***")
@@ -732,6 +761,22 @@ class SimulationLoop:
                 *mujoco_to_pinocchio(self.mj_data.qpos, self.mj_data.qvel),
                 omega_struct=omega_s_post)
 
+            # GMO update (100 Hz, after physics step)
+            tau_applied = np.zeros(self.robot.model.nv)
+            tau_applied[6:6 + self.robot.n_joints] = tau
+            self.gmo.update(rs2.H, rs2.v, rs2.C_matrix, tau_applied)
+
+            # Contact state machine (EXT phase only)
+            if phase == 'EXT' and cfg.use_gmo_dock:
+                from crawlbot.estimation.contact_estimator import ContactState
+                d_gmo = self._gripper_distance(swing_arm, target_anchor)
+                sw_slice = (self.robot.arm_b_v_slice if swing_arm == 'b'
+                            else self.robot.arm_a_v_slice)
+                r_norm = self.gmo.swing_residual_norm(sw_slice)
+                cs = self.contact_sm.update(r_norm, d_gmo)
+                if cs == ContactState.CONFIRMED and not self._contact_confirmed:
+                    self._contact_confirmed = True
+
             if self.has_rwa:
                 hw = cfg.rwa_I_w * self.mj_data.qvel[6:9].copy()
             else:
@@ -767,6 +812,13 @@ class SimulationLoop:
         log.d_grip_swing.append(d_swing)
         log.d_grip_stance.append(d_stance)
         log.swing_arm.append(swing_arm)
+
+        # GMO diagnostics
+        sw_slice = (self.robot.arm_b_v_slice if swing_arm == 'b'
+                    else self.robot.arm_a_v_slice)
+        log.gmo_residual_norm.append(float(np.linalg.norm(self.gmo.residual)))
+        log.gmo_swing_residual.append(self.gmo.swing_residual_norm(sw_slice))
+        log.gmo_contact_state.append(self.contact_sm.state.value)
         log.r_com.append(rs_f.r_com.copy())
         log.r_com_ref.append(cref.r_com.copy())
         log.e_com.append(float(np.linalg.norm(rs_f.r_com - cref.r_com)))
