@@ -579,13 +579,12 @@ class SimulationLoop:
                             rs_hold.oMf_torso.translation.copy(),
                             rs_hold.oMf_torso.rotation.copy(),
                             r_com=rs_hold.r_com.copy())
-
                     while t < t_ds_settle:
                         hw, L_com_prev = self._step(
                             t, 'DS', step_idx - 1, last_swing, last_stance,
                             cc_ds, 0, last_sa, last_sb,
                             hw, L_com_prev, log, ss_end=t,
-                            zero_velocity=True)
+                            settle_mode=True)
                         t += cfg.dt_nmpc
 
                     i += 1
@@ -601,7 +600,7 @@ class SimulationLoop:
 
     def _step(self, t, phase, step_idx, swing_arm, stance_arm,
               cc_ss, target_anchor, stance_a, stance_b,
-              hw, L_com_prev, log, ss_end=None, zero_velocity=False):
+              hw, L_com_prev, log, ss_end=None, settle_mode=False):
         """Single NMPC+QP step.  All quantities are in structure frame."""
         cfg = self.cfg
 
@@ -726,7 +725,7 @@ class SimulationLoop:
                     hw_current=hw, hw_min=cfg.hw_min, hw_max=cfg.hw_max,
                     r_com=rs.r_com, L_com_current=rs.L_com,
                     H_base_swing=H_bs, swing_v_slice=sw_slice,
-                    zero_velocity=zero_velocity,
+                    settle_mode=settle_mode,
                     **tkw, **ek)
             except Exception:
                 tau = np.zeros(12)

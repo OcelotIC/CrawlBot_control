@@ -95,8 +95,8 @@ class WholeBodyQPConfig:
     Kp_posture: float = 25.0
     Kd_posture: float = 10.0
 
-    # DS settling: explicit velocity damping
-    Kd_settle: float = 40.0           # Joint velocity damping gain [1/s]
+    # DS settling: joint velocity damping (torso/CoM tasks skipped)
+    Kd_settle: float = 10.0           # Joint velocity damping [1/s]
     alpha_settle: float = 1e3         # Weight (high priority)
 
     # Actuator limits
@@ -209,8 +209,8 @@ class WholeBodyQP:
         # Reaction null-space (minimize base disturbance from swing arm)
         H_base_swing: Optional[np.ndarray] = None,  # (6, n_swing) coupling block
         swing_v_slice: Optional[slice] = None,       # velocity-space slice of swing arm joints
-        # DS settling mode
-        zero_velocity: bool = False,                 # activate velocity damping task
+        # DS settling mode (skip torso/CoM, damp velocities)
+        settle_mode: bool = False,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, QPSolveInfo]:
         """Solve the whole-body QP.
 
@@ -438,14 +438,14 @@ class WholeBodyQP:
         A_com[:, idx['qdd'][0]: idx['qdd'][1]] = J_com[:, 6:]
         b_com = a_com_des - Jdot_dq_com
 
-        if cfg.alpha_com > 0:
+        if cfg.alpha_com > 0 and not settle_mode:
             qp.add_task(A_com, b_com, cfg.alpha_com, priority=1)
 
         # --- Task 1b: Torso 6D tracking (replaces CoM when active) ---
         # Controls both position and orientation of the torso body frame.
         # a_torso_des = [a_lin_ff + Kp_lin(p_ref - p) + Kd_lin(v_ref - v);
         #                a_ang_ff + Kp_ang(log3(R^T R_ref)) + Kd_ang(ω_ref - ω)]
-        if cfg.alpha_torso > 0 and J_torso is not None and p_torso_ref is not None:
+        if cfg.alpha_torso > 0 and J_torso is not None and p_torso_ref is not None and not settle_mode:
             Kp_t = np.diag(cfg.Kp_torso)   # (6,6)
             Kd_t = np.diag(cfg.Kd_torso)   # (6,6)
 
@@ -529,12 +529,17 @@ class WholeBodyQP:
 
         qp.add_task(A_posture, b_posture, cfg.alpha_posture, priority=3)
 
-        # --- Task 3b: DS velocity damping (settle mode) ---
-        if zero_velocity:
-            A_damp = np.zeros((nq, n))
-            A_damp[:, idx['qdd'][0]: idx['qdd'][1]] = np.eye(nq)
-            b_damp = -cfg.Kd_settle * dq
-            qp.add_task(A_damp, b_damp, cfg.alpha_settle, priority=1)
+        # --- Task 3b: DS joint-space settle (damp all velocities to zero) ---
+        # In settle mode, torso/CoM tasks are skipped (they conflict with
+        # the constrained equilibrium). This task drives all joint velocities
+        # to zero via pure damping. No position term — with 8 DOF remaining
+        # (6 base + 2 redundant from 7-DOF arms) and welds constraining the
+        # EEs, the system can only stop at the current configuration.
+        if settle_mode:
+            A_settle = np.zeros((nq, n))
+            A_settle[:, idx['qdd'][0]: idx['qdd'][1]] = np.eye(nq)
+            b_settle = -cfg.Kd_settle * dq
+            qp.add_task(A_settle, b_settle, cfg.alpha_settle, priority=1)
 
         # --- Task 3: Contact wrench tracking ---
         A_wrench = np.zeros((self._dim_lambda, n))
