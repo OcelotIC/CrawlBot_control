@@ -418,7 +418,8 @@ class SimulationLoop:
                         t += cfg.dt_nmpc
 
                     # EXT: torso trajectory continues toward optimal endpoint.
-                    # When EE gets close, freeze torso to let QP close the gap.
+                    # Freeze torso when EE is close (< 10mm) to stabilize
+                    # the final approach and let the EE QP close the gap.
                     if verbose:
                         print(f"  EXT: {t:.2f} → dock or +{cfg.t_ext_max}s")
 
@@ -435,9 +436,8 @@ class SimulationLoop:
                         mujoco.mj_forward(self.mj_model, self.mj_data)
                         d = self._gripper_distance(swing_arm, target_idx)
 
-                        # Freeze torso when EE is within approach distance
-                        # to prevent overshoot while QP closes the gap.
-                        if not torso_frozen and d < 0.05:
+                        # Freeze torso when EE is close to stabilize approach
+                        if not torso_frozen and d < 0.010:
                             pq_snap, pv_snap = mujoco_to_pinocchio(
                                 self.mj_data.qpos, self.mj_data.qvel)
                             rs_snap = self.robot.update(pq_snap, pv_snap)
@@ -539,7 +539,11 @@ class SimulationLoop:
 
         # Torso/CoM references (structure frame — no struct pose needed)
         tref = self.torso_planner.reference_at(t)
-        cref = self.torso_planner.com_reference_at(t)
+        # Query CoM reference at horizon end, not current time.
+        # The NMPC uses a constant reference across all N horizon steps,
+        # so passing the current-time reference causes systematic lag.
+        t_horizon = t + cfg.nmpc_N * cfg.nmpc_dt
+        cref = self.torso_planner.com_reference_at(t_horizon)
 
         # Robot state in structure frame.
         # Extract structure angular velocity for non-inertial corrections.
