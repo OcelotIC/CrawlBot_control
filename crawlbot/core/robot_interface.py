@@ -6,15 +6,17 @@ Computes at each timestep all quantities needed by the two-stage controller:
     Stage 2 (WholeBodyQP):    H_robot, C_robot, J_com, J̇_com·q̇,
                                J_contacts, J̇_contacts·q̇, joint limits
 
-Conventions (Pinocchio free-flyer):
-    q  = [pos(3), quat_xyzw(4), joints(12)]   → nq = 19
-    v  = [twist(6), qdot(12)]                  → nv = 18
-    q̈_robot = [q̈_t(6), q̈(12)]               → 18-dim
-    τ  = [base_wrench(6)=0, torques(12)]       → 18-dim
+DOF-generic: all dimensions and frame/joint IDs are derived from the
+Pinocchio model at construction time. Supports 6-DOF and 7-DOF arms.
 
-Frame IDs (from URDF):
-    FRAME_TOOL_A = 18    (end-effector arm A)
-    FRAME_TOOL_B = 32    (end-effector arm B)
+Conventions (Pinocchio free-flyer):
+    q  = [pos(3), quat_xyzw(4), joints(N)]   → nq = 7 + N
+    v  = [twist(6), qdot(N)]                  → nv = 6 + N
+    τ  = [base_wrench(6)=0, torques(N)]       → nv-dim
+
+Frame IDs are looked up by name from the URDF:
+    FRAME_TOOL_A → model.getFrameId("tool_a")
+    FRAME_TOOL_B → model.getFrameId("tool_b")
 """
 
 import numpy as np
@@ -24,14 +26,60 @@ from typing import Tuple, Optional, Dict, Any
 import pinocchio as pin
 
 
-# ── Frame / joint indices (must match dynamics.py) ────────────────────────────
-FRAME_TORSO = 4    # Link_0 (torso body frame)
+def _detect_arm_slices(model: pin.Model):
+    """Detect arm joint indices from the model by name convention.
+
+    Joints ending in '_a' belong to arm A, '_b' to arm B.
+    Returns velocity-space slices and position-space slices.
+    """
+    arm_a_joints = []
+    arm_b_joints = []
+    for i in range(2, model.njoints):  # skip universe(0) and root_joint(1)
+        name = model.names[i]
+        if name.endswith('_a'):
+            arm_a_joints.append(i)
+        elif name.endswith('_b'):
+            arm_b_joints.append(i)
+
+    if not arm_a_joints or not arm_b_joints:
+        raise RuntimeError("Could not detect arm joints from URDF names "
+                           "(expected Joint_*_a and Joint_*_b)")
+
+    # Velocity-space slices
+    va0 = model.idx_vs[arm_a_joints[0]]
+    va1 = model.idx_vs[arm_a_joints[-1]] + model.nvs[arm_a_joints[-1]]
+    vb0 = model.idx_vs[arm_b_joints[0]]
+    vb1 = model.idx_vs[arm_b_joints[-1]] + model.nvs[arm_b_joints[-1]]
+
+    # Position-space slices
+    qa0 = model.idx_qs[arm_a_joints[0]]
+    qa1 = model.idx_qs[arm_a_joints[-1]] + model.nqs[arm_a_joints[-1]]
+    qb0 = model.idx_qs[arm_b_joints[0]]
+    qb1 = model.idx_qs[arm_b_joints[-1]] + model.nqs[arm_b_joints[-1]]
+
+    return {
+        'arm_a_v': slice(va0, va1),
+        'arm_b_v': slice(vb0, vb1),
+        'arm_a_q': slice(qa0, qa1),
+        'arm_b_q': slice(qb0, qb1),
+        'n_per_arm_a': va1 - va0,
+        'n_per_arm_b': vb1 - vb0,
+        'n_joints': (va1 - va0) + (vb1 - vb0),
+        'joints_q': slice(qa0, qb1),  # all joints combined (position)
+        'joints_v': slice(va0, vb1),  # all joints combined (velocity)
+    }
+
+
+# ── Frame / joint IDs — set at module load for backward compatibility,
+#    but should be accessed via RobotInterface properties for new code.
+# These are OVERWRITTEN by RobotInterface.__init__() with model-derived values.
+FRAME_TORSO = 4
 FRAME_TOOL_A = 18
 FRAME_TOOL_B = 32
 JOINT_6A_ID = 7
 JOINT_6B_ID = 13
 
-# Number of actuated joints
+# Legacy constants — DEPRECATED, use model-derived values
 N_JOINTS = 12
 NQ = 19
 NV = 18
@@ -105,6 +153,9 @@ class RobotInterface:
 
     def __init__(self, urdf_path: str, tau_max=10.0, gravity: str = 'zero',
                  torso_mass: float = None):
+        global FRAME_TORSO, FRAME_TOOL_A, FRAME_TOOL_B
+        global JOINT_6A_ID, JOINT_6B_ID, N_JOINTS, NQ, NV
+
         # Build model with free-flyer
         self.model = pin.buildModelFromUrdf(urdf_path, pin.JointModelFreeFlyer())
         self.data = self.model.createData()
@@ -123,21 +174,47 @@ class RobotInterface:
             self.model.gravity = pin.Motion.Zero()
         elif gravity == 'earth':
             pass  # keep default 9.81
-        # else: keep default
 
-        assert self.model.nq == NQ, f"Expected nq={NQ}, got {self.model.nq}"
-        assert self.model.nv == NV, f"Expected nv={NV}, got {self.model.nv}"
+        # ── DOF-generic detection from model ────────────────────
+        slices = _detect_arm_slices(self.model)
+        self.arm_a_v_slice = slices['arm_a_v']      # velocity-space slice for arm A
+        self.arm_b_v_slice = slices['arm_b_v']      # velocity-space slice for arm B
+        self.arm_a_q_slice = slices['arm_a_q']      # position-space slice for arm A
+        self.arm_b_q_slice = slices['arm_b_q']      # position-space slice for arm B
+        self.joints_q_slice = slices['joints_q']    # all joints (position)
+        self.joints_v_slice = slices['joints_v']    # all joints (velocity)
+        self.n_arm_a = slices['n_per_arm_a']        # DOFs per arm A
+        self.n_arm_b = slices['n_per_arm_b']        # DOFs per arm B
+        self.n_joints = slices['n_joints']           # total actuated joints
 
-        # Joint limits (from URDF)
-        # Free-flyer has no limits in Pinocchio → joints start at index 1
-        # model.lowerPositionLimit / upperPositionLimit are (nq,)
-        # Joint DOFs in velocity space: indices 6..17
-        self._q_min = self.model.lowerPositionLimit[7:19].copy()
-        self._q_max = self.model.upperPositionLimit[7:19].copy()
+        # Frame IDs by name lookup
+        self.frame_tool_a = self.model.getFrameId("tool_a")
+        self.frame_tool_b = self.model.getFrameId("tool_b")
+        self.frame_torso = self.model.getFrameId("Link_0")
+
+        # Last joint of each arm (parent of tool frame)
+        self.joint_tip_a = self.model.frames[self.frame_tool_a].parentJoint
+        self.joint_tip_b = self.model.frames[self.frame_tool_b].parentJoint
+
+        # Update module-level constants for backward compatibility
+        FRAME_TOOL_A = self.frame_tool_a
+        FRAME_TOOL_B = self.frame_tool_b
+        FRAME_TORSO = self.frame_torso
+        JOINT_6A_ID = self.joint_tip_a
+        JOINT_6B_ID = self.joint_tip_b
+        N_JOINTS = self.n_joints
+        NQ = self.model.nq
+        NV = self.model.nv
+
+        # Joint limits (from URDF) — all actuated joints
+        self._q_min = self.model.lowerPositionLimit[
+            self.joints_q_slice].copy()
+        self._q_max = self.model.upperPositionLimit[
+            self.joints_q_slice].copy()
 
         # Torque limits
         if np.isscalar(tau_max):
-            self._tau_max = np.full(N_JOINTS, tau_max)
+            self._tau_max = np.full(self.n_joints, tau_max)
         else:
             self._tau_max = np.array(tau_max).ravel()
 
@@ -221,19 +298,23 @@ class RobotInterface:
 
         # ── Contact frame Jacobians ──────────────────────────────
         # Full frame Jacobians in LOCAL_WORLD_ALIGNED
+        fid_a = self.frame_tool_a
+        fid_b = self.frame_tool_b
+        fid_t = self.frame_torso
+
         J_tool_a = pin.getFrameJacobian(
-            model, data, FRAME_TOOL_A, pin.LOCAL_WORLD_ALIGNED).copy()
+            model, data, fid_a, pin.LOCAL_WORLD_ALIGNED).copy()
         J_tool_b = pin.getFrameJacobian(
-            model, data, FRAME_TOOL_B, pin.LOCAL_WORLD_ALIGNED).copy()
+            model, data, fid_b, pin.LOCAL_WORLD_ALIGNED).copy()
 
         # J̇·q̇ for contact frames
         # We need computeJointJacobiansTimeVariation which is NOT part
         # of computeAllTerms → call it explicitly
         pin.computeJointJacobiansTimeVariation(model, data, q, v)
         dJ_a = pin.getFrameJacobianTimeVariation(
-            model, data, FRAME_TOOL_A, pin.LOCAL_WORLD_ALIGNED)
+            model, data, fid_a, pin.LOCAL_WORLD_ALIGNED)
         dJ_b = pin.getFrameJacobianTimeVariation(
-            model, data, FRAME_TOOL_B, pin.LOCAL_WORLD_ALIGNED)
+            model, data, fid_b, pin.LOCAL_WORLD_ALIGNED)
 
         # ── Non-inertial frame correction (Layer 2) — DISABLED ──
         # In a rotating frame, J̇_true = J̇_pinocchio + ad(ξ_s)·J
@@ -247,23 +328,23 @@ class RobotInterface:
         Jdot_dq_tool_b = (dJ_b @ v).copy()
 
         # ── Frame placements ─────────────────────────────────────
-        oMf_tool_a = data.oMf[FRAME_TOOL_A].copy()
-        oMf_tool_b = data.oMf[FRAME_TOOL_B].copy()
-        oMf_torso = data.oMf[FRAME_TORSO].copy()
+        oMf_tool_a = data.oMf[fid_a].copy()
+        oMf_tool_b = data.oMf[fid_b].copy()
+        oMf_torso = data.oMf[fid_t].copy()
 
         # ── Torso frame Jacobian ─────────────────────────────────
         J_torso = pin.getFrameJacobian(
-            model, data, FRAME_TORSO, pin.LOCAL_WORLD_ALIGNED).copy()
+            model, data, fid_t, pin.LOCAL_WORLD_ALIGNED).copy()
         dJ_torso = pin.getFrameJacobianTimeVariation(
-            model, data, FRAME_TORSO, pin.LOCAL_WORLD_ALIGNED)
+            model, data, fid_t, pin.LOCAL_WORLD_ALIGNED)
         Jdot_dq_torso = (dJ_torso @ v).copy()
 
         # ── Assemble state ───────────────────────────────────────
         self._state = RobotState(
             q=q.copy(),
             v=v.copy(),
-            q_joints=q[7:19].copy(),
-            dq_joints=v[6:18].copy(),
+            q_joints=q[self.joints_q_slice].copy(),
+            dq_joints=v[self.joints_v_slice].copy(),
             q_torso=q[0:7].copy(),
             dq_torso=v[0:6].copy(),
             H=H,

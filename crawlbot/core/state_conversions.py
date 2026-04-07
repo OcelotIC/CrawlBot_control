@@ -5,33 +5,57 @@ All controller-internal quantities (r_com, v_com, L_com, Jacobians, etc.) are
 expressed in the structure body frame. Conversion to/from MuJoCo world frame
 happens only at these two functions.
 
-Layout — RWA-3 model (nq=29, nv=27):
-    qpos: [struct_pos(3) struct_quat(4) rw_angles(3)
-           torso_pos(3)  torso_quat(4)  joints(12)]
-    qvel: [struct_v(3) struct_omega(3) rw_vel(3)
-           torso_v(3) torso_omega(3) joint_vel(12)]
+DOF-generic: the number of arm joints (N) is inferred from the state
+vector length. Supports 6-DOF (N=12) and 7-DOF (N=14) arm configurations.
 
-Layout — original model (nq=26, nv=24):
+Layout — RWA-3 model (nq=14+N+15, nv=12+N+15):
+    qpos: [struct_pos(3) struct_quat(4) rw_angles(3)
+           torso_pos(3)  torso_quat(4)  joints(N)]
+    qvel: [struct_v(3) struct_omega(3) rw_vel(3)
+           torso_v(3) torso_omega(3) joint_vel(N)]
+
+Layout — original model (nq=14+N, nv=12+N):
     Same without the 3 rw_angles / rw_vel entries.
 """
 
 import numpy as np
 import pinocchio as pin
 
+# ── Constants for the MuJoCo layout ─────────────────────────
+# Structure (free joint): 7 qpos (pos+quat), 6 qvel
+# RWA (optional): 3 qpos (angles), 3 qvel
+# Torso (free joint): 7 qpos (pos+quat), 6 qvel
+# Arm joints: N qpos, N qvel
+_MJ_STRUCT_NQ = 7
+_MJ_STRUCT_NV = 6
+_MJ_RWA_NQ = 3
+_MJ_RWA_NV = 3
+_MJ_TORSO_NQ = 7
+_MJ_TORSO_NV = 6
+
+
+def _infer_n_joints(mj_qpos, rwa):
+    """Infer number of arm joints from MuJoCo state vector length."""
+    off_q = _MJ_RWA_NQ if rwa else 0
+    return len(mj_qpos) - _MJ_STRUCT_NQ - off_q - _MJ_TORSO_NQ
+
 
 def mujoco_to_pinocchio(mj_qpos, mj_qvel):
     """Convert MuJoCo state to Pinocchio convention in structure frame.
 
+    Infers the number of arm joints from the state vector length.
+
     Returns
     -------
-    pin_q : ndarray (19,)
-        [torso_pos_struct(3), torso_quat_xyzw_struct(4), joints(12)]
-    pin_v : ndarray (18,)
-        [torso_vel_struct(3), torso_omega_struct(3), joint_vel(12)]
+    pin_q : ndarray (7+N,)
+        [torso_pos_struct(3), torso_quat_xyzw_struct(4), joints(N)]
+    pin_v : ndarray (6+N,)
+        [torso_vel_struct(3), torso_omega_struct(3), joint_vel(N)]
     """
-    rwa = len(mj_qpos) >= 29
-    off_q = 3 if rwa else 0
-    off_v = 3 if rwa else 0
+    rwa = len(mj_qpos) >= 29  # at least 29 for 6-DOF arms with RWA
+    off_q = _MJ_RWA_NQ if rwa else 0
+    off_v = _MJ_RWA_NV if rwa else 0
+    n_joints = _infer_n_joints(mj_qpos, rwa)
 
     # Structure pose / twist in world (qvel is world-frame for free joints)
     p_s = mj_qpos[0:3]
@@ -41,11 +65,19 @@ def mujoco_to_pinocchio(mj_qpos, mj_qvel):
     omega_s = mj_qvel[3:6]
 
     # Torso pose / twist in world
-    p_t = mj_qpos[7 + off_q : 10 + off_q]
-    qw_t, qx_t, qy_t, qz_t = mj_qpos[10 + off_q : 14 + off_q]
+    torso_q_start = _MJ_STRUCT_NQ + off_q
+    p_t = mj_qpos[torso_q_start: torso_q_start + 3]
+    qw_t, qx_t, qy_t, qz_t = mj_qpos[torso_q_start + 3: torso_q_start + 7]
     R_t = pin.Quaternion(qw_t, qx_t, qy_t, qz_t).toRotationMatrix()
-    v_t = mj_qvel[6 + off_v : 9 + off_v]
-    omega_t = mj_qvel[9 + off_v : 12 + off_v]
+    torso_v_start = _MJ_STRUCT_NV + off_v
+    v_t = mj_qvel[torso_v_start: torso_v_start + 3]
+    omega_t = mj_qvel[torso_v_start + 3: torso_v_start + 6]
+
+    # Joint states in MuJoCo
+    joints_q_start = torso_q_start + _MJ_TORSO_NQ
+    joints_v_start = torso_v_start + _MJ_TORSO_NV
+    mj_joints_q = mj_qpos[joints_q_start: joints_q_start + n_joints]
+    mj_joints_v = mj_qvel[joints_v_start: joints_v_start + n_joints]
 
     # Transform torso to structure frame
     dp = p_t - p_s
@@ -58,14 +90,14 @@ def mujoco_to_pinocchio(mj_qpos, mj_qvel):
     q_local = pin.Quaternion(R_local)
     coeffs = q_local.coeffs()  # [x, y, z, w]
 
-    pin_q = np.zeros(19)
-    pin_v = np.zeros(18)
+    pin_q = np.zeros(7 + n_joints)
+    pin_v = np.zeros(6 + n_joints)
     pin_q[0:3] = p_local
     pin_q[3:7] = coeffs
-    pin_q[7:19] = mj_qpos[14 + off_q : 26 + off_q]
+    pin_q[7:7 + n_joints] = mj_joints_q
     pin_v[0:3] = v_local
     pin_v[3:6] = omega_local
-    pin_v[6:18] = mj_qvel[12 + off_v : 24 + off_v]
+    pin_v[6:6 + n_joints] = mj_joints_v
     return pin_q, pin_v
 
 
@@ -73,13 +105,14 @@ def pinocchio_to_mujoco(pin_q, pin_v, struct_pos=None, struct_quat=None,
                         rwa=False):
     """Convert Pinocchio state (structure frame) to MuJoCo convention (world frame).
 
-    If rwa=True, produces the RWA-3 layout (nq=29, nv=27) with zero wheel
-    angles/vels.
+    DOF-generic: infers joint count from pin_q length (7 + N_joints).
+    If rwa=True, adds 3 zero entries for RWA angles/velocities.
     """
-    off_q = 3 if rwa else 0
-    off_v = 3 if rwa else 0
-    nq = 29 if rwa else 26
-    nv = 27 if rwa else 24
+    n_joints = len(pin_q) - 7  # pin_q = [torso(7), joints(N)]
+    off_q = _MJ_RWA_NQ if rwa else 0
+    off_v = _MJ_RWA_NV if rwa else 0
+    nq = _MJ_STRUCT_NQ + off_q + _MJ_TORSO_NQ + n_joints
+    nv = _MJ_STRUCT_NV + off_v + _MJ_TORSO_NV + n_joints
 
     s_pos = np.asarray(struct_pos, dtype=float) if struct_pos is not None else np.zeros(3)
     s_quat = np.asarray(struct_quat, dtype=float) if struct_quat is not None else np.array([1., 0., 0., 0.])
@@ -100,14 +133,18 @@ def pinocchio_to_mujoco(pin_q, pin_v, struct_pos=None, struct_quat=None,
     mj_qvel = np.zeros(nv)
     mj_qpos[0:3] = s_pos
     mj_qpos[3:7] = s_quat
-    mj_qpos[7 + off_q : 10 + off_q] = p_world
-    mj_qpos[10 + off_q : 14 + off_q] = [cw[3], cw[0], cw[1], cw[2]]  # wxyz
-    mj_qpos[14 + off_q : 26 + off_q] = pin_q[7:19]
+    torso_q = _MJ_STRUCT_NQ + off_q
+    mj_qpos[torso_q: torso_q + 3] = p_world
+    mj_qpos[torso_q + 3: torso_q + 7] = [cw[3], cw[0], cw[1], cw[2]]  # wxyz
+    joints_q = torso_q + _MJ_TORSO_NQ
+    mj_qpos[joints_q: joints_q + n_joints] = pin_q[7:7 + n_joints]
 
     # Velocities: struct → world (assumes v_struct ≈ 0 at setup)
-    mj_qvel[6 + off_v : 9 + off_v] = R_s @ pin_v[0:3]
-    mj_qvel[9 + off_v : 12 + off_v] = R_s @ pin_v[3:6]
-    mj_qvel[12 + off_v : 24 + off_v] = pin_v[6:18]
+    torso_v = _MJ_STRUCT_NV + off_v
+    mj_qvel[torso_v: torso_v + 3] = R_s @ pin_v[0:3]
+    mj_qvel[torso_v + 3: torso_v + 6] = R_s @ pin_v[3:6]
+    joints_v = torso_v + _MJ_TORSO_NV
+    mj_qvel[joints_v: joints_v + n_joints] = pin_v[6:6 + n_joints]
     return mj_qpos, mj_qvel
 
 

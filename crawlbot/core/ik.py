@@ -13,7 +13,37 @@ from typing import Dict, List, Tuple, Optional
 import pinocchio as pin
 from scipy.optimize import minimize as scipy_minimize
 
-from crawlbot.core.robot_interface import FRAME_TOOL_A, FRAME_TOOL_B
+from crawlbot.core.robot_interface import FRAME_TOOL_A, FRAME_TOOL_B, _detect_arm_slices
+
+# Cache arm slices per model (by id) to avoid recomputing
+_arm_slice_cache: Dict[int, dict] = {}
+
+def _get_arm_slices(model: pin.Model) -> dict:
+    """Get arm velocity-space slices for a model, cached."""
+    mid = id(model)
+    if mid not in _arm_slice_cache:
+        _arm_slice_cache[mid] = _detect_arm_slices(model)
+    return _arm_slice_cache[mid]
+
+
+def _arm_v_slice(model: pin.Model, frame_id: int) -> slice:
+    """Return the velocity-space slice for the arm owning frame_id."""
+    slices = _get_arm_slices(model)
+    # Determine which arm owns this frame by checking if the frame's
+    # parent joint falls within arm A or arm B's joint range
+    pj = model.frames[frame_id].parentJoint
+    a_start = slices['arm_a_v'].start
+    a_stop = slices['arm_a_v'].stop
+    b_start = slices['arm_b_v'].start
+    b_stop = slices['arm_b_v'].stop
+    # Parent joint's velocity index
+    jv = model.idx_vs[pj]
+    if a_start <= jv < a_stop:
+        return slices['arm_a_v']
+    elif b_start <= jv < b_stop:
+        return slices['arm_b_v']
+    else:
+        raise ValueError(f"Frame {frame_id} parent joint {pj} not in arm A or B")
 
 
 def solve_ik(
@@ -62,16 +92,14 @@ def solve_ik(
             err = pin.log6(data.oMf[fid].actInv(tgt)).vector
             J = pin.getFrameJacobian(model, data, fid, pin.LOCAL)
 
-            # Arm-specific joint slice
-            if fid == FRAME_TOOL_A:
-                idx = slice(6, 12)
-            else:
-                idx = slice(12, 18)
+            # Arm-specific joint slice (DOF-generic)
+            idx = _arm_v_slice(model, fid)
+            n_arm = idx.stop - idx.start
 
             # Arm joints: primary contribution (low regularization)
             Ja = J[:, idx]
             dq[idx] += np.linalg.solve(
-                Ja.T @ Ja + 1e-4 * np.eye(6), Ja.T @ err)
+                Ja.T @ Ja + 1e-4 * np.eye(n_arm), Ja.T @ err)
 
             # Base (free-flyer): scaled by base_gain to control how much
             # the base moves vs the arm. Default 0.3 is conservative (good
@@ -183,10 +211,12 @@ def manipulability_config(
             pin.updateFramePlacements(model, data)
             pin.computeJointJacobians(model, data, q)
 
+            sl_a = _arm_v_slice(model, FRAME_TOOL_A)
+            sl_b = _arm_v_slice(model, FRAME_TOOL_B)
             Ja = pin.getFrameJacobian(
-                model, data, FRAME_TOOL_A, pin.LOCAL)[:, 6:12]
+                model, data, FRAME_TOOL_A, pin.LOCAL)[:, sl_a]
             Jb = pin.getFrameJacobian(
-                model, data, FRAME_TOOL_B, pin.LOCAL)[:, 12:18]
+                model, data, FRAME_TOOL_B, pin.LOCAL)[:, sl_b]
             # Minimum singular value: distance from singularity
             sigma_a = np.linalg.svd(Ja, compute_uv=False)[-1]
             sigma_b = np.linalg.svd(Jb, compute_uv=False)[-1]
@@ -225,8 +255,10 @@ def manipulability_config(
     pin.forwardKinematics(model, data, q_opt)
     pin.updateFramePlacements(model, data)
     pin.computeJointJacobians(model, data, q_opt)
-    Ja = pin.getFrameJacobian(model, data, FRAME_TOOL_A, pin.LOCAL)[:, 6:12]
-    Jb = pin.getFrameJacobian(model, data, FRAME_TOOL_B, pin.LOCAL)[:, 12:18]
+    sl_a = _arm_v_slice(model, FRAME_TOOL_A)
+    sl_b = _arm_v_slice(model, FRAME_TOOL_B)
+    Ja = pin.getFrameJacobian(model, data, FRAME_TOOL_A, pin.LOCAL)[:, sl_a]
+    Jb = pin.getFrameJacobian(model, data, FRAME_TOOL_B, pin.LOCAL)[:, sl_b]
     w_a = np.sqrt(max(np.linalg.det(Ja @ Ja.T), 0.0))
     w_b = np.sqrt(max(np.linalg.det(Jb @ Jb.T), 0.0))
 
@@ -327,13 +359,11 @@ def solve_ik_waypoints(
     q_prev = q_start.copy()
     data = model.createData()
 
-    # Determine which arm slice corresponds to stance/swing
-    if stance_frame == FRAME_TOOL_A:
-        stance_idx = slice(6, 12)
-        swing_idx = slice(12, 18)
-    else:
-        stance_idx = slice(12, 18)
-        swing_idx = slice(6, 12)
+    # Determine which arm slice corresponds to stance/swing (DOF-generic)
+    stance_idx = _arm_v_slice(model, stance_frame)
+    swing_idx = _arm_v_slice(model, swing_frame)
+    n_stance = stance_idx.stop - stance_idx.start
+    n_swing = swing_idx.stop - swing_idx.start
 
     for i in range(n_waypoints + 1):
         s = i / n_waypoints
@@ -358,7 +388,7 @@ def solve_ik_waypoints(
             J_s = pin.getFrameJacobian(model, data, stance_frame, pin.LOCAL)
             Ja_s = J_s[:, stance_idx]
             dq[stance_idx] = np.linalg.solve(
-                Ja_s.T @ Ja_s + 1e-4 * np.eye(6), Ja_s.T @ err_s)
+                Ja_s.T @ Ja_s + 1e-4 * np.eye(n_stance), Ja_s.T @ err_s)
             Jb_s = J_s[:, :6]
             dq[:6] += np.linalg.solve(
                 Jb_s.T @ Jb_s + 1e-3 * np.eye(6), Jb_s.T @ err_s) * 0.3
@@ -372,7 +402,7 @@ def solve_ik_waypoints(
             J_sw_pos = J_sw[:3, :]  # position rows only
             Ja_p = J_sw_pos[:, swing_idx]
             dq[swing_idx] += np.linalg.solve(
-                Ja_p.T @ Ja_p + 1e-4 * np.eye(6), Ja_p.T @ err_p)
+                Ja_p.T @ Ja_p + 1e-4 * np.eye(n_swing), Ja_p.T @ err_p)
             Jb_p = J_sw_pos[:, :6]
             dq[:6] += np.linalg.solve(
                 Jb_p.T @ Jb_p + 1e-3 * np.eye(6), Jb_p.T @ err_p) * 0.5

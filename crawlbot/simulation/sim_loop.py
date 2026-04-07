@@ -153,7 +153,7 @@ class SimulationLoop:
         sp = self.mj_data.qpos[0:3].copy()
         sq = self.mj_data.qpos[3:7].copy()
         mj_qpos, _ = pinocchio_to_mujoco(
-            self.q_dock_init, np.zeros(18), struct_pos=sp, struct_quat=sq,
+            self.q_dock_init, np.zeros(self.robot.model.nv), struct_pos=sp, struct_quat=sq,
             rwa=self.has_rwa)
         self.mj_data.qpos[:] = mj_qpos
         self.mj_data.qvel[:] = 0.0
@@ -227,8 +227,8 @@ class SimulationLoop:
     def _build_qp(self, ac, at, ae, ap, aw, kpc, kdc, kpt, kdt, kpe, kde):
         cfg = self.cfg
         c = WholeBodyQPConfig(
-            nq=12, nc_max=2, dt_qp=cfg.dt_qp,
-            tau_max=cfg.tau_max * np.ones(12),
+            nq=self.robot.n_joints, nc_max=2, dt_qp=cfg.dt_qp,
+            tau_max=cfg.tau_max * np.ones(self.robot.n_joints),
             alpha_com=ac, alpha_torso=at, alpha_ee=ae,
             alpha_posture=ap, alpha_wrench=aw,
             alpha_torque=1e0, alpha_reg=1e-2,
@@ -239,7 +239,7 @@ class SimulationLoop:
             Kp_posture=1.0, Kd_posture=1.5,
             L_max=cfg.L_max, tau_w_max=cfg.tau_w_max)
         qp = WholeBodyQP(c)
-        qp.set_nominal_posture(self.q_dock_init[7:19])
+        qp.set_nominal_posture(self.q_dock_init[self.robot.joints_q_slice])
         return qp
 
     # ── Weld management ──────────────────────────────────────────────────
@@ -324,7 +324,7 @@ class SimulationLoop:
             se3_b = self.sched.anchor_se3('b', end_b)
             q_end = dock_configuration(model, se3_a, se3_b)
 
-        rs_e = self.robot.update(q_end, np.zeros(18))
+        rs_e = self.robot.update(q_end, np.zeros(self.robot.model.nv))
         p_t1 = rs_e.oMf_torso.translation.copy()
         R_t1 = rs_e.oMf_torso.rotation.copy()
         r_com1 = rs_e.r_com.copy()
@@ -389,8 +389,8 @@ class SimulationLoop:
                     q_dock = self._setup_torso_for_step(
                         t_ss_start, t_ss_end, swing_arm,
                         stance_a, stance_b, swing_arm, target_idx)
-                    self.qp_ss.set_nominal_posture(q_dock[7:19])
-                    self.qp_ext.set_nominal_posture(q_dock[7:19])
+                    self.qp_ss.set_nominal_posture(q_dock[self.robot.joints_q_slice])
+                    self.qp_ext.set_nominal_posture(q_dock[self.robot.joints_q_slice])
                     cc_ss = self.sched.contact_config_at(t_ss_start + 0.1)
 
                     # DS
@@ -501,7 +501,7 @@ class SimulationLoop:
                         q_eq = dock_configuration(
                             self.robot.model, anchor_a_se3, anchor_b_se3,
                             q_init=pq)
-                        rs_eq = self.robot.update(q_eq, np.zeros(18))
+                        rs_eq = self.robot.update(q_eq, np.zeros(self.robot.model.nv))
                         self.torso_planner.set_hold(
                             rs_eq.oMf_torso.translation.copy(),
                             rs_eq.oMf_torso.rotation.copy(),
@@ -641,7 +641,7 @@ class SimulationLoop:
 
             tau = np.clip(tau, -cfg.tau_max, cfg.tau_max)
             tau_last = tau.copy()
-            self.mj_data.ctrl[:12] = tau
+            self.mj_data.ctrl[:self.robot.n_joints] = tau
 
             # AOCS: reaction wheel torque command.
             if self.has_rwa:
