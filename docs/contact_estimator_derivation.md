@@ -178,25 +178,29 @@ f_ext_est = pinv(J_swing^T) @ r = (J_swing J_swing^T)^{-1} J_swing @ r
 The state machine fuses the GMO residual with FK-based kinematic proximity:
 
 ```
-NO_CONTACT --[d < 20mm]--> PROXIMITY --[contact_cond AND d < 10mm]--> CONTACT
-     ^                                                                    |
-     |                          [sustained 5 cycles (50ms)]               v
-     +----------[d > 30mm]------------------------------------------ CONFIRMED
+NO_CONTACT --[d < 20mm]--> PROXIMITY --[contact_cond AND d < 5mm]--> CONTACT
+     ^                                                                   |
+     |                          [sustained 3 cycles (30ms)]              v
+     +----------[d > 30mm]----------------------------------------- CONFIRMED
 ```
 
 ### Transition conditions
 
 | Transition | Condition | Rationale |
 |------------|-----------|-----------|
-| NO_CONTACT -> PROXIMITY | d_FK < 20mm | Kinematic early warning |
-| PROXIMITY -> CONTACT | contact_cond AND d_FK < 10mm | Multi-modal confirmation |
-| CONTACT -> CONFIRMED | Sustained 5 cycles (50ms) | Debounce false positives |
-| Any -> NO_CONTACT | d_FK > 30mm | Hysteresis prevents chattering |
+| NO_CONTACT -> PROXIMITY | d_FK < 20mm | Kinematic early warning; triggers approach velocity control |
+| PROXIMITY -> CONTACT | contact_cond AND d_FK < 5mm | Physical contact range (matches weld_radius / latch engagement) |
+| CONTACT -> CONFIRMED | Sustained 3 cycles (30ms) | Debounce transient FK noise |
+| Any -> NO_CONTACT | d_FK > 30mm | Hysteresis prevents chattering at zone boundaries |
+
+### d_contact = 5mm rationale
+
+The CONTACT threshold must correspond to a distance where **physical contact is mechanically possible**. At 10mm the gripper is still in free space — declaring "contact" there conflates proximity with contact and wastes the GMO's force-detection capability. The 5mm threshold matches `weld_radius` (the geometric distance at which the latch mechanism can engage). On hardware with a docking cone, this would be set to the cone's capture radius (typically 1-3mm).
 
 ### Contact condition (mode-dependent)
 
-- **Hardware** (`force_mode=True`): `||r_swing|| > F_threshold` -- requires force residual
-- **Simulation** (`force_mode=False`): `d_FK < d_contact` -- kinematic only, since MuJoCo creates no contact force before weld activation
+- **Hardware** (`force_mode=True`): `||r_swing|| > F_threshold` AND `d_FK < d_contact` -- force residual confirms physical contact within latch range
+- **Simulation** (`force_mode=False`): `d_FK < d_contact` -- kinematic only, since MuJoCo creates no contact force before weld activation. The threshold matches `weld_radius` so the GMO path and legacy path trigger at the same geometric distance, with the GMO adding 100 Hz rate + debounce
 
 ---
 
@@ -262,9 +266,9 @@ assert np.allclose(rs.C_matrix @ v, rs.C)  # nle = Cv + g = Cv
 | `gmo_K_O` | 80.0 | Observer gain [1/s] |
 | `gmo_F_threshold` | 5.0 | Force residual threshold [N] |
 | `gmo_d_proximity` | 0.020 | PROXIMITY threshold [m] |
-| `gmo_d_contact` | 0.010 | CONTACT threshold [m] |
+| `gmo_d_contact` | 0.005 | CONTACT threshold [m] (= weld_radius) |
 | `gmo_d_reset` | 0.030 | Hysteresis reset [m] |
-| `gmo_debounce_count` | 5 | CONFIRMED cycles [@ 100Hz] |
+| `gmo_debounce_count` | 3 | CONFIRMED cycles [@ 100Hz = 30ms] |
 | `use_gmo_dock` | False | Enable GMO dock detection |
 
 ### Logged signals

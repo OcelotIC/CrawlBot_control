@@ -35,9 +35,9 @@ class SimConfig:
     gmo_K_O: float = 80.0              # Observer gain [1/s]
     gmo_F_threshold: float = 5.0       # Residual norm threshold [N]
     gmo_d_proximity: float = 0.020     # -> PROXIMITY [m]
-    gmo_d_contact: float = 0.010       # -> CONTACT [m]
+    gmo_d_contact: float = 0.005       # -> CONTACT [m] (matches weld_radius)
     gmo_d_reset: float = 0.030         # -> NO_CONTACT [m]
-    gmo_debounce_count: int = 5        # -> CONFIRMED [cycles @ 100Hz]
+    gmo_debounce_count: int = 3        # -> CONFIRMED [cycles @ 100Hz = 30ms]
     use_gmo_dock: bool = False          # False=legacy kinematic, True=GMO
 
     # ── Momentum constraints (NMPC + QP) ────────────────────────
