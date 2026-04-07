@@ -381,18 +381,19 @@ class SimulationLoop:
         phases = plan.phases
         step_idx = 0
         i = 0
+        t_offset = 0.0   # Cumulative time offset from inter-step settling
         while i < len(phases):
             gp = phases[i]
             if gp.phase.value == 'double':
-                # DS phase
-                t_ds_start = plan.t_start[i]
-                t_ds_end = plan.t_end[i]
+                # DS phase (offset plan timing for settle delays)
+                t_ds_start = plan.t_start[i] + t_offset
+                t_ds_end = plan.t_end[i] + t_offset
 
                 # Look ahead for SS phase
                 if i + 1 < len(phases) and phases[i+1].phase.value != 'double':
                     ss_gp = phases[i+1]
-                    t_ss_start = plan.t_start[i+1]
-                    t_ss_end = plan.t_end[i+1]
+                    t_ss_start = plan.t_start[i+1] + t_offset
+                    t_ss_end = plan.t_end[i+1] + t_offset
 
                     swing_arm = ss_gp.swing_arm
                     stance_arm = 'a' if swing_arm == 'b' else 'b'
@@ -411,10 +412,10 @@ class SimulationLoop:
                         stance_a, stance_b, swing_arm, target_idx)
                     self.qp_ss.set_nominal_posture(q_dock[self.robot.joints_q_slice])
                     self.qp_ext.set_nominal_posture(q_dock[self.robot.joints_q_slice])
-                    cc_ss = self.sched.contact_config_at(t_ss_start + 0.1)
+                    cc_ss = self.sched.contact_config_at(plan.t_start[i+1] + 0.1)
 
-                    # DS
-                    cc_ds = self.sched.contact_config_at(t_ds_start + 0.1)
+                    # DS (use original plan time for contact config lookup)
+                    cc_ds = self.sched.contact_config_at(plan.t_start[i] + 0.1)
                     if verbose:
                         print(f"  DS: [{t_ds_start:.2f}, {t_ds_end:.2f}]")
                     while t < t_ds_end:
@@ -537,6 +538,7 @@ class SimulationLoop:
 
                     # Inter-step settle: damp velocities before next swing
                     if cfg.t_settle_inter > 0 and docked:
+                        t_settle_start = t
                         t_settle_end = t + cfg.t_settle_inter
                         cc_settle = self.sched.contact_config_at(t)
                         if verbose:
@@ -548,14 +550,16 @@ class SimulationLoop:
                                 hw, L_com_prev, log, ss_end=t,
                                 settle_mode=True)
                             t += cfg.dt_nmpc
+                        # Shift subsequent plan timing to account for settle
+                        t_offset += t - t_settle_start
 
                     step_idx += 1
                     i += 2  # skip SS phase (already processed)
                 else:
                     # Trailing DS (end of gait): run settling phase
-                    t_ds_start = plan.t_start[i]
+                    t_ds_start = plan.t_start[i] + t_offset
                     t_ds_settle = t + cfg.t_settle_final
-                    cc_ds = self.sched.contact_config_at(t_ds_start + 0.1)
+                    cc_ds = self.sched.contact_config_at(plan.t_start[i] + 0.1)
 
                     # Use last swing step's info for logging
                     last_swing = 'b'; last_stance = 'a'
@@ -706,18 +710,31 @@ class SimulationLoop:
                 p_ee = oMf_ee.translation
 
                 # Approach velocity control: within 20mm, command a velocity
-                # reference proportional to the error. This creates a first-order
-                # approach (v_ref → 0 as d → 0) that prevents EE pass-through.
+                # reference toward the target. Uses proportional + minimum
+                # velocity to ensure convergence past the asymptotic tail.
                 d_ee = np.linalg.norm(p_tgt - p_ee)
-                if d_ee < 0.020:
-                    v_approach = 0.2 * (p_tgt - p_ee)  # gain = 0.2 [1/s]
+                if d_ee < 0.020 and d_ee > 1e-6:
+                    direction = (p_tgt - p_ee) / d_ee
+                    v_mag = max(0.5 * d_ee, 0.002)  # min 2mm/s
+                    v_approach = v_mag * direction
                 else:
                     v_approach = np.zeros(3)
 
-                # Target orientation: identity (tool aligned with structure)
+                # EXT uses 6D task interface but prioritizes position:
+                # during close approach (d < 20mm), zero the angular
+                # Jacobian rows so all DOFs serve position convergence.
+                # Orientation alignment happens naturally during SS;
+                # EXT only needs the final mm of position accuracy.
                 R_tgt = np.eye(3)
-
-                ek = dict(J_ee=J_ee, Jdot_dq_ee=Jdq_ee,
+                if d_ee < 0.020:
+                    J_ee_ext = J_ee.copy()
+                    J_ee_ext[3:, :] = 0.0
+                    Jdq_ext = Jdq_ee.copy()
+                    Jdq_ext[3:] = 0.0
+                else:
+                    J_ee_ext = J_ee
+                    Jdq_ext = Jdq_ee
+                ek = dict(J_ee=J_ee_ext, Jdot_dq_ee=Jdq_ext,
                           p_ee=p_ee, R_ee=oMf_ee.rotation,
                           p_ee_ref=p_tgt, R_ee_ref=R_tgt,
                           v_ee_ref=np.concatenate([v_approach, np.zeros(3)]),
