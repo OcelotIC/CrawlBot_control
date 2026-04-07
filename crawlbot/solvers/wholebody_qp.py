@@ -85,13 +85,19 @@ class WholeBodyQPConfig:
     Kp_torso: np.ndarray = field(default_factory=lambda: np.array([8., 8., 8., 5., 5., 5.]))
     Kd_torso: np.ndarray = field(default_factory=lambda: np.array([6., 6., 6., 4., 4., 4.]))
 
-    # PD gains for end-effector tracking (swing arm, position only)
+    # PD gains for end-effector tracking (swing arm, 6D: position + orientation)
     Kp_ee: np.ndarray = field(default_factory=lambda: 80.0 * np.ones(3))
     Kd_ee: np.ndarray = field(default_factory=lambda: 15.0 * np.ones(3))
+    Kp_ee_ang: np.ndarray = field(default_factory=lambda: 5.0 * np.ones(3))
+    Kd_ee_ang: np.ndarray = field(default_factory=lambda: 3.0 * np.ones(3))
 
     # PD gains for posture regulation
     Kp_posture: float = 25.0
     Kd_posture: float = 10.0
+
+    # DS settling: explicit velocity damping
+    Kd_settle: float = 40.0           # Joint velocity damping gain [1/s]
+    alpha_settle: float = 1e3         # Weight (high priority)
 
     # Actuator limits
     tau_max: np.ndarray = field(default_factory=lambda: 50.0 * np.ones(14))  # [Nm]
@@ -182,13 +188,15 @@ class WholeBodyQP:
         r_com: Optional[np.ndarray] = None,
         # Current robot angular momentum
         L_com_current: Optional[np.ndarray] = None,
-        # End-effector tracking (swing arm, optional)
-        J_ee: Optional[np.ndarray] = None,         # (3, 6+nq) or (6, 6+nq)
-        Jdot_dq_ee: Optional[np.ndarray] = None,   # (3,) or (6,)
+        # End-effector tracking (swing arm, optional, 6D)
+        J_ee: Optional[np.ndarray] = None,         # (6, 6+nq) tool Jacobian
+        Jdot_dq_ee: Optional[np.ndarray] = None,   # (6,) J̇_ee · q̇
         p_ee_ref: Optional[np.ndarray] = None,      # (3,) desired EE position
-        v_ee_ref: Optional[np.ndarray] = None,      # (3,) desired EE velocity
-        a_ee_ff: Optional[np.ndarray] = None,       # (3,) feedforward EE acceleration
+        R_ee_ref: Optional[np.ndarray] = None,      # (3,3) desired EE rotation
+        v_ee_ref: Optional[np.ndarray] = None,      # (6,) desired EE twist [lin(3), ang(3)]
+        a_ee_ff: Optional[np.ndarray] = None,       # (6,) feedforward EE accel [lin(3), ang(3)]
         p_ee: Optional[np.ndarray] = None,           # (3,) current EE position
+        R_ee: Optional[np.ndarray] = None,           # (3,3) current EE rotation
         # Torso 6D tracking (optional, replaces CoM task when active)
         J_torso: Optional[np.ndarray] = None,       # (6, 6+nq) torso Jacobian
         Jdot_dq_torso: Optional[np.ndarray] = None, # (6,) J̇_torso · q̇
@@ -201,6 +209,8 @@ class WholeBodyQP:
         # Reaction null-space (minimize base disturbance from swing arm)
         H_base_swing: Optional[np.ndarray] = None,  # (6, n_swing) coupling block
         swing_v_slice: Optional[slice] = None,       # velocity-space slice of swing arm joints
+        # DS settling mode
+        zero_velocity: bool = False,                 # activate velocity damping task
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, QPSolveInfo]:
         """Solve the whole-body QP.
 
@@ -470,30 +480,41 @@ class WholeBodyQP:
 
             qp.add_task(A_torso, b_torso, cfg.alpha_torso, priority=1)
 
-        # --- Task 2: End-effector tracking (swing arm, optional) ---
+        # --- Task 2: End-effector 6D tracking (swing arm, optional) ---
+        # a_ee_des = [a_lin_ff + Kp_lin(p_ref - p) + Kd_lin(v_ref - v);
+        #             a_ang_ff + Kp_ang(log3(R^T R_ref)) + Kd_ang(ω_ref - ω)]
         if J_ee is not None and p_ee_ref is not None:
-            # Position-only tracking (use top 3 rows if J_ee is 6×nv)
-            J_ee_pos = J_ee[:3, :] if J_ee.shape[0] >= 6 else J_ee
-            Jdot_dq = Jdot_dq_ee[:3] if (Jdot_dq_ee is not None and
-                                           Jdot_dq_ee.shape[0] >= 6) else (
-                Jdot_dq_ee if Jdot_dq_ee is not None else np.zeros(3))
+            jdq_ee = Jdot_dq_ee if Jdot_dq_ee is not None else np.zeros(6)
 
-            # Current EE velocity from Jacobian
-            v_ee_actual = J_ee_pos @ dq_robot
+            # Current EE twist from full 6D Jacobian
+            v_ee_actual = J_ee @ dq_robot  # (6,): [lin(3), ang(3)]
+
+            # Position error (3,)
             p_ee_actual = p_ee if p_ee is not None else np.zeros(3)
-            v_ref = v_ee_ref if v_ee_ref is not None else np.zeros(3)
+            e_pos_ee = p_ee_ref - p_ee_actual
 
-            Kp_ee = np.diag(cfg.Kp_ee)
-            Kd_ee = np.diag(cfg.Kd_ee)
-            a_ff_ee = a_ee_ff if a_ee_ff is not None else np.zeros(3)
-            a_ee_des = (a_ff_ee +
-                        Kp_ee @ (p_ee_ref - p_ee_actual) +
-                        Kd_ee @ (v_ref - v_ee_actual))
+            # Orientation error via log map (3,)
+            R_ee_actual = R_ee if R_ee is not None else np.eye(3)
+            R_ee_ref_actual = R_ee_ref if R_ee_ref is not None else np.eye(3)
+            e_ori_ee = pin.log3(R_ee_actual.T @ R_ee_ref_actual)
 
-            A_ee = np.zeros((3, n))
-            A_ee[:, idx['qdd_t'][0]: idx['qdd_t'][1]] = J_ee_pos[:, :6]
-            A_ee[:, idx['qdd'][0]: idx['qdd'][1]] = J_ee_pos[:, 6:]
-            b_ee = a_ee_des - Jdot_dq
+            # 6D error and gains
+            e_6d_ee = np.concatenate([e_pos_ee, e_ori_ee])
+            Kp_ee_full = np.diag(np.concatenate([cfg.Kp_ee, cfg.Kp_ee_ang]))
+            Kd_ee_full = np.diag(np.concatenate([cfg.Kd_ee, cfg.Kd_ee_ang]))
+
+            # Reference twist and feedforward
+            v_ref_ee = v_ee_ref if v_ee_ref is not None else np.zeros(6)
+            a_ff_ee = a_ee_ff if a_ee_ff is not None else np.zeros(6)
+
+            # Desired 6D acceleration
+            a_ee_des = a_ff_ee + Kp_ee_full @ e_6d_ee + Kd_ee_full @ (v_ref_ee - v_ee_actual)
+
+            # Task: J_ee @ q̈_robot = a_ee_des - J̇_ee q̇
+            A_ee = np.zeros((6, n))
+            A_ee[:, idx['qdd_t'][0]: idx['qdd_t'][1]] = J_ee[:, :6]
+            A_ee[:, idx['qdd'][0]: idx['qdd'][1]] = J_ee[:, 6:]
+            b_ee = a_ee_des - jdq_ee
 
             qp.add_task(A_ee, b_ee, cfg.alpha_ee, priority=2)
 
@@ -507,6 +528,13 @@ class WholeBodyQP:
         b_posture = qdd_posture
 
         qp.add_task(A_posture, b_posture, cfg.alpha_posture, priority=3)
+
+        # --- Task 3b: DS velocity damping (settle mode) ---
+        if zero_velocity:
+            A_damp = np.zeros((nq, n))
+            A_damp[:, idx['qdd'][0]: idx['qdd'][1]] = np.eye(nq)
+            b_damp = -cfg.Kd_settle * dq
+            qp.add_task(A_damp, b_damp, cfg.alpha_settle, priority=1)
 
         # --- Task 3: Contact wrench tracking ---
         A_wrench = np.zeros((self._dim_lambda, n))

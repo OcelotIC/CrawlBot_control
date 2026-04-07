@@ -189,13 +189,15 @@ class SimulationLoop:
             cfg.ss_alpha_posture, cfg.ss_alpha_wrench, cfg.ss_alpha_reaction,
             cfg.ss_Kp_com, cfg.ss_Kd_com,
             cfg.ss_Kp_torso, cfg.ss_Kd_torso,
-            cfg.ss_Kp_ee, cfg.ss_Kd_ee)
+            cfg.ss_Kp_ee, cfg.ss_Kd_ee,
+            cfg.ss_Kp_ee_ang, cfg.ss_Kd_ee_ang)
         self.qp_ext = self._build_qp(
             cfg.ext_alpha_com, cfg.ext_alpha_torso, cfg.ext_alpha_ee,
             cfg.ext_alpha_posture, cfg.ext_alpha_wrench, cfg.ext_alpha_reaction,
             cfg.ext_Kp_com, cfg.ext_Kd_com,
             cfg.ext_Kp_torso, cfg.ext_Kd_torso,
-            cfg.ext_Kp_ee, cfg.ext_Kd_ee)
+            cfg.ext_Kp_ee, cfg.ext_Kd_ee,
+            cfg.ext_Kp_ee_ang, cfg.ext_Kd_ee_ang)
 
         # H_{r/O} momentum disturbance estimator for AOCS
         self.H_estimator = MomentumDisturbanceEstimator(
@@ -238,7 +240,8 @@ class SimulationLoop:
         print(f"  Dock threshold: {cfg.weld_radius*1000:.1f} mm")
 
     def _build_qp(self, ac, at, ae, ap, aw, ar_react,
-                   kpc, kdc, kpt, kdt, kpe, kde):
+                   kpc, kdc, kpt, kdt, kpe, kde,
+                   kpe_ang=5.0, kde_ang=3.0):
         cfg = self.cfg
         c = WholeBodyQPConfig(
             nq=self.robot.n_joints, nc_max=2, dt_qp=cfg.dt_qp,
@@ -251,6 +254,7 @@ class SimulationLoop:
             Kp_torso=np.array([kpt]*3 + [kpt*0.6]*3),
             Kd_torso=np.array([kdt]*3 + [kdt*0.6]*3),
             Kp_ee=kpe * np.ones(3), Kd_ee=kde * np.ones(3),
+            Kp_ee_ang=kpe_ang * np.ones(3), Kd_ee_ang=kde_ang * np.ones(3),
             Kp_posture=1.0, Kd_posture=1.5,
             L_max=cfg.L_max, tau_w_max=cfg.tau_w_max)
         qp = WholeBodyQP(c)
@@ -429,6 +433,9 @@ class SimulationLoop:
                     self.gmo.reset(rs_r.H, rs_r.v)
                     self.contact_sm.reset()
                     self._contact_confirmed = False
+                    # Set EE orientation at swing release for SLERP trajectory
+                    _, _, oMf_release = self._get_ee_data(rs_r, swing_arm)
+                    self.swing_planner.set_swing_orientation(oMf_release.rotation)
                     if verbose:
                         print(f"  SS: [{t_ss_start:.2f}, {t_ss_end:.2f}] "
                               f"released {swing_arm}@{old_anchor}")
@@ -577,7 +584,8 @@ class SimulationLoop:
                         hw, L_com_prev = self._step(
                             t, 'DS', step_idx - 1, last_swing, last_stance,
                             cc_ds, 0, last_sa, last_sb,
-                            hw, L_com_prev, log, ss_end=t)
+                            hw, L_com_prev, log, ss_end=t,
+                            zero_velocity=True)
                         t += cfg.dt_nmpc
 
                     i += 1
@@ -593,7 +601,7 @@ class SimulationLoop:
 
     def _step(self, t, phase, step_idx, swing_arm, stance_arm,
               cc_ss, target_anchor, stance_a, stance_b,
-              hw, L_com_prev, log, ss_end=None):
+              hw, L_com_prev, log, ss_end=None, zero_velocity=False):
         """Single NMPC+QP step.  All quantities are in structure frame."""
         cfg = self.cfg
 
@@ -668,32 +676,38 @@ class SimulationLoop:
             if phase == 'SS':
                 sr = self.swing_planner.reference_at(min(tq, ss_end - 0.01))
                 if sr.is_swinging and sr.swing_arm == swing_arm:
-                    J_ee, Jdq_ee, p_ee = self._get_ee_data(rs, swing_arm)
+                    J_ee, Jdq_ee, oMf_ee = self._get_ee_data(rs, swing_arm)
                     ek = dict(J_ee=J_ee, Jdot_dq_ee=Jdq_ee,
-                              p_ee=p_ee, p_ee_ref=sr.p_ee,
-                              v_ee_ref=sr.v_ee, a_ee_ff=sr.a_ee)
+                              p_ee=oMf_ee.translation, R_ee=oMf_ee.rotation,
+                              p_ee_ref=sr.p_ee, R_ee_ref=sr.R_ee,
+                              v_ee_ref=np.concatenate([sr.v_ee, sr.omega_ee]),
+                              a_ee_ff=np.concatenate([sr.a_ee, sr.alpha_ee]))
             elif phase == 'EXT':
                 # Target anchor in structure frame (constant)
                 if swing_arm == 'b':
                     p_tgt = self.sched.anchors_b[target_anchor].copy()
                 else:
                     p_tgt = self.sched.anchors_a[target_anchor].copy()
-                J_ee, Jdq_ee, p_ee = self._get_ee_data(rs, swing_arm)
+                J_ee, Jdq_ee, oMf_ee = self._get_ee_data(rs, swing_arm)
+                p_ee = oMf_ee.translation
 
                 # Approach velocity control: within 20mm, command a velocity
                 # reference proportional to the error. This creates a first-order
                 # approach (v_ref → 0 as d → 0) that prevents EE pass-through.
                 d_ee = np.linalg.norm(p_tgt - p_ee)
                 if d_ee < 0.020:
-                    # First-order approach: v_ref = gain * error direction
-                    # At 20mm: v_ref ≈ 4mm/s. At 5mm: v_ref ≈ 1mm/s.
                     v_approach = 0.2 * (p_tgt - p_ee)  # gain = 0.2 [1/s]
                 else:
                     v_approach = np.zeros(3)
 
+                # Target orientation: identity (tool aligned with structure)
+                R_tgt = np.eye(3)
+
                 ek = dict(J_ee=J_ee, Jdot_dq_ee=Jdq_ee,
-                          p_ee=p_ee, p_ee_ref=p_tgt,
-                          v_ee_ref=v_approach, a_ee_ff=np.zeros(3))
+                          p_ee=p_ee, R_ee=oMf_ee.rotation,
+                          p_ee_ref=p_tgt, R_ee_ref=R_tgt,
+                          v_ee_ref=np.concatenate([v_approach, np.zeros(3)]),
+                          a_ee_ff=np.zeros(6))
 
             # Reaction null-space: coupling block H_base ← swing_arm
             sw_slice = (self.robot.arm_b_v_slice if swing_arm == 'b'
@@ -712,6 +726,7 @@ class SimulationLoop:
                     hw_current=hw, hw_min=cfg.hw_min, hw_max=cfg.hw_max,
                     r_com=rs.r_com, L_com_current=rs.L_com,
                     H_base_swing=H_bs, swing_v_slice=sw_slice,
+                    zero_velocity=zero_velocity,
                     **tkw, **ek)
             except Exception:
                 tau = np.zeros(12)
@@ -813,6 +828,14 @@ class SimulationLoop:
         log.d_grip_stance.append(d_stance)
         log.swing_arm.append(swing_arm)
 
+        # EE tracking error (vs planned trajectory reference, not just target)
+        import pinocchio as pin
+        sr_log = self.swing_planner.reference_at(t)
+        _, _, oMf_ee_log = self._get_ee_data(rs_f, swing_arm)
+        log.e_ee_pos.append(float(np.linalg.norm(oMf_ee_log.translation - sr_log.p_ee)))
+        e_ori_ee = pin.log3(oMf_ee_log.rotation.T @ sr_log.R_ee)
+        log.e_ee_ori.append(float(np.degrees(np.linalg.norm(e_ori_ee))))
+
         # GMO diagnostics
         sw_slice = (self.robot.arm_b_v_slice if swing_arm == 'b'
                     else self.robot.arm_a_v_slice)
@@ -865,10 +888,11 @@ class SimulationLoop:
         return hw, rs_f.L_com.copy()
 
     def _get_ee_data(self, rs, arm):
+        """Return (J_ee, Jdq_ee, oMf_ee) for the given arm."""
         if arm == 'b':
-            return rs.J_tool_b, rs.Jdot_dq_tool_b, rs.oMf_tool_b.translation
+            return rs.J_tool_b, rs.Jdot_dq_tool_b, rs.oMf_tool_b
         else:
-            return rs.J_tool_a, rs.Jdot_dq_tool_a, rs.oMf_tool_a.translation
+            return rs.J_tool_a, rs.Jdot_dq_tool_a, rs.oMf_tool_a
 
     # ── Summary ──────────────────────────────────────────────────────────
 

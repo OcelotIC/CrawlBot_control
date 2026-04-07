@@ -45,6 +45,10 @@ class SimLog:
     tau_w: list = field(default_factory=list)
     rw_speed: list = field(default_factory=list)
 
+    # EE tracking error (vs planned trajectory, not just target distance)
+    e_ee_pos: list = field(default_factory=list)
+    e_ee_ori: list = field(default_factory=list)
+
     # GMO contact estimator
     gmo_residual_norm: list = field(default_factory=list)
     gmo_swing_residual: list = field(default_factory=list)

@@ -92,6 +92,8 @@ class SimConfig:
     ss_Kd_torso: float = 5.0
     ss_Kp_ee: float = 10.0
     ss_Kd_ee: float = 7.0
+    ss_Kp_ee_ang: float = 2.0
+    ss_Kd_ee_ang: float = 1.5
 
     # ── QP gains — Extension ───────────────────────────────────
     ext_Kp_com: float = 2.0
@@ -100,6 +102,8 @@ class SimConfig:
     ext_Kd_torso: float = 3.0
     ext_Kp_ee: float = 25.0
     ext_Kd_ee: float = 15.0
+    ext_Kp_ee_ang: float = 10.0
+    ext_Kd_ee_ang: float = 5.0
 
     # ── Swing planner ──────────────────────────────────────────
     swing_clearance: float = 0.03  # [m]
