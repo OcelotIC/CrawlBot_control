@@ -153,7 +153,7 @@ def dock_configuration(
         q0[:3] = torso_pos
 
     targets = {FRAME_TOOL_A: anchor_a, FRAME_TOOL_B: anchor_b}
-    q, err = solve_ik(model, q0, targets, max_iter=1000)
+    q, err = solve_ik(model, q0, targets, max_iter=2000)
     if err > 1e-4:
         raise RuntimeError(f"IK failed to converge: err={err:.2e}")
     return q
@@ -246,7 +246,7 @@ def manipulability_config(
     # Recover the optimal configuration
     q0 = pin.neutral(model)
     q0[:3] = best_result.x
-    q_opt, err = solve_ik(model, q0, targets, max_iter=1000)
+    q_opt, err = solve_ik(model, q0, targets, max_iter=2000)
     if err > 1e-4:
         # Fallback: use midpoint
         q_opt = dock_configuration(model, anchor_a, anchor_b)

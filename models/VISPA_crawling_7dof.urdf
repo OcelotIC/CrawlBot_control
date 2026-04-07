@@ -1,0 +1,348 @@
+<?xml version="1.0" ?>
+<!-- VISPA Dual-Arm Crawling Robot — 7-DOF URDF
+     7th joint: elbow roll (Joint_4_a/b) inserted between Link_3 and old Link_4.
+     Old joints 4-6 are renumbered to 5-7.
+
+     Kinematic chain per arm:
+       J1 (shoulder yaw) → J2 (shoulder pitch) → J3 (shoulder roll)
+       → J4 (ELBOW ROLL, NEW) → J5 (elbow pitch) → J6 (wrist pitch)
+       → J7 (wrist roll) → tool
+
+     For floating-base use:
+       Pinocchio: buildModelFromUrdf(..., JointModelFreeFlyer())
+       MuJoCo:    use companion MJCF file
+-->
+<robot name="VISPA_7DOF">
+
+  <link name="world"/>
+
+  <!-- ==================== TORSO ==================== -->
+  <link name="Link_0">
+    <visual>
+      <geometry><mesh filename="meshes/torso.stl"/></geometry>
+    </visual>
+    <collision>
+      <geometry><mesh filename="meshes/torso.stl"/></geometry>
+    </collision>
+    <inertial>
+      <mass value="40.0"/>
+      <inertia ixx="0.17980580" ixy="0" ixz="0"
+               iyy="0.17982988" iyz="0"
+               izz="0.24241079"/>
+      <origin xyz="0 0 0"/>
+    </inertial>
+  </link>
+
+  <!-- ==================== ARM A (7-DOF) ==================== -->
+  <link name="Link_1_a">
+    <visual><geometry><mesh filename="meshes/link1.stl"/></geometry></visual>
+    <collision><geometry><mesh filename="meshes/link1.stl"/></geometry></collision>
+    <inertial>
+      <mass value="2.328"/>
+      <inertia ixx="0.012" ixy="0" ixz="0"
+               iyy="0.007" iyz="0.003" izz="0.008"/>
+      <origin xyz="0 -0.029 -0.043"/>
+    </inertial>
+  </link>
+
+  <link name="Link_2_a">
+    <visual><geometry><mesh filename="meshes/link2_0_5.stl"/></geometry></visual>
+    <collision><geometry><mesh filename="meshes/link2_0_5.stl"/></geometry></collision>
+    <inertial>
+      <mass value="3.995"/>
+      <inertia ixx="0.010" ixy="0" ixz="0"
+               iyy="0.578" iyz="0" izz="0.574"/>
+      <origin xyz="0.25 0 0.142"/>
+    </inertial>
+  </link>
+
+  <link name="Link_3_a">
+    <visual><geometry><mesh filename="meshes/link3.stl"/></geometry></visual>
+    <collision><geometry><mesh filename="meshes/link3.stl"/></geometry></collision>
+    <inertial>
+      <mass value="2.328"/>
+      <inertia ixx="0.012" ixy="0" ixz="0"
+               iyy="0.008" iyz="0.003" izz="0.007"/>
+      <origin xyz="0 0.043 0.029"/>
+    </inertial>
+  </link>
+
+  <!-- NEW: Elbow roll link (lightweight structural element) -->
+  <link name="Link_4_a">
+    <inertial>
+      <mass value="0.5"/>
+      <inertia ixx="0.001" ixy="0" ixz="0"
+               iyy="0.001" iyz="0" izz="0.001"/>
+      <origin xyz="0 0 0"/>
+    </inertial>
+  </link>
+
+  <!-- Old Link_4_a → now Link_5_a (forearm) -->
+  <link name="Link_5_a">
+    <visual><geometry><mesh filename="meshes/link4.stl"/></geometry></visual>
+    <collision><geometry><mesh filename="meshes/link4.stl"/></geometry></collision>
+    <inertial>
+      <mass value="3.157"/>
+      <inertia ixx="0.199" ixy="0" ixz="0"
+               iyy="0.193" iyz="0.01" izz="0.01"/>
+      <origin xyz="0 -0.043 -0.210"/>
+    </inertial>
+  </link>
+
+  <!-- Old Link_5_a → now Link_6_a -->
+  <link name="Link_6_a">
+    <visual><geometry><mesh filename="meshes/link5.stl"/></geometry></visual>
+    <collision><geometry><mesh filename="meshes/link5.stl"/></geometry></collision>
+    <inertial>
+      <mass value="2.695"/>
+      <inertia ixx="0.029" ixy="0" ixz="0"
+               iyy="0.006" iyz="-0.001" izz="0.027"/>
+      <origin xyz="0 0.125 -0.007"/>
+    </inertial>
+  </link>
+
+  <!-- Old Link_6_a → now Link_7_a -->
+  <link name="Link_7_a">
+    <visual><geometry><mesh filename="meshes/link6.stl"/></geometry></visual>
+    <collision><geometry><mesh filename="meshes/link6.stl"/></geometry></collision>
+    <inertial>
+      <mass value="0.924"/>
+      <inertia ixx="0.002" ixy="0" ixz="0"
+               iyy="0.002" iyz="0" izz="0.001"/>
+      <origin xyz="0 0 0"/>
+    </inertial>
+  </link>
+
+  <link name="tool_a">
+    <inertial>
+      <mass value="0.1"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0"
+               iyy="0.0001" iyz="0" izz="0.0001"/>
+      <origin xyz="0 0 0"/>
+    </inertial>
+  </link>
+
+  <!-- ==================== ARM B (7-DOF) ==================== -->
+  <link name="Link_1_b">
+    <visual><geometry><mesh filename="meshes/link1.stl"/></geometry></visual>
+    <collision><geometry><mesh filename="meshes/link1.stl"/></geometry></collision>
+    <inertial>
+      <mass value="2.328"/>
+      <inertia ixx="0.012" ixy="0" ixz="0"
+               iyy="0.007" iyz="0.003" izz="0.008"/>
+      <origin xyz="0 -0.029 -0.043"/>
+    </inertial>
+  </link>
+
+  <link name="Link_2_b">
+    <visual><geometry><mesh filename="meshes/link2_0_5.stl"/></geometry></visual>
+    <collision><geometry><mesh filename="meshes/link2_0_5.stl"/></geometry></collision>
+    <inertial>
+      <mass value="3.995"/>
+      <inertia ixx="0.010" ixy="0" ixz="0"
+               iyy="0.578" iyz="0" izz="0.574"/>
+      <origin xyz="0.25 0 0.142"/>
+    </inertial>
+  </link>
+
+  <link name="Link_3_b">
+    <visual><geometry><mesh filename="meshes/link3.stl"/></geometry></visual>
+    <collision><geometry><mesh filename="meshes/link3.stl"/></geometry></collision>
+    <inertial>
+      <mass value="2.328"/>
+      <inertia ixx="0.012" ixy="0" ixz="0"
+               iyy="0.008" iyz="0.003" izz="0.007"/>
+      <origin xyz="0 0.043 0.029"/>
+    </inertial>
+  </link>
+
+  <link name="Link_4_b">
+    <inertial>
+      <mass value="0.5"/>
+      <inertia ixx="0.001" ixy="0" ixz="0"
+               iyy="0.001" iyz="0" izz="0.001"/>
+      <origin xyz="0 0 0"/>
+    </inertial>
+  </link>
+
+  <link name="Link_5_b">
+    <visual><geometry><mesh filename="meshes/link4.stl"/></geometry></visual>
+    <collision><geometry><mesh filename="meshes/link4.stl"/></geometry></collision>
+    <inertial>
+      <mass value="3.157"/>
+      <inertia ixx="0.199" ixy="0" ixz="0"
+               iyy="0.193" iyz="0.01" izz="0.01"/>
+      <origin xyz="0 -0.043 -0.210"/>
+    </inertial>
+  </link>
+
+  <link name="Link_6_b">
+    <visual><geometry><mesh filename="meshes/link5.stl"/></geometry></visual>
+    <collision><geometry><mesh filename="meshes/link5.stl"/></geometry></collision>
+    <inertial>
+      <mass value="2.695"/>
+      <inertia ixx="0.029" ixy="0" ixz="0"
+               iyy="0.006" iyz="-0.001" izz="0.027"/>
+      <origin xyz="0 0.125 -0.007"/>
+    </inertial>
+  </link>
+
+  <link name="Link_7_b">
+    <visual><geometry><mesh filename="meshes/link6.stl"/></geometry></visual>
+    <collision><geometry><mesh filename="meshes/link6.stl"/></geometry></collision>
+    <inertial>
+      <mass value="0.924"/>
+      <inertia ixx="0.002" ixy="0" ixz="0"
+               iyy="0.002" iyz="0" izz="0.001"/>
+      <origin xyz="0 0 0"/>
+    </inertial>
+  </link>
+
+  <link name="tool_b">
+    <inertial>
+      <mass value="0.1"/>
+      <inertia ixx="0.0001" ixy="0" ixz="0"
+               iyy="0.0001" iyz="0" izz="0.0001"/>
+      <origin xyz="0 0 0"/>
+    </inertial>
+  </link>
+
+  <!-- ==================== JOINTS ==================== -->
+
+  <joint name="world-link0" type="fixed">
+    <parent link="world"/>
+    <child link="Link_0"/>
+  </joint>
+
+  <!-- ARM A (7 revolute joints) -->
+  <joint name="Joint_1_a" type="revolute">
+    <parent link="Link_0"/>
+    <child link="Link_1_a"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="50" lower="-3.14159265359" upper="3.14159265359" velocity="0.09395689"/>
+    <origin xyz="-0.240 0.41469 -0.064498" rpy="-2.0944 0 0.5236"/>
+  </joint>
+
+  <joint name="Joint_2_a" type="revolute">
+    <parent link="Link_1_a"/>
+    <child link="Link_2_a"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="50" lower="-3.14159265359" upper="3.14159265359" velocity="0.09395689"/>
+    <origin xyz="0 0 0" rpy="1.57079632679 -1.57079632679 0"/>
+  </joint>
+
+  <joint name="Joint_3_a" type="revolute">
+    <parent link="Link_2_a"/>
+    <child link="Link_3_a"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="50" lower="-3.14159265359" upper="3.14159265359" velocity="0.09395689"/>
+    <origin xyz="0.5 0 0" rpy="0 0 -1.57079632679"/>
+  </joint>
+
+  <!-- NEW: Elbow roll — rotates about the forearm axis (Y in Link_3 frame) -->
+  <joint name="Joint_4_a" type="revolute">
+    <parent link="Link_3_a"/>
+    <child link="Link_4_a"/>
+    <axis xyz="0 1 0"/>
+    <limit effort="50" lower="-3.14159265359" upper="3.14159265359" velocity="0.09395689"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- Old Joint_4_a → now Joint_5_a (elbow pitch) -->
+  <joint name="Joint_5_a" type="revolute">
+    <parent link="Link_4_a"/>
+    <child link="Link_5_a"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="50" lower="-3.14159265359" upper="3.14159265359" velocity="0.09395689"/>
+    <origin xyz="0 0.65 0" rpy="-1.57079632679 0 0"/>
+  </joint>
+
+  <!-- Old Joint_5_a → now Joint_6_a (wrist pitch) -->
+  <joint name="Joint_6_a" type="revolute">
+    <parent link="Link_5_a"/>
+    <child link="Link_6_a"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="50" lower="-3.14159265359" upper="3.14159265359" velocity="0.09395689"/>
+    <origin xyz="0 0 -0.1" rpy="1.57079632679 0 0"/>
+  </joint>
+
+  <!-- Old Joint_6_a → now Joint_7_a (wrist roll) -->
+  <joint name="Joint_7_a" type="revolute">
+    <parent link="Link_6_a"/>
+    <child link="Link_7_a"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="50" lower="-3.14159265359" upper="3.14159265359" velocity="0.09395689"/>
+    <origin xyz="0 0.325 0" rpy="-1.57079632679 0 0"/>
+  </joint>
+
+  <joint name="joint_7-tool_a" type="fixed">
+    <parent link="Link_7_a"/>
+    <child link="tool_a"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <!-- ARM B (7 revolute joints) -->
+  <joint name="Joint_1_b" type="revolute">
+    <parent link="Link_0"/>
+    <child link="Link_1_b"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="50" lower="-3.14159265359" upper="3.14159265359" velocity="0.09395689"/>
+    <origin xyz="-0.240 -0.41469 -0.064498" rpy="1.047197551 3.14159265359 -0.5236"/>
+  </joint>
+
+  <joint name="Joint_2_b" type="revolute">
+    <parent link="Link_1_b"/>
+    <child link="Link_2_b"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="50" lower="-3.14159265359" upper="3.14159265359" velocity="0.09395689"/>
+    <origin xyz="0 0 0" rpy="1.57079632679 -1.57079632679 0"/>
+  </joint>
+
+  <joint name="Joint_3_b" type="revolute">
+    <parent link="Link_2_b"/>
+    <child link="Link_3_b"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="50" lower="-3.14159265359" upper="3.14159265359" velocity="0.09395689"/>
+    <origin xyz="0.5 0 0" rpy="0 0 -1.57079632679"/>
+  </joint>
+
+  <!-- NEW: Elbow roll -->
+  <joint name="Joint_4_b" type="revolute">
+    <parent link="Link_3_b"/>
+    <child link="Link_4_b"/>
+    <axis xyz="0 1 0"/>
+    <limit effort="50" lower="-3.14159265359" upper="3.14159265359" velocity="0.09395689"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <joint name="Joint_5_b" type="revolute">
+    <parent link="Link_4_b"/>
+    <child link="Link_5_b"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="50" lower="-3.14159265359" upper="3.14159265359" velocity="0.09395689"/>
+    <origin xyz="0 0.65 0" rpy="-1.57079632679 0 0"/>
+  </joint>
+
+  <joint name="Joint_6_b" type="revolute">
+    <parent link="Link_5_b"/>
+    <child link="Link_6_b"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="50" lower="-3.14159265359" upper="3.14159265359" velocity="0.09395689"/>
+    <origin xyz="0 0 -0.1" rpy="1.57079632679 0 0"/>
+  </joint>
+
+  <joint name="Joint_7_b" type="revolute">
+    <parent link="Link_6_b"/>
+    <child link="Link_7_b"/>
+    <axis xyz="0 0 1"/>
+    <limit effort="50" lower="-3.14159265359" upper="3.14159265359" velocity="0.09395689"/>
+    <origin xyz="0 0.325 0" rpy="-1.57079632679 0 0"/>
+  </joint>
+
+  <joint name="joint_7-tool_b" type="fixed">
+    <parent link="Link_7_b"/>
+    <child link="tool_b"/>
+    <origin xyz="0 0 0" rpy="0 0 0"/>
+  </joint>
+
+</robot>
