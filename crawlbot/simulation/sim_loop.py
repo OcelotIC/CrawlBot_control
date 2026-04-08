@@ -200,6 +200,16 @@ class SimulationLoop:
             cfg.ext_Kp_ee, cfg.ext_Kd_ee,
             cfg.ext_Kp_ee_ang, cfg.ext_Kd_ee_ang)
 
+        # QP for close approach (d < 10mm): EE-dominant, relax CoM
+        self.qp_approach = self._build_qp(
+            cfg.ext_alpha_com * 0.1, cfg.ext_alpha_torso * 0.1,
+            cfg.ext_alpha_ee * 10, cfg.ext_alpha_posture,
+            cfg.ext_alpha_wrench, cfg.ext_alpha_reaction,
+            cfg.ext_Kp_com, cfg.ext_Kd_com,
+            cfg.ext_Kp_torso, cfg.ext_Kd_torso,
+            cfg.ext_Kp_ee, cfg.ext_Kd_ee,
+            cfg.ext_Kp_ee_ang, cfg.ext_Kd_ee_ang)
+
         # H_{r/O} momentum disturbance estimator for AOCS
         self.H_estimator = MomentumDisturbanceEstimator(
             robot_mass=rs0.total_mass,
@@ -412,6 +422,7 @@ class SimulationLoop:
                         stance_a, stance_b, swing_arm, target_idx)
                     self.qp_ss.set_nominal_posture(q_dock[self.robot.joints_q_slice])
                     self.qp_ext.set_nominal_posture(q_dock[self.robot.joints_q_slice])
+                    self.qp_approach.set_nominal_posture(q_dock[self.robot.joints_q_slice])
                     cc_ss = self.sched.contact_config_at(plan.t_start[i+1] + 0.1)
 
                     # DS (use original plan time for contact config lookup)
@@ -457,15 +468,22 @@ class SimulationLoop:
                     t_ext_start = t
                     docked = False
                     torso_frozen = False
+                    d_prev = np.inf
+                    close_approach = False
                     while t < t_ext_start + cfg.t_ext_max and not docked:
+                        # Close approach: switch to EE-dominant QP (latched)
+                        if d_prev < 0.020:
+                            close_approach = True
+                        ext_phase = 'EXT_CLOSE' if close_approach else 'EXT'
                         hw, L_com_prev = self._step(
-                            t, 'EXT', step_idx, swing_arm, stance_arm,
+                            t, ext_phase, step_idx, swing_arm, stance_arm,
                             cc_ss, target_idx, stance_a, stance_b,
                             hw, L_com_prev, log, ss_end=t_ss_end)
                         t += cfg.dt_nmpc
 
                         mujoco.mj_forward(self.mj_model, self.mj_data)
                         d = self._gripper_distance(swing_arm, target_idx)
+                        d_prev = d
 
                         # Freeze torso when EE is close to stabilize approach
                         if not torso_frozen and d < 0.010:
@@ -661,7 +679,13 @@ class SimulationLoop:
         t_nmpc_ms = (time.perf_counter() - t_nmpc_start) * 1000
 
         # QP inner loop
-        qp = self.qp_ext if phase == 'EXT' else self.qp_ss
+        if phase == 'EXT_CLOSE':
+            qp = self.qp_approach
+            phase = 'EXT'  # downstream logic uses 'EXT'
+        elif phase == 'EXT':
+            qp = self.qp_ext
+        else:
+            qp = self.qp_ss
         tau_last = np.zeros(12)
         tau_w_last = np.zeros(3)
         _omega_s_last = np.zeros(3)
@@ -709,13 +733,11 @@ class SimulationLoop:
                 J_ee, Jdq_ee, oMf_ee = self._get_ee_data(rs, swing_arm)
                 p_ee = oMf_ee.translation
 
-                # Approach velocity control: within 20mm, command a velocity
-                # reference toward the target. Uses proportional + minimum
-                # velocity to ensure convergence past the asymptotic tail.
+                # Approach velocity: proportional with minimum floor.
                 d_ee = np.linalg.norm(p_tgt - p_ee)
-                if d_ee < 0.020 and d_ee > 1e-6:
+                if d_ee > 1e-6:
                     direction = (p_tgt - p_ee) / d_ee
-                    v_mag = max(0.5 * d_ee, 0.002)  # min 2mm/s
+                    v_mag = max(0.5 * d_ee, 0.002)
                     v_approach = v_mag * direction
                 else:
                     v_approach = np.zeros(3)
