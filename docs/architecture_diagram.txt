@@ -1,0 +1,270 @@
+```
+┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│                        VISPA CRAWLING CONTROLLER — COMPLETE SIGNAL FLOW                                     │
+│                        (sim_loop._step(), one NMPC cycle = 100ms)                                           │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+ ╔══════════════════════════════════════════════════════════════════════════════════════════════════════════╗
+ ║  MuJoCo PHYSICS ENGINE (mj_model, mj_data)                                                             ║
+ ║                                                                                                          ║
+ ║  State READ:                                    State WRITE:                                             ║
+ ║    mj_data.qpos[0:7]   → struct [pos₃, quat₄]    mj_data.ctrl[0:12]  ← τ_joints (12)                   ║
+ ║    mj_data.qpos[7:10]  → rw_angles (3)            mj_data.ctrl[12:15] ← τ_wheels (3)                    ║
+ ║    mj_data.qpos[10:14] → torso [pos₃, quat₄]                                                           ║
+ ║    mj_data.qpos[14:26] → joints (12)           mj_step() called once per QP step (100 Hz)               ║
+ ║    mj_data.qvel[0:6]   → struct [v₃, ω₃]       eq_active[i] ← 0/1 for weld on/off                      ║
+ ║    mj_data.qvel[6:9]   → rw_vel (3)                                                                     ║
+ ║    mj_data.qvel[9:15]  → torso [v₃, ω₃]                                                                ║
+ ║    mj_data.qvel[15:27] → joint_vel (12)                                                                 ║
+ ╚══════════════════════════════════════════════════════════════════════════════════════════════════════════╝
+         │                                                                       ▲
+         │ qpos(29), qvel(27)                                                    │ ctrl(15)
+         ▼                                                                       │
+ ┌───────────────────────────────────────┐                                       │
+ │  STATE CONVERSION (state_conversions) │                                       │
+ │  mujoco_to_pinocchio(qpos, qvel)      │                                       │
+ │                                       │                                       │
+ │  Inputs:                              │                                       │
+ │    mj_qpos (29) — full MuJoCo state   │                                       │
+ │    mj_qvel (27) — full MuJoCo vel     │                                       │
+ │                                       │                                       │
+ │  Internal:                            │                                       │
+ │    R_s = Quat(qpos[3:7]) → (3,3)     │                                       │
+ │    p_local = R_s.T @ (p_t - p_s)      │                                       │
+ │    v_local = R_s.T @                  │                                       │
+ │      (v_t - v_s - ω_s × (p_t - p_s)) │                                       │
+ │    ω_local = R_s.T @ (ω_t - ω_s)     │                                       │
+ │                                       │                                       │
+ │  Outputs:                             │                                       │
+ │    pin_q (19) = [pos₃, quat_xyzw₄,   │                                       │
+ │                  joints₁₂]            │                                       │
+ │    pin_v (18) = [v₃, ω₃, qdot₁₂]     │                                       │
+ └───────────────┬───────────────────────┘                                       │
+                 │ pin_q(19), pin_v(18)                                          │
+                 │ + ω_s(3) = qvel[3:6]                                          │
+                 ▼                                                               │
+ ┌───────────────────────────────────────┐                                       │
+ │  ROBOT INTERFACE (Pinocchio wrapper)  │                                       │
+ │  robot.update(q, v, omega_struct)     │                                       │
+ │                                       │                                       │
+ │  Calls:                               │                                       │
+ │    computeAllTerms(model, data, q, v) │                                       │
+ │    updateFramePlacements()            │                                       │
+ │    centerOfMass(q, v, 0)              │                                       │
+ │    computeJointJacobiansTimeVar(q, v) │                                       │
+ │                                       │                                       │
+ │  Outputs → RobotState:               │                                       │
+ │    H         (18,18) mass matrix      │                                       │
+ │    C         (18,)   bias vector      │                                       │
+ │    r_com     (3,)    CoM position     │                                       │
+ │    v_com     (3,)    CoM velocity     │                                       │
+ │    J_com     (3,18)  CoM Jacobian     │                                       │
+ │    Jdot_dq_com (3,)  J̇_com·q̇         │                                       │
+ │    L_com     (3,)    angular momentum │                                       │
+ │    J_tool_a  (6,18)  tool A Jacobian  │                                       │
+ │    J_tool_b  (6,18)  tool B Jacobian  │                                       │
+ │    Jdot_dq_tool_a (6,) J̇_a·q̇         │                                       │
+ │    Jdot_dq_tool_b (6,) J̇_b·q̇         │                                       │
+ │    J_torso   (6,18)  torso Jacobian   │                                       │
+ │    Jdot_dq_torso (6,) J̇_torso·q̇      │                                       │
+ │    oMf_torso  SE3    torso placement  │                                       │
+ │    oMf_tool_a SE3    tool A placement │                                       │
+ │    q_joints  (12,)   joint positions  │                                       │
+ │    dq_joints (12,)   joint velocities │                                       │
+ │    q_torso   (7,)    torso pose       │                                       │
+ │    dq_torso  (6,)    torso twist      │                                       │
+ │    total_mass scalar                  │                                       │
+ └──┬─────────────────┬─────────────────┘                                       │
+    │                 │                                                          │
+    │ rs (RobotState) │ rs (RobotState)                                          │
+    ▼                 ▼                                                          │
+ ┌─────────────────────────────────────────────────────────────────┐             │
+ │                    PLANNING LAYER (10 Hz)                        │             │
+ │                                                                 │             │
+ │  ┌──────────────────────┐  ┌──────────────────────────┐         │             │
+ │  │ TorsoPlanner         │  │ LocomotionPlanner (CoM)  │         │             │
+ │  │ .reference_at(t)     │  │ .reference_at(t)         │         │             │
+ │  │                      │  │                          │         │             │
+ │  │ Out → TorsoReference:│  │ Out → ComReference:      │         │             │
+ │  │  p     (3,)  position│  │  r_com (3,) CoM ref pos  │         │             │
+ │  │  R     (3,3) rotation│  │  v_com (3,) CoM ref vel  │         │             │
+ │  │  v     (6,)  twist   │  │                          │         │             │
+ │  │  a     (6,)  accel   │  └──────────┬───────────────┘         │             │
+ │  └──────────┬───────────┘             │                         │             │
+ │             │ tref                    │ cref                    │             │
+ │             ▼                         ▼                         │             │
+ │  ┌──────────────────────┐  ┌──────────────────────────┐         │             │
+ │  │ SwingPlanner         │  │ ContactScheduler         │         │             │
+ │  │ .reference_at(t)     │  │ .contact_config_at(t)    │         │             │
+ │  │                      │  │                          │         │             │
+ │  │ Out → SwingReference:│  │ Out → ContactConfig:     │         │             │
+ │  │  p_ee  (3,) EE pos   │  │  phase   ContactPhase    │         │             │
+ │  │  v_ee  (3,) EE vel   │  │  nc      int (1 or 2)    │         │             │
+ │  │  a_ee  (3,) EE accel  │  │  active  (bool, bool)   │         │             │
+ │  │  swing_arm  'a'/'b'  │  │  r_contact_A (3,)        │         │             │
+ │  │  is_swinging bool    │  │  r_contact_B (3,)        │         │             │
+ │  └──────────┬───────────┘  └──────────┬───────────────┘         │             │
+ │             │ sr                      │ cc_nmpc, cc_ss          │             │
+ └─────────────┼──────────────────────────┼────────────────────────┘             │
+               │                          │                                      │
+               ▼                          ▼                                      │
+ ╔═══════════════════════════════════════════════════════════════════════╗        │
+ ║  STAGE 1: CentroidalNMPC (10 Hz, once per NMPC cycle)               ║        │
+ ║  centroidal_nmpc.solve(...)                                          ║        │
+ ║                                                                      ║        │
+ ║  Inputs:                                                             ║        │
+ ║    r_com        (3,)  ← rs.r_com                                     ║        │
+ ║    v_com        (3,)  ← rs.v_com                                     ║        │
+ ║    L_com        (3,)  ← rs.L_com                                     ║        │
+ ║    hw_current   (3,)  ← I_w · rw_vel (from MuJoCo)                  ║        │
+ ║    r_com_ref    (3,)  ← cref.r_com                                   ║        │
+ ║    v_com_ref    (3,)  ← cref.v_com                                   ║        │
+ ║    contact_config     ← cc_nmpc (anchors in struct frame)            ║        │
+ ║    r_struct     (3,)  ← [0,0,0] (struct CoM = origin)               ║        │
+ ║                                                                      ║        │
+ ║  Internal ODE (CasADi/IPOPT, N=8 steps, dt=0.1s):                   ║        │
+ ║    x = [r_com₃, v_com₃, L_com₃, hw₃]  (NX=12)                      ║        │
+ ║    u = [f1₃, τ1₃, f2₃, τ2₃]           (NU=12)                      ║        │
+ ║    p = [r_ref₃, v_ref₃, r_C1₃, r_C2₃, r_struct₃]  (NP=15)         ║        │
+ ║                                                                      ║        │
+ ║    v̇ = (f1 + f2) / m                                                ║        │
+ ║    L̇ = (r_C1 - r_com) × f1 + τ1 + (r_C2 - r_com) × f2 + τ2       ║        │
+ ║    ḣ_w = -L̇ - (r_com - r_struct) × (f1 + f2)    ← ORBITAL FIX     ║        │
+ ║                                                                      ║        │
+ ║  Outputs:                                                            ║        │
+ ║    r_com_plan   (3,)  → rp → QP                                     ║        │
+ ║    v_com_plan   (3,)  → vp → QP                                     ║        │
+ ║    lambda_plan  (12,) → lr → QP (contact wrench ref)                ║        │
+ ║    hw_dot_plan  (3,)  → AOCS (nmpc_plan mode)                       ║        │
+ ║    a_com_ff     (3,)  = (f1+f2)/m → QP (feedforward)               ║        │
+ ╚═════════════════════════════════════════╤═════════════════════════════╝        │
+                                           │                                     │
+               rp(3), vp(3), lr(12), af(3) │  hw_dot_plan(3)                     │
+               ┌───────────────────────────┤                                     │
+               │                           │                                     │
+               ▼                           ▼                                     │
+ ╔═══════════════════════════════════╗  ╔════════════════════════════════════╗    │
+ ║  STAGE 2: WholeBodyQP (100 Hz)   ║  ║  AOCS (100 Hz, per QP step)       ║    │
+ ║  Runs 10× per NMPC cycle         ║  ║                                    ║    │
+ ║  wholebody_qp.solve(...)         ║  ║  3 modes:                          ║    │
+ ║                                   ║  ║                                    ║    │
+ ║  Inputs (from RobotState):       ║  ║  ┌────────────────────────────┐    ║    │
+ ║    q_t        (7,) ← rs.q_torso  ║  ║  │ LEGACY:                    │    ║    │
+ ║    dq_t       (6,) ← rs.dq_torso ║  ║  │  L̇_est = (L-L_prev)/dt   │    ║    │
+ ║    q          (12,) ← rs.q_joints║  ║  │  hw_err = clip(hw)-hw      │    ║    │
+ ║    dq         (12,) ← rs.dq_joints║ ║  │  τ_w = -L̇ - K_hw·hw_err  │    ║    │
+ ║    H_robot    (18,18) ← rs.H     ║  ║  │  → spin-only feedforward   │    ║    │
+ ║    C_robot    (18,) ← rs.C       ║  ║  └────────────────────────────┘    ║    │
+ ║    J_com      (3,18) ← rs.J_com  ║  ║  ┌────────────────────────────┐    ║    │
+ ║    Jdot_dq_com (3,) ← rs.Jdot…  ║  ║  │ NMPC_PLAN:                 │    ║    │
+ ║    J_contacts (nc×6,18)           ║  ║  │  τ_w = hw_dot_plan         │    ║    │
+ ║    Jdot_dq_contacts (nc×6,)       ║  ║  │       - K_hw·hw_err       │    ║    │
+ ║                                   ║  ║  │  → NMPC-predicted ff       │    ║    │
+ ║  Inputs (from Stage 1):          ║  ║  └────────────────────────────┘    ║    │
+ ║    r_com_ref  (3,) ← rp          ║  ║  ┌────────────────────────────┐    ║    │
+ ║    v_com_ref  (3,) ← vp          ║  ║  │ H_EST:                     │    ║    │
+ ║    lambda_ref (12,) ← lr         ║  ║  │  H_{r/O} = L + r×(mv)     │    ║    │
+ ║    a_com_ff   (3,) ← af          ║  ║  │  Ḣ_est = EMA + FD         │    ║    │
+ ║                                   ║  ║  │  τ_w = -Ḣ_est             │    ║    │
+ ║  Inputs (from planners):         ║  ║  │       - K_ω·ω_s            │    ║    │
+ ║    J_torso    (6,18) ← rs.J…     ║  ║  │       - K_h·(hw-hw*)       │    ║    │
+ ║    Jdot_dq_torso (6,)             ║  ║  │  → full H_{r/O} rejection │    ║    │
+ ║    p_torso    (3,) ← rs.oMf…     ║  ║  └────────────────────────────┘    ║    │
+ ║    R_torso    (3,3)               ║  ║                                    ║    │
+ ║    p_torso_ref (3,) ← tref.p     ║  ║  Inputs:                          ║    │
+ ║    R_torso_ref (3,3) ← tref.R    ║  ║    hw_phys  (3,) = I_w·rw_vel    ║    │
+ ║    v_torso_ref (6,) ← tref.v     ║  ║    ω_s      (3,) = qvel[3:6]     ║    │
+ ║    a_torso_ff  (6,) ← tref.a     ║  ║    rs.r_com (3,) ← RobotState    ║    │
+ ║    J_ee    (3,18) [if SS]         ║  ║    rs.v_com (3,) ← RobotState    ║    │
+ ║    Jdot_dq_ee (3,) [if SS]       ║  ║    rs.L_com (3,) ← RobotState    ║    │
+ ║    p_ee     (3,) [if SS]          ║  ║    L_com_prev (3,) ← prev step   ║    │
+ ║    p_ee_ref (3,) ← sr.p_ee       ║  ║    hw_dot_plan (3,) ← NMPC       ║    │
+ ║    v_ee_ref (3,) ← sr.v_ee       ║  ║                                    ║    │
+ ║    a_ee_ff  (3,) ← sr.a_ee       ║  ║  Output:                          ║    │
+ ║    hw_current (3,) ← hw_phys     ║  ║    τ_w_cmd  (3,) → ctrl[12:15]   ║────┤
+ ║    hw_min/max (3,) ← config      ║  ║                                    ║    │
+ ║    r_com      (3,) ← rs.r_com    ║  ╚════════════════════════════════════╝    │
+ ║    L_com_current (3,) ← rs.L_com ║                                           │
+ ║    contact_config  ← cc_ss       ║                                           │
+ ║                                   ║                                           │
+ ║  Decision variables:              ║                                           │
+ ║    z = [q̈_t₆, q̈₁₂, λ₁₂, τ₁₂]   ║                                           │
+ ║        (42 variables total)       ║                                           │
+ ║                                   ║                                           │
+ ║  Equality constraints:            ║                                           │
+ ║    H·q̈ + C = Bτ + J^T·λ          ║                                           │
+ ║    J_c·q̈ = -J̇_c·q̇               ║                                           │
+ ║                                   ║                                           │
+ ║  Inequality constraints:          ║                                           │
+ ║    hw_min ≤ hw - dt·M_λ·λ ≤ hw_max║                                          │
+ ║    -τ_max ≤ τ ≤ τ_max             ║                                           │
+ ║                                   ║                                           │
+ ║  Weighted tasks:                  ║                                           │
+ ║    α_torso=500: 6D torso tracking ║                                           │
+ ║    α_com=200: CoM tracking        ║                                           │
+ ║    α_ee=3000: EE tracking (SS)    ║                                           │
+ ║    α_posture=20: joint regulation ║                                           │
+ ║    α_wrench=100: λ tracking       ║                                           │
+ ║                                   ║                                           │
+ ║  Output:                          ║                                           │
+ ║    τ_q   (12,) joint torques      ║                                           │
+ ║    → clip(τ, -τ_max, τ_max)       ║                                           │
+ ║    → ctrl[0:12]                   ║───────────────────────────────────────────┘
+ ╚═══════════════════════════════════╝
+
+ ╔══════════════════════════════════════════════════════════════════════════════╗
+ ║  TIMING                                                                     ║
+ ║                                                                             ║
+ ║  ┌─── NMPC cycle (100 ms, 10 Hz) ─────────────────────────────────────────┐ ║
+ ║  │                                                                         │ ║
+ ║  │  Planning + NMPC solve (~1 ms)                                          │ ║
+ ║  │  ├─ TorsoPlanner.reference_at(t)                                        │ ║
+ ║  │  ├─ LocomotionPlanner.reference_at(t)                                   │ ║
+ ║  │  ├─ mujoco_to_pinocchio + robot.update                                  │ ║
+ ║  │  └─ CentroidalNMPC.solve (warm start ~0.9 ms)                           │ ║
+ ║  │                                                                         │ ║
+ ║  │  QP inner loop (10 × 10 ms = 100 ms)                                   │ ║
+ ║  │  ┌─── QP step (10 ms, 100 Hz) ────────────────────────────────────────┐ │ ║
+ ║  │  │  mujoco_to_pinocchio + robot.update(q,v,ω_s)        ~0.08 ms      │ │ ║
+ ║  │  │  get_contact_jacobians                               ~0.003 ms     │ │ ║
+ ║  │  │  TorsoPlanner.reference_at(tq)                       ~0.001 ms     │ │ ║
+ ║  │  │  SwingPlanner.reference_at(tq)     [if SS]           ~0.001 ms     │ │ ║
+ ║  │  │  WholeBodyQP.solve(...)                              ~3-5 ms       │ │ ║
+ ║  │  │  clip(τ, -τ_max, τ_max)                                           │ │ ║
+ ║  │  │  AOCS: compute τ_w_cmd                               ~0.005 ms    │ │ ║
+ ║  │  │  ctrl[0:12] = τ_q, ctrl[12:15] = τ_w                              │ │ ║
+ ║  │  │  mj_step(model, data)                                ~2-5 ms      │ │ ║
+ ║  │  │  robot.update (post-step, for hw update)             ~0.04 ms      │ │ ║
+ ║  │  │  hw = I_w · rw_vel                                                │ │ ║
+ ║  │  └────────────────────────────────────────────────────────────────────┘ │ ║
+ ║  │                                                                         │ ║
+ ║  │  Logging: final robot.update, torso error, dock distance, momentum     │ ║
+ ║  └─────────────────────────────────────────────────────────────────────────┘ ║
+ ╚══════════════════════════════════════════════════════════════════════════════╝
+
+ ╔══════════════════════════════════════════════════════════════════════════════╗
+ ║  PHASE MACHINE (managed by sim_loop.run())                                  ║
+ ║                                                                             ║
+ ║  DS (0.5s) → SS (6.0s) → EXT (≤10s) → dock → DS → SS → EXT → dock → DS   ║
+ ║  ────────    ─────────    ──────────    ────    ────                         ║
+ ║  Both arms   One arm      Swing arm   Weld    Settle                        ║
+ ║  welded       swings      extends     activate  (20s)                       ║
+ ║                            to anchor                                        ║
+ ║                                                                             ║
+ ║  Weld transitions:                                                          ║
+ ║    DS→SS: deactivate_weld(swing_arm, old_anchor)                            ║
+ ║    EXT→dock: if d_grip < 5mm → activate_weld(swing_arm, new_anchor)         ║
+ ║    Final DS: dock_configuration() IK → set_hold(q_equilibrium)              ║
+ ╚══════════════════════════════════════════════════════════════════════════════╝
+
+ ╔══════════════════════════════════════════════════════════════════════════════╗
+ ║  KNOWN ISSUES (from test findings)                                          ║
+ ║                                                                             ║
+ ║  ① NMPC/QP inconsistency: NMPC includes orbital in ḣ_w, QP does not       ║
+ ║  ② Box constraint: |L_i| ≤ L_max permits ||L|| = √3·L_max at corners      ║
+ ║  ③ QP/MuJoCo gap: QP λ ≠ MuJoCo contact forces (33× mismatch)            ║
+ ║  ④ AOCS saturation: H_dot_est ~ 42 Nm vs τ_w_max ~ 5 Nm (85× mismatch)   ║
+ ║  ⑤ Quasi-static: non-inertial corrections destabilize (gains coupled)     ║
+ ║  ⑥ DS zero DOF: 2×6D welds → 0 free joints → torso uncontrollable        ║
+ ╚══════════════════════════════════════════════════════════════════════════════╝
+```

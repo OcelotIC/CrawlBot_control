@@ -28,6 +28,7 @@ This ensures:
 from __future__ import annotations
 
 import numpy as np
+import pinocchio as pin
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
@@ -49,6 +50,9 @@ class SwingReference:
     p_ee: np.ndarray       # (3,) position [m]
     v_ee: np.ndarray       # (3,) velocity [m/s]
     a_ee: np.ndarray       # (3,) acceleration [m/s²]
+    R_ee: np.ndarray       # (3,3) rotation matrix
+    omega_ee: np.ndarray   # (3,) angular velocity [rad/s]
+    alpha_ee: np.ndarray   # (3,) angular acceleration [rad/s²]
     swing_arm: str         # 'a' or 'b'
     is_swinging: bool      # True during single-support swing
     phase_progress: float  # τ ∈ [0, 1]
@@ -81,6 +85,14 @@ class SwingPlanner:
         self.scheduler = scheduler
         self.clearance = clearance
         self.away_normal = away_normal / np.linalg.norm(away_normal)
+        # Orientation at swing release (set by sim_loop before SS phase)
+        self._R_start: np.ndarray = np.eye(3)
+        # Target orientation: identity (tool aligned with structure frame)
+        self._R_end: np.ndarray = np.eye(3)
+
+    def set_swing_orientation(self, R_start: np.ndarray) -> None:
+        """Set the tool rotation at swing release for SLERP interpolation."""
+        self._R_start = R_start.copy()
 
     @property
     def plan(self) -> GaitPlan:
@@ -138,6 +150,7 @@ class SwingPlanner:
             arm, p_ee = self._last_swing_position(idx)
             return SwingReference(
                 p_ee=p_ee, v_ee=np.zeros(3), a_ee=np.zeros(3),
+                R_ee=self._R_end.copy(), omega_ee=np.zeros(3), alpha_ee=np.zeros(3),
                 swing_arm=arm, is_swinging=False, phase_progress=1.0)
 
         # ── Single support: compute swing trajectory ─────────────
@@ -173,8 +186,16 @@ class SwingPlanner:
         bump_ddot = self._bump_ddot(tau) / (T * T)
         a_ee = dp * s_ddot + self.clearance * n * bump_ddot
 
+        # Orientation via SLERP (log3/exp3 interpolation)
+        dR = self._R_start.T @ self._R_end
+        omega_total = pin.log3(dR)
+        R_ee = self._R_start @ pin.exp3(s * omega_total)
+        omega_ee = R_ee @ (s_dot * omega_total)
+        alpha_ee = R_ee @ (s_ddot * omega_total)
+
         return SwingReference(
             p_ee=p_ee, v_ee=v_ee, a_ee=a_ee,
+            R_ee=R_ee, omega_ee=omega_ee, alpha_ee=alpha_ee,
             swing_arm=gp.swing_arm,
             is_swinging=True,
             phase_progress=tau)

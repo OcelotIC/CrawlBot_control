@@ -16,3 +16,4 @@ Thumbs.db
 # Test outputs (generated at root by some tests)
 /*.json
 /*.png
+results/benchmarks/*.json

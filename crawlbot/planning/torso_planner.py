@@ -81,6 +81,61 @@ class TorsoPlanner:
         self._hold_R = R.copy()
         self._hold_com = r_com.copy() if r_com is not None else None
 
+    def set_from_waypoints(
+        self,
+        t_start: float,
+        t_end: float,
+        torso_wps: list,
+        com_wps: list,
+    ):
+        """Build trajectory from IK-derived waypoint sequence.
+
+        Creates piecewise quintic phases between consecutive waypoints.
+        The last waypoint becomes the hold reference for times beyond t_end.
+
+        Parameters
+        ----------
+        t_start, t_end : float
+            Start and end times of the full trajectory.
+        torso_wps : list of (p, R) tuples
+            Torso position (3,) and rotation (3,3) at each waypoint.
+        com_wps : list of ndarray (3,)
+            CoM positions at each waypoint.
+        """
+        self.clear_phases()
+        n = len(torso_wps)
+        if n < 2:
+            if n == 1:
+                p, R = torso_wps[0]
+                self.set_hold(p, R, r_com=com_wps[0])
+            return
+
+        dt = (t_end - t_start) / (n - 1)
+
+        for i in range(n - 1):
+            p0, R0 = torso_wps[i]
+            p1, R1 = torso_wps[i + 1]
+            delta0 = R0.T @ (com_wps[i] - p0)
+            delta1 = R1.T @ (com_wps[i + 1] - p1)
+            self.add_phase(
+                t_start + i * dt, t_start + (i + 1) * dt,
+                p0, R0, p1, R1,
+                delta_com_start=delta0, delta_com_end=delta1)
+
+        # Hold at the FIRST waypoint for times before the trajectory,
+        # and at the LAST waypoint for times after.
+        # set_hold is the fallback for t outside all phases.
+        # Before the trajectory starts (DS phase), hold at the start.
+        p0, R0 = torso_wps[0]
+        self._hold_p = p0.copy()
+        self._hold_R = R0.copy()
+        self._hold_com = com_wps[0].copy()
+        # After the trajectory, the last phase's p_end becomes the implicit hold
+        # (reference_at falls through to _hold_reference which uses _hold_p).
+        # We'll update _hold to the end after the trajectory is done.
+        # For now, the piecewise phases handle the interpolation, and
+        # _hold_reference handles times outside phases (= before t_start).
+
     def add_phase(self, t_start: float, t_end: float,
                   p_start: np.ndarray, R_start: np.ndarray,
                   p_end: np.ndarray, R_end: np.ndarray,
@@ -157,6 +212,57 @@ class TorsoPlanner:
             p=self._hold_p.copy(), R=self._hold_R.copy(),
             v=np.zeros(6), a=np.zeros(6))
 
+    def _trapezoidal_params(self, t: float, phase: dict):
+        """Compute smooth trapezoidal velocity profile parameters.
+
+        Uses half-cosine ramps for C¹-continuous acceleration (no
+        discontinuities at ramp/cruise transitions). The velocity
+        profile is:
+            ramp-up:   v(tau) = v_cruise * 0.5 * (1 - cos(pi * tau / ramp))
+            cruise:    v(tau) = v_cruise
+            ramp-down: v(tau) = v_cruise * 0.5 * (1 + cos(pi * (tau - 1 + ramp) / ramp))
+
+        Returns (tau, s, ds, dds) matching the quintic interface:
+            s   : position fraction [0, 1]
+            ds  : ds/dt [1/s]
+            dds : d²s/dt² [1/s²]
+        """
+        T = phase['duration']
+        tau = np.clip((t - phase['t_start']) / T, 0.0, 1.0)
+        ramp = 0.35  # fraction of total time for each ramp
+
+        # Cruise velocity such that total displacement = 1:
+        # Area = ramp*v_c/2 + (1-2*ramp)*v_c + ramp*v_c/2 = (1-ramp)*v_c = 1
+        v_c = 1.0 / (1.0 - ramp)
+        pi = np.pi
+
+        if tau < ramp:
+            # Ramp up: half-cosine velocity profile
+            phi = pi * tau / ramp
+            s = v_c * (tau / 2.0 - ramp / (2.0 * pi) * np.sin(phi))
+            ds = v_c * 0.5 * (1.0 - np.cos(phi)) / T
+            dds = v_c * pi / (2.0 * ramp) * np.sin(phi) / (T**2)
+        elif tau < 1.0 - ramp:
+            # Cruise: constant velocity, zero acceleration
+            s_ramp = v_c * ramp / 2.0  # area under ramp-up
+            s = s_ramp + v_c * (tau - ramp)
+            ds = v_c / T
+            dds = 0.0
+        else:
+            # Ramp down: mirror of ramp-up
+            tau_d = 1.0 - tau
+            phi = pi * tau_d / ramp
+            s_tail = v_c * (tau_d / 2.0 - ramp / (2.0 * pi) * np.sin(phi))
+            s = 1.0 - s_tail
+            ds = v_c * 0.5 * (1.0 - np.cos(phi)) / T
+            dds = -v_c * pi / (2.0 * ramp) * np.sin(phi) / (T**2)
+
+        return tau, s, ds, dds
+
+    def _profile_params(self, t: float, phase: dict):
+        """Compute time-scaling parameters using trapezoidal profile."""
+        return self._trapezoidal_params(t, phase)
+
     def _quintic_params(self, t: float, phase: dict):
         """Compute quintic time scaling parameters."""
         T = phase['duration']
@@ -167,8 +273,8 @@ class TorsoPlanner:
         return tau, s, ds, dds
 
     def _interpolate_phase(self, t: float, phase: dict) -> TorsoReference:
-        """Interpolate quintic in structure frame."""
-        _, s, ds, dds = self._quintic_params(t, phase)
+        """Interpolate trajectory phase in structure frame."""
+        _, s, ds, dds = self._profile_params(t, phase)
 
         dp    = phase['p_end'] - phase['p_start']
         p     = phase['p_start'] + s * dp
@@ -190,7 +296,7 @@ class TorsoPlanner:
 
     def _interpolate_com(self, t: float, phase: dict) -> ComReference:
         """Derive CoM reference from torso trajectory + interpolated δ_com."""
-        _, s, ds, _ = self._quintic_params(t, phase)
+        _, s, ds, _ = self._profile_params(t, phase)
 
         d0 = phase['delta_com_start']
         d1 = phase['delta_com_end']
