@@ -2,7 +2,15 @@
 
 ## Overview
 
-This document describes three controller modifications that enable reliable multi-step locomotion for the VISPA crawling robot on a free-floating structure. The modifications address the coupled robot-structure dynamics that cause docking failures and structural rotation accumulation during multi-step gaits.
+This document describes controller modifications that enable multi-step locomotion for the VISPA crawling robot on a free-floating structure. The modifications address the coupled robot-structure dynamics that cause docking failures and structural rotation accumulation during multi-step gaits.
+
+**Current status (7-DOF, 5mm kinematic dock threshold):**
+
+| Mass ratio | 1-step | 3-step | 3-step + settle=2s |
+|-----------|--------|--------|-------------------|
+| 0.1% (71100 kg) | 1/1 | 1/3 | **3/3** |
+| 1% (7110 kg) | 1/1 | **3/3** | **3/3** |
+| 8% (901 kg) | 0/1 | 0/3 | 0/3 |
 
 ---
 
@@ -12,13 +20,7 @@ This document describes three controller modifications that enable reliable mult
 
 **Files:** `centroidal_nmpc.py`, `config.py`, `sim_loop.py`
 
-**Problem:** The existing NMPC bounds the robot's centroidal angular momentum rate `L̇_com` to protect the robot's reaction wheels, but does not bound the torque delivered to the structure. These quantities differ by the lever arm term:
-
-```
-Ḣ_s = L̇_com + r_com × (m · a_com)
-```
-
-More precisely, the structure disturbance torque about its CoM is:
+**Problem:** The existing NMPC bounds the robot's centroidal angular momentum rate `L̇_com` to protect the robot's reaction wheels, but does not bound the torque delivered to the structure. The structure disturbance torque about its CoM is:
 
 ```
 Ḣ_s = Σⱼ [r_Cⱼ × fⱼ + τⱼ]
@@ -32,7 +34,7 @@ where `r_Cⱼ` are contact positions relative to the structure CoM (origin in R_
 - `SimConfig.tau_struct_max: float = np.inf` (disabled by default)
 - `CentroidalNMPCConfig.tau_struct_max: float = np.inf`
 
-**Effect:** When active, the NMPC planner generates contact wrenches that respect the structure's AOCS torque authority. The robot naturally slows down at anchors with large lever arms (panel extremes at ||r_C|| = 2.68m) to keep `||Ḣ_s||` bounded.
+**Status:** Implemented, builds correctly, backward compatible (73 unit tests pass). **Not yet tested with finite values.** The expected behavior (NMPC generating gentler wrenches at large lever arms) is unvalidated.
 
 ### 1.2 Inter-Step Settling
 
@@ -42,132 +44,125 @@ where `r_Cⱼ` are contact positions relative to the structure CoM (origin in R_
 
 **Implementation:** A configurable settle phase inserted after each dock event (before `step_idx` increments). Uses the existing `settle_mode=True` path in the whole-body QP: skips torso/CoM tasks, applies pure velocity damping (Kd=10, alpha=1e3).
 
-A cumulative `t_offset` tracks settle durations and shifts all subsequent gait plan timestamps, preventing phase truncation.
+A cumulative `t_offset` tracks settle durations and shifts all subsequent gait plan timestamps. Without this offset, the settle time eats into the next step's SS phase (e.g., a 6s swing becomes 1.7s with 2s settle).
 
 **Configuration:**
 - `SimConfig.t_settle_inter: float = 0.0` (disabled by default)
 
-**Effect at 1% mass ratio (3-step):**
+**Measured effect (3-step):**
 
-| `t_settle_inter` | Docks | Struct rotation |
-|-------------------|-------|-----------------|
-| 0s | 2/3 | 26.9deg |
-| 2s | 3/3 | 4.9deg |
+| Mass ratio | settle=0 | settle=2s |
+|-----------|----------|-----------|
+| 0.1% | 1/3 | **3/3** (rot=6.2deg) |
+| 1% | **3/3** (rot=2.4deg) | **3/3** (rot=2.1deg) |
 
-At 0.1%, settling is not needed (3/3 without).
+At 1%, settling is optional (3/3 without). At 0.1%, settling is required for multi-step — the reason is unclear (the structure barely moves at 0.1%) and warrants investigation.
 
-### 1.3 Close-Approach QP and EXT Phase Fixes
+### 1.3 Close-Approach Docking Fixes
 
-**Files:** `sim_loop.py`
+**Files:** `sim_loop.py`  
+**`wholebody_qp.py` is unchanged.**
 
-**Problem:** The 6D end-effector tracking upgrade introduced two docking regressions:
+**Problem:** The 6D end-effector tracking upgrade (commit `c5e2f7d`, prior session) broke docking. Two independent issues:
 
-1. **Angular Jacobian competition:** During close approach (d < 20mm), the orientation component of the 6D EE task consumed DOFs needed for position convergence. At the approach minimum, the tool had ~46deg orientation error; the QP traded position accuracy for orientation correction.
+**Issue A — Orientation competing with position:** During close approach, the 6D EE task's orientation component consumed DOFs needed for position convergence. The tool approaches with ~46deg orientation error; the QP traded position accuracy for orientation correction. This prevented the gripper from reaching the 5mm dock threshold.
 
-2. **CoM task vs EE task:** The CoM task (priority 1, weight 1e2) conflicts with the EE approach (priority 2, weight 1e4). At 1% mass ratio, each push toward the anchor disturbs the CoM via the stance contact reaction force. The CoM task corrects this by pulling the EE back, creating a sustained oscillation at the coupled robot-structure natural frequency (~0.7Hz, period ~1.4s). The gripper oscillates between 5-8mm, never crossing the 5mm dock threshold.
+**Fix:** During close approach (d < 20mm), set `R_ee_ref = R_ee_actual` — the actual tool orientation. This zeros the orientation error in the 6D PD law, so the orientation rows only compensate Coriolis terms. The full 6D Jacobian is preserved for regularization. No QP modification needed.
 
-**Implementation (three sub-fixes):**
+**What was tried and didn't work:**
+- Separate position (priority 2) and orientation (priority 3) QP tasks: position-only task lost the regularization from angular Jacobian rows, making convergence worse
+- Same-priority split with weight ratios: orientation error is in radians (~0.8) vs position in meters (~0.005), so orientation dominates even at 1% weight
+- Lowering `ext_alpha_com` globally: destabilizes the far approach where CoM tracking is essential
 
-**(a) Angular Jacobian zeroing:** When d < 20mm, the angular rows (3:6) of `J_ee` and `Jdot_dq_ee` are zeroed. The 6D task interface is preserved but all DOFs serve position convergence.
+**Issue B — CoM task fighting EE approach:** At 1% mass ratio, the gripper oscillates between 5-8mm instead of converging. Each push toward the anchor creates a reaction force that disturbs the CoM. The CoM task (priority 1, weight 1e2) corrects this by pulling the EE back, creating a sustained oscillation at the coupled robot-structure natural frequency (~0.7Hz).
 
-**(b) Close-approach QP (`qp_approach`):** A third QP variant with EE-dominant weights: `alpha_ee * 10`, `alpha_com * 0.1`, `alpha_torso * 0.1`. Activated when d < 20mm via a latched `EXT_CLOSE` phase flag. The latch prevents mode-switching oscillation between QP variants when the gripper bounces above/below the threshold.
+**Fix:** A third QP variant (`qp_approach`) with rebalanced weights: `alpha_ee * 10`, `alpha_com * 0.1`, `alpha_torso * 0.1`. Activated when d < 20mm via a latched flag (once entered, stays active for the rest of the EXT phase to prevent mode-switching oscillation). This is not a hack — it's a necessary weight rebalancing for the docking phase where EE convergence matters more than CoM maintenance.
 
-**(c) Approach velocity:** Proportional gain 0.5 with 2mm/s floor: `v_mag = max(0.5 * d, 0.002)`. Applied as a 6D twist reference `[v_approach; 0₃]`.
+**What was tried and didn't work:**
+- Lowering `ext_alpha_com` for the entire EXT phase: destabilizes far approach (d > 20mm) where CoM tracking keeps the robot stable
 
-**Effect:**
-
-| Mass ratio | Before | After |
-|-----------|--------|-------|
-| 0.1% 1-step | 0/1 (6.6mm) | 1/1 (2.4mm) |
-| 0.1% 3-step | 0/3 | 3/3 (rot=2.6deg) |
-| 1% 1-step | 0/1 (5.1mm) | 1/1 (4.8mm) |
-| 1% 3-step + settle=2s | 0/3 | 3/3 (rot=4.9deg) |
+**Additional fix — Approach velocity:** Proportional gain 0.5 with 2mm/s floor: `v_mag = max(0.5 * d, 0.002)`. The original gain (0.2) created exponential decay too slow to cross 5mm within the EXT timeout.
 
 ---
 
 ## 2. Limits
 
-### 2.1 Mass Ratio Ceiling
+### 2.1 Mass Ratio Ceiling: 8% Fails
 
-The controller achieves 3/3 docks at 0.1% and 1% mass ratios but fails at 8% (structure 901 kg, robot 74 kg). At 8%, the structure tumbles to 180deg and NMPC failures reach ~45%. The reaction forces from crawling are too large relative to the structure's inertia. The `tau_struct_max` constraint (Section 1.1) is designed to address this but has not yet been tested with finite values.
+The controller fails at 8% (structure 901 kg, robot 74 kg). The structure tumbles to 180deg and NMPC failures reach ~45%. The `tau_struct_max` constraint is designed to address this but is untested. It may also not be sufficient — even with bounded structural torque, the close-approach QP weight ratios were tuned for 0.1%-1% and may not work at 8%.
 
-### 2.2 Dock Threshold Sensitivity
+### 2.2 0.1% 3-Step Without Settle: 1/3
 
-Docking relies on a kinematic distance threshold (`weld_radius = 5mm`). The close-approach QP gets the gripper to 2-5mm depending on mass ratio. At 1%, the margin is thin (4.8mm vs 5mm threshold). The old GMO (Generalized Momentum Observer) contact detection triggered at 6-7mm regardless of mass ratio, but it no longer triggers reliably with the 6D EE controller because the higher joint torques from orientation tracking mask the contact momentum residual.
+At 0.1%, the structure barely moves (71100 kg), yet steps 1-2 fail without settling. This is unexpected and suggests a controller state issue (stale NMPC warm start, torso planner reference, or accumulated numerical drift) rather than a dynamics problem. Root cause is uninvestigated.
 
-### 2.3 Settle Duration Sensitivity at 0.1%
+### 2.3 Dock Threshold Sensitivity
 
-At 0.1% mass ratio, intermediate settle durations (1-3s) degrade performance (1/3 docks) compared to no settle (3/3) or long settle (5s, 3/3). The settle phase disrupts the controller state (NMPC warm start, torso planner reference) in a way that the next step starts from a suboptimal initial condition. At 1%, settling is always beneficial because the velocity damping outweighs the state disruption.
+The gripper reaches 4.8-4.9mm at both mass ratios — barely under the 5mm threshold. The old GMO contact detection triggered at 6-7mm regardless of mass ratio but no longer works reliably with the 6D EE controller (hypothesis: higher joint torques from orientation tracking mask the contact momentum residual).
 
-### 2.4 6D Orientation at Dock
+### 2.4 Orientation at Dock
 
-The angular Jacobian is zeroed during close approach (d < 20mm), meaning orientation tracking is effectively disabled in the final phase. The tool arrives at the anchor with ~46deg orientation error. For the simulated weld constraint this is acceptable, but a real HOTDOCK mechanism may require tighter orientation alignment.
+Setting `R_ee_ref = R_ee_actual` during close approach disables orientation tracking. The tool arrives with ~46deg orientation error relative to identity. Acceptable for simulated weld constraints; likely unacceptable for real HOTDOCK hardware which requires alignment.
 
-### 2.5 Fixed QP Weights
+### 2.5 Fixed Close-Approach QP Weights
 
-The close-approach QP uses static weight ratios (10x EE, 0.1x CoM). These were tuned empirically for the 0.1%-1% range. At higher mass ratios, the optimal ratio may differ. There is no online adaptation of task weights based on the current dynamics.
+The weight ratios (10x EE, 0.1x CoM, 0.1x Torso) are empirically tuned for 0.1%-1%. No online adaptation. The 20mm activation threshold is also a magic number.
 
-### 2.6 No Structure AOCS Model
+### 2.6 Ḣ_s Constraint: Zero Validation
 
-The `tau_struct_max` constraint bounds the disturbance torque but does not model the structure's AOCS response. The constraint assumes the AOCS can absorb any torque below the bound, but real reaction wheels have momentum saturation, rate limits, and desaturation constraints that are not captured.
+The constraint is implemented and builds correctly but has never been activated. We do not know if:
+- The NMPC remains feasible with tight bounds
+- The emergent behavior (slower crawling at large lever arms) actually occurs
+- It helps at 8% mass ratio
 
 ---
 
 ## 3. Roadmap
 
-### Phase 1: Ḣ_s Constraint Validation (immediate)
+### Phase 1: Fix 0.1% 3-Step Without Settle
 
-**Goal:** Demonstrate bounded structural rotation at 1% and 8% mass ratios using `tau_struct_max`.
+**Priority: high.** This is a regression that should not exist — at 0.1% the structure is effectively fixed.
+
+- Diagnose why steps 1-2 fail: log NMPC warm start quality, torso planner state, and EE reference trajectory at the start of each step
+- Compare state at step 1 start (after step 0 dock) vs step 0 start (initial): what's different?
+- Likely fix: reset NMPC warm start or torso planner after each dock
+
+### Phase 2: Ḣ_s Constraint Validation
+
+**Priority: high.** The constraint is the main deliverable of this session; it needs data.
 
 - Parametric sweep: `tau_struct_max in {1, 2, 5, 10} Nm` at 1% and 8%
-- For each value, record: dock success, step times, max structural rotation, max `||Ḣ_s||`, NMPC feasibility
-- Identify the tightest constraint that still achieves 3/3 docks
+- For each value, record: dock success, step times, max structural rotation, max `||Ḣ_s||`, NMPC feasibility rate
 - Combined test: best `tau_struct_max` + `t_settle_inter`
-- Generate figures: structural rotation vs step number, Ḣ_s time series, Pareto (tau_struct_max vs rotation vs crawl time)
+- If feasibility drops below 90%, the bounds are too tight — either relax or investigate NMPC solver options
 
-### Phase 2: GMO Dock Recovery
+### Phase 3: GMO Dock Recovery
 
-**Goal:** Restore sensorless contact detection for robust docking regardless of mass ratio.
+**Priority: medium.** Would increase dock margin from <1mm to ~2mm.
 
-- Diagnose why the GMO residual no longer triggers with 6D EE tracking (hypothesis: higher joint torques from orientation tracking inflate the internal momentum estimate, masking the contact residual)
-- Option A: filter the GMO residual to remove the orientation-tracking component
-- Option B: use a separate momentum observer that only tracks the swing arm's contribution
-- Option C: hybrid dock detection: kinematic (d < threshold) OR GMO, whichever triggers first
-- Target: reliable dock detection at 6-8mm for all mass ratios
+- Diagnose why GMO no longer triggers: compare momentum residual with/without R_ee_ref matching
+- Simplest fix: hybrid detection — dock when kinematic (d < weld_radius) OR GMO confirms contact, whichever comes first
+- This avoids needing to fix the GMO itself
 
-### Phase 3: Orientation-Aware Close Approach
+### Phase 4: Orientation-Aware Close Approach
 
-**Goal:** Achieve < 5deg orientation error at dock without sacrificing position convergence.
+**Priority: low (unless HOTDOCK requires it).**
 
-- Phased approach: far (d > 20mm) use full 6D tracking; close (d < 20mm) use 3D position with soft orientation penalty; final (d < 5mm) pure position
-- Or: separate EE position (priority 2) and EE orientation (priority 3) into distinct QP tasks with independent weights
-- Validate against HOTDOCK mechanism orientation tolerance (TBD from hardware specs)
+Setting `R_ee_ref = R_ee_actual` sacrifices orientation for position. Recovery options:
 
-### Phase 4: Adaptive Close-Approach Weights
+- **NOT viable:** Separate position/orientation into distinct QP tasks with different priorities or weights. Tried during this session — fails due to radians-vs-meters unit mismatch and loss of angular Jacobian regularization.
+- **Potentially viable:** Phased approach — full 6D at d > 20mm, R_ee_ref matching at d < 20mm, then a post-dock orientation correction phase before weld activation.
+- **Potentially viable:** Normalize orientation error by `Kp_ee_ang` scaling so it's comparable in magnitude to position error. Requires careful gain tuning.
 
-**Goal:** Replace fixed weight ratios with online adaptation based on coupled dynamics.
+### Phase 5: 8% Mass Ratio
 
-- Estimate the robot-structure coupling from the contact Jacobian and mass ratio
-- Scale `alpha_com` inversely with coupling strength: when the EE approach strongly disturbs the CoM (high mass ratio), reduce CoM weight automatically
-- Or: use a nullspace approach where the EE task is projected into the CoM-consistent subspace
+**Priority: depends on mission requirements.**
 
-### Phase 5: Structure AOCS Integration
+Requires at minimum Ḣ_s constraint (Phase 2) and possibly:
+- Adaptive close-approach weights (scale CoM relaxation with mass ratio)
+- Structure AOCS model in the NMPC (wheel momentum as state, desaturation policy)
+- Significantly longer crawl times (the NMPC must respect tight torque bounds)
 
-**Goal:** Replace the scalar `tau_struct_max` bound with a realistic AOCS model.
-
-- Model reaction wheel dynamics: `I_w * ω̇_w = -τ_w`, with `|ω_w| ≤ ω_max` (momentum saturation) and `|τ_w| ≤ τ_w_max` (rate limit)
-- Add wheel momentum `h_w_struct` as NMPC state, with desaturation policy
-- Constraint becomes `|τ_w,i| ≤ τ_w_max AND |h_w,i| ≤ h_w_max` instead of the current `|Ḣ_s,i| ≤ tau_struct_max`
-- Validate: 6-step traversal with bounded wheel momentum and desaturation between steps
-
-### Phase 6: 8% Mass Ratio Demonstration
-
-**Goal:** Achieve multi-step locomotion at 8% mass ratio (structure 901 kg, robot 74 kg).
-
-- Requires: Ḣ_s constraint (Phase 1) + AOCS model (Phase 5) + adaptive weights (Phase 4)
-- Expected trade-off: significantly slower crawling (the NMPC must respect tight structural torque bounds, emergent behavior is gentler motions at large lever arms)
-- Quantify: total crawl time vs mass ratio, dock margin vs mass ratio
-- Generate publication figure: Pareto frontier of mass ratio vs crawl performance
+This is the hardest problem and may not be achievable with the current controller architecture.
 
 ---
 
@@ -175,27 +170,35 @@ The `tau_struct_max` constraint bounds the disturbance torque but does not model
 
 | Parameter | Default | Effect |
 |-----------|---------|--------|
-| `tau_struct_max` | `inf` | Structure disturbance torque bound [Nm]. `inf` = disabled. |
-| `t_settle_inter` | `0.0` | Inter-step settle duration [s]. `0` = disabled. Recommended: `2.0` for mass ratio > 0.5%. |
-| `ext_alpha_ee` | `1e4` | EXT phase EE task weight. Close-approach QP uses 10x this value. |
-| `ext_alpha_com` | `1e2` | EXT phase CoM task weight. Close-approach QP uses 0.1x this value. |
+| `tau_struct_max` | `inf` | Structure disturbance torque bound [Nm]. `inf` = disabled. Untested with finite values. |
+| `t_settle_inter` | `0.0` | Inter-step settle duration [s]. `0` = disabled. |
+| `ext_alpha_ee` | `1e4` | EXT phase EE task weight. Close-approach QP uses 10x. |
+| `ext_alpha_com` | `1e2` | EXT phase CoM task weight. Close-approach QP uses 0.1x. |
 | `weld_radius` | `0.005` | Kinematic dock threshold [m]. |
-| `ext_Kp_ee` | `25.0` | EXT phase EE position gain. |
-| `ext_Kd_ee` | `15.0` | EXT phase EE velocity gain. |
 
-### Recommended Configurations
+### Tested Configurations
 
-**0.1% mass ratio (demonstration/validation):**
-```python
-cfg = SimConfig()  # all defaults
-```
-
-**1% mass ratio (nominal mission):**
+**0.1% mass ratio — 3/3 requires settling:**
 ```python
 cfg = SimConfig(t_settle_inter=2.0)
 ```
 
-**Higher mass ratios (requires Phase 1 validation):**
+**1% mass ratio — 3/3 works without settling:**
 ```python
-cfg = SimConfig(t_settle_inter=2.0, tau_struct_max=5.0)  # TBD
+cfg = SimConfig()  # all defaults
+# or with settling for lower structural rotation:
+cfg = SimConfig(t_settle_inter=2.0)
 ```
+
+**8% mass ratio — does not work with any configuration tested.**
+
+---
+
+## 5. Files Changed (vs main)
+
+| File | Change | Clean? |
+|------|--------|--------|
+| `centroidal_nmpc.py` | Ḣ_s constraint (conditional, backward compatible) | Yes |
+| `config.py` | `tau_struct_max`, `t_settle_inter` params | Yes |
+| `sim_loop.py` | Approach velocity, R_ee_ref matching, close-approach QP, inter-step settling with t_offset | Functional but carries complexity (3 QP variants, latched phase flag, 20mm magic number) |
+| `wholebody_qp.py` | **Unchanged** | — |
