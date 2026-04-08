@@ -200,7 +200,7 @@ class SimulationLoop:
             cfg.ext_Kp_ee, cfg.ext_Kd_ee,
             cfg.ext_Kp_ee_ang, cfg.ext_Kd_ee_ang)
 
-        # QP for close approach (d < 10mm): EE-dominant, relax CoM
+        # QP for close approach (d < 20mm): relax CoM/Torso to let EE converge
         self.qp_approach = self._build_qp(
             cfg.ext_alpha_com * 0.1, cfg.ext_alpha_torso * 0.1,
             cfg.ext_alpha_ee * 10, cfg.ext_alpha_posture,
@@ -468,12 +468,8 @@ class SimulationLoop:
                     t_ext_start = t
                     docked = False
                     torso_frozen = False
-                    d_prev = np.inf
                     close_approach = False
                     while t < t_ext_start + cfg.t_ext_max and not docked:
-                        # Close approach: switch to EE-dominant QP (latched)
-                        if d_prev < 0.020:
-                            close_approach = True
                         ext_phase = 'EXT_CLOSE' if close_approach else 'EXT'
                         hw, L_com_prev = self._step(
                             t, ext_phase, step_idx, swing_arm, stance_arm,
@@ -483,7 +479,11 @@ class SimulationLoop:
 
                         mujoco.mj_forward(self.mj_model, self.mj_data)
                         d = self._gripper_distance(swing_arm, target_idx)
-                        d_prev = d
+
+                        # Latch close-approach mode: once d < 20mm, stay in
+                        # EE-dominant QP for the rest of the EXT phase
+                        if d < 0.020:
+                            close_approach = True
 
                         # Freeze torso when EE is close to stabilize approach
                         if not torso_frozen and d < 0.010:
@@ -678,10 +678,10 @@ class SimulationLoop:
             nmpc_ok = False
         t_nmpc_ms = (time.perf_counter() - t_nmpc_start) * 1000
 
-        # QP inner loop
+        # QP inner loop: select QP variant for current phase
         if phase == 'EXT_CLOSE':
             qp = self.qp_approach
-            phase = 'EXT'  # downstream logic uses 'EXT'
+            phase = 'EXT'   # downstream logic uses 'EXT'
         elif phase == 'EXT':
             qp = self.qp_ext
         else:
@@ -742,21 +742,15 @@ class SimulationLoop:
                 else:
                     v_approach = np.zeros(3)
 
-                # EXT uses 6D task interface but prioritizes position:
-                # during close approach (d < 20mm), zero the angular
-                # Jacobian rows so all DOFs serve position convergence.
-                # Orientation alignment happens naturally during SS;
-                # EXT only needs the final mm of position accuracy.
-                R_tgt = np.eye(3)
+                # During close approach, match orientation reference to actual
+                # pose. This zeros the orientation error so all DOFs serve
+                # position convergence, while keeping the 6D Jacobian for
+                # Coriolis compensation and regularization.
                 if d_ee < 0.020:
-                    J_ee_ext = J_ee.copy()
-                    J_ee_ext[3:, :] = 0.0
-                    Jdq_ext = Jdq_ee.copy()
-                    Jdq_ext[3:] = 0.0
+                    R_tgt = oMf_ee.rotation.copy()
                 else:
-                    J_ee_ext = J_ee
-                    Jdq_ext = Jdq_ee
-                ek = dict(J_ee=J_ee_ext, Jdot_dq_ee=Jdq_ext,
+                    R_tgt = np.eye(3)
+                ek = dict(J_ee=J_ee, Jdot_dq_ee=Jdq_ee,
                           p_ee=p_ee, R_ee=oMf_ee.rotation,
                           p_ee_ref=p_tgt, R_ee_ref=R_tgt,
                           v_ee_ref=np.concatenate([v_approach, np.zeros(3)]),
