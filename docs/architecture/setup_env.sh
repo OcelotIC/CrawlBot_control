@@ -34,7 +34,7 @@ export MUJOCO_GL=osmesa
 echo "[3/7] Repository..."
 if [ ! -d "/home/claude/CrawlBot_control" ]; then
     echo "  Cloning CrawlBot_control..."
-    git clone https://github.com/<OWNER>/CrawlBot_control.git /home/claude/CrawlBot_control
+    git clone https://github.com/OcelotIC/CrawlBot_control.git /home/claude/CrawlBot_control
 else
     echo "  Repository already present"
 fi
