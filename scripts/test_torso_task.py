@@ -15,15 +15,15 @@ TAU_MAX = 10.0       # realistic space actuator
 WELD_R = 0.005       # 5 mm docking tolerance
 
 import mujoco
-from robot_interface import RobotInterface
-from contact_scheduler import ContactScheduler, read_anchors_from_mujoco
-from swing_planner import SwingPlanner
-from ik import dock_configuration
-from simulation_loop import pinocchio_to_mujoco, mujoco_to_pinocchio
-from torso_planner import TorsePlanner
-from solvers.centroidal_nmpc import CentroidalNMPC, CentroidalNMPCConfig
-from solvers.wholebody_qp import WholeBodyQP, WholeBodyQPConfig
-from solvers.contact_phase import ContactPhase
+from crawlbot.core.robot_interface import RobotInterface
+from crawlbot.planning.contact_scheduler import ContactScheduler, read_anchors_from_mujoco
+from crawlbot.planning.swing_planner import SwingPlanner
+from crawlbot.core.ik import dock_configuration
+from crawlbot.core.state_conversions import pinocchio_to_mujoco, mujoco_to_pinocchio
+from crawlbot.planning.torso_planner import TorsoPlanner
+from crawlbot.solvers.centroidal_nmpc import CentroidalNMPC, CentroidalNMPCConfig
+from crawlbot.solvers.wholebody_qp import WholeBodyQP, WholeBodyQPConfig
+from crawlbot.solvers.contact_phase import ContactPhase
 
 # === Setup ===
 mj_model = mujoco.MjModel.from_xml_path(MJCF)
@@ -74,7 +74,7 @@ print(f"Total mass:        {rs.total_mass:.1f} kg")
 
 # === Planners ===
 # Torso planner (replaces CoM planner)
-torso_pl = TorsePlanner(sched, advance_ratio=0.5)
+torso_pl = TorsoPlanner(sched, advance_ratio=0.5)
 torso_pl.build_for_plan(plan, rs.oMf_torso)
 
 # Swing planner

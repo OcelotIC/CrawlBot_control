@@ -14,7 +14,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from robot_interface import RobotInterface, NV
+from crawlbot.core.robot_interface import RobotInterface, NV
 from lutze_baseline.centroidal_model import compute_centroidal_state
 from lutze_baseline.contact_adjoint import compute_dual_contact_adjoints
 from lutze_baseline.momentum_map import compute_momentum_map

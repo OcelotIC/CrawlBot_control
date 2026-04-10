@@ -32,12 +32,12 @@ import pinocchio as pin
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
-from contact_scheduler import ContactScheduler, GaitPhase, GaitPlan
-from solvers.contact_phase import ContactPhase
+from .contact_scheduler import ContactScheduler, GaitPhase, GaitPlan
+from ..solvers.contact_phase import ContactPhase
 
 
-# Default clearance: 8 cm away from the structure surface.
-DEFAULT_CLEARANCE = 0.08
+# Default clearance [m] — matches SimConfig.swing_clearance.
+DEFAULT_CLEARANCE = 0.03
 
 # Normal vector pointing away from the structure surface (structure frame).
 # Structure surface is at z ≈ +0.025 in structure frame; robot hangs below → away = −z.

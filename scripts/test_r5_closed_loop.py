@@ -38,7 +38,8 @@ args = parser.parse_args()
 # Headless rendering
 os.environ.setdefault('MUJOCO_GL', 'disabled')
 
-from simulation_loop import SimulationLoop, SimConfig
+from crawlbot.simulation.sim_loop import SimulationLoop
+from crawlbot.simulation.config import SimConfig
 
 PASS = '\033[92m PASS \033[0m'
 FAIL = '\033[91m FAIL \033[0m'

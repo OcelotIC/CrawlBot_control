@@ -24,10 +24,10 @@ os.environ.setdefault('MUJOCO_GL', 'disabled')
 
 import mujoco
 import pinocchio as pin
-from force_estimator import (
+from crawlbot.aocs.force_estimator import (
     MomentumDisturbanceEstimator, EstimatorConfig, compute_aocs_command)
-from simulation_loop import mujoco_to_pinocchio
-from robot_interface import RobotInterface
+from crawlbot.core.state_conversions import mujoco_to_pinocchio
+from crawlbot.core.robot_interface import RobotInterface
 
 PASS = '\033[92m PASS \033[0m'
 FAIL = '\033[91m FAIL \033[0m'
@@ -267,8 +267,8 @@ print('  T4 — Conservation: H_{r/O} + h_w + L_struct ≈ 0')
 print('=' * 70)
 
 # Proper initialization: use IK dock config like SimulationLoop.setup()
-from ik import dock_configuration
-from contact_scheduler import ContactScheduler, read_anchors_from_mujoco
+from crawlbot.core.ik import dock_configuration
+from crawlbot.planning.contact_scheduler import ContactScheduler, read_anchors_from_mujoco
 
 mj_data3 = mujoco.MjData(mj_model)
 mujoco.mj_forward(mj_model, mj_data3)

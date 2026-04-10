@@ -49,7 +49,9 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import mujoco
 import pinocchio as pin
-from simulation_loop import SimulationLoop, SimConfig, mujoco_to_pinocchio
+from crawlbot.simulation.sim_loop import SimulationLoop
+from crawlbot.simulation.config import SimConfig
+from crawlbot.core.state_conversions import mujoco_to_pinocchio
 
 # ---------------------------------------------------------------------------
 print('\n' + '='*65)

@@ -23,8 +23,9 @@ parser.add_argument('--mjcf', default=os.path.join(_root, 'models', 'VISPA_crawl
 args = parser.parse_args()
 
 import mujoco, pinocchio as pin
-from simulation_loop import SimulationLoop, mujoco_to_pinocchio
-from contact_scheduler import read_anchors_from_mujoco
+from crawlbot.simulation.sim_loop import SimulationLoop
+from crawlbot.core.state_conversions import mujoco_to_pinocchio
+from crawlbot.planning.contact_scheduler import read_anchors_from_mujoco
 
 PASS = '\033[92m PASS \033[0m'; FAIL = '\033[91m FAIL \033[0m'
 n_pass = n_fail = 0

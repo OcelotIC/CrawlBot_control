@@ -77,7 +77,7 @@ print('\n' + '=' * 70)
 print('  T3 — mujoco_to_pinocchio coherence')
 print('=' * 70)
 
-from simulation_loop import mujoco_to_pinocchio
+from crawlbot.core.state_conversions import mujoco_to_pinocchio
 
 d = mujoco.MjData(m)
 mujoco.mj_forward(m, d)
@@ -200,7 +200,7 @@ check('T8 — Original model nu=12',
       m_orig.nu == 12, f'got nu={m_orig.nu}')
 
 # T9: Verify pinocchio_to_mujoco backward compat (original layout)
-from simulation_loop import pinocchio_to_mujoco
+from crawlbot.core.state_conversions import pinocchio_to_mujoco
 pin_q_test = np.zeros(19)
 pin_q_test[0:3] = [1, 2, 3]
 pin_q_test[3:7] = [0, 0, 0, 1]  # xyzw

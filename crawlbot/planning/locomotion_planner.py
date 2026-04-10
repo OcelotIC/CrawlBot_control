@@ -21,8 +21,8 @@ Strategy:
 import numpy as np
 from typing import Tuple, List, Optional
 
-from contact_scheduler import ContactScheduler, GaitPlan, GaitPhase
-from solvers.contact_phase import ContactPhase
+from .contact_scheduler import ContactScheduler, GaitPlan, GaitPhase
+from ..solvers.contact_phase import ContactPhase
 
 
 # Height of CoM below the structure plane (robot hangs underneath)

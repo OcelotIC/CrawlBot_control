@@ -47,7 +47,7 @@ print('\n' + '='*60)
 print('  TEST 1: RobotInterface (Pinocchio wrapper)')
 print('='*60)
 
-from robot_interface import RobotInterface
+from crawlbot.core.robot_interface import RobotInterface
 
 robot = RobotInterface(args.urdf, gravity='zero')
 check('model loads', robot.model.nq == 19 and robot.model.nv == 18,
@@ -80,8 +80,8 @@ print('  TEST 2: Inverse Kinematics')
 print('='*60)
 
 import mujoco
-from contact_scheduler import ContactScheduler, read_anchors_from_mujoco
-from ik import dock_configuration
+from crawlbot.planning.contact_scheduler import ContactScheduler, read_anchors_from_mujoco
+from crawlbot.core.ik import dock_configuration
 
 mj_model = mujoco.MjModel.from_xml_path(args.mjcf)
 mj_data = mujoco.MjData(mj_model)
@@ -144,7 +144,7 @@ for i, sp in enumerate(ss_phases):
     check(f'swing {i}: d={dist:.2f}m > 0', dist > 0.5)
 
 # Contact config queries
-from solvers.contact_phase import ContactPhase
+from crawlbot.solvers.contact_phase import ContactPhase
 cc_ds = sched.contact_config_at(0.1)
 cc_ss = sched.contact_config_at(plan.t_start[1] + 0.1)
 check('DS: nc=2', cc_ds.nc == 2)
@@ -157,7 +157,7 @@ print('\n' + '='*60)
 print('  TEST 4: Swing Planner')
 print('='*60)
 
-from swing_planner import SwingPlanner
+from crawlbot.planning.swing_planner import SwingPlanner
 
 swing = SwingPlanner(sched, clearance=0.08)
 
@@ -185,7 +185,7 @@ print('\n' + '='*60)
 print('  TEST 5: Locomotion Planner (CoM trajectory)')
 print('='*60)
 
-from locomotion_planner import LocomotionPlanner
+from crawlbot.planning.locomotion_planner import LocomotionPlanner
 
 lp = LocomotionPlanner(sched)
 lp.calibrate_from_config(rs_dock.r_com)
@@ -204,7 +204,7 @@ print('\n' + '='*60)
 print('  TEST 6: Pinocchio ↔ MuJoCo State Conversion')
 print('='*60)
 
-from simulation_loop import pinocchio_to_mujoco, mujoco_to_pinocchio
+from crawlbot.core.state_conversions import pinocchio_to_mujoco, mujoco_to_pinocchio
 
 struct_pos = mj_data.qpos[0:3].copy()
 struct_quat = mj_data.qpos[3:7].copy()
@@ -225,7 +225,7 @@ print('\n' + '='*60)
 print('  TEST 7: Centroidal NMPC (CasADi/IPOPT)')
 print('='*60)
 
-from solvers.centroidal_nmpc import CentroidalNMPC, CentroidalNMPCConfig
+from crawlbot.solvers.centroidal_nmpc import CentroidalNMPC, CentroidalNMPCConfig
 
 nmpc_cfg = CentroidalNMPCConfig(
     robot_mass=rs_dock.total_mass, N=20, dt=0.05,
@@ -268,7 +268,7 @@ print('\n' + '='*60)
 print('  TEST 8: WholeBody QP (qpOASES)')
 print('='*60)
 
-from solvers.wholebody_qp import WholeBodyQP, WholeBodyQPConfig
+from crawlbot.solvers.wholebody_qp import WholeBodyQP, WholeBodyQPConfig
 
 qp_cfg = WholeBodyQPConfig(
     nq=12, nc_max=2, dt_qp=0.008,
