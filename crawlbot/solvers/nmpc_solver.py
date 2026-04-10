@@ -491,6 +491,18 @@ class NMPCSolver:
 
         self._w0_prev = self._build_w0_from_trajectories(x_shifted, u_shifted)
 
+    def reset_warm_start(self) -> None:
+        """Clear the stored warm-start (decision and dual variables).
+
+        Call this at phase transitions (DS -> SS, SS -> DS) so the next
+        solve starts from a cold initial guess. Without this, the solver
+        may get stuck on a trajectory that was feasible under the previous
+        phase's contact configuration but is infeasible under the new one.
+        """
+        self._w0_prev = None
+        self._lam_g0_prev = None
+        self._lam_x0_prev = None
+
     # ------------------------------------------------------------------ #
     #  Private helpers                                                     #
     # ------------------------------------------------------------------ #
