@@ -299,22 +299,32 @@ def compute_aocs_command_legacy_corrected(
 ) -> np.ndarray:
     """Corrected legacy AOCS command with the orbital term (§5.8 / M4).
 
-    Legacy formula (currently in sim_loop.py) was:
+    Sign derivation (MuJoCo convention, verified empirically):
+        ctrl[rw_i] is the motor torque on the wheel joint DOF.
+        Ḣ_wheels = +ctrl[rw_i]  (wheel accelerates positively)
+        Ḣ_struct = -ctrl[rw_i]  (Newton's third law reaction)
 
-        τ_w = -L̇_com_est - K_hw · (h_w - clip(h_w, bounds))
+    Feedforward (cancel the robot's angular-momentum disturbance):
+        conservation ⇒ Ḣ_struct = -ctrl[rw] - Ḣ_robot
+        Ḣ_robot = L̇_com + r_com × m·v̇_com ≡ L_dot_est + orbital
+        For Ḣ_struct = 0 : ctrl[rw] = -L_dot_est - orbital        ✓
 
-    The M4 fix adds the missing orbital rate term so that the wheels
-    reject the full disturbance about O_s, not just the centroidal
-    (spin) component:
+    Desaturation (pull h_w back into the box):
+        Ḣ_wheels = +ctrl[rw]; we want ḣ_w → hw_target, i.e.,
+            ḣ_w = K_hw · (hw_target − h_w)
+        With  hw_error := clip(h_w, box) − h_w = hw_target − h_w:
+            ctrl[rw] += +K_hw · hw_error
+        The "+" is correct — the code used to have "−K_hw · hw_error"
+        which actively accelerated a saturated wheel AWAY from the
+        box (verified 04/2026: with h_w=+7, K_hw=2, the old formula
+        drove h_w to +8.96 Nms over 1 s; the corrected form drives
+        it to +4.97 Nms).
 
-        τ_w = -L̇_com_est
-              - r_com × m · v̇_com_est          <-- NEW (orbital rate)
-              - K_hw · (h_w - clip(h_w, bounds))
+    Full command:
+        τ_w = -L̇_com_est - r_com × m·v̇_com_est + K_hw · hw_error
 
-    This matches the decomposition from §4.5–4.6:
-        Ḣ_{r/O} = L̇_com + r_com × m · v̇_com   (struct-frame derivative)
-    The legacy formula had only the first term, which is why the
-    platform rotated ~24° at 14 % mass ratio in the M0 baseline.
+    The orbital term r_com × m·v̇_com_est was missing from the
+    original legacy formula and is the M4 correction.
 
     All quantities are in the structure frame. Finite differences are
     one-step (suitable at dt_qp = 0.01 s). The `v_com_prev` and
@@ -356,5 +366,6 @@ def compute_aocs_command_legacy_corrected(
     # Desaturation: drive h_w back into the feasible box.
     hw_error = np.clip(hw_current, hw_min, hw_max) - hw_current
 
-    tau_w = -L_dot_est - orbital - K_hw * hw_error
+    # Sign: +K_hw·hw_error, not −K_hw·hw_error (see docstring).
+    tau_w = -L_dot_est - orbital + K_hw * hw_error
     return np.clip(tau_w, -tau_w_max, tau_w_max)

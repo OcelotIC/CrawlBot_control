@@ -1336,9 +1336,12 @@ class SimulationLoop:
                         tau_w_max=cfg.aocs_tau_w_max)
                 else:
                     # Legacy AOCS: L_dot feedforward only (spin component).
+                    # Desaturation sign matches compute_aocs_command_legacy_corrected
+                    # (+K_hw·hw_error). See that function's docstring for the
+                    # MuJoCo-convention derivation.
                     L_dot_est = (rs.L_com - _L_com_qp_prev) / cfg.dt_qp
                     hw_error = np.clip(hw_phys, cfg.hw_min, cfg.hw_max) - hw_phys
-                    tau_w_cmd = -L_dot_est - cfg.aocs_K_hw * hw_error
+                    tau_w_cmd = -L_dot_est + cfg.aocs_K_hw * hw_error
                     tau_w_cmd = np.clip(tau_w_cmd, -cfg.aocs_tau_w_max, cfg.aocs_tau_w_max)
 
                 if self._diag_disable_aocs:

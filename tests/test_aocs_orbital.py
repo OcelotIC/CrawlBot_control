@@ -34,10 +34,19 @@ ROBOT_MASS = 71.0
 
 def _legacy_uncorrected(L_com, L_com_prev, hw_current,
                         dt, K_hw, hw_min, hw_max, tau_w_max):
-    """Reproduce the original sim_loop legacy formula for comparison."""
+    """Reproduce the sim_loop legacy (no-orbital) formula for comparison.
+
+    Formula after the 04/2026 desaturation sign fix:
+        τ_w = -L̇_com_est + K_hw · hw_error,  hw_error := clip - current
+
+    Note: the previous version of this helper had "-K_hw·hw_error" to
+    match the pre-fix sim_loop inline legacy. Both the helper and the
+    sim_loop formula were updated together so this test continues to
+    verify the sim_loop↔force_estimator equivalence.
+    """
     L_dot_est = (L_com - L_com_prev) / dt
     hw_error = np.clip(hw_current, hw_min, hw_max) - hw_current
-    tau_w = -L_dot_est - K_hw * hw_error
+    tau_w = -L_dot_est + K_hw * hw_error
     return np.clip(tau_w, -tau_w_max, tau_w_max)
 
 
@@ -101,8 +110,16 @@ class TestOrbitalTerm:
 
     def test_desaturation_term_alone(self):
         """With zero accelerations and zero centroidal rate but hw out
-        of bounds, the output should be the desaturation feedback
-        -K_hw * (h_w - clip(h_w, bounds))."""
+        of bounds, the output should be the desaturation feedback.
+
+        After the 04/2026 sign fix:
+            τ_w = -L_dot - orbital + K_hw·hw_error
+        With h_w=+7 above the +5 box, hw_error = clip - current = -2,
+        so the command is -4 Nm which (in MuJoCo's ctrl sign) applies
+        +4 Nm of torque on the wheel...wait — ctrl[rw] = -4 applies
+        -4 Nm on the wheel (decelerating it → h_w decreases → toward
+        the box). Verified empirically: h_w = +7 → +4.97 after 1 s.
+        """
         hw = np.array([7.0, 0.0, 0.0])  # above +5 bound on x
         hw_min = np.full(3, -5.0)
         hw_max = np.full(3, 5.0)
@@ -115,8 +132,8 @@ class TestOrbitalTerm:
             hw_current=hw, dt=0.01, robot_mass=ROBOT_MASS,
             K_hw=K_hw, hw_min=hw_min, hw_max=hw_max, tau_w_max=100.0)
         # hw_error = clip(7, -5, 5) - 7 = -2
-        # τ_w = -L_dot - orbital - K_hw * hw_error = 0 - 0 - 2*(-2) = +4
-        np.testing.assert_allclose(tw, np.array([4.0, 0.0, 0.0]), atol=1e-12)
+        # τ_w = -L_dot - orbital + K_hw * hw_error = 0 - 0 + 2*(-2) = -4
+        np.testing.assert_allclose(tw, np.array([-4.0, 0.0, 0.0]), atol=1e-12)
 
     def test_clipping_to_tau_w_max(self):
         """Large orbital + centroidal rates should be clipped."""
