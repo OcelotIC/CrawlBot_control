@@ -53,13 +53,25 @@ class SimConfig:
     aocs_tau_w_max: float = 5.0   # Max wheel torque [Nm]
     rwa_I_w: float = 0.01         # Wheel spin inertia [kg·m²]
 
-    # Mode: 'legacy' | 'H_est' | 'nmpc_plan'
+    # Mode: 'legacy' | 'legacy_corrected' | 'H_est' | 'nmpc_plan'
     aocs_mode: str = 'legacy'
     aocs_use_H_estimator: bool = False     # use aocs_mode to select
+    aocs_use_legacy_corrected: bool = False  # M4: add r_com × m·dv_com term
     aocs_filter_tau: float = 0.016
     aocs_K_omega: float = 50.0
     aocs_K_h: float = 0.5
     aocs_hw_target: np.ndarray = field(default_factory=lambda: np.zeros(3))
+
+    # ── M2: reworked QP task stack ──────────────────────────────
+    use_m2_stack: bool = False    # Enable reworked QP (torso P1 + EE null-space P2 + soft CoM)
+    alpha_com_soft: float = 5.0   # Weight for the soft CoM residual
+    alpha_passivity: float = 1.0  # DS passivity decay rate [1/s]
+
+    # ── M3: NMPC conservation-law box constraint ────────────────
+    enforce_hw_conservation: bool = False  # Enable B2 Option B hw box
+    h_max_tight: np.ndarray = field(default_factory=lambda: np.full(3, 5.0))  # Tightened [Nms]
+    w_L_nmpc: float = 1.0         # Cost weight on ||L_com - L_com_ref||²
+    kappa_terminal: float = 1.0   # Terminal margin multiplier
 
     # ── NMPC solver ─────────────────────────────────────────────
     nmpc_N: int = 8

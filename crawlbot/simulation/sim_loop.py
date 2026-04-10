@@ -162,8 +162,30 @@ class SimulationLoop:
         self._activate_weld('b', start_b)
         mujoco.mj_forward(self.mj_model, self.mj_data)
 
+        # Settling phase: the weld activation injects ~300 N of constraint
+        # force that oscillates the joints. Pure physics settling barely
+        # damps this at all (verified: |qvel| goes 0 -> 3.0 -> 0.9 over
+        # 500 steps). Apply a strong joint-velocity damping torque during
+        # settling to absorb the weld-snap energy before control starts.
+        Kd_settle = 20.0  # [Nm·s/rad] per joint
+        n_j = self.robot.n_joints
         for _ in range(cfg.n_settle_steps):
+            # Damping torque on actuated joints only (not torso, not RWA)
+            dq_j = self.mj_data.qvel[-n_j - (3 if self.has_rwa else 0):
+                                      None if not self.has_rwa else -3]
+            tau_damp = -Kd_settle * dq_j
+            # Clip to tau_max so we don't explode
+            tau_damp = np.clip(tau_damp, -cfg.tau_max, cfg.tau_max)
+            self.mj_data.ctrl[:n_j] = tau_damp
             mujoco.mj_step(self.mj_model, self.mj_data)
+        # Zero control command after settling so the main loop starts clean.
+        self.mj_data.ctrl[:] = 0.0
+        # Also zero the remaining velocity — the weld constraints absorb
+        # the snap displacement into the structure, so after damping the
+        # residual velocity is pure numerical noise that we can safely
+        # discard for a clean t=0 initial condition.
+        self.mj_data.qvel[:] = 0.0
+        mujoco.mj_forward(self.mj_model, self.mj_data)
 
         # CoM calibration
         rs0 = self.robot.update(
@@ -173,7 +195,10 @@ class SimulationLoop:
         # Site IDs
         self._cache_site_ids()
 
-        # NMPC — plans robot motion only (hw managed by AOCS independently)
+        # NMPC — plans robot motion only (hw managed by AOCS independently).
+        # M3: when enforce_hw_conservation is on, the NMPC adds a
+        # conservation-law box constraint at every knot using
+        # c_simple = h_w_0 + L_com_0 + r_com_0 × m·v_com_0.
         self.nmpc = CentroidalNMPC(CentroidalNMPCConfig(
             robot_mass=rs0.total_mass,
             N=cfg.nmpc_N, dt=cfg.nmpc_dt,
@@ -181,7 +206,11 @@ class SimulationLoop:
             L_max=cfg.L_max, tau_w_max=cfg.tau_w_max,
             tau_struct_max=cfg.tau_struct_max,
             p_max=cfg.nmpc_p_max,
-            Wv=cfg.nmpc_Wv * np.ones(3)))
+            Wv=cfg.nmpc_Wv * np.ones(3),
+            enforce_hw_conservation=cfg.enforce_hw_conservation,
+            h_max_tight=cfg.h_max_tight,
+            w_L=cfg.w_L_nmpc,
+            kappa_terminal=cfg.kappa_terminal))
         self.nmpc.build()
 
         # QP variants
@@ -254,10 +283,15 @@ class SimulationLoop:
                    kpc, kdc, kpt, kdt, kpe, kde,
                    kpe_ang=5.0, kde_ang=3.0):
         cfg = self.cfg
+        # M2: when use_m2_stack is on, the explicit CoM task is dropped,
+        # the torso 6D task becomes primary P1, EE is null-space projected
+        # against the torso task, and a soft CoM residual cost is added.
         c = WholeBodyQPConfig(
             nq=self.robot.n_joints, nc_max=2, dt_qp=cfg.dt_qp,
             tau_max=cfg.tau_max * np.ones(self.robot.n_joints),
-            alpha_com=ac, alpha_torso=at, alpha_ee=ae,
+            alpha_com=ac if not cfg.use_m2_stack else 0.0,
+            alpha_torso=at,
+            alpha_ee=ae,
             alpha_posture=ap, alpha_wrench=aw,
             alpha_reaction=ar_react,
             alpha_torque=1e0, alpha_reg=1e-2,
@@ -267,7 +301,11 @@ class SimulationLoop:
             Kp_ee=kpe * np.ones(3), Kd_ee=kde * np.ones(3),
             Kp_ee_ang=kpe_ang * np.ones(3), Kd_ee_ang=kde_ang * np.ones(3),
             Kp_posture=1.0, Kd_posture=1.5,
-            L_max=cfg.L_max, tau_w_max=cfg.tau_w_max)
+            L_max=cfg.L_max, tau_w_max=cfg.tau_w_max,
+            use_m2_stack=cfg.use_m2_stack,
+            ee_null_space=cfg.use_m2_stack,
+            alpha_com_soft=cfg.alpha_com_soft,
+            alpha_passivity=cfg.alpha_passivity)
         qp = WholeBodyQP(c)
         qp.set_nominal_posture(self.q_dock_init[self.robot.joints_q_slice])
         return qp
@@ -451,6 +489,10 @@ class SimulationLoop:
                                            f'release_step{step_idx}')
                     old_anchor = ss_gp.swing_from_idx
                     self._deactivate_weld(swing_arm, old_anchor)
+                    # M3: reset NMPC warm start at the DS→SS transition —
+                    # contact configuration has changed, so the previous
+                    # solution is no longer feasible.
+                    self.nmpc.reset_warm_start()
                     # Reset GMO on phase transition (contact force discontinuity)
                     pq_r, pv_r = mujoco_to_pinocchio(
                         self.mj_data.qpos, self.mj_data.qvel)
@@ -535,6 +577,8 @@ class SimulationLoop:
                     if docked:
                         self._activate_weld(swing_arm, target_idx)
                         mujoco.mj_forward(self.mj_model, self.mj_data)
+                        # M3: reset NMPC warm start at SS→DS transition too.
+                        self.nmpc.reset_warm_start()
 
                         # Inelastic impact: project velocity onto new constraint
                         # manifold. The weld creates a bilateral constraint that
@@ -683,11 +727,18 @@ class SimulationLoop:
         nmpc_status_code = 0  # 0=ok, 1=max_iter, 2=infeasible
         nmpc_cost_val = np.inf
         t_nmpc_start = time.perf_counter()
+        # M3: pass current hw (wheel momentum) so NMPC can compute c_simple
+        # for the conservation-law box. L_com_ref is still stubbed to zero.
+        if self.has_rwa:
+            hw_for_nmpc = (cfg.rwa_I_w * self.mj_data.qvel[6:9]).copy()
+        else:
+            hw_for_nmpc = hw.copy()
         try:
             rp, vp, _, lr, info_n = self.nmpc.solve(
                 r_com=rs.r_com, v_com=rs.v_com, L_com=rs.L_com,
                 r_com_ref=cref.r_com, v_com_ref=cref.v_com,
-                contact_config=cc_nmpc, warm_start=True)
+                contact_config=cc_nmpc, warm_start=True,
+                hw_current=hw_for_nmpc)
             af = self.nmpc.compute_feedforward_acceleration(lr)
             nmpc_ok = info_n.success
             nmpc_cost_val = float(info_n.cost) if np.isfinite(info_n.cost) else np.inf
@@ -717,6 +768,9 @@ class SimulationLoop:
             ss_end = t + cfg.dt_nmpc  # fallback
 
         _L_com_qp_prev = rs.L_com.copy()
+        # M4: track v_com across QP sub-steps to estimate dv_com for the
+        # orbital feedforward term r_com × m·dv_com_est.
+        _v_com_qp_prev = rs.v_com.copy()
 
         for qs in range(self.n_qp_per_nmpc):
             tq = t + qs * cfg.dt_qp
@@ -782,6 +836,11 @@ class SimulationLoop:
                         else self.robot.arm_a_v_slice)
             H_bs = rs.H[:6, sw_slice]
 
+            # M2: enable passivity inequality during DS (settling) when the
+            # reworked task stack is active. settle_mode already bypasses
+            # torso/EE tasks; passivity just adds dq^T*tau_q + 2α*T ≤ 0.
+            passivity_active = bool(cfg.use_m2_stack and phase == 'DS')
+
             try:
                 _, _, lambda_qp_sol, tau, _ = qp.solve(
                     q_t=rs.q_torso, dq_t=rs.dq_torso,
@@ -795,6 +854,7 @@ class SimulationLoop:
                     r_com=rs.r_com, L_com_current=rs.L_com,
                     H_base_swing=H_bs, swing_v_slice=sw_slice,
                     settle_mode=settle_mode,
+                    passivity_active=passivity_active,
                     **tkw, **ek)
             except Exception:
                 tau = np.zeros(12)
@@ -826,6 +886,19 @@ class SimulationLoop:
                         K_omega=cfg.aocs_K_omega,
                         K_h=cfg.aocs_K_h,
                         tau_w_max=cfg.aocs_tau_w_max)
+                elif cfg.aocs_use_legacy_corrected:
+                    # M4: legacy formula + missing orbital term r × m·dv_com.
+                    from crawlbot.aocs.force_estimator import (
+                        compute_aocs_command_legacy_corrected)
+                    tau_w_cmd = compute_aocs_command_legacy_corrected(
+                        L_com=rs.L_com, L_com_prev=_L_com_qp_prev,
+                        r_com=rs.r_com, v_com=rs.v_com,
+                        v_com_prev=_v_com_qp_prev,
+                        hw_current=hw_phys, dt=cfg.dt_qp,
+                        robot_mass=self.robot._total_mass,
+                        K_hw=cfg.aocs_K_hw,
+                        hw_min=cfg.hw_min, hw_max=cfg.hw_max,
+                        tau_w_max=cfg.aocs_tau_w_max)
                 else:
                     # Legacy AOCS: L_dot feedforward only (spin component).
                     L_dot_est = (rs.L_com - _L_com_qp_prev) / cfg.dt_qp
@@ -838,6 +911,7 @@ class SimulationLoop:
                 _omega_s_last = omega_s.copy()
 
             _L_com_qp_prev = rs.L_com.copy()
+            _v_com_qp_prev = rs.v_com.copy()
             mujoco.mj_step(self.mj_model, self.mj_data)
 
             omega_s_post = self.mj_data.qvel[3:6].copy()
