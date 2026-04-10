@@ -124,3 +124,18 @@ class SimConfig:
 
     # ── MuJoCo settling ────────────────────────────────────────
     n_settle_steps: int = 500
+
+    # ── Setup-phase settling (weld-snap absorption + passivity decay) ──
+    # Stage 1: pure joint damping (~100 steps) to absorb the weld
+    # activation impulse (~300 N) that pure physics can't handle cleanly.
+    # Stage 2: M2 QP with passivity_active=True, drives kinetic energy
+    # toward T_settle = 0.5 * epsilon_v^2 * lambda_min(H).
+    # Exit stage 2 when EITHER:
+    #   (a) T < T_settle, or
+    #   (b) T stops decreasing (plateau detection), or
+    #   (c) n_settle_max_steps reached (safety cap).
+    n_settle_damping_steps: int = 100       # stage 1: hard-damped steps
+    Kd_settle_damping: float = 20.0         # Nm·s/rad per joint (stage 1)
+    n_settle_max_steps: int = 1000          # stage 2: safety cap
+    settle_epsilon_v: float = 1e-3          # target ‖dq_full‖ bound [m/s]
+    settle_plateau_ratio: float = 0.999     # T(k+50) > ratio·T(k) → plateau

@@ -264,10 +264,40 @@ def _fig3_com(t, phases, docks, log, out, dpi):
 # ── Figure 4: Energy & passivity ────────────────────────────────────────────
 
 def _fig4_energy(t, phases, log, out, dpi):
-    fig, axes = plt.subplots(2, 1, figsize=(12, 5), sharex=True)
+    has_settling = (hasattr(log, 'settling_T') and len(log.settling_T) > 0)
+    n_rows = 3 if has_settling else 2
+    fig, axes = plt.subplots(n_rows, 1, figsize=(12, 7 if has_settling else 5))
 
-    # (a) Kinetic energy
-    ax = axes[0]
+    # (a0) Setup-phase settling energy decay (optional, M4+)
+    if has_settling:
+        ax = axes[0]
+        ts = _to_np(log.settling_t)
+        Ts = _to_np(log.settling_T)
+        Ts_plot = np.maximum(Ts, 1e-14)
+        ax.semilogy(ts, Ts_plot, 'k', lw=1.0, label='T_kin')
+        T_target = float(getattr(log, 'settling_T_target', 0.0))
+        if T_target > 0:
+            ax.axhline(T_target, color='red', ls='--', lw=0.8,
+                       label=f'T_settle={T_target:.2e} J')
+        n1 = int(getattr(log, 'settling_stage1_steps', 0))
+        n2 = int(getattr(log, 'settling_stage2_steps', 0))
+        dt_qp = ts[1] - ts[0] if len(ts) >= 2 else 0.01
+        t_stage1_end = n1 * dt_qp
+        if n1 > 0:
+            ax.axvline(t_stage1_end, color='blue', ls=':', lw=0.8,
+                       label=f'stage1 end ({n1} steps)')
+        exit_reason = getattr(log, 'settling_exit_reason', '')
+        ax.set_title(f'Fig 4: Energy & Passivity — setup-phase settling '
+                     f'(stage1={n1}, stage2={n2}, exit={exit_reason})')
+        ax.set_ylabel('Setup T_kin [J]')
+        ax.legend(fontsize=8, loc='upper right')
+        ax.grid(True, alpha=0.3)
+        start_idx = 1  # axes[0] used for settling
+    else:
+        start_idx = 0
+
+    # (a) Kinetic energy during the main sim
+    ax = axes[start_idx]
     if _has(log, 'T_kinetic'):
         Tk = _to_np(log.T_kinetic)
         Tk_plot = np.maximum(Tk, 1e-12)
@@ -275,11 +305,12 @@ def _fig4_energy(t, phases, log, out, dpi):
         _phase_shading(ax, t, phases)
     else:
         _na_text(ax)
-    ax.set_ylabel('T_kinetic [J]')
-    ax.set_title('Fig 4: Energy & Passivity')
+    ax.set_ylabel('Run T_kin [J]')
+    if not has_settling:
+        ax.set_title('Fig 4: Energy & Passivity')
 
     # (b) Passivity LHS
-    ax = axes[1]
+    ax = axes[start_idx + 1]
     _na_text(ax, "N/A — passivity_lhs not yet logged")
     ax.set_ylabel('Passivity LHS')
     ax.set_xlabel('Time [s]')

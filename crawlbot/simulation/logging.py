@@ -95,6 +95,14 @@ class SimLog:
     # Energy / passivity
     T_kinetic: list = field(default_factory=list)       # 0.5 * dq^T H dq
 
+    # Setup-phase settling (populated by _settle_setup)
+    settling_t: list = field(default_factory=list)      # (n,) time [s]
+    settling_T: list = field(default_factory=list)      # (n,) kinetic energy [J]
+    settling_T_target: float = 0.0                      # T_settle threshold
+    settling_stage1_steps: int = 0
+    settling_stage2_steps: int = 0
+    settling_exit_reason: str = ''
+
     # Dock events
     dock_events: list = field(default_factory=list)
 
@@ -109,8 +117,11 @@ class SimLog:
                 d[k] = [(t, q.tolist() if hasattr(q, 'tolist') else q,
                           v_.tolist() if hasattr(v_, 'tolist') else v_, lbl)
                          for t, q, v_, lbl in v]
-            else:
+            elif isinstance(v, list):
                 d[k] = [x.tolist() if hasattr(x, 'tolist') else x for x in v]
+            else:
+                # Scalar fields (e.g. settling_T_target, settling_stage1_steps)
+                d[k] = v
         return d
 
     def save(self, path: str):

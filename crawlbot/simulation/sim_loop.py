@@ -162,35 +162,11 @@ class SimulationLoop:
         self._activate_weld('b', start_b)
         mujoco.mj_forward(self.mj_model, self.mj_data)
 
-        # Settling phase: the weld activation injects ~300 N of constraint
-        # force that oscillates the joints. Pure physics settling barely
-        # damps this at all (verified: |qvel| goes 0 -> 3.0 -> 0.9 over
-        # 500 steps). Apply a strong joint-velocity damping torque during
-        # settling to absorb the weld-snap energy before control starts.
-        Kd_settle = 20.0  # [Nm·s/rad] per joint
-        n_j = self.robot.n_joints
-        for _ in range(cfg.n_settle_steps):
-            # Damping torque on actuated joints only (not torso, not RWA)
-            dq_j = self.mj_data.qvel[-n_j - (3 if self.has_rwa else 0):
-                                      None if not self.has_rwa else -3]
-            tau_damp = -Kd_settle * dq_j
-            # Clip to tau_max so we don't explode
-            tau_damp = np.clip(tau_damp, -cfg.tau_max, cfg.tau_max)
-            self.mj_data.ctrl[:n_j] = tau_damp
-            mujoco.mj_step(self.mj_model, self.mj_data)
-        # Zero control command after settling so the main loop starts clean.
-        self.mj_data.ctrl[:] = 0.0
-        # Also zero the remaining velocity — the weld constraints absorb
-        # the snap displacement into the structure, so after damping the
-        # residual velocity is pure numerical noise that we can safely
-        # discard for a clean t=0 initial condition.
-        self.mj_data.qvel[:] = 0.0
-        mujoco.mj_forward(self.mj_model, self.mj_data)
-
-        # CoM calibration
+        # Initial CoM calibration (no settling yet — state is hot from the
+        # weld activation, but we only need total_mass + frame IDs for
+        # building the NMPC/QP, which are invariant to velocity.)
         rs0 = self.robot.update(
             *mujoco_to_pinocchio(self.mj_data.qpos, self.mj_data.qvel))
-        # LocomotionPlanner removed — CoM reference from TorsoPlanner
 
         # Site IDs
         self._cache_site_ids()
@@ -266,6 +242,16 @@ class SimulationLoop:
         self.contact_sm = ContactStateMachine(obs_cfg)
         self._contact_confirmed = False
 
+        # ── Two-stage setup settling ──────────────────────────────────
+        # Stage 1: strong joint-velocity damping for n_settle_damping_steps
+        #          steps to absorb the weld activation impulse.
+        # Stage 2: M2 QP with settle_mode + passivity_active, exit when
+        #          T_kin < 0.5·epsilon_v²·lambda_min(H).
+        #
+        # qvel is NEVER zeroed — the passivity-constrained QP dissipates
+        # momentum via joint torques, respecting dynamics.
+        self._settling_log = self._settle_setup(start_a, start_b)
+
         print(f"[SimulationLoop] Initialized:")
         print(f"  Robot mass:     {rs0.total_mass:.1f} kg")
         print(f"  RWA model:      {'YES (3 wheels)' if self.has_rwa else 'NO'}")
@@ -278,6 +264,188 @@ class SimulationLoop:
               f"tau_joint={cfg.tau_max} Nm")
         print(f"  hw bounds:      [{cfg.hw_min[0]:.1f}, {cfg.hw_max[0]:.1f}] Nms")
         print(f"  Dock threshold: {cfg.weld_radius*1000:.1f} mm")
+        s = self._settling_log
+        T_dt = cfg.dt_qp
+        settle_time = (s['stage1_steps'] + s['stage2_steps']) * T_dt
+        print(f"  Settling:       stage1={s['stage1_steps']}, "
+              f"stage2={s['stage2_steps']} "
+              f"({settle_time:.2f}s sim, exit={s['exit_reason']})")
+        print(f"                  T: {s['T_start']:.3e} -> {s['T_end']:.3e} J  "
+              f"(target T_settle={s['T_settle']:.3e})")
+        print(f"                  lambda_min(H)={s['lambda_min']:.4e} kg·m²")
+        print(f"                  initial |v_com|={np.linalg.norm(s['initial_vcom'])*1000:.4f} mm/s, "
+              f"|L_com|={np.linalg.norm(s['initial_Lcom'])*1000:.4f} mNms")
+
+    def _settle_setup(self, start_a, start_b):
+        """Two-stage setup-phase settling.
+
+        Stage 1 — weld-snap absorption (open-loop damping):
+            Apply tau_j = -Kd * dq_j for n_settle_damping_steps steps.
+            No QP. Purpose: dissipate the large constraint-force impulse
+            from the weld activation (~300 N) which the QP cannot handle
+            gracefully because the initial constraint violation is large.
+
+        Stage 2 — passivity-constrained QP settling:
+            Use the M2 QP with settle_mode=True (skips torso/EE tasks,
+            adds joint velocity damping task) AND passivity_active=True
+            (adds dq_j^T·τ_q + 2α·T ≤ 0 inequality). Exit when
+            T_kin < T_settle = 0.5 · epsilon_v² · lambda_min(H).
+
+        Returns
+        -------
+        log : dict with keys
+            'stage1_steps', 'stage2_steps', 'T_start', 'T_end',
+            'T_settle', 'lambda_min', 't_log', 'T_log',
+            'initial_vcom', 'initial_Lcom'
+        """
+        cfg = self.cfg
+        n_j = self.robot.n_joints
+        dt = cfg.dt_qp
+
+        log = {
+            'stage1_steps': 0, 'stage2_steps': 0,
+            'T_start': 0.0, 'T_end': 0.0, 'T_settle': 0.0,
+            'lambda_min': 0.0, 'exit_reason': '',
+            't_log': [], 'T_log': [],
+            'initial_vcom': None, 'initial_Lcom': None,
+        }
+
+        def _kinetic_energy(v_full, H_robot):
+            return 0.5 * float(v_full @ H_robot @ v_full)
+
+        # Log the initial hot state after weld activation
+        pq0, pv0 = mujoco_to_pinocchio(
+            self.mj_data.qpos, self.mj_data.qvel)
+        rs0 = self.robot.update(pq0, pv0)
+        T_initial = _kinetic_energy(rs0.v, rs0.H)
+        log['T_start'] = T_initial
+
+        # ── Stage 1: open-loop damping ────────────────────────────────
+        Kd = cfg.Kd_settle_damping
+        for k in range(cfg.n_settle_damping_steps):
+            dq_j = self.mj_data.qvel[
+                -n_j - (3 if self.has_rwa else 0):
+                None if not self.has_rwa else -3]
+            tau_damp = np.clip(-Kd * dq_j, -cfg.tau_max, cfg.tau_max)
+            self.mj_data.ctrl[:n_j] = tau_damp
+            mujoco.mj_step(self.mj_model, self.mj_data)
+            log['stage1_steps'] += 1
+
+            if k % 5 == 0:
+                pq, pv = mujoco_to_pinocchio(
+                    self.mj_data.qpos, self.mj_data.qvel)
+                rs = self.robot.update(pq, pv)
+                T = _kinetic_energy(rs.v, rs.H)
+                log['t_log'].append(k * dt)
+                log['T_log'].append(T)
+
+        # ── Stage 2: passivity-constrained QP ─────────────────────────
+        # Choose the QP variant. We use qp_ss (single-support M2 config)
+        # with settle_mode=True (skips torso/EE tasks, damps velocities)
+        # and passivity_active=True (exponential decay guarantee).
+        qp = self.qp_ss
+
+        # Compute T_settle threshold from current H (lambda_min stable
+        # over the small displacement we expect during stage 2).
+        pq1, pv1 = mujoco_to_pinocchio(
+            self.mj_data.qpos, self.mj_data.qvel)
+        rs_after_damping = self.robot.update(pq1, pv1)
+        eig_H = np.linalg.eigvalsh(rs_after_damping.H)
+        lambda_min = float(np.min(np.abs(eig_H)))
+        T_settle = 0.5 * (cfg.settle_epsilon_v ** 2) * lambda_min
+        log['lambda_min'] = lambda_min
+        log['T_settle'] = T_settle
+
+        # DS contact config (both anchors active) for the QP.
+        cc_ds = self.sched.contact_config_at(0.1)
+
+        hw_current = np.zeros(3) if not self.has_rwa else (
+            cfg.rwa_I_w * self.mj_data.qvel[6:9]).copy()
+
+        stage2_start_step = log['stage1_steps']
+        T_history = []
+        plateau_window = 50   # steps
+        exit_reason = 'max_steps'
+        for k in range(cfg.n_settle_max_steps):
+            pq, pv = mujoco_to_pinocchio(
+                self.mj_data.qpos, self.mj_data.qvel)
+            rs = self.robot.update(pq, pv)
+            T = _kinetic_energy(rs.v, rs.H)
+            T_history.append(T)
+
+            # Log every 5 steps for the plot
+            if k % 5 == 0:
+                log['t_log'].append((stage2_start_step + k) * dt)
+                log['T_log'].append(T)
+
+            # Exit 1: target met
+            if T < T_settle:
+                exit_reason = 'target_met'
+                break
+
+            # Exit 2: plateau — no further progress over `plateau_window`
+            if k >= plateau_window:
+                T_old = T_history[k - plateau_window]
+                if T > cfg.settle_plateau_ratio * T_old:
+                    exit_reason = 'plateau'
+                    break
+
+            # Contact Jacobians (both active in DS)
+            Jc, Jdc = self.robot.get_contact_jacobians(True, True)
+
+            # Torso reference = current torso pose (hold in place).
+            # These are ignored in settle_mode but the QP signature
+            # still needs them to be non-None.
+            try:
+                _, _, _, tau, _ = qp.solve(
+                    q_t=rs.q_torso, dq_t=rs.dq_torso,
+                    q=rs.q_joints, dq=rs.dq_joints,
+                    r_com_ref=rs.r_com, v_com_ref=np.zeros(3),
+                    lambda_ref=np.zeros(12), a_com_ff=np.zeros(3),
+                    H_robot=rs.H, C_robot=rs.C,
+                    J_com=rs.J_com, Jdot_dq_com=rs.Jdot_dq_com,
+                    contact_config=cc_ds,
+                    J_contacts=Jc, Jdot_dq_contacts=Jdc,
+                    hw_current=hw_current,
+                    hw_min=cfg.hw_min, hw_max=cfg.hw_max,
+                    r_com=rs.r_com, L_com_current=rs.L_com,
+                    J_torso=rs.J_torso,
+                    Jdot_dq_torso=rs.Jdot_dq_torso,
+                    p_torso=rs.oMf_torso.translation.copy(),
+                    R_torso=rs.oMf_torso.rotation.copy(),
+                    p_torso_ref=rs.oMf_torso.translation.copy(),
+                    R_torso_ref=rs.oMf_torso.rotation.copy(),
+                    v_torso_ref=np.zeros(6),
+                    a_torso_ff=np.zeros(6),
+                    settle_mode=True,
+                    passivity_active=True)
+                tau = np.clip(tau, -cfg.tau_max, cfg.tau_max)
+            except Exception:
+                tau = -Kd * rs.dq_joints  # fall back to damping
+                tau = np.clip(tau, -cfg.tau_max, cfg.tau_max)
+
+            self.mj_data.ctrl[:n_j] = tau
+            if self.has_rwa:
+                self.mj_data.ctrl[n_j:n_j + 3] = 0.0
+            mujoco.mj_step(self.mj_model, self.mj_data)
+            log['stage2_steps'] += 1
+
+        log['exit_reason'] = exit_reason
+
+        # Record final state
+        self.mj_data.ctrl[:] = 0.0
+        mujoco.mj_forward(self.mj_model, self.mj_data)
+        pq_end, pv_end = mujoco_to_pinocchio(
+            self.mj_data.qpos, self.mj_data.qvel)
+        rs_end = self.robot.update(pq_end, pv_end)
+        log['T_end'] = _kinetic_energy(rs_end.v, rs_end.H)
+        log['initial_vcom'] = rs_end.v_com.copy()
+        log['initial_Lcom'] = rs_end.L_com.copy()
+        # Final sample for the plot
+        t_final = (log['stage1_steps'] + log['stage2_steps']) * dt
+        log['t_log'].append(t_final)
+        log['T_log'].append(log['T_end'])
+        return log
 
     def _build_qp(self, ac, at, ae, ap, aw, ar_react,
                    kpc, kdc, kpt, kdt, kpe, kde,
@@ -428,6 +596,16 @@ class SimulationLoop:
         cfg = self.cfg
         log = SimLog()
         plan = self.plan
+
+        # Copy the setup-phase settling trace into the log so it shows
+        # up in Fig 4 (energy decay) of the diagnostic suite.
+        s = self._settling_log
+        log.settling_t = list(s['t_log'])
+        log.settling_T = list(s['T_log'])
+        log.settling_T_target = float(s['T_settle'])
+        log.settling_stage1_steps = int(s['stage1_steps'])
+        log.settling_stage2_steps = int(s['stage2_steps'])
+        log.settling_exit_reason = str(s['exit_reason'])
 
         hw = cfg.hw_init.copy()
         t = 0.0
