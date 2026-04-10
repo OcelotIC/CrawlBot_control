@@ -22,20 +22,29 @@ class SimLog:
     p_torso_ref: list = field(default_factory=list)
     e_torso_pos: list = field(default_factory=list)
     e_torso_ori: list = field(default_factory=list)
+    q_torso: list = field(default_factory=list)       # actual torso quat (wxyz)
+    q_torso_ref: list = field(default_factory=list)    # reference torso quat (wxyz)
 
     # End-effector
     d_grip_swing: list = field(default_factory=list)
     d_grip_stance: list = field(default_factory=list)
     swing_arm: list = field(default_factory=list)
+    p_ee: list = field(default_factory=list)           # EE position actual (3,)
+    p_ee_ref: list = field(default_factory=list)       # EE position ref (3,)
+    q_ee: list = field(default_factory=list)           # EE orientation actual quat (wxyz)
+    q_ee_ref: list = field(default_factory=list)       # EE orientation ref quat (wxyz)
 
     # CoM
     r_com: list = field(default_factory=list)
     r_com_ref: list = field(default_factory=list)
     e_com: list = field(default_factory=list)
+    v_com: list = field(default_factory=list)           # CoM velocity actual (3,)
+    v_com_ref: list = field(default_factory=list)       # CoM velocity ref (3,)
 
     # Momentum
     L_com: list = field(default_factory=list)
     L_com_norm: list = field(default_factory=list)
+    L_com_ref: list = field(default_factory=list)       # NMPC-planned L_com (3,)
     L_dot: list = field(default_factory=list)
     L_dot_norm: list = field(default_factory=list)
     hw: list = field(default_factory=list)
@@ -68,6 +77,7 @@ class SimLog:
     struct_pos: list = field(default_factory=list)
     struct_quat: list = field(default_factory=list)
     struct_euler_deg: list = field(default_factory=list)
+    omega_s: list = field(default_factory=list)         # platform angular velocity (3,)
 
     # Solver diagnostics
     nmpc_ok: list = field(default_factory=list)
@@ -75,14 +85,32 @@ class SimLog:
     lambda_ref_norm: list = field(default_factory=list)
     nmpc_time_ms: list = field(default_factory=list)
     qp_time_ms: list = field(default_factory=list)
+    nmpc_status: list = field(default_factory=list)     # 0=ok, 1=max_iter, 2=infeasible
+    nmpc_cost: list = field(default_factory=list)       # NMPC objective value
+
+    # Contact wrenches
+    lambda_ref: list = field(default_factory=list)      # NMPC planned wrench (12,)
+    lambda_qp: list = field(default_factory=list)       # QP contact wrench (12,)
+
+    # Energy / passivity
+    T_kinetic: list = field(default_factory=list)       # 0.5 * dq^T H dq
 
     # Dock events
     dock_events: list = field(default_factory=list)
 
+    # MuJoCo snapshots for offline rendering
+    snapshots: list = field(default_factory=list)       # [(t, qpos, qvel, label)]
+
     def to_dict(self) -> dict:
         d = {}
         for k, v in self.__dict__.items():
-            d[k] = [x.tolist() if hasattr(x, 'tolist') else x for x in v]
+            if k == 'snapshots':
+                # Snapshots contain large arrays; serialize specially
+                d[k] = [(t, q.tolist() if hasattr(q, 'tolist') else q,
+                          v_.tolist() if hasattr(v_, 'tolist') else v_, lbl)
+                         for t, q, v_, lbl in v]
+            else:
+                d[k] = [x.tolist() if hasattr(x, 'tolist') else x for x in v]
         return d
 
     def save(self, path: str):

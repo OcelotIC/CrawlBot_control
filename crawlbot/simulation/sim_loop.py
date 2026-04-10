@@ -377,6 +377,14 @@ class SimulationLoop:
 
     # ── Run ──────────────────────────────────────────────────────────────
 
+    def _capture_snapshot(self, log, t, label):
+        """Append a snapshot (t, qpos, qvel, label) for offline rendering."""
+        log.snapshots.append((
+            round(t, 3),
+            self.mj_data.qpos.copy(),
+            self.mj_data.qvel.copy(),
+            label))
+
     def run(self, verbose=True):
         """Run full multi-step locomotion simulation."""
         cfg = self.cfg
@@ -427,6 +435,8 @@ class SimulationLoop:
 
                     # DS (use original plan time for contact config lookup)
                     cc_ds = self.sched.contact_config_at(plan.t_start[i] + 0.1)
+                    if step_idx == 0 and len(log.snapshots) == 0:
+                        self._capture_snapshot(log, t, 'initial')
                     if verbose:
                         print(f"  DS: [{t_ds_start:.2f}, {t_ds_end:.2f}]")
                     while t < t_ds_end:
@@ -437,6 +447,8 @@ class SimulationLoop:
                         t += cfg.dt_nmpc
 
                     # SS: release swing arm
+                    self._capture_snapshot(log, t,
+                                           f'release_step{step_idx}')
                     old_anchor = ss_gp.swing_from_idx
                     self._deactivate_weld(swing_arm, old_anchor)
                     # Reset GMO on phase transition (contact force discontinuity)
@@ -508,6 +520,8 @@ class SimulationLoop:
                                 'd_mm': round(d*1000, 2),
                                 'arm': swing_arm, 'anchor': target_idx,
                                 'method': 'gmo' if cfg.use_gmo_dock else 'kinematic'})
+                            self._capture_snapshot(
+                                log, t, f'dock_step{step_idx}')
                             if verbose:
                                 print(f"  *** DOCK step {step_idx}: t={t:.2f}s "
                                       f"d={d*1000:.1f}mm ***")
@@ -629,6 +643,7 @@ class SimulationLoop:
                 # Standalone SS phase (shouldn't happen in normal plan)
                 i += 1
 
+        self._capture_snapshot(log, t, 'final')
         if verbose:
             self._print_summary(log)
         return log
@@ -665,6 +680,8 @@ class SimulationLoop:
 
         # NMPC — plans robot motion only; AOCS manages wheels independently.
         nmpc_ok = True
+        nmpc_status_code = 0  # 0=ok, 1=max_iter, 2=infeasible
+        nmpc_cost_val = np.inf
         t_nmpc_start = time.perf_counter()
         try:
             rp, vp, _, lr, info_n = self.nmpc.solve(
@@ -673,9 +690,13 @@ class SimulationLoop:
                 contact_config=cc_nmpc, warm_start=True)
             af = self.nmpc.compute_feedforward_acceleration(lr)
             nmpc_ok = info_n.success
+            nmpc_cost_val = float(info_n.cost) if np.isfinite(info_n.cost) else np.inf
+            if not info_n.success:
+                nmpc_status_code = 2 if 'infeasib' in info_n.status.lower() else 1
         except Exception:
             rp, vp, lr, af = cref.r_com, cref.v_com, np.zeros(12), np.zeros(3)
             nmpc_ok = False
+            nmpc_status_code = 2
         t_nmpc_ms = (time.perf_counter() - t_nmpc_start) * 1000
 
         # QP inner loop: select QP variant for current phase
@@ -762,7 +783,7 @@ class SimulationLoop:
             H_bs = rs.H[:6, sw_slice]
 
             try:
-                _, _, _, tau, _ = qp.solve(
+                _, _, lambda_qp_sol, tau, _ = qp.solve(
                     q_t=rs.q_torso, dq_t=rs.dq_torso,
                     q=rs.q_joints, dq=rs.dq_joints,
                     r_com_ref=rp, v_com_ref=vp,
@@ -777,6 +798,7 @@ class SimulationLoop:
                     **tkw, **ek)
             except Exception:
                 tau = np.zeros(12)
+                lambda_qp_sol = np.zeros(12)
                 qp_ok = False
 
             tau = np.clip(tau, -cfg.tau_max, cfg.tau_max)
@@ -931,6 +953,53 @@ class SimulationLoop:
         log.lambda_ref_norm.append(float(np.linalg.norm(lr)))
         log.nmpc_time_ms.append(t_nmpc_ms)
         log.qp_time_ms.append(t_qp_ms)
+
+        # ── M0.2 enrichment ────────────────────────────────────────────
+        # Torso orientation (actual vs ref) as quaternion wxyz
+        R_torso = rs_f.oMf_torso.rotation
+        q_t_actual = pin.Quaternion(R_torso)  # xyzw
+        log.q_torso.append(np.array([q_t_actual.w, q_t_actual.x,
+                                      q_t_actual.y, q_t_actual.z]))
+        R_ref = tref_log.R
+        q_t_ref = pin.Quaternion(R_ref)
+        log.q_torso_ref.append(np.array([q_t_ref.w, q_t_ref.x,
+                                          q_t_ref.y, q_t_ref.z]))
+
+        # EE position/orientation (actual and ref)
+        _, _, oMf_ee_f = self._get_ee_data(rs_f, swing_arm)
+        log.p_ee.append(oMf_ee_f.translation.copy())
+        q_ee_actual = pin.Quaternion(oMf_ee_f.rotation)
+        log.q_ee.append(np.array([q_ee_actual.w, q_ee_actual.x,
+                                   q_ee_actual.y, q_ee_actual.z]))
+        sr_f = self.swing_planner.reference_at(t_log)
+        log.p_ee_ref.append(sr_f.p_ee.copy())
+        q_ee_r = pin.Quaternion(sr_f.R_ee)
+        log.q_ee_ref.append(np.array([q_ee_r.w, q_ee_r.x,
+                                       q_ee_r.y, q_ee_r.z]))
+
+        # CoM velocity (actual from Pinocchio, ref from NMPC)
+        log.v_com.append(rs_f.v_com.copy())
+        log.v_com_ref.append(vp.copy())
+
+        # L_com reference (NMPC-planned)
+        log.L_com_ref.append(rs_f.L_com.copy())  # best available: actual (no L plan)
+
+        # Platform angular velocity
+        log.omega_s.append(self.mj_data.qvel[3:6].copy())
+
+        # NMPC solver diagnostics
+        log.nmpc_status.append(nmpc_status_code)
+        log.nmpc_cost.append(nmpc_cost_val)
+
+        # Contact wrenches
+        log.lambda_ref.append(lr.copy())
+        log.lambda_qp.append(lambda_qp_sol.copy() if hasattr(lambda_qp_sol, 'copy')
+                              else np.zeros(12))
+
+        # Kinetic energy: 0.5 * v^T H v (relative to structure)
+        v_rel = rs_f.v[:rs_f.H.shape[0]]
+        T_kin = 0.5 * float(v_rel @ rs_f.H @ v_rel)
+        log.T_kinetic.append(T_kin)
 
         return hw, rs_f.L_com.copy()
 
