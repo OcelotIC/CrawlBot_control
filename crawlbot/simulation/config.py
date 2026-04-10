@@ -73,6 +73,21 @@ class SimConfig:
     w_L_nmpc: float = 1.0         # Cost weight on ||L_com - L_com_ref||²
     kappa_terminal: float = 1.0   # Terminal margin multiplier
 
+    # ── M6: coarse pre-planner ──────────────────────────────────
+    # Runs once per step before SS starts. Solves a centroidal NLP
+    # over the full step horizon to produce a momentum-feasible CoM
+    # reference that replaces the TorsoPlanner's geometric path as
+    # the NMPC reference. See crawlbot/planning/coarse_preplanner.py
+    # and spec §6.2.
+    use_coarse_preplanner: bool = False
+    preplanner_M: int = 15                  # collocation intervals
+    preplanner_kappa: float = 0.7           # terminal margin multiplier (< 1)
+    preplanner_f_max: float = 25.0          # [N] per active contact
+    preplanner_tau_max: float = 8.0         # [Nm] per active contact
+    preplanner_w_L: float = 1.0             # cost weight on ||L_com||²
+    preplanner_w_u: float = 1e-2            # cost weight on ||[f; τ]||²
+    preplanner_max_iter: int = 300          # IPOPT max iterations
+
     # ── NMPC solver ─────────────────────────────────────────────
     nmpc_N: int = 8
     nmpc_dt: float = 0.1

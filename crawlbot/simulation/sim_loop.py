@@ -43,6 +43,9 @@ from crawlbot.planning.contact_scheduler import ContactScheduler, read_anchors_f
 # LocomotionPlanner removed — CoM reference comes from TorsoPlanner
 from crawlbot.planning.swing_planner import SwingPlanner
 from crawlbot.planning.torso_planner import TorsoPlanner
+from crawlbot.planning.coarse_preplanner import (
+    CoarsePrePlanner, CoarsePrePlannerConfig, CoarsePlanResult,
+)
 from crawlbot.solvers.centroidal_nmpc import CentroidalNMPC, CentroidalNMPCConfig
 from crawlbot.solvers.wholebody_qp import WholeBodyQP, WholeBodyQPConfig
 from crawlbot.solvers.contact_phase import ContactConfig
@@ -79,6 +82,16 @@ class SimulationLoop:
         self._site_ids = {}
         self.plan = None
         self.has_rwa = False  # Set True if model has reaction wheels
+        # M6: coarse pre-planner (optional, created in setup if enabled)
+        self.preplanner: Optional[CoarsePrePlanner] = None
+        # Most recent pre-planner result for the active step; None when
+        # the pre-planner is disabled or the step is in DS/EXT.
+        self._coarse_plan: Optional[CoarsePlanResult] = None
+        # Simulation time at which the active coarse plan was anchored
+        # (so r_com_at(t - t0) gives the right reference at current time).
+        self._coarse_plan_t0: float = 0.0
+        # Per-step telemetry (infeasibilities, solve times, etc.)
+        self._preplanner_stats = []
 
     # ── Setup ────────────────────────────────────────────────────────────
 
@@ -195,6 +208,30 @@ class SimulationLoop:
             w_L=cfg.w_L_nmpc,
             kappa_terminal=cfg.kappa_terminal))
         self.nmpc.build()
+
+        # M6: coarse pre-planner (optional). Built once; solved per step.
+        if cfg.use_coarse_preplanner:
+            # Match the TorsoPlanner's timeline: plan over SS + EXT
+            # minus the torso_delay, anchored at t_torso_start so the
+            # first ~torso_delay*t_swing seconds naturally hold (the
+            # interpolator clamps to r_com[0]).
+            T_plan_default = (cfg.t_swing + cfg.t_ext_max
+                              - cfg.torso_delay * cfg.t_swing)
+            pre_cfg = CoarsePrePlannerConfig(
+                M=cfg.preplanner_M,
+                robot_mass=rs0.total_mass,
+                h_max=np.asarray(cfg.h_max_tight, dtype=float).reshape(3),
+                kappa_terminal=cfg.preplanner_kappa,
+                f_max=cfg.preplanner_f_max,
+                tau_max=cfg.preplanner_tau_max,
+                tau_w_max=cfg.tau_w_max,
+                w_L=cfg.preplanner_w_L,
+                w_u=cfg.preplanner_w_u,
+                T_step_default=T_plan_default,
+                ipopt_max_iter=cfg.preplanner_max_iter,
+            )
+            self.preplanner = CoarsePrePlanner(pre_cfg)
+            self.preplanner.build()
 
         # M1/M5: CoM-to-torso mapping layer. Converts NMPC centroidal
         # outputs (r_com, v_com, a_com_ff) into torso position references
@@ -595,7 +632,105 @@ class SimulationLoop:
             p_t0, R_t0, p_t1, R_t1,
             delta_com_start=delta0, delta_com_end=delta1)
 
+        # M6: run the coarse pre-planner over the TORSO TRAJECTORY HORIZON.
+        # Matching the torso planner's timeline (t_torso_start ..
+        # t_torso_end ≈ 14.8 s for default t_swing=6, t_ext_max=10,
+        # torso_delay=0.2) ensures the pre-planner's velocity profile
+        # is consistent with the rest of the stack. Anchoring at
+        # t_torso_start gives the same ~1.2 s initial hold the torso
+        # planner uses (the interpolator clamps to r_com[0] before the
+        # first knot), then a smooth ramp from r_com0 → r_com1.
+        if self.preplanner is not None:
+            self._run_preplanner(
+                t_plan_start=t_torso_start,
+                t_plan_end=t_torso_end,
+                stance_arm='a' if target_arm == 'b' else 'b',
+                stance_a=stance_a, stance_b=stance_b,
+                r_com_0=r_com0, r_com_goal=r_com1,
+            )
+
         return q_end
+
+    def _run_preplanner(
+        self,
+        t_plan_start: float,
+        t_plan_end: float,
+        stance_arm: str,
+        stance_a: int,
+        stance_b: int,
+        r_com_0: np.ndarray,
+        r_com_goal: np.ndarray,
+    ) -> None:
+        """Solve the coarse pre-planner for the upcoming step.
+
+        Anchored at `t_plan_start` with T_step = t_plan_end - t_plan_start.
+        This matches the TorsoPlanner's timeline so the pre-planner and
+        the 6D torso orientation reference share a common velocity
+        profile.
+
+        The solve uses the live Pinocchio state for (v_com_0, L_com_0)
+        and the current wheel momentum for c_const. Stance contact point
+        is the anchor of the stance arm in structure frame (constant
+        through SS). On success, caches `_coarse_plan` and
+        `_coarse_plan_t0 = t_plan_start` so `_step()` can evaluate the
+        reference at current sim time via `r_com_at(t - t0)`.
+        """
+        cfg = self.cfg
+        # Live state for (v0, L0)
+        pq_live, pv_live = mujoco_to_pinocchio(
+            self.mj_data.qpos, self.mj_data.qvel)
+        rs_live = self.robot.update(pq_live, pv_live)
+        v_com_0 = rs_live.v_com.copy()
+        L_com_0 = rs_live.L_com.copy()
+        # Conservation constant c = hw_0 + L_com_0 + r_com_0 × m·v_com_0
+        if self.has_rwa:
+            hw_0 = cfg.rwa_I_w * self.mj_data.qvel[6:9].copy()
+        else:
+            hw_0 = np.zeros(3)
+        m = float(rs_live.total_mass)
+        c_const = hw_0 + L_com_0 + np.cross(r_com_0, m * v_com_0)
+
+        # Stance contact point (constant anchor in structure frame).
+        # During SS the swing arm lifts → stance arm is the other one.
+        if stance_arm == 'a':
+            r_C = self.sched.anchors_a[stance_a].copy()
+        else:
+            r_C = self.sched.anchors_b[stance_b].copy()
+
+        T_step = max(0.1, t_plan_end - t_plan_start)
+        result = self.preplanner.solve(
+            r_com_0=r_com_0,
+            v_com_0=v_com_0,
+            L_com_0=L_com_0,
+            r_com_goal=r_com_goal,
+            r_C_stance=r_C,
+            c_const=c_const,
+            T_step=T_step,
+            h_max=np.asarray(cfg.h_max_tight, dtype=float).reshape(3),
+        )
+        self._preplanner_stats.append({
+            'success': result.success,
+            'solve_ms': result.solve_time_ms,
+            'iter_count': result.iter_count,
+            'cost': result.cost,
+            'status': result.status,
+            't_plan_start': t_plan_start,
+        })
+        if result.success:
+            self._coarse_plan = result
+            self._coarse_plan_t0 = t_plan_start
+            peak_v = float(max(np.linalg.norm(v) for v in result.v_com))
+            peak_L = float(max(np.linalg.norm(L) for L in result.L_com))
+            print(f"[CoarsePrePlanner] success in "
+                  f"{result.solve_time_ms:.1f} ms "
+                  f"({result.iter_count} iters, cost={result.cost:.3f}, "
+                  f"T_step={T_step:.2f}s, peak |v|={peak_v:.3f} m/s, "
+                  f"peak |L|={peak_L:.3f} Nms)")
+        else:
+            # On failure, clear the plan so _step() falls back to the
+            # TorsoPlanner-derived reference.
+            self._coarse_plan = None
+            print(f"[CoarsePrePlanner] FAILED: {result.status}")
 
     # ── Run ──────────────────────────────────────────────────────────────
 
@@ -902,6 +1037,20 @@ class SimulationLoop:
         t_horizon = t + cfg.nmpc_N * cfg.nmpc_dt
         cref = self.torso_planner.com_reference_at(t_horizon)
 
+        # M6: override the NMPC CoM reference with the coarse pre-planner
+        # trajectory when it is available. Replaces the geometric CoM
+        # path with a momentum-feasible one, so the NMPC tracks something
+        # it can actually realize within the hw box.
+        if (self._coarse_plan is not None) and (not settle_mode):
+            tau_rel = t_horizon - self._coarse_plan_t0
+            rp_coarse = self._coarse_plan.r_com_at(tau_rel)
+            vp_coarse = self._coarse_plan.v_com_at(tau_rel)
+            cref_r = rp_coarse
+            cref_v = vp_coarse
+        else:
+            cref_r = cref.r_com
+            cref_v = cref.v_com
+
         # Robot state in structure frame.
         # Extract structure angular velocity for non-inertial corrections.
         omega_s = self.mj_data.qvel[3:6].copy()
@@ -937,7 +1086,7 @@ class SimulationLoop:
         try:
             rp, vp, _, lr, info_n = self.nmpc.solve(
                 r_com=rs.r_com, v_com=rs.v_com, L_com=rs.L_com,
-                r_com_ref=cref.r_com, v_com_ref=cref.v_com,
+                r_com_ref=cref_r, v_com_ref=cref_v,
                 contact_config=cc_nmpc, warm_start=True,
                 hw_current=hw_for_nmpc,
                 L_com_ref=L_com_ref_nmpc)
@@ -971,9 +1120,10 @@ class SimulationLoop:
                 af = self.nmpc.compute_feedforward_acceleration(lr)
             else:
                 # No previous solve — only possible on the very first
-                # NMPC call. Use cref as a last resort.
-                rp = cref.r_com.copy()
-                vp = cref.v_com.copy()
+                # NMPC call. Use the reference-level CoM as a last resort
+                # (pre-planner if active, else the TorsoPlanner cref).
+                rp = np.asarray(cref_r, dtype=float).copy()
+                vp = np.asarray(cref_v, dtype=float).copy()
                 lr = np.zeros(12)
                 af = np.zeros(3)
 
@@ -1259,8 +1409,11 @@ class SimulationLoop:
         log.gmo_swing_residual.append(self.gmo.swing_residual_norm(sw_slice))
         log.gmo_contact_state.append(self.contact_sm.state.value)
         log.r_com.append(rs_f.r_com.copy())
-        log.r_com_ref.append(cref.r_com.copy())
-        log.e_com.append(float(np.linalg.norm(rs_f.r_com - cref.r_com)))
+        # Log the reference actually fed to the NMPC (pre-planner if
+        # active, else TorsoPlanner-derived cref) so diagnostics compare
+        # against what the controller was actually tracking.
+        log.r_com_ref.append(np.asarray(cref_r, dtype=float).copy())
+        log.e_com.append(float(np.linalg.norm(rs_f.r_com - np.asarray(cref_r))))
         log.L_com.append(rs_f.L_com.copy())
         log.L_com_norm.append(float(np.linalg.norm(rs_f.L_com)))
         log.L_dot.append(L_dot_est.copy())
