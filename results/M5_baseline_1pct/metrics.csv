@@ -10,5 +10,5 @@ platform_rotation_total_deg,48.124842,5.000000,FAIL
 platform_omega_peak_deg_s,5.327860,2.000000,FAIL
 tau_w_peak_ratio,1.000000,1.000000,PASS
 passivity_violations,,0.000000,SKIP
-nmpc_solve_rate_50ms,0.811989,0.950000,FAIL
+nmpc_solve_rate_50ms,0.809264,0.950000,FAIL
 nmpc_infeasibility_rate,0.196185,0.020000,FAIL
