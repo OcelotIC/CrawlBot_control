@@ -66,6 +66,13 @@ class WholeBodyQPConfig:
     # QP method
     method: str = 'weighted'      # 'weighted' or 'strict'
     solver: str = 'qpoases'
+    # HierarchicalQP weight ratio between priority levels.
+    # With the M2 null-space-projected task stack, task isolation is
+    # provided geometrically by the projections N_torso, N_torso·N_ee,
+    # etc. — NOT by weight scaling. weight_ratio = 1.0 therefore lets
+    # every task use its face-value α. Legacy (non-M2) users that
+    # rely on priority-by-scaling should override this to ~1000.
+    weight_ratio: float = 1.0
 
     # Task weights (Eq. VI-F.6)
     alpha_com: float = 1e3        # Legacy CoM tracking as primary task (weighted hierarchy)
@@ -304,15 +311,14 @@ class WholeBodyQP:
         n_robot = 6 + nq  # dimension of q̈_robot = [q̈_t; q̈]
 
         # --- Build QP ---
-        # Keep the default weight_ratio (1000) so that task priorities
-        # are preserved (P1 >> P2 >> P3 >> ...). This is what the M2
-        # tests rely on: when torso (P1) and EE (P2) can be satisfied
-        # simultaneously, both get zero residual even though EE has
-        # effective weight α_ee/1000. See the soft-CoM note below for
-        # why that task is deliberately kept at P4 (invisible) under
-        # the M5 mapping layer.
+        # weight_ratio is taken from the config. In the M2 task stack
+        # task isolation comes from null-space projection (N_torso,
+        # N_torso·N_ee, ...), NOT from weight scaling, so the default
+        # weight_ratio = 1 lets every task use its face-value α. See
+        # WholeBodyQPConfig.weight_ratio and the P1→P6 stack below.
         qp = HierarchicalQP(
             n_vars=n, method=cfg.method, solver=cfg.solver,
+            weight_ratio=cfg.weight_ratio,
         )
 
         # ============================================================ #
@@ -559,10 +565,31 @@ class WholeBodyQP:
             w_torso = cfg.alpha_torso if cfg.alpha_torso > 0 else 1e3
             qp.add_task(A_torso, b_torso, w_torso, priority=1)
 
+        # ──────────────────────────────────────────────────────────── #
+        # Null-space projectors used by the rest of the M2 stack
+        # N_torso   = I − A_torso^+ A_torso  (projects x into null(A_torso))
+        # N_torso_ee = N_torso · (I − (A_ee·N_torso)^+ (A_ee·N_torso))
+        #           (further projects out EE subspace so lower-priority
+        #           tasks don't interfere with either torso or EE)
+        # These are shared between the EE task (priority 2) and the
+        # posture task (priority 3). Under the M2 stack this gives
+        # geometric isolation regardless of the task weights, so the
+        # HierarchicalQP weight_ratio can stay at 1.
+        # ──────────────────────────────────────────────────────────── #
+        N_torso = None
+        A_torso_pinv = None
+        if cfg.use_m2_stack and A_torso is not None:
+            A_torso_pinv = np.linalg.pinv(A_torso, rcond=1e-8)
+            N_torso = np.eye(n) - A_torso_pinv @ A_torso
+
         # --- Task 2: End-effector 6D tracking (swing arm, optional) ---
         # In the M2 stack the EE task is projected into the null space of
         # the torso task via N_torso = I - J_torso^+ @ J_torso. This ensures
         # EE tracking does not interfere with torso tracking.
+        A_ee = None
+        b_ee = None
+        A_ee_proj = None
+        b_ee_res = None
         if J_ee is not None and p_ee_ref is not None:
             jdq_ee = Jdot_dq_ee if Jdot_dq_ee is not None else np.zeros(6)
 
@@ -589,62 +616,96 @@ class WholeBodyQP:
             b_ee = a_ee_des - jdq_ee
 
             # Null-space projection against the torso task: replace (A_ee,b_ee)
-            # with (N @ A_ee, N @ b_ee_residual) where
-            #     N = I - A_torso^+ @ A_torso
-            # This makes the EE task see only the residual qdd freedom left
-            # after the torso task. Because we only scale the rows of the
-            # cost, the QP solution is equivalent to strict prioritization
-            # in the weighted limit (α_torso >> α_ee).
+            # with (N_torso @ A_ee, b_ee residual). Because we only scale
+            # the rows of the cost, the QP solution is equivalent to
+            # strict prioritization even when α_ee > α_torso.
             apply_null_space = (
                 (cfg.use_m2_stack or cfg.ee_null_space)
-                and A_torso is not None
+                and N_torso is not None
             )
             if apply_null_space:
-                # A_torso is (6, n); its Moore-Penrose pseudoinverse has
-                # shape (n, 6). The null-space projector is (n, n).
-                A_torso_pinv = np.linalg.pinv(A_torso, rcond=1e-8)
-                N_torso = np.eye(n) - A_torso_pinv @ A_torso
-                A_ee_eff = A_ee @ N_torso
-                # Residual target: b_ee minus the part that the torso task
-                # would already contribute to the EE directions.
-                b_ee_eff = b_ee - A_ee @ A_torso_pinv @ b_torso
-                qp.add_task(A_ee_eff, b_ee_eff, cfg.alpha_ee, priority=2)
+                A_ee_proj = A_ee @ N_torso
+                b_ee_res = b_ee - A_ee @ A_torso_pinv @ b_torso
+                qp.add_task(A_ee_proj, b_ee_res, cfg.alpha_ee, priority=2)
             else:
+                A_ee_proj = A_ee
+                b_ee_res = b_ee
                 qp.add_task(A_ee, b_ee, cfg.alpha_ee, priority=2)
+        else:
+            A_ee_proj = None
+            b_ee_res = None
 
         # --- Task 2b: Soft CoM residual (M2 stack only) ---
         # Quadratic cost α_com_soft * ||J_com @ qdd - a_com_des||² with
         # desired acceleration from NMPC ff + PD (NOT from the mapping).
-        # Weight is deliberately small (1-10) so it never overrides the
-        # torso or EE tasks — it only biases the residual null-space DOFs
-        # toward momentum-consistent trajectories.
-        # NOTE: priority 4 with the default weight_ratio=1000 gives this
-        # task an effective weight of α_com_soft/1e9 — numerically
-        # invisible. This is INTENTIONAL in the current architecture
-        # because the mapping layer (M5) routes the NMPC's CoM plan
-        # through `r_b_ref = (m_total/m_b)*r_com_plan − δ(q)/m_b` and
-        # the torso task tracks r_b_ref. Adding a non-null-space-
-        # -projected soft CoM cost at P1 would double-count the CoM
-        # tracking and directly conflict with the torso task (since
-        # J_com and J_torso rows are correlated through the mass
-        # ratio). Empirically: each unit of α_com_soft at P1 causes
-        # ~16 mm of torso tracking error in T7. When the mapping is
-        # wired, the soft CoM is effectively dead code — kept here
-        # for spec traceability and future experiments with a truly
-        # null-space-projected soft CoM.
+        # Weight is deliberately small (1-10) so it biases the residual
+        # null-space DOFs toward momentum-consistent trajectories
+        # without overriding the torso or EE tasks.
+        #
+        # With weight_ratio=1 the soft CoM is directly visible, and
+        # since J_com rows correlate with J_torso rows through the
+        # mass ratio, we null-space project it into N(A_torso) ∩ N(A_ee)
+        # — same as the posture task — so it never degrades the torso
+        # or EE targets.
         if cfg.use_m2_stack and cfg.alpha_com_soft > 0 and not settle_mode:
-            qp.add_task(A_com, b_com, cfg.alpha_com_soft, priority=4)
+            if A_torso is not None:
+                if A_ee is not None:
+                    A_combo_com = np.vstack([A_torso, A_ee])
+                    b_combo_com = np.concatenate([b_torso, b_ee])
+                else:
+                    A_combo_com = A_torso
+                    b_combo_com = b_torso
+                A_combo_com_pinv = np.linalg.pinv(A_combo_com, rcond=1e-8)
+                N_com = np.eye(n) - A_combo_com_pinv @ A_combo_com
+                A_com_proj = A_com @ N_com
+                b_com_res = b_com - A_com @ A_combo_com_pinv @ b_combo_com
+                qp.add_task(A_com_proj, b_com_res,
+                            cfg.alpha_com_soft, priority=4)
+            else:
+                qp.add_task(A_com, b_com, cfg.alpha_com_soft, priority=4)
 
         # --- Task 3: Posture regulation ---
         # q̈_posture = Kp_post (q_nom - q) + Kd_post (0 - dq)
-        qdd_posture = (cfg.Kp_posture * (self._q_nominal - q) -
-                       cfg.Kd_posture * dq)
+        # Skipped in settle_mode: the settle task (P1) already dampens
+        # all joint velocities, and at weight_ratio=1 the posture PD
+        # would interfere with that dissipation (T10 regression).
+        if not settle_mode:
+            qdd_posture = (cfg.Kp_posture * (self._q_nominal - q) -
+                           cfg.Kd_posture * dq)
 
-        A_posture = np.zeros((nq, n))
-        A_posture[:, idx['qdd'][0]: idx['qdd'][1]] = np.eye(nq)
-        b_posture = qdd_posture
+            A_posture = np.zeros((nq, n))
+            A_posture[:, idx['qdd'][0]: idx['qdd'][1]] = np.eye(nq)
+            b_posture = qdd_posture
 
-        qp.add_task(A_posture, b_posture, cfg.alpha_posture, priority=3)
+            # M2: project posture into null(A_torso) ∩ null(A_ee) so
+            # that its contribution to q̈ perturbs NEITHER the torso
+            # task nor the EE task. This is what makes weight_ratio=1
+            # safe — task isolation is geometric, not via weight
+            # scaling.
+            #
+            #   A_combo = [A_torso; A_ee]
+            #   N_combo = I − A_combo^+ A_combo
+            #
+            # We also subtract the "particular solution" contribution
+            # so the posture residual is consistent with the torso / EE
+            # targets:
+            #   b_posture_res = b_posture − A_posture · A_combo^+ · b_combo
+            if cfg.use_m2_stack and A_torso is not None:
+                if A_ee is not None:
+                    A_combo = np.vstack([A_torso, A_ee])
+                    b_combo = np.concatenate([b_torso, b_ee])
+                else:
+                    A_combo = A_torso
+                    b_combo = b_torso
+                A_combo_pinv = np.linalg.pinv(A_combo, rcond=1e-8)
+                N_combo = np.eye(n) - A_combo_pinv @ A_combo
+                A_posture_proj = A_posture @ N_combo
+                b_posture_res = b_posture - A_posture @ A_combo_pinv @ b_combo
+                qp.add_task(A_posture_proj, b_posture_res,
+                            cfg.alpha_posture, priority=3)
+            else:
+                qp.add_task(A_posture, b_posture,
+                            cfg.alpha_posture, priority=3)
 
         # --- Task 3b: DS joint-space settle (damp all velocities to zero) ---
         # In settle mode, torso/CoM tasks are skipped (they conflict with
