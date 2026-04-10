@@ -947,14 +947,50 @@ class SimulationLoop:
             if not info_n.success:
                 nmpc_status_code = 2 if 'infeasib' in info_n.status.lower() else 1
         except Exception:
-            rp, vp, lr, af = cref.r_com, cref.v_com, np.zeros(12), np.zeros(3)
             nmpc_ok = False
             nmpc_status_code = 2
+            af = np.zeros(3)
         t_nmpc_ms = (time.perf_counter() - t_nmpc_start) * 1000
 
-        # Note: the M5 mapping layer is evaluated INSIDE the QP sub-loop
-        # (not here) because delta(q) changes as the arms move during
-        # the 10 sub-steps of a single NMPC interval.
+        # ── M5 Fix 2: infeasibility fallback via receding-horizon shift ─
+        # On NMPC failure, do NOT jump to cref.r_com (creates a reference
+        # discontinuity that saturates actuators). Instead, warm-shift
+        # the previous feasible trajectory by one NMPC step. We do NOT
+        # update _last_x_opt in place — repeated failures re-shift the
+        # same last-successful trajectory, so the fallback never drifts
+        # more than ~1 NMPC step from a real plan.
+        x_plan, u_plan, _ = self.nmpc.get_last_trajectory()
+        if not nmpc_ok:
+            x_shift, u_shift = self.nmpc.get_shifted_fallback()
+            if x_shift is not None and u_shift is not None:
+                x_plan = x_shift
+                u_plan = u_shift
+                rp = x_plan[0:3, 1]
+                vp = x_plan[3:6, 1]
+                lr = u_plan[:, 0]
+                af = self.nmpc.compute_feedforward_acceleration(lr)
+            else:
+                # No previous solve — only possible on the very first
+                # NMPC call. Use cref as a last resort.
+                rp = cref.r_com.copy()
+                vp = cref.v_com.copy()
+                lr = np.zeros(12)
+                af = np.zeros(3)
+
+        # ── M5 Fix 1b: interpolate across QP sub-steps ─────────────────
+        # Cache the full trajectory's first two knots for linear
+        # interpolation inside the inner QP loop. The control u_0 is
+        # piecewise constant over [t, t+dt_nmpc] and is NOT interpolated.
+        if x_plan is not None:
+            rp_k0 = x_plan[0:3, 0].copy()
+            rp_k1 = x_plan[0:3, 1].copy()
+            vp_k0 = x_plan[3:6, 0].copy()
+            vp_k1 = x_plan[3:6, 1].copy()
+        else:
+            rp_k0 = rp.copy()
+            rp_k1 = rp.copy()
+            vp_k0 = vp.copy()
+            vp_k1 = vp.copy()
 
         # QP inner loop: select QP variant for current phase
         if phase == 'EXT_CLOSE':
@@ -986,6 +1022,18 @@ class SimulationLoop:
             Jc, Jdc = self.robot.get_contact_jacobians(
                 cc_ss.active_contacts[0], cc_ss.active_contacts[1])
 
+            # M5 Fix 1b: linear interpolation along the NMPC trajectory
+            # knot 0 -> knot 1 across the 10 QP sub-steps. alpha goes
+            # 0, 0.1, 0.2, ..., 0.9 — at qs=0 we target the current
+            # state (knot 0, matches rs), at qs=9 we target 90 % of the
+            # way to knot 1. This matches the time parameterisation
+            # tq = t + qs*dt_qp for the NMPC reference at that time,
+            # avoiding the staircase reference that otherwise creates
+            # impulsive torques through the mapping.
+            alpha_interp = qs / self.n_qp_per_nmpc
+            rp_interp = (1.0 - alpha_interp) * rp_k0 + alpha_interp * rp_k1
+            vp_interp = (1.0 - alpha_interp) * vp_k0 + alpha_interp * vp_k1
+
             # Torso reference (structure frame — no struct pose needed at QP rate).
             # M5.1: position/velocity/accel come from the mapping layer
             # evaluated at the CURRENT configuration (arms at their
@@ -994,8 +1042,8 @@ class SimulationLoop:
             tr = self.torso_planner.reference_at(tq)
             if self.mapping is not None and cfg.use_m2_stack:
                 r_b_ref_m, v_b_ref_m, a_b_ff_m, _ = self.mapping.compute(
-                    r_com_ref=rp, v_com_ref=vp, a_com_ff=af,
-                    q_current=rs.q, dq_current=rs.v)
+                    r_com_ref=rp_interp, v_com_ref=vp_interp,
+                    a_com_ff=af, q_current=rs.q, dq_current=rs.v)
                 p_torso_ref_used = r_b_ref_m
                 v_torso_ref_used = np.concatenate([v_b_ref_m, tr.v[3:6]])
                 a_torso_ff_used = np.concatenate([a_b_ff_m, tr.a[3:6]])
@@ -1066,7 +1114,7 @@ class SimulationLoop:
                 _, _, lambda_qp_sol, tau, _ = qp.solve(
                     q_t=rs.q_torso, dq_t=rs.dq_torso,
                     q=rs.q_joints, dq=rs.dq_joints,
-                    r_com_ref=rp, v_com_ref=vp,
+                    r_com_ref=rp_interp, v_com_ref=vp_interp,
                     lambda_ref=lr, a_com_ff=af,
                     H_robot=rs.H, C_robot=rs.C,
                     J_com=rs.J_com, Jdot_dq_com=rs.Jdot_dq_com,

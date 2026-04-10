@@ -123,6 +123,12 @@ class CentroidalNMPC:
         self.config = config
         self._nmpc: Optional[NMPCSolver] = None
         self._built = False
+        # M5 fixes: retain the most recent successful solve so sim_loop
+        # can (a) interpolate r_com_ref across QP sub-steps, and (b)
+        # fall back to a warm-shifted trajectory on infeasibility.
+        self._last_x_opt: Optional[np.ndarray] = None   # (NX, N+1)
+        self._last_u_opt: Optional[np.ndarray] = None   # (NU, N)
+        self._last_success: bool = False
 
     def build(self, solver_opts: Optional[Dict[str, Any]] = None) -> None:
         """Build the NMPC solver.
@@ -437,9 +443,15 @@ class CentroidalNMPC:
             x0, params=params, warm_start=warm_start
         )
 
-        # --- Shift warm-start for next call ---
+        # --- Store full trajectory on success for sub-step interpolation
+        # and infeasibility fallback (M5 fixes). ---
         if info.success:
+            self._last_x_opt = np.array(x_opt, dtype=float, copy=True)
+            self._last_u_opt = np.array(u_opt, dtype=float, copy=True)
+            self._last_success = True
             self._nmpc.shift_warm_start()
+        else:
+            self._last_success = False
 
         # --- Extract first-step references for Stage 2 ---
         r_com_plan = x_opt[0:3, 1]
@@ -448,6 +460,51 @@ class CentroidalNMPC:
         lambda_plan = u_opt[:, 0]
 
         return r_com_plan, v_com_plan, L_com_plan, lambda_plan, info
+
+    def get_last_trajectory(
+        self,
+    ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], bool]:
+        """Return the most recent successful solve's full trajectory.
+
+        Returns (x_opt, u_opt, last_was_success) where:
+            x_opt : (NX, N+1) ndarray or None if no solve yet
+            u_opt : (NU, N)   ndarray or None
+            last_was_success : True iff the LAST call to solve() succeeded
+        """
+        return self._last_x_opt, self._last_u_opt, self._last_success
+
+    def get_shifted_fallback(
+        self,
+    ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+        """Return a warm-shifted version of the last successful trajectory.
+
+        Shifts the stored (x_opt, u_opt) by one NMPC time step:
+            x_shift[:, k]   = x_prev[:, k+1],   k = 0..N-1
+            x_shift[:, N]   = x_prev[:, N]      (extrapolate / repeat)
+            u_shift[:, k]   = u_prev[:, k+1],   k = 0..N-2
+            u_shift[:, N-1] = u_prev[:, N-1]    (repeat last)
+
+        This is the standard receding-horizon fallback when the current
+        NMPC solve is infeasible: use the previously-planned trajectory
+        advanced by one step, rather than jumping to an arbitrary
+        reference like the geometric CoM. It preserves continuity in
+        r_com_ref (no staircase jumps) and in the contact wrenches,
+        which prevents the actuator-saturation cascade described in
+        the M5 milestone.
+
+        Returns (None, None) if no previous successful solve exists.
+        """
+        if self._last_x_opt is None or self._last_u_opt is None:
+            return None, None
+        x_prev = self._last_x_opt
+        u_prev = self._last_u_opt
+        x_shift = np.zeros_like(x_prev)
+        u_shift = np.zeros_like(u_prev)
+        x_shift[:, :-1] = x_prev[:, 1:]
+        x_shift[:, -1] = x_prev[:, -1]   # repeat terminal state
+        u_shift[:, :-1] = u_prev[:, 1:]
+        u_shift[:, -1] = u_prev[:, -1]   # repeat last control
+        return x_shift, u_shift
 
     def compute_c_simple(
         self,
@@ -490,9 +547,15 @@ class CentroidalNMPC:
         Call on phase transitions (DS <-> SS) so the solver does not
         carry over a trajectory that was feasible under the previous
         contact configuration but may be infeasible under the new one.
+        Also clears the stored full-trajectory fallback cache, because
+        that trajectory was planned under the old contact configuration
+        and is not applicable after a phase switch.
         """
         if self._nmpc is not None:
             self._nmpc.reset_warm_start()
+        self._last_x_opt = None
+        self._last_u_opt = None
+        self._last_success = False
 
     def get_full_trajectory(
         self,
