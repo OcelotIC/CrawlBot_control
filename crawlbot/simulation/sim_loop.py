@@ -92,6 +92,16 @@ class SimulationLoop:
         self._coarse_plan_t0: float = 0.0
         # Per-step telemetry (infeasibilities, solve times, etc.)
         self._preplanner_stats = []
+        # ── Diagnostic hooks (runtime-only, not config fields) ────────
+        # _diag_disable_aocs: if True, force tau_w_cmd = 0 every QP sub-
+        #   step (used to measure the raw robot-disturbance-induced
+        #   platform drift without AOCS compensation).
+        # _diag_lock_arm_joints: if True, set qvel[arm joints] = 0 after
+        #   every mj_step and clear arm joint actuation (used to
+        #   measure the contact/weld/MJ baseline drift with the robot
+        #   "frozen").
+        self._diag_disable_aocs: bool = False
+        self._diag_lock_arm_joints: bool = False
 
     # ── Setup ────────────────────────────────────────────────────────────
 
@@ -1282,6 +1292,12 @@ class SimulationLoop:
 
             tau = np.clip(tau, -cfg.tau_max, cfg.tau_max)
             tau_last = tau.copy()
+            if self._diag_lock_arm_joints:
+                # Diagnostic: zero all joint torques so the arms hold
+                # their initial config (qvel[arm] is forced to 0 after
+                # every mj_step below).
+                tau = np.zeros_like(tau)
+                tau_last = tau.copy()
             self.mj_data.ctrl[:self.robot.n_joints] = tau
 
             # AOCS: reaction wheel torque command.
@@ -1325,6 +1341,8 @@ class SimulationLoop:
                     tau_w_cmd = -L_dot_est - cfg.aocs_K_hw * hw_error
                     tau_w_cmd = np.clip(tau_w_cmd, -cfg.aocs_tau_w_max, cfg.aocs_tau_w_max)
 
+                if self._diag_disable_aocs:
+                    tau_w_cmd = np.zeros(3)
                 self.mj_data.ctrl[self.robot.n_joints:self.robot.n_joints + 3] = tau_w_cmd
                 tau_w_last = tau_w_cmd.copy()
                 _omega_s_last = omega_s.copy()
@@ -1332,6 +1350,11 @@ class SimulationLoop:
             _L_com_qp_prev = rs.L_com.copy()
             _v_com_qp_prev = rs.v_com.copy()
             mujoco.mj_step(self.mj_model, self.mj_data)
+            if self._diag_lock_arm_joints:
+                # Re-freeze arm joints after the physics step. The
+                # arm joints start at qvel[15:27] in the 27-DOF layout
+                # (structure 0..5, wheels 6..8, torso 9..14, arms 15..26).
+                self.mj_data.qvel[15:27] = 0.0
 
             omega_s_post = self.mj_data.qvel[3:6].copy()
             rs2 = self.robot.update(
