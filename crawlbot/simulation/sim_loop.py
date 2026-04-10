@@ -102,6 +102,20 @@ class SimulationLoop:
         #   "frozen").
         self._diag_disable_aocs: bool = False
         self._diag_lock_arm_joints: bool = False
+        # _diag_pure_pd: strips ALL feedforward terms entering the QP
+        #   (a_com_ff → 0, a_torso_ff → 0, λ_ref → 0) and the NMPC's
+        #   L_com_ref → 0, leaving only PD feedback on r_b_ref from
+        #   the mapping layer. Used to localize feedforward-injected
+        #   instabilities vs. PD-loop instabilities.
+        self._diag_pure_pd: bool = False
+        # Per-step trace of the pure-PD diagnostic (filled in _step).
+        self._diag_pure_pd_trace: list = []
+        # _diag_freeze_ref: keep r_b_ref / v_b_ref held at the first-
+        # sample value during the run. Used to probe the PD loop's
+        # stability around a FIXED torso target (no reference motion).
+        self._diag_freeze_ref: bool = False
+        self._diag_frozen_r_b_ref: Optional[np.ndarray] = None
+        self._diag_frozen_R_b_ref: Optional[np.ndarray] = None
 
     # ── Setup ────────────────────────────────────────────────────────────
 
@@ -1093,6 +1107,8 @@ class SimulationLoop:
         # planner's rotation phase reasonably.
         t_mid = t + 0.5 * cfg.nmpc_N * cfg.nmpc_dt
         L_com_ref_nmpc = self.torso_planner.l_com_reference_at(t_mid)
+        if self._diag_pure_pd:
+            L_com_ref_nmpc = np.zeros(3)
         try:
             rp, vp, _, lr, info_n = self.nmpc.solve(
                 r_com=rs.r_com, v_com=rs.v_com, L_com=rs.L_com,
@@ -1201,9 +1217,14 @@ class SimulationLoop:
             # interval). Orientation comes from the TorsoPlanner SLERP.
             tr = self.torso_planner.reference_at(tq)
             if self.mapping is not None and cfg.use_m2_stack:
+                # In pure-PD diagnostic mode, zero the CoM feedforward
+                # so the mapping's a_b_ff comes only from -δ̈(q)/m_b;
+                # then we also clobber it to zero below. This keeps the
+                # position reference (r_b_ref from the mapping) intact.
+                af_for_mapping = np.zeros(3) if self._diag_pure_pd else af
                 r_b_ref_m, v_b_ref_m, a_b_ff_m, _ = self.mapping.compute(
                     r_com_ref=rp_interp, v_com_ref=vp_interp,
-                    a_com_ff=af, q_current=rs.q, dq_current=rs.v)
+                    a_com_ff=af_for_mapping, q_current=rs.q, dq_current=rs.v)
                 p_torso_ref_used = r_b_ref_m
                 v_torso_ref_used = np.concatenate([v_b_ref_m, tr.v[3:6]])
                 a_torso_ff_used = np.concatenate([a_b_ff_m, tr.a[3:6]])
@@ -1211,11 +1232,30 @@ class SimulationLoop:
                 p_torso_ref_used = tr.p
                 v_torso_ref_used = tr.v
                 a_torso_ff_used = tr.a
+
+            if self._diag_freeze_ref:
+                # Freeze r_b_ref / R_b_ref to the first sample taken.
+                # Used to probe PD stability at a STATIC target.
+                if self._diag_frozen_r_b_ref is None:
+                    self._diag_frozen_r_b_ref = p_torso_ref_used.copy()
+                    self._diag_frozen_R_b_ref = tr.R.copy()
+                p_torso_ref_used = self._diag_frozen_r_b_ref.copy()
+                R_b_ref_frozen = self._diag_frozen_R_b_ref.copy()
+                v_torso_ref_used = np.zeros(6)
+                a_torso_ff_used = np.zeros(6)
+
+            if self._diag_pure_pd:
+                # Strip all feedforward terms entering the QP.
+                a_torso_ff_used = np.zeros(6)
+                lr = np.zeros(12)
+                af = np.zeros(3)
+            R_torso_ref_used = (self._diag_frozen_R_b_ref
+                                if self._diag_freeze_ref else tr.R)
             tkw = dict(
                 J_torso=rs.J_torso, Jdot_dq_torso=rs.Jdot_dq_torso,
                 p_torso=rs.oMf_torso.translation,
                 R_torso=rs.oMf_torso.rotation,
-                p_torso_ref=p_torso_ref_used, R_torso_ref=tr.R,
+                p_torso_ref=p_torso_ref_used, R_torso_ref=R_torso_ref_used,
                 v_torso_ref=v_torso_ref_used, a_torso_ff=a_torso_ff_used)
 
             ek = {}
