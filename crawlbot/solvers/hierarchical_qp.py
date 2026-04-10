@@ -206,12 +206,6 @@ class HierarchicalQP:
         self._C_ineq = None
         self._d_ineq = None
 
-    def clear_all(self) -> None:
-        """Remove all tasks, constraints, and reset bounds."""
-        self.clear_tasks()
-        self.clear_constraints()
-        self._lb = np.full(self.n_vars, -np.inf)
-        self._ub = np.full(self.n_vars, np.inf)
 
     # ------------------------------------------------------------------ #
     #  Public interface — Solve                                            #
@@ -520,60 +514,12 @@ class HierarchicalQP:
         return opts
 
     # ------------------------------------------------------------------ #
-    #  Convenience: update tasks without rebuilding                        #
-    # ------------------------------------------------------------------ #
-
-    def update_task(self, index: int, b: Optional[np.ndarray] = None,
-                    A: Optional[np.ndarray] = None,
-                    W=None) -> None:
-        """Update an existing task's data in-place (avoids list rebuild).
-
-        Parameters
-        ----------
-        index : int
-            Index into the task list (insertion order).
-        b : ndarray, optional
-            New desired value.
-        A : ndarray, optional
-            New Jacobian.
-        W : optional
-            New weight.
-        """
-        task = self._tasks[index]
-        if b is not None:
-            task.b = np.asarray(b).ravel()
-        if A is not None:
-            task.A = np.atleast_2d(A)
-        if W is not None:
-            m = task.A.shape[0]
-            if np.isscalar(W):
-                task.W = float(W) * np.eye(m)
-            elif np.ndim(W) == 1:
-                task.W = np.diag(np.asarray(W).ravel())
-            else:
-                task.W = np.asarray(W)
-
-    def update_equality_constraint(self, C: np.ndarray, d: np.ndarray) -> None:
-        """Replace all equality constraints."""
-        self._C_eq = np.atleast_2d(C)
-        self._d_eq = np.asarray(d).ravel()
-
-    def update_inequality_constraint(self, C: np.ndarray, d: np.ndarray) -> None:
-        """Replace all inequality constraints."""
-        self._C_ineq = np.atleast_2d(C)
-        self._d_ineq = np.asarray(d).ravel()
-
-    # ------------------------------------------------------------------ #
     #  Properties for inspection                                           #
     # ------------------------------------------------------------------ #
 
     @property
     def n_tasks(self) -> int:
         return len(self._tasks)
-
-    @property
-    def tasks(self) -> List[Task]:
-        return self._tasks
 
     def __repr__(self) -> str:
         return (

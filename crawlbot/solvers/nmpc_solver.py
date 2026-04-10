@@ -472,21 +472,6 @@ class NMPCSolver:
 
         return x_opt, u_opt, info
 
-    def get_first_control(
-        self,
-        x0: np.ndarray,
-        u_guess: Optional[np.ndarray] = None,
-        x_guess: Optional[np.ndarray] = None,
-        params: Optional[np.ndarray] = None,
-        warm_start: bool = True,
-    ) -> Tuple[np.ndarray, NMPCSolveInfo]:
-        """Convenience: solve and return only the first control action u_0*.
-
-        This is the standard receding-horizon call.
-        """
-        x_opt, u_opt, info = self.solve(x0, u_guess, x_guess, params, warm_start)
-        return u_opt[:, 0], info
-
     def shift_warm_start(self) -> None:
         """Shift the stored warm-start by one time step.
 
