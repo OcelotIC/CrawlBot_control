@@ -304,6 +304,13 @@ class WholeBodyQP:
         n_robot = 6 + nq  # dimension of q̈_robot = [q̈_t; q̈]
 
         # --- Build QP ---
+        # Keep the default weight_ratio (1000) so that task priorities
+        # are preserved (P1 >> P2 >> P3 >> ...). This is what the M2
+        # tests rely on: when torso (P1) and EE (P2) can be satisfied
+        # simultaneously, both get zero residual even though EE has
+        # effective weight α_ee/1000. See the soft-CoM note below for
+        # why that task is deliberately kept at P4 (invisible) under
+        # the M5 mapping layer.
         qp = HierarchicalQP(
             n_vars=n, method=cfg.method, solver=cfg.solver,
         )
@@ -611,6 +618,20 @@ class WholeBodyQP:
         # Weight is deliberately small (1-10) so it never overrides the
         # torso or EE tasks — it only biases the residual null-space DOFs
         # toward momentum-consistent trajectories.
+        # NOTE: priority 4 with the default weight_ratio=1000 gives this
+        # task an effective weight of α_com_soft/1e9 — numerically
+        # invisible. This is INTENTIONAL in the current architecture
+        # because the mapping layer (M5) routes the NMPC's CoM plan
+        # through `r_b_ref = (m_total/m_b)*r_com_plan − δ(q)/m_b` and
+        # the torso task tracks r_b_ref. Adding a non-null-space-
+        # -projected soft CoM cost at P1 would double-count the CoM
+        # tracking and directly conflict with the torso task (since
+        # J_com and J_torso rows are correlated through the mass
+        # ratio). Empirically: each unit of α_com_soft at P1 causes
+        # ~16 mm of torso tracking error in T7. When the mapping is
+        # wired, the soft CoM is effectively dead code — kept here
+        # for spec traceability and future experiments with a truly
+        # null-space-projected soft CoM.
         if cfg.use_m2_stack and cfg.alpha_com_soft > 0 and not settle_mode:
             qp.add_task(A_com, b_com, cfg.alpha_com_soft, priority=4)
 
