@@ -1,5 +1,5 @@
 metric,value,threshold,status
-torso_pos_err_peak_mm,724.132534,10.000000,FAIL
+torso_pos_err_peak_mm,790.058181,10.000000,FAIL
 torso_ori_err_peak_deg,149.842596,5.000000,FAIL
 ee_pos_err_at_dock_mm,,5.000000,SKIP
 ee_ori_err_at_dock_deg,,5.000000,SKIP
@@ -10,5 +10,5 @@ platform_rotation_total_deg,11.102764,5.000000,FAIL
 platform_omega_peak_deg_s,0.710219,2.000000,PASS
 tau_w_peak_ratio,1.000000,1.000000,PASS
 passivity_violations,,0.000000,SKIP
-nmpc_solve_rate_50ms,0.760218,0.950000,FAIL
+nmpc_solve_rate_50ms,0.771117,0.950000,FAIL
 nmpc_infeasibility_rate,0.081744,0.020000,FAIL

@@ -1439,6 +1439,19 @@ class SimulationLoop:
         # Recompute torso reference at the actual logged time (after QP steps)
         t_log = t + cfg.dt_nmpc
         tref_log = self.torso_planner.reference_at(t_log)
+        # For the torso-position error metric use the reference the QP
+        # actually tracked at the LAST sub-step — i.e. the output of
+        # the M5 mapping layer (`p_torso_ref_used`), not the geometric
+        # TorsoPlanner quintic (`tref_log.p`). These diverge whenever
+        # the mapping is wired, and the old metric was measuring the
+        # mapping-vs-planner discrepancy, not the controller's tracking
+        # quality. Orientation still comes from the TorsoPlanner SLERP
+        # since the mapping only maps position.
+        try:
+            p_torso_ref_log = p_torso_ref_used.copy()
+        except NameError:
+            # Sub-loop didn't run (shouldn't happen in production).
+            p_torso_ref_log = tref_log.p.copy()
         d_swing = self._gripper_distance(swing_arm, target_anchor)
         d_stance = self._gripper_distance(
             stance_arm, stance_a if stance_arm == 'a' else stance_b)
@@ -1450,9 +1463,9 @@ class SimulationLoop:
         log.phase.append(phase)
         log.step_idx.append(step_idx)
         log.p_torso.append(rs_f.oMf_torso.translation.copy())
-        log.p_torso_ref.append(tref_log.p.copy())
+        log.p_torso_ref.append(p_torso_ref_log.copy())
         log.e_torso_pos.append(float(np.linalg.norm(
-            rs_f.oMf_torso.translation - tref_log.p)))
+            rs_f.oMf_torso.translation - p_torso_ref_log)))
         R_err = tref_log.R.T @ rs_f.oMf_torso.rotation
         angle_err = np.arccos(np.clip((np.trace(R_err) - 1) / 2, -1, 1))
         log.e_torso_ori.append(float(np.degrees(angle_err)))
