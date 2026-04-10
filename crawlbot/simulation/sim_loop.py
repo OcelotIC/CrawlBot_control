@@ -34,6 +34,7 @@ except ImportError:
 from crawlbot.core.robot_interface import RobotInterface, FRAME_TOOL_A, FRAME_TOOL_B
 from crawlbot.core.state_conversions import (
     mujoco_to_pinocchio, pinocchio_to_mujoco, quat_wxyz_to_euler_deg)
+from crawlbot.core.com_to_torso_mapping import CoMToTorsoMapping
 from crawlbot.core.ik import (
     dock_configuration, solve_ik, solve_ik_waypoints,
     manipulability_config, precompute_torso_map,
@@ -124,6 +125,12 @@ class SimulationLoop:
 
         # Torso planner (reconfigured per step)
         self.torso_planner = TorsoPlanner()
+        # M5: provide torso body inertia so l_com_reference_at() can
+        # produce a meaningful feedforward for the NMPC cost.
+        # Pinocchio joint index 1 == root_joint (torso); .inertia is
+        # the 3x3 principal inertia tensor at the body CoM in body frame.
+        self.torso_planner.set_torso_inertia(
+            self.robot.model.inertias[1].inertia)
 
         # Precompute manipulability-optimal configs for anchor pairs
         # used in this gait. Only compute the pairs we actually need.
@@ -188,6 +195,15 @@ class SimulationLoop:
             w_L=cfg.w_L_nmpc,
             kappa_terminal=cfg.kappa_terminal))
         self.nmpc.build()
+
+        # M1/M5: CoM-to-torso mapping layer. Converts NMPC centroidal
+        # outputs (r_com, v_com, a_com_ff) into torso position references
+        # via the mass-weighted identity
+        #   r_b_ref = (m_total/m_b) * r_com_ref - delta(q)/m_b
+        # The QP then tracks this mapped torso reference instead of the
+        # TorsoPlanner's raw p_torso, ensuring the torso task is
+        # consistent with the momentum-feasible NMPC plan.
+        self.mapping = CoMToTorsoMapping(self.robot)
 
         # QP variants
         self.qp_ss = self._build_qp(
@@ -906,17 +922,25 @@ class SimulationLoop:
         nmpc_cost_val = np.inf
         t_nmpc_start = time.perf_counter()
         # M3: pass current hw (wheel momentum) so NMPC can compute c_simple
-        # for the conservation-law box. L_com_ref is still stubbed to zero.
+        # for the conservation-law box.
+        # M5: pass L_com_ref from the TorsoPlanner — nonzero during SS
+        # when the torso is rotating. Prevents the NMPC from treating
+        # intentional rotation as a disturbance to be cancelled.
         if self.has_rwa:
             hw_for_nmpc = (cfg.rwa_I_w * self.mj_data.qvel[6:9]).copy()
         else:
             hw_for_nmpc = hw.copy()
+        # Query L_com_ref at the horizon midpoint to track the
+        # planner's rotation phase reasonably.
+        t_mid = t + 0.5 * cfg.nmpc_N * cfg.nmpc_dt
+        L_com_ref_nmpc = self.torso_planner.l_com_reference_at(t_mid)
         try:
             rp, vp, _, lr, info_n = self.nmpc.solve(
                 r_com=rs.r_com, v_com=rs.v_com, L_com=rs.L_com,
                 r_com_ref=cref.r_com, v_com_ref=cref.v_com,
                 contact_config=cc_nmpc, warm_start=True,
-                hw_current=hw_for_nmpc)
+                hw_current=hw_for_nmpc,
+                L_com_ref=L_com_ref_nmpc)
             af = self.nmpc.compute_feedforward_acceleration(lr)
             nmpc_ok = info_n.success
             nmpc_cost_val = float(info_n.cost) if np.isfinite(info_n.cost) else np.inf
@@ -927,6 +951,10 @@ class SimulationLoop:
             nmpc_ok = False
             nmpc_status_code = 2
         t_nmpc_ms = (time.perf_counter() - t_nmpc_start) * 1000
+
+        # Note: the M5 mapping layer is evaluated INSIDE the QP sub-loop
+        # (not here) because delta(q) changes as the arms move during
+        # the 10 sub-steps of a single NMPC interval.
 
         # QP inner loop: select QP variant for current phase
         if phase == 'EXT_CLOSE':
@@ -958,14 +986,29 @@ class SimulationLoop:
             Jc, Jdc = self.robot.get_contact_jacobians(
                 cc_ss.active_contacts[0], cc_ss.active_contacts[1])
 
-            # Torso reference (structure frame — no struct pose needed at QP rate)
+            # Torso reference (structure frame — no struct pose needed at QP rate).
+            # M5.1: position/velocity/accel come from the mapping layer
+            # evaluated at the CURRENT configuration (arms at their
+            # current positions, not those from the start of the NMPC
+            # interval). Orientation comes from the TorsoPlanner SLERP.
             tr = self.torso_planner.reference_at(tq)
+            if self.mapping is not None and cfg.use_m2_stack:
+                r_b_ref_m, v_b_ref_m, a_b_ff_m, _ = self.mapping.compute(
+                    r_com_ref=rp, v_com_ref=vp, a_com_ff=af,
+                    q_current=rs.q, dq_current=rs.v)
+                p_torso_ref_used = r_b_ref_m
+                v_torso_ref_used = np.concatenate([v_b_ref_m, tr.v[3:6]])
+                a_torso_ff_used = np.concatenate([a_b_ff_m, tr.a[3:6]])
+            else:
+                p_torso_ref_used = tr.p
+                v_torso_ref_used = tr.v
+                a_torso_ff_used = tr.a
             tkw = dict(
                 J_torso=rs.J_torso, Jdot_dq_torso=rs.Jdot_dq_torso,
                 p_torso=rs.oMf_torso.translation,
                 R_torso=rs.oMf_torso.rotation,
-                p_torso_ref=tr.p, R_torso_ref=tr.R,
-                v_torso_ref=tr.v, a_torso_ff=tr.a)
+                p_torso_ref=p_torso_ref_used, R_torso_ref=tr.R,
+                v_torso_ref=v_torso_ref_used, a_torso_ff=a_torso_ff_used)
 
             ek = {}
             if phase == 'SS':
