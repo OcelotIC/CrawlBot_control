@@ -120,9 +120,9 @@ class SimConfig:
     ss_Kp_torso: float = 6.0
     ss_Kd_torso: float = 5.0
     ss_Kp_ee: float = 10.0
-    ss_Kd_ee: float = 7.0
-    ss_Kp_ee_ang: float = 2.0
-    ss_Kd_ee_ang: float = 1.5
+    ss_Kd_ee: float = 12.0
+    ss_Kp_ee_ang: float = 6.0
+    ss_Kd_ee_ang: float = 4.5
 
     # ── QP gains — Extension ───────────────────────────────────
     ext_Kp_com: float = 2.0
