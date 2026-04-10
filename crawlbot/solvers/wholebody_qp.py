@@ -85,6 +85,18 @@ class WholeBodyQPConfig:
     # ── Passivity constraint (DS only) ──
     alpha_passivity: float = 1.0  # Energy decay rate α [1/s] (α < 50 at 100 Hz)
 
+    # ── M5: soft slack on momentum safety backup constraint ──
+    # Replaces the hard inequality h_w(k+1) ∈ [h_min, h_max] with
+    #   h_w(k+1) ≤ h_max + s_upper, s_upper ≥ 0
+    #   h_w(k+1) ≥ h_min - s_lower, s_lower ≥ 0
+    # plus a heavy penalty w_slack * (||s_upper||² + ||s_lower||²)
+    # in the cost. When h_w is within the box, both slacks go to 0
+    # (constraint is effectively hard). When h_w is physically over
+    # the box, the slack allows the QP to remain feasible while the
+    # penalty drives the solution toward the maximum corrective
+    # wrench available.
+    w_hw_slack: float = 1e4       # Quadratic penalty on hw slack
+
     # PD gains for CoM tracking (Eq. VI-F.4)
     Kp_com: np.ndarray = field(default_factory=lambda: 100.0 * np.ones(3))
     Kd_com: np.ndarray = field(default_factory=lambda: 20.0 * np.ones(3))
@@ -147,9 +159,15 @@ class WholeBodyQP:
         self._dim_qdd = nq                    # Joint accelerations
         self._dim_lambda = 6 * nc_max         # Contact wrenches
         self._dim_tau = nq                     # Joint torques
+        # M5: slack variables for the momentum safety backup constraint.
+        # 3 for the upper bound (hw ≤ h_max + s_up) and 3 for the lower
+        # bound (hw ≥ h_min - s_lo). Always allocated; they're zero-cost
+        # (and zero-bound) whenever the hw constraint is not active.
+        self._dim_slack_hw = 6
 
         self._n_vars = (self._dim_qdd_t + self._dim_qdd +
-                        self._dim_lambda + self._dim_tau)
+                        self._dim_lambda + self._dim_tau +
+                        self._dim_slack_hw)
 
         # Variable index ranges in z
         self._idx = self._compute_indices()
@@ -347,18 +365,32 @@ class WholeBodyQP:
         #  INEQUALITY CONSTRAINTS                                       #
         # ============================================================ #
 
-        # 1. Momentum safety: h_min ≤ hw - dt·M_λ·λ ≤ h_max
-        #    Upper: -dt·M_λ·λ ≤ h_max - hw  →  [0, 0, -dt·M_λ, 0] z ≤ h_max - hw
-        #    Lower:  dt·M_λ·λ ≤ hw - h_min   →  [0, 0,  dt·M_λ, 0] z ≤ hw - h_min
-        if hw_current is not None and hw_min is not None and r_com is not None:
+        # 1. Momentum safety (M5 soft slack): h_min ≤ hw - dt·M_λ·λ ≤ h_max
+        #    With slack s_up, s_lo ≥ 0:
+        #    Upper: -dt·M_λ·λ - s_up ≤ h_max - hw
+        #    Lower:  dt·M_λ·λ - s_lo ≤ hw - h_min
+        #    Bound: s_up, s_lo ≥ 0  (set later in the bounds block)
+        #    Cost: w_hw_slack * (||s_up||² + ||s_lo||²)  (added as a task)
+        #
+        # When h_w is within the box, both slacks go to 0 and the
+        # constraint is effectively hard. When physical h_w is beyond
+        # the box (e.g., during actuator saturation), the slack lets
+        # the QP stay feasible while the heavy penalty drives the
+        # slack toward zero — giving the maximum corrective wrench.
+        hw_constraint_active = (
+            hw_current is not None and hw_min is not None
+            and r_com is not None)
+        if hw_constraint_active:
             M_lambda = compute_momentum_map(r_com, contact_config)
 
             A_mom_upper = np.zeros((3, n))
             A_mom_upper[:, idx['lambda'][0]: idx['lambda'][1]] = -cfg.dt_qp * M_lambda
+            A_mom_upper[:, idx['slack_hw_up'][0]: idx['slack_hw_up'][1]] = -np.eye(3)
             b_mom_upper = hw_max - hw_current
 
             A_mom_lower = np.zeros((3, n))
             A_mom_lower[:, idx['lambda'][0]: idx['lambda'][1]] = cfg.dt_qp * M_lambda
+            A_mom_lower[:, idx['slack_hw_lo'][0]: idx['slack_hw_lo'][1]] = -np.eye(3)
             b_mom_lower = hw_current - hw_min
 
             qp.add_inequality_constraint(
@@ -439,6 +471,19 @@ class WholeBodyQP:
             else:
                 lb[s: s + 6] = 0.0
                 ub[s: s + 6] = 0.0
+
+        # M5 hw slack bounds: non-negativity when constraint is active,
+        # pinned to 0 otherwise.
+        if hw_constraint_active:
+            lb[idx['slack_hw_up'][0]: idx['slack_hw_up'][1]] = 0.0
+            ub[idx['slack_hw_up'][0]: idx['slack_hw_up'][1]] = np.inf
+            lb[idx['slack_hw_lo'][0]: idx['slack_hw_lo'][1]] = 0.0
+            ub[idx['slack_hw_lo'][0]: idx['slack_hw_lo'][1]] = np.inf
+        else:
+            lb[idx['slack_hw_up'][0]: idx['slack_hw_up'][1]] = 0.0
+            ub[idx['slack_hw_up'][0]: idx['slack_hw_up'][1]] = 0.0
+            lb[idx['slack_hw_lo'][0]: idx['slack_hw_lo'][1]] = 0.0
+            ub[idx['slack_hw_lo'][0]: idx['slack_hw_lo'][1]] = 0.0
 
         qp.set_bounds(lb, ub)
 
@@ -632,6 +677,18 @@ class WholeBodyQP:
 
         qp.add_task(A_reg, b_reg, cfg.alpha_reg, priority=6)
 
+        # --- M5 Task: hw slack penalty (heavy, high priority) ---
+        # Drive the slack variables to zero as fast as the actuator
+        # limits allow. Uses priority 1 so it can't be traded off
+        # against posture / torque minimisation. Weight = w_hw_slack
+        # (default 1e4 >> alpha_torso ≈ 1e3).
+        if cfg.w_hw_slack > 0:
+            A_slack = np.zeros((6, n))
+            A_slack[0: 3, idx['slack_hw_up'][0]: idx['slack_hw_up'][1]] = np.eye(3)
+            A_slack[3: 6, idx['slack_hw_lo'][0]: idx['slack_hw_lo'][1]] = np.eye(3)
+            b_slack = np.zeros(6)
+            qp.add_task(A_slack, b_slack, cfg.w_hw_slack, priority=1)
+
         # ============================================================ #
         #  SOLVE                                                        #
         # ============================================================ #
@@ -651,7 +708,11 @@ class WholeBodyQP:
     # ------------------------------------------------------------------ #
 
     def _compute_indices(self) -> Dict[str, Tuple[int, int]]:
-        """Compute start/end indices for each variable block in z."""
+        """Compute start/end indices for each variable block in z.
+
+        Layout: [qdd_t(6), qdd(nq), lambda(6*nc_max), tau(nq),
+                 slack_hw_upper(3), slack_hw_lower(3)]
+        """
         nq = self.config.nq
         n_lambda = 6 * self.config.nc_max
 
@@ -662,6 +723,8 @@ class WholeBodyQP:
         idx['qdd'] = (s, s + nq);            s += nq
         idx['lambda'] = (s, s + n_lambda);    s += n_lambda
         idx['tau'] = (s, s + nq);             s += nq
+        idx['slack_hw_up'] = (s, s + 3);     s += 3
+        idx['slack_hw_lo'] = (s, s + 3);     s += 3
 
         assert s == self._n_vars
         return idx

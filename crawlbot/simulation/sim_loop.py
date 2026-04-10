@@ -1208,7 +1208,11 @@ class SimulationLoop:
                 hw = cfg.rwa_I_w * self.mj_data.qvel[6:9].copy()
             else:
                 hw -= (rs2.L_com - rs.L_com) / cfg.dt_qp * cfg.dt_qp
-            hw = np.clip(hw, cfg.hw_min, cfg.hw_max)
+            # Do NOT clip hw here. The QP's hw safety constraint is
+            # soft (slack variables with heavy quadratic penalty), so
+            # the QP stays feasible even when physical hw is beyond
+            # the box, and actively generates the maximum corrective
+            # wrench it can.
 
         t_qp_ms = (time.perf_counter() - t_qp_start) * 1000
 
