@@ -35,7 +35,7 @@ class TestMassMatrix:
         np.random.seed(42)
         for _ in range(5):
             q = pin.randomConfiguration(robot_interface.model)
-            v = np.random.randn(18) * 0.1
+            v = np.random.randn(robot_interface.model.nv) * 0.1
             state = robot_interface.update(q, v)
             np.testing.assert_allclose(state.H, state.H.T, atol=1e-12)
 
@@ -52,7 +52,7 @@ class TestCoMConsistency:
 
         # Nominal config
         q0 = pin.neutral(robot_interface.model)
-        v0 = np.zeros(18)
+        v0 = np.zeros(robot_interface.model.nv)
         state0 = robot_interface.update(q0, v0)
         np.testing.assert_allclose(
             state0.v_com, state0.J_com @ state0.v, atol=1e-12,
@@ -61,7 +61,7 @@ class TestCoMConsistency:
         # Random configs with nonzero velocity
         for _ in range(3):
             q = pin.randomConfiguration(robot_interface.model)
-            v = np.random.randn(18) * 0.1
+            v = np.random.randn(robot_interface.model.nv) * 0.1
             state = robot_interface.update(q, v)
             np.testing.assert_allclose(
                 state.v_com, state.J_com @ state.v, atol=1e-10,
@@ -78,7 +78,7 @@ class TestCentroidalMomentum:
         """h_centroidal[0:3] should equal total_mass * v_com."""
         np.random.seed(42)
         q = pin.neutral(robot_interface.model)
-        v = np.random.randn(18) * 0.1
+        v = np.random.randn(robot_interface.model.nv) * 0.1
         state = robot_interface.update(q, v)
         np.testing.assert_allclose(
             state.h_centroidal[0:3],
@@ -89,7 +89,7 @@ class TestCentroidalMomentum:
     def test_centroidal_momentum_angular_zero_velocity(self, robot_interface):
         """At zero velocity, angular momentum L_com should be zero."""
         q = pin.neutral(robot_interface.model)
-        v = np.zeros(18)
+        v = np.zeros(robot_interface.model.nv)
         state = robot_interface.update(q, v)
         np.testing.assert_allclose(state.L_com, np.zeros(3), atol=1e-14)
 
@@ -97,7 +97,7 @@ class TestCentroidalMomentum:
         """L_com should match h_centroidal[3:6] at nonzero velocity."""
         np.random.seed(42)
         q = pin.randomConfiguration(robot_interface.model)
-        v = np.random.randn(18) * 0.1
+        v = np.random.randn(robot_interface.model.nv) * 0.1
         state = robot_interface.update(q, v)
         np.testing.assert_allclose(
             state.L_com, state.h_centroidal[3:6], atol=1e-14,
@@ -113,16 +113,16 @@ class TestBiasVector:
     def test_bias_zero_velocity(self, robot_interface):
         """With v=0 and zero gravity, bias C should be zero."""
         q = pin.neutral(robot_interface.model)
-        v = np.zeros(18)
+        v = np.zeros(robot_interface.model.nv)
         state = robot_interface.update(q, v)
-        np.testing.assert_allclose(state.C, np.zeros(18), atol=1e-14)
+        np.testing.assert_allclose(state.C, np.zeros(robot_interface.model.nv), atol=1e-14)
 
     def test_dynamics_consistency_zero_acceleration(self, robot_interface):
         """At zero velocity / zero gravity, C must be zero (=> H@0 + C = 0)."""
         q = pin.neutral(robot_interface.model)
-        v = np.zeros(18)
+        v = np.zeros(robot_interface.model.nv)
         state = robot_interface.update(q, v)
-        np.testing.assert_allclose(state.C, np.zeros(18), atol=1e-14)
+        np.testing.assert_allclose(state.C, np.zeros(robot_interface.model.nv), atol=1e-14)
 
 
 # ---------------------------------------------------------------------------
@@ -180,27 +180,27 @@ class TestMomentumMap:
 class TestContactJacobians:
 
     def test_contact_jacobian_both_active(self, robot_interface):
-        """Both contacts active: J is (12, 18), Jdot_dq is (12,)."""
+        """Both contacts active: J is (12, nv), Jdot_dq is (12,)."""
         q = pin.neutral(robot_interface.model)
-        v = np.zeros(18)
+        v = np.zeros(robot_interface.model.nv)
         robot_interface.update(q, v)
         J, Jdot_dq = robot_interface.get_contact_jacobians(True, True)
-        assert J.shape == (12, 18)
+        assert J.shape == (12, robot_interface.model.nv)
         assert Jdot_dq.shape == (12,)
 
     def test_contact_jacobian_only_A(self, robot_interface):
-        """Only A active: J is (6, 18), Jdot_dq is (6,)."""
+        """Only A active: J is (6, nv), Jdot_dq is (6,)."""
         q = pin.neutral(robot_interface.model)
-        v = np.zeros(18)
+        v = np.zeros(robot_interface.model.nv)
         robot_interface.update(q, v)
         J, Jdot_dq = robot_interface.get_contact_jacobians(True, False)
-        assert J.shape == (6, 18)
+        assert J.shape == (6, robot_interface.model.nv)
         assert Jdot_dq.shape == (6,)
 
     def test_contact_jacobian_neither_active(self, robot_interface):
         """No active contacts: returns (None, None)."""
         q = pin.neutral(robot_interface.model)
-        v = np.zeros(18)
+        v = np.zeros(robot_interface.model.nv)
         robot_interface.update(q, v)
         J, Jdot_dq = robot_interface.get_contact_jacobians(False, False)
         assert J is None

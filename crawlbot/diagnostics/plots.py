@@ -22,7 +22,16 @@ def _to_np(lst):
 def _to_np2d(lst, cols=3):
     if len(lst) == 0:
         return np.empty((0, cols))
-    return np.array(lst, dtype=float).reshape(-1, cols)
+    arr = np.array(lst, dtype=float)
+    if arr.ndim == 2:
+        # List of per-step vectors — numpy stacked them directly.
+        # Trust the inner dimension regardless of the `cols` hint so
+        # DOF-generic callers (e.g. 6- vs 7-DOF arms) don't break.
+        return arr
+    # Flat/1D: best-effort infer cols from total size
+    if arr.size > 0 and arr.size % max(len(lst), 1) == 0:
+        cols = arr.size // len(lst)
+    return arr.reshape(-1, cols)
 
 
 def _phase_shading(ax, t, phases):

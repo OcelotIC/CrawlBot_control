@@ -165,9 +165,15 @@
           <geom class="arm_a" type="capsule" fromto="0 0 0  0.5 0 0"
                 size="0.04" name="link2a_geom"/>
 
-          <body name="Link_3_a" pos="0.5 0 0"
-                euler="0 0 -1.57079632679">
-            <joint name="Joint_3_a" class="robot_joint" type="hinge" axis="0 0 1"/>
+          <!-- Joint_swivel_a: SEW-redundant elbow swivel (spec §4.9.6) -->
+          <body name="Link_2_swivel_a" pos="0.5 0 0">
+            <joint name="Joint_swivel_a" class="robot_joint" type="hinge" axis="1 0 0"/>
+            <inertial pos="0 0 0" mass="0.001"
+                      fullinertia="1e-6 1e-6 1e-6 0 0 0"/>
+
+            <body name="Link_3_a" pos="0 0 0"
+                  euler="0 0 -1.57079632679">
+              <joint name="Joint_3_a" class="robot_joint" type="hinge" axis="0 0 1"/>
             <inertial pos="0 0.043 0.029" mass="2.328"
                       fullinertia="0.012 0.008 0.007 0 0 0.003"/>
             <geom class="arm_a" type="capsule" fromto="0 0 0  0 0.65 0"
@@ -209,6 +215,7 @@
               </body>
             </body>
           </body>
+          </body>  <!-- /Link_2_swivel_a -->
         </body>
       </body>
 
@@ -228,9 +235,15 @@
           <geom class="arm_b" type="capsule" fromto="0 0 0  0.5 0 0"
                 size="0.04" name="link2b_geom"/>
 
-          <body name="Link_3_b" pos="0.5 0 0"
-                euler="0 0 -1.57079632679">
-            <joint name="Joint_3_b" class="robot_joint" type="hinge" axis="0 0 1"/>
+          <!-- Joint_swivel_b: SEW-redundant elbow swivel -->
+          <body name="Link_2_swivel_b" pos="0.5 0 0">
+            <joint name="Joint_swivel_b" class="robot_joint" type="hinge" axis="1 0 0"/>
+            <inertial pos="0 0 0" mass="0.001"
+                      fullinertia="1e-6 1e-6 1e-6 0 0 0"/>
+
+            <body name="Link_3_b" pos="0 0 0"
+                  euler="0 0 -1.57079632679">
+              <joint name="Joint_3_b" class="robot_joint" type="hinge" axis="0 0 1"/>
             <inertial pos="0 0.043 0.029" mass="2.328"
                       fullinertia="0.012 0.008 0.007 0 0 0.003"/>
             <geom class="arm_b" type="capsule" fromto="0 0 0  0 0.65 0"
@@ -272,6 +285,7 @@
               </body>
             </body>
           </body>
+          </body>  <!-- /Link_2_swivel_b -->
         </body>
       </body>
 
@@ -281,16 +295,18 @@
   <!-- ==================== ACTUATORS ==================== -->
   <actuator>
     <!-- Arm A -->
-    <motor name="act_J1a" joint="Joint_1_a" gear="1" ctrlrange="-50 50"/>
-    <motor name="act_J2a" joint="Joint_2_a" gear="1" ctrlrange="-50 50"/>
-    <motor name="act_J3a" joint="Joint_3_a" gear="1" ctrlrange="-50 50"/>
+    <motor name="act_J1a"     joint="Joint_1_a"      gear="1" ctrlrange="-50 50"/>
+    <motor name="act_J2a"     joint="Joint_2_a"      gear="1" ctrlrange="-50 50"/>
+    <motor name="act_SWa"     joint="Joint_swivel_a" gear="1" ctrlrange="-50 50"/>
+    <motor name="act_J3a"     joint="Joint_3_a"      gear="1" ctrlrange="-50 50"/>
     <motor name="act_J4a" joint="Joint_4_a" gear="1" ctrlrange="-50 50"/>
     <motor name="act_J5a" joint="Joint_5_a" gear="1" ctrlrange="-50 50"/>
     <motor name="act_J6a" joint="Joint_6_a" gear="1" ctrlrange="-50 50"/>
     <!-- Arm B -->
-    <motor name="act_J1b" joint="Joint_1_b" gear="1" ctrlrange="-50 50"/>
-    <motor name="act_J2b" joint="Joint_2_b" gear="1" ctrlrange="-50 50"/>
-    <motor name="act_J3b" joint="Joint_3_b" gear="1" ctrlrange="-50 50"/>
+    <motor name="act_J1b"     joint="Joint_1_b"      gear="1" ctrlrange="-50 50"/>
+    <motor name="act_J2b"     joint="Joint_2_b"      gear="1" ctrlrange="-50 50"/>
+    <motor name="act_SWb"     joint="Joint_swivel_b" gear="1" ctrlrange="-50 50"/>
+    <motor name="act_J3b"     joint="Joint_3_b"      gear="1" ctrlrange="-50 50"/>
     <motor name="act_J4b" joint="Joint_4_b" gear="1" ctrlrange="-50 50"/>
     <motor name="act_J5b" joint="Joint_5_b" gear="1" ctrlrange="-50 50"/>
     <motor name="act_J6b" joint="Joint_6_b" gear="1" ctrlrange="-50 50"/>
@@ -349,10 +365,10 @@
     <!-- Home: qpos layout with RWA:
          [struct_pos(3) struct_quat(4) rw_x rw_y rw_z
           torso_pos(3) torso_quat(4) J1a..J6a J1b..J6b]
-         Total: 7 + 3 + 7 + 12 = 29 DOF -->
+         Total: 7 + 3 + 7 + 14 = 31 DOF (7-DOF arms) -->
     <key name="home" qpos="0 0 -1.8  1 0 0 0  0 0 0
                             0 0 0  1 0 0 0
-                            0 0 0 0 0 0  0 0 0 0 0 0"/>
+                            0 0 0 0 0 0 0  0 0 0 0 0 0 0"/>
   </keyframe>
 
 </mujoco>

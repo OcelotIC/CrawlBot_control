@@ -1,21 +1,25 @@
-<!-- VISPA Dual-Arm Crawling Robot — MuJoCo MJCF (RWA-3 variant)
+<!-- VISPA Dual-Arm Crawling Robot — MuJoCo MJCF (RWA-3, 7-DOF arms)
      Floating-base in microgravity with structure anchor points.
      3 orthogonal reaction wheels (Hsw = I3) mounted on structure body.
 
      Kinematic chain:  torso (freejoint 6-DOF)
-                       +-- arm_a: 6R + tool (gripper site)
-                       +-- arm_b: 6R + tool (gripper site)
+                       +-- arm_a: 7R + tool (gripper site)
+                       +-- arm_b: 7R + tool (gripper site)
 
      Structure: floating platform (high mass) with 12 anchor sites (2 rows x 6)
                 + 3 reaction wheels (rw_x, rw_y, rw_z).
 
-     DOF layout (nq=29, nv=27, nu=15):
-       qpos[0:7]   structure freejoint (pos + quat wxyz)
-       qpos[7]     rw_x angle [rad]
-       qpos[8]     rw_y angle [rad]
-       qpos[9]     rw_z angle [rad]
-       qpos[10:17] torso freejoint (pos + quat wxyz)
-       qpos[17:29] 12 joints robot (Joint_1_a ... Joint_6_b)
+     DOF layout (nq=31, nv=29, nu=17):
+       qpos[0:7]    structure freejoint (pos + quat wxyz)
+       qpos[7]      rw_x angle [rad]
+       qpos[8]      rw_y angle [rad]
+       qpos[9]      rw_z angle [rad]
+       qpos[10:17]  torso freejoint (pos + quat wxyz)
+       qpos[17:31]  14 joints robot
+                    (J1a J2a SW_a J3a J4a J5a J6a  J1b J2b SW_b J3b J4b J5b J6b)
+
+     Spec §4.9.6: per-arm 7-DOF = shoulder(2) + elbow-swivel(1)
+     + elbow(1) + wrist(3), matching the MIRROR project's 7R VISPA arms.
 
      Convention: eulerseq="XYZ" (extrinsic) = URDF rpy convention.
      All angles in radians, SI units throughout.
@@ -159,9 +163,17 @@
           <geom class="arm_a" type="capsule" fromto="0 0 0  0.5 0 0"
                 size="0.04" name="link2a_geom"/>
 
-          <body name="Link_3_a" pos="0.5 0 0"
-                euler="0 0 -1.57079632679">
-            <joint name="Joint_3_a" class="robot_joint" type="hinge" axis="0 0 1"/>
+          <!-- Joint_swivel_a: SEW-redundant elbow swivel, axis = shoulder→elbow
+               (Link_2_a's x-axis). Placed at the elbow (0.5, 0, 0) in Link_2_a.
+               The dummy body has a tiny inertia so Pinocchio/MuJoCo are happy. -->
+          <body name="Link_2_swivel_a" pos="0.5 0 0">
+            <joint name="Joint_swivel_a" class="robot_joint" type="hinge" axis="1 0 0"/>
+            <inertial pos="0 0 0" mass="0.001"
+                      fullinertia="1e-6 1e-6 1e-6 0 0 0"/>
+
+            <body name="Link_3_a" pos="0 0 0"
+                  euler="0 0 -1.57079632679">
+              <joint name="Joint_3_a" class="robot_joint" type="hinge" axis="0 0 1"/>
             <inertial pos="0 0.043 0.029" mass="2.328"
                       fullinertia="0.012 0.008 0.007 0 0 0.003"/>
             <geom class="arm_a" type="capsule" fromto="0 0 0  0 0.65 0"
@@ -203,6 +215,7 @@
               </body>
             </body>
           </body>
+          </body>  <!-- /Link_2_swivel_a -->
         </body>
       </body>
 
@@ -222,9 +235,15 @@
           <geom class="arm_b" type="capsule" fromto="0 0 0  0.5 0 0"
                 size="0.04" name="link2b_geom"/>
 
-          <body name="Link_3_b" pos="0.5 0 0"
-                euler="0 0 -1.57079632679">
-            <joint name="Joint_3_b" class="robot_joint" type="hinge" axis="0 0 1"/>
+          <!-- Joint_swivel_b: SEW-redundant elbow swivel (see arm A note). -->
+          <body name="Link_2_swivel_b" pos="0.5 0 0">
+            <joint name="Joint_swivel_b" class="robot_joint" type="hinge" axis="1 0 0"/>
+            <inertial pos="0 0 0" mass="0.001"
+                      fullinertia="1e-6 1e-6 1e-6 0 0 0"/>
+
+            <body name="Link_3_b" pos="0 0 0"
+                  euler="0 0 -1.57079632679">
+              <joint name="Joint_3_b" class="robot_joint" type="hinge" axis="0 0 1"/>
             <inertial pos="0 0.043 0.029" mass="2.328"
                       fullinertia="0.012 0.008 0.007 0 0 0.003"/>
             <geom class="arm_b" type="capsule" fromto="0 0 0  0 0.65 0"
@@ -266,29 +285,38 @@
               </body>
             </body>
           </body>
+          </body>  <!-- /Link_2_swivel_b -->
         </body>
       </body>
 
     </body> <!-- end torso -->
   </worldbody>
 
-  <!-- ==================== ACTUATORS ==================== -->
+  <!-- ==================== ACTUATORS ====================
+       Order must match Pinocchio joint order so `ctrl[:n_joints]` and
+       the controller's (n_joints,) tau vector line up element-for-element:
+         arm A: J1a J2a SW_a J3a J4a J5a J6a
+         arm B: J1b J2b SW_b J3b J4b J5b J6b
+         RWA:   rw_x rw_y rw_z            (ctrl indices 14, 15, 16)
+  -->
   <actuator>
     <!-- Arm A -->
-    <motor name="act_J1a" joint="Joint_1_a" gear="1" ctrlrange="-50 50"/>
-    <motor name="act_J2a" joint="Joint_2_a" gear="1" ctrlrange="-50 50"/>
-    <motor name="act_J3a" joint="Joint_3_a" gear="1" ctrlrange="-50 50"/>
-    <motor name="act_J4a" joint="Joint_4_a" gear="1" ctrlrange="-50 50"/>
-    <motor name="act_J5a" joint="Joint_5_a" gear="1" ctrlrange="-50 50"/>
-    <motor name="act_J6a" joint="Joint_6_a" gear="1" ctrlrange="-50 50"/>
+    <motor name="act_J1a"     joint="Joint_1_a"     gear="1" ctrlrange="-50 50"/>
+    <motor name="act_J2a"     joint="Joint_2_a"     gear="1" ctrlrange="-50 50"/>
+    <motor name="act_SWa"     joint="Joint_swivel_a" gear="1" ctrlrange="-50 50"/>
+    <motor name="act_J3a"     joint="Joint_3_a"     gear="1" ctrlrange="-50 50"/>
+    <motor name="act_J4a"     joint="Joint_4_a"     gear="1" ctrlrange="-50 50"/>
+    <motor name="act_J5a"     joint="Joint_5_a"     gear="1" ctrlrange="-50 50"/>
+    <motor name="act_J6a"     joint="Joint_6_a"     gear="1" ctrlrange="-50 50"/>
     <!-- Arm B -->
-    <motor name="act_J1b" joint="Joint_1_b" gear="1" ctrlrange="-50 50"/>
-    <motor name="act_J2b" joint="Joint_2_b" gear="1" ctrlrange="-50 50"/>
-    <motor name="act_J3b" joint="Joint_3_b" gear="1" ctrlrange="-50 50"/>
-    <motor name="act_J4b" joint="Joint_4_b" gear="1" ctrlrange="-50 50"/>
-    <motor name="act_J5b" joint="Joint_5_b" gear="1" ctrlrange="-50 50"/>
-    <motor name="act_J6b" joint="Joint_6_b" gear="1" ctrlrange="-50 50"/>
-    <!-- RWA actuators (ctrl indices 12, 13, 14) — tau_w_max = 5 Nm per spec §5.1 -->
+    <motor name="act_J1b"     joint="Joint_1_b"     gear="1" ctrlrange="-50 50"/>
+    <motor name="act_J2b"     joint="Joint_2_b"     gear="1" ctrlrange="-50 50"/>
+    <motor name="act_SWb"     joint="Joint_swivel_b" gear="1" ctrlrange="-50 50"/>
+    <motor name="act_J3b"     joint="Joint_3_b"     gear="1" ctrlrange="-50 50"/>
+    <motor name="act_J4b"     joint="Joint_4_b"     gear="1" ctrlrange="-50 50"/>
+    <motor name="act_J5b"     joint="Joint_5_b"     gear="1" ctrlrange="-50 50"/>
+    <motor name="act_J6b"     joint="Joint_6_b"     gear="1" ctrlrange="-50 50"/>
+    <!-- RWA actuators (ctrl indices 14, 15, 16) — tau_w_max = 5 Nm per spec §5.1 -->
     <motor name="act_rw_x" joint="rw_x" gear="1" ctrlrange="-5 5"/>
     <motor name="act_rw_y" joint="rw_y" gear="1" ctrlrange="-5 5"/>
     <motor name="act_rw_z" joint="rw_z" gear="1" ctrlrange="-5 5"/>
@@ -342,11 +370,11 @@
   <keyframe>
     <!-- Home: qpos layout with RWA:
          [struct_pos(3) struct_quat(4) rw_x rw_y rw_z
-          torso_pos(3) torso_quat(4) J1a..J6a J1b..J6b]
-         Total: 7 + 3 + 7 + 12 = 29 DOF -->
+          torso_pos(3) torso_quat(4) arm_a(7) arm_b(7)]
+         Total: 7 + 3 + 7 + 14 = 31 DOF -->
     <key name="home" qpos="0 0 -1.8  1 0 0 0  0 0 0
                             0 0 0  1 0 0 0
-                            0 0 0 0 0 0  0 0 0 0 0 0"/>
+                            0 0 0 0 0 0 0  0 0 0 0 0 0 0"/>
   </keyframe>
 
 </mujoco>

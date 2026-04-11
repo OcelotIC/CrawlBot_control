@@ -1586,10 +1586,13 @@ class SimulationLoop:
             _v_com_qp_prev = rs.v_com.copy()
             mujoco.mj_step(self.mj_model, self.mj_data)
             if self._diag_lock_arm_joints:
-                # Re-freeze arm joints after the physics step. The
-                # arm joints start at qvel[15:27] in the 27-DOF layout
-                # (structure 0..5, wheels 6..8, torso 9..14, arms 15..26).
-                self.mj_data.qvel[15:27] = 0.0
+                # Re-freeze arm joints after the physics step. The arm
+                # joints live in the tail of qvel immediately after the
+                # structure(6) + RWA(3 if present) + torso(6) block.
+                off_rw = 3 if self.has_rwa else 0
+                arm_v_start = 6 + off_rw + 6
+                arm_v_end = arm_v_start + self.robot.n_joints
+                self.mj_data.qvel[arm_v_start:arm_v_end] = 0.0
 
             omega_s_post = self.mj_data.qvel[3:6].copy()
             rs2 = self.robot.update(
