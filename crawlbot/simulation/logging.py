@@ -103,6 +103,12 @@ class SimLog:
     settling_stage2_steps: int = 0
     settling_exit_reason: str = ''
 
+    # Inter-step DS passivity settling (spec §7.1.1). One entry per
+    # step transition with energy-based exit. Each dict carries:
+    #   step_idx, t_start, t_end, n_steps, T_start, T_end, T_settle,
+    #   exit_reason ('target_met' | 'plateau' | 'max_steps')
+    inter_step_settles: list = field(default_factory=list)
+
     # Dock events
     dock_events: list = field(default_factory=list)
 

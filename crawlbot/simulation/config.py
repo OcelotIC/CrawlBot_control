@@ -96,7 +96,17 @@ class SimConfig:
     nmpc_Wv: float = 10.0
     nmpc_p_max: float = 50.0      # Linear momentum bound [kg·m/s]
     t_settle_final: float = 20.0
-    t_settle_inter: float = 0.0   # Inter-step settle duration [s]
+    # Inter-step settle (between successive locomotion steps).
+    # Spec §7.1.1 mandates an energy-based exit, not a fixed timer: after a
+    # dock, the controller enters DS with passivity_active=True and remains
+    # there until T_kin < T_settle_inter = 0.5 · epsilon_v² · lambda_min(H).
+    # The fixed-timer version (`t_settle_inter`) is kept as a dead knob for
+    # backwards compatibility but is no longer read.
+    t_settle_inter: float = 0.0                     # [DEPRECATED] ignored
+    use_energy_settle_inter: bool = True            # spec §7.1.1
+    settle_inter_epsilon_v: float = 1e-3            # target ‖dq_full‖ [m/s]
+    n_settle_inter_max_steps: int = 500             # safety cap (5 s @ 100 Hz)
+    t_settle_inter_min: float = 0.1                 # min runtime [s]
 
     # ── QP weights — Single-support ─────────────────────────────
     ss_alpha_com: float = 2e2

@@ -83,4 +83,19 @@ def run_case(tag, output_dir, n_steps=1):
 
 
 if __name__ == "__main__":
-    run_case("1pct", "results/M6_baseline_1pct", n_steps=1)
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--steps', type=int, default=1,
+                        help='Number of locomotion steps to simulate')
+    parser.add_argument('--output', type=str, default=None,
+                        help='Output directory (default: auto per n_steps)')
+    args = parser.parse_args()
+
+    n_steps = args.steps
+    if args.output is not None:
+        out_dir = args.output
+    elif n_steps == 1:
+        out_dir = "results/M6_baseline_1pct"
+    else:
+        out_dir = f"results/M6_baseline_1pct_{n_steps}step"
+    run_case(f"1pct ({n_steps}-step)", out_dir, n_steps=n_steps)

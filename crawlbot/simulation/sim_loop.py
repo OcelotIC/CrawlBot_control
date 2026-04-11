@@ -116,6 +116,14 @@ class SimulationLoop:
         self._diag_freeze_ref: bool = False
         self._diag_frozen_r_b_ref: Optional[np.ndarray] = None
         self._diag_frozen_R_b_ref: Optional[np.ndarray] = None
+        # Cumulative plan-time offset from inter-step settling. The sim
+        # clock `t` advances with settle time, but the ContactScheduler
+        # plan's t_start fields are frozen at the nominal plan times.
+        # SwingPlanner queries the plan by time via plan.phase_at(t), so
+        # it must be fed `t - _t_plan_offset` to stay in sync. The torso
+        # planner and coarse pre-planner already receive offset-adjusted
+        # times when they are set up per-step, so they use `t` directly.
+        self._t_plan_offset: float = 0.0
 
     # ── Setup ────────────────────────────────────────────────────────────
 
@@ -417,62 +425,163 @@ class SimulationLoop:
                 log['T_log'].append(T)
 
         # ── Stage 2: passivity-constrained QP ─────────────────────────
-        # Choose the QP variant. We use qp_ss (single-support M2 config)
-        # with settle_mode=True (skips torso/EE tasks, damps velocities)
-        # and passivity_active=True (exponential decay guarantee).
+        # Delegated to the shared _run_ds_passivity_loop() helper so the
+        # inter-step settle (§7.1.1) reuses the exact same dissipation
+        # machinery. Pass the initial DS contact config (both anchors
+        # active at their start positions).
+        cc_ds_setup = self.sched.contact_config_at(0.1)
+        stage2_start_step = log['stage1_steps']
+        stage2_result = self._run_ds_passivity_loop(
+            contact_config=cc_ds_setup,
+            max_steps=cfg.n_settle_max_steps,
+            epsilon_v=cfg.settle_epsilon_v,
+            plateau_window=50,
+            plateau_ratio=cfg.settle_plateau_ratio,
+            min_steps=0,
+            fallback_Kd=cfg.Kd_settle_damping,
+            t_log=log['t_log'],
+            T_log=log['T_log'],
+            t_log_step_offset=stage2_start_step,
+        )
+        log['stage2_steps'] = stage2_result['n_steps']
+        log['lambda_min'] = stage2_result['lambda_min']
+        log['T_settle'] = stage2_result['T_settle']
+        log['exit_reason'] = stage2_result['exit_reason']
+
+        # Record final state
+        self.mj_data.ctrl[:] = 0.0
+        mujoco.mj_forward(self.mj_model, self.mj_data)
+        pq_end, pv_end = mujoco_to_pinocchio(
+            self.mj_data.qpos, self.mj_data.qvel)
+        rs_end = self.robot.update(pq_end, pv_end)
+        log['T_end'] = _kinetic_energy(rs_end.v, rs_end.H)
+        log['initial_vcom'] = rs_end.v_com.copy()
+        log['initial_Lcom'] = rs_end.L_com.copy()
+        # Final sample for the plot
+        t_final = (log['stage1_steps'] + log['stage2_steps']) * dt
+        log['t_log'].append(t_final)
+        log['T_log'].append(log['T_end'])
+        return log
+
+    def _run_ds_passivity_loop(
+        self,
+        *,
+        contact_config,
+        max_steps: int,
+        epsilon_v: float,
+        plateau_window: int = 50,
+        plateau_ratio: float = 0.999,
+        min_steps: int = 0,
+        fallback_Kd: float = 20.0,
+        t_log: Optional[list] = None,
+        T_log: Optional[list] = None,
+        t_log_step_offset: int = 0,
+    ) -> dict:
+        """Run the M2 QP in settle_mode + passivity_active until T<T_settle.
+
+        This is the shared dissipation engine used by BOTH the setup-phase
+        stage-2 settling and the inter-step DS settling (spec §7.1.1).
+
+        Assumptions on entry
+        --------------------
+        - The robot is in DS (both tools welded to their anchors).
+        - `self.qp_ss` is built with `use_m2_stack=True`.
+        - `self.mj_data` holds the current MuJoCo state.
+
+        The loop runs at dt_qp (100 Hz) and calls `self.qp_ss.solve(...)`
+        directly — NMPC is bypassed. Exit conditions (in priority order):
+            1. Target met: T_kin < T_settle = 0.5·epsilon_v²·lambda_min(H)
+            2. Plateau: no progress over `plateau_window` steps
+            3. Max steps reached
+        `min_steps` forces at least that many iterations before exits 1/2
+        fire — useful for the inter-step call, which should run for at
+        least a few dt_qp steps to absorb the post-dock impact.
+
+        Parameters
+        ----------
+        max_steps : int
+            Safety cap on the number of dt_qp iterations.
+        epsilon_v : float
+            Target ‖dq_full‖ bound [m/s]; defines T_settle via H's
+            smallest eigenvalue.
+        plateau_window : int
+            Window for plateau detection (steps).
+        plateau_ratio : float
+            Plateau fires when T(k) > plateau_ratio · T(k - plateau_window).
+        min_steps : int
+            Minimum iterations before target/plateau exits can fire.
+        fallback_Kd : float
+            Joint-damping gain used when the QP raises an exception.
+        t_log, T_log : list or None
+            Optional destinations for plot samples (appended every 5 steps).
+        t_log_step_offset : int
+            Absolute step offset used to compute the plot time stamps
+            (t = (t_log_step_offset + k) · dt_qp).
+
+        Returns
+        -------
+        dict with keys
+            n_steps       : int     actual iterations run
+            T_start       : float   kinetic energy at entry [J]
+            T_end         : float   kinetic energy at exit [J]
+            T_settle      : float   target threshold [J]
+            lambda_min    : float   min eigenvalue of H at entry [kg·m²]
+            exit_reason   : str     'target_met' | 'plateau' | 'max_steps'
+        """
+        cfg = self.cfg
+        n_j = self.robot.n_joints
+        dt = cfg.dt_qp
         qp = self.qp_ss
 
-        # Compute T_settle threshold from current H (lambda_min stable
-        # over the small displacement we expect during stage 2).
-        pq1, pv1 = mujoco_to_pinocchio(
-            self.mj_data.qpos, self.mj_data.qvel)
-        rs_after_damping = self.robot.update(pq1, pv1)
-        eig_H = np.linalg.eigvalsh(rs_after_damping.H)
-        lambda_min = float(np.min(np.abs(eig_H)))
-        T_settle = 0.5 * (cfg.settle_epsilon_v ** 2) * lambda_min
-        log['lambda_min'] = lambda_min
-        log['T_settle'] = T_settle
+        def _kinetic_energy(v_full, H_robot):
+            return 0.5 * float(v_full @ H_robot @ v_full)
 
-        # DS contact config (both anchors active) for the QP.
-        cc_ds = self.sched.contact_config_at(0.1)
+        # Threshold from H at entry (stable over the small displacement
+        # we expect during settling).
+        pq0, pv0 = mujoco_to_pinocchio(
+            self.mj_data.qpos, self.mj_data.qvel)
+        rs0 = self.robot.update(pq0, pv0)
+        eig_H = np.linalg.eigvalsh(rs0.H)
+        lambda_min = float(np.min(np.abs(eig_H)))
+        T_settle = 0.5 * (epsilon_v ** 2) * lambda_min
+        T_start = _kinetic_energy(rs0.v, rs0.H)
+
+        # DS contact config (both anchors active). Caller must pass a
+        # ContactConfig whose r_contact_A/B hold the CURRENT structure-
+        # frame anchor positions — these are used by compute_momentum_map
+        # to build the lever arms for the hw safety constraint.
+        cc_ds = contact_config
 
         hw_current = np.zeros(3) if not self.has_rwa else (
             cfg.rwa_I_w * self.mj_data.qvel[6:9]).copy()
 
-        stage2_start_step = log['stage1_steps']
         T_history = []
-        plateau_window = 50   # steps
         exit_reason = 'max_steps'
-        for k in range(cfg.n_settle_max_steps):
+        T = T_start
+        for k in range(max_steps):
             pq, pv = mujoco_to_pinocchio(
                 self.mj_data.qpos, self.mj_data.qvel)
             rs = self.robot.update(pq, pv)
             T = _kinetic_energy(rs.v, rs.H)
             T_history.append(T)
 
-            # Log every 5 steps for the plot
-            if k % 5 == 0:
-                log['t_log'].append((stage2_start_step + k) * dt)
-                log['T_log'].append(T)
+            if (t_log is not None) and (T_log is not None) and (k % 5 == 0):
+                t_log.append((t_log_step_offset + k) * dt)
+                T_log.append(T)
 
-            # Exit 1: target met
-            if T < T_settle:
-                exit_reason = 'target_met'
-                break
-
-            # Exit 2: plateau — no further progress over `plateau_window`
-            if k >= plateau_window:
-                T_old = T_history[k - plateau_window]
-                if T > cfg.settle_plateau_ratio * T_old:
-                    exit_reason = 'plateau'
+            # Exits (only after min_steps)
+            if k >= min_steps:
+                if T < T_settle:
+                    exit_reason = 'target_met'
                     break
+                if k >= plateau_window:
+                    T_old = T_history[k - plateau_window]
+                    if T > plateau_ratio * T_old:
+                        exit_reason = 'plateau'
+                        break
 
-            # Contact Jacobians (both active in DS)
             Jc, Jdc = self.robot.get_contact_jacobians(True, True)
 
-            # Torso reference = current torso pose (hold in place).
-            # These are ignored in settle_mode but the QP signature
-            # still needs them to be non-None.
             try:
                 _, _, _, tau, _ = qp.solve(
                     q_t=rs.q_torso, dq_t=rs.dq_torso,
@@ -498,31 +607,29 @@ class SimulationLoop:
                     passivity_active=True)
                 tau = np.clip(tau, -cfg.tau_max, cfg.tau_max)
             except Exception:
-                tau = -Kd * rs.dq_joints  # fall back to damping
+                tau = -fallback_Kd * rs.dq_joints
                 tau = np.clip(tau, -cfg.tau_max, cfg.tau_max)
 
             self.mj_data.ctrl[:n_j] = tau
             if self.has_rwa:
                 self.mj_data.ctrl[n_j:n_j + 3] = 0.0
             mujoco.mj_step(self.mj_model, self.mj_data)
-            log['stage2_steps'] += 1
 
-        log['exit_reason'] = exit_reason
-
-        # Record final state
-        self.mj_data.ctrl[:] = 0.0
-        mujoco.mj_forward(self.mj_model, self.mj_data)
+        n_steps_run = min(k + 1, max_steps) if max_steps > 0 else 0
+        # Record final energy (no ctrl reset — caller manages the handoff)
         pq_end, pv_end = mujoco_to_pinocchio(
             self.mj_data.qpos, self.mj_data.qvel)
         rs_end = self.robot.update(pq_end, pv_end)
-        log['T_end'] = _kinetic_energy(rs_end.v, rs_end.H)
-        log['initial_vcom'] = rs_end.v_com.copy()
-        log['initial_Lcom'] = rs_end.L_com.copy()
-        # Final sample for the plot
-        t_final = (log['stage1_steps'] + log['stage2_steps']) * dt
-        log['t_log'].append(t_final)
-        log['T_log'].append(log['T_end'])
-        return log
+        T_end = _kinetic_energy(rs_end.v, rs_end.H)
+
+        return {
+            'n_steps': n_steps_run,
+            'T_start': T_start,
+            'T_end': T_end,
+            'T_settle': T_settle,
+            'lambda_min': lambda_min,
+            'exit_reason': exit_reason,
+        }
 
     def _build_qp(self, ac, at, ae, ap, aw, ar_react,
                    kpc, kdc, kpt, kdt, kpe, kde,
@@ -791,6 +898,7 @@ class SimulationLoop:
         step_idx = 0
         i = 0
         t_offset = 0.0   # Cumulative time offset from inter-step settling
+        self._t_plan_offset = 0.0  # mirror for _step's swing-planner query
         while i < len(phases):
             gp = phases[i]
             if gp.phase.value == 'double':
@@ -965,22 +1073,69 @@ class SimulationLoop:
                             self.mj_data.qvel[6+off_v:] = mj_qvel_post[6+off_v:]
                             mujoco.mj_forward(self.mj_model, self.mj_data)
 
-                    # Inter-step settle: damp velocities before next swing
-                    if cfg.t_settle_inter > 0 and docked:
+                    # Inter-step DS passivity settle (spec §7.1.1).
+                    # Energy-based exit: remain in DS with passivity_active
+                    # until T_kin < T_settle_inter = 0.5·epsilon_v²·lambda_min(H).
+                    # NMPC is bypassed; the QP in settle_mode dissipates
+                    # momentum through joint torques, respecting dynamics.
+                    # The warm start was already reset at the SS→DS edge
+                    # above (see `self.nmpc.reset_warm_start()`), so the
+                    # first NMPC solve of the next step starts clean.
+                    if (docked
+                            and cfg.use_m2_stack
+                            and cfg.use_energy_settle_inter):
                         t_settle_start = t
-                        t_settle_end = t + cfg.t_settle_inter
-                        cc_settle = self.sched.contact_config_at(t)
+                        # Post-dock DS config. The swing arm is now welded
+                        # to target_idx; the stance arm is still at its
+                        # original index (stance_a / stance_b).
+                        if swing_arm == 'a':
+                            new_anchor_a = target_idx
+                            new_anchor_b = stance_b
+                        else:
+                            new_anchor_a = stance_a
+                            new_anchor_b = target_idx
+                        from crawlbot.solvers.contact_phase import ContactPhase
+                        cc_settle = ContactConfig.from_phase(
+                            ContactPhase.DOUBLE,
+                            r_contact_A=self.sched.anchors_a[new_anchor_a].copy(),
+                            r_contact_B=self.sched.anchors_b[new_anchor_b].copy(),
+                        )
+                        min_steps = max(
+                            0,
+                            int(round(cfg.t_settle_inter_min / cfg.dt_qp)))
+                        settle_result = self._run_ds_passivity_loop(
+                            contact_config=cc_settle,
+                            max_steps=cfg.n_settle_inter_max_steps,
+                            epsilon_v=cfg.settle_inter_epsilon_v,
+                            plateau_window=50,
+                            plateau_ratio=cfg.settle_plateau_ratio,
+                            min_steps=min_steps,
+                            fallback_Kd=cfg.Kd_settle_damping,
+                        )
+                        dt_elapsed = settle_result['n_steps'] * cfg.dt_qp
+                        t += dt_elapsed
+                        t_offset += dt_elapsed
+                        self._t_plan_offset = t_offset
+                        log.inter_step_settles.append({
+                            'step_idx': int(step_idx),
+                            't_start': float(t_settle_start),
+                            't_end': float(t),
+                            'n_steps': int(settle_result['n_steps']),
+                            'T_start': float(settle_result['T_start']),
+                            'T_end': float(settle_result['T_end']),
+                            'T_settle': float(settle_result['T_settle']),
+                            'lambda_min': float(settle_result['lambda_min']),
+                            'exit_reason': settle_result['exit_reason'],
+                        })
                         if verbose:
-                            print(f"  Inter-step settle: {t:.2f} → +{cfg.t_settle_inter}s")
-                        while t < t_settle_end:
-                            hw, L_com_prev = self._step(
-                                t, 'DS', step_idx, swing_arm, stance_arm,
-                                cc_settle, target_idx, stance_a, stance_b,
-                                hw, L_com_prev, log, ss_end=t,
-                                settle_mode=True)
-                            t += cfg.dt_nmpc
-                        # Shift subsequent plan timing to account for settle
-                        t_offset += t - t_settle_start
+                            print(
+                                f"  Inter-step settle: {t_settle_start:.2f}"
+                                f" → +{dt_elapsed:.3f}s "
+                                f"({settle_result['n_steps']} steps, "
+                                f"exit={settle_result['exit_reason']}, "
+                                f"T: {settle_result['T_start']:.2e} → "
+                                f"{settle_result['T_end']:.2e} J, "
+                                f"T_settle={settle_result['T_settle']:.2e} J)")
 
                     step_idx += 1
                     i += 2  # skip SS phase (already processed)
@@ -1260,7 +1415,13 @@ class SimulationLoop:
 
             ek = {}
             if phase == 'SS':
-                sr = self.swing_planner.reference_at(min(tq, ss_end - 0.01))
+                # SwingPlanner uses the scheduler's plan timeline (which
+                # is NOT offset-adjusted), so we query it at plan-time
+                # = sim-time − cumulative inter-step settle offset.
+                tq_plan = tq - self._t_plan_offset
+                ss_end_plan = ss_end - self._t_plan_offset
+                sr = self.swing_planner.reference_at(
+                    min(tq_plan, ss_end_plan - 0.01))
                 if sr.is_swinging and sr.swing_arm == swing_arm:
                     J_ee, Jdq_ee, oMf_ee = self._get_ee_data(rs, swing_arm)
                     ek = dict(J_ee=J_ee, Jdot_dq_ee=Jdq_ee,
@@ -1473,9 +1634,10 @@ class SimulationLoop:
         log.d_grip_stance.append(d_stance)
         log.swing_arm.append(swing_arm)
 
-        # EE tracking error (vs planned trajectory reference, not just target)
+        # EE tracking error (vs planned trajectory reference, not just target).
+        # Plan-time (offset-corrected) for the swing planner lookup.
         import pinocchio as pin
-        sr_log = self.swing_planner.reference_at(t)
+        sr_log = self.swing_planner.reference_at(t - self._t_plan_offset)
         _, _, oMf_ee_log = self._get_ee_data(rs_f, swing_arm)
         log.e_ee_pos.append(float(np.linalg.norm(oMf_ee_log.translation - sr_log.p_ee)))
         e_ori_ee = pin.log3(oMf_ee_log.rotation.T @ sr_log.R_ee)
@@ -1550,7 +1712,7 @@ class SimulationLoop:
         q_ee_actual = pin.Quaternion(oMf_ee_f.rotation)
         log.q_ee.append(np.array([q_ee_actual.w, q_ee_actual.x,
                                    q_ee_actual.y, q_ee_actual.z]))
-        sr_f = self.swing_planner.reference_at(t_log)
+        sr_f = self.swing_planner.reference_at(t_log - self._t_plan_offset)
         log.p_ee_ref.append(sr_f.p_ee.copy())
         q_ee_r = pin.Quaternion(sr_f.R_ee)
         log.q_ee_ref.append(np.array([q_ee_r.w, q_ee_r.x,
