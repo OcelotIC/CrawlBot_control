@@ -13,10 +13,9 @@ import sys
 import os
 import numpy as np
 
-# Add parent directory so we can import robot_interface
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from robot_interface import RobotInterface, NQ, NV
+from crawlbot.core.robot_interface import RobotInterface, NQ, NV
 from lutze_baseline.centroidal_model import compute_centroidal_state
 from lutze_baseline.contact_adjoint import (
     compute_contact_adjoint, compute_dual_contact_adjoints,

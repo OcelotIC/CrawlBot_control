@@ -21,7 +21,9 @@ _root = os.path.join(os.path.dirname(__file__), '..')
 sys.path.insert(0, _root)
 os.environ.setdefault('MUJOCO_GL', 'disabled')
 
-from simulation_loop import SimulationLoop, SimConfig, SimLog
+from crawlbot.simulation.sim_loop import SimulationLoop
+from crawlbot.simulation.config import SimConfig
+from crawlbot.simulation.logging import SimLog
 
 URDF = os.path.join(_root, 'models', 'VISPA_crawling_fixed.urdf')
 MJCF = os.path.join(_root, 'models', 'VISPA_crawling.xml')

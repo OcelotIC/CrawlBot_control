@@ -34,6 +34,7 @@ except ImportError:
 from crawlbot.core.robot_interface import RobotInterface, FRAME_TOOL_A, FRAME_TOOL_B
 from crawlbot.core.state_conversions import (
     mujoco_to_pinocchio, pinocchio_to_mujoco, quat_wxyz_to_euler_deg)
+from crawlbot.core.com_to_torso_mapping import CoMToTorsoMapping
 from crawlbot.core.ik import (
     dock_configuration, solve_ik, solve_ik_waypoints,
     manipulability_config, precompute_torso_map,
@@ -42,6 +43,9 @@ from crawlbot.planning.contact_scheduler import ContactScheduler, read_anchors_f
 # LocomotionPlanner removed — CoM reference comes from TorsoPlanner
 from crawlbot.planning.swing_planner import SwingPlanner
 from crawlbot.planning.torso_planner import TorsoPlanner
+from crawlbot.planning.coarse_preplanner import (
+    CoarsePrePlanner, CoarsePrePlannerConfig, CoarsePlanResult,
+)
 from crawlbot.solvers.centroidal_nmpc import CentroidalNMPC, CentroidalNMPCConfig
 from crawlbot.solvers.wholebody_qp import WholeBodyQP, WholeBodyQPConfig
 from crawlbot.solvers.contact_phase import ContactConfig
@@ -78,6 +82,48 @@ class SimulationLoop:
         self._site_ids = {}
         self.plan = None
         self.has_rwa = False  # Set True if model has reaction wheels
+        # M6: coarse pre-planner (optional, created in setup if enabled)
+        self.preplanner: Optional[CoarsePrePlanner] = None
+        # Most recent pre-planner result for the active step; None when
+        # the pre-planner is disabled or the step is in DS/EXT.
+        self._coarse_plan: Optional[CoarsePlanResult] = None
+        # Simulation time at which the active coarse plan was anchored
+        # (so r_com_at(t - t0) gives the right reference at current time).
+        self._coarse_plan_t0: float = 0.0
+        # Per-step telemetry (infeasibilities, solve times, etc.)
+        self._preplanner_stats = []
+        # ── Diagnostic hooks (runtime-only, not config fields) ────────
+        # _diag_disable_aocs: if True, force tau_w_cmd = 0 every QP sub-
+        #   step (used to measure the raw robot-disturbance-induced
+        #   platform drift without AOCS compensation).
+        # _diag_lock_arm_joints: if True, set qvel[arm joints] = 0 after
+        #   every mj_step and clear arm joint actuation (used to
+        #   measure the contact/weld/MJ baseline drift with the robot
+        #   "frozen").
+        self._diag_disable_aocs: bool = False
+        self._diag_lock_arm_joints: bool = False
+        # _diag_pure_pd: strips ALL feedforward terms entering the QP
+        #   (a_com_ff → 0, a_torso_ff → 0, λ_ref → 0) and the NMPC's
+        #   L_com_ref → 0, leaving only PD feedback on r_b_ref from
+        #   the mapping layer. Used to localize feedforward-injected
+        #   instabilities vs. PD-loop instabilities.
+        self._diag_pure_pd: bool = False
+        # Per-step trace of the pure-PD diagnostic (filled in _step).
+        self._diag_pure_pd_trace: list = []
+        # _diag_freeze_ref: keep r_b_ref / v_b_ref held at the first-
+        # sample value during the run. Used to probe the PD loop's
+        # stability around a FIXED torso target (no reference motion).
+        self._diag_freeze_ref: bool = False
+        self._diag_frozen_r_b_ref: Optional[np.ndarray] = None
+        self._diag_frozen_R_b_ref: Optional[np.ndarray] = None
+        # Cumulative plan-time offset from inter-step settling. The sim
+        # clock `t` advances with settle time, but the ContactScheduler
+        # plan's t_start fields are frozen at the nominal plan times.
+        # SwingPlanner queries the plan by time via plan.phase_at(t), so
+        # it must be fed `t - _t_plan_offset` to stay in sync. The torso
+        # planner and coarse pre-planner already receive offset-adjusted
+        # times when they are set up per-step, so they use `t` directly.
+        self._t_plan_offset: float = 0.0
 
     # ── Setup ────────────────────────────────────────────────────────────
 
@@ -124,6 +170,12 @@ class SimulationLoop:
 
         # Torso planner (reconfigured per step)
         self.torso_planner = TorsoPlanner()
+        # M5: provide torso body inertia so l_com_reference_at() can
+        # produce a meaningful feedforward for the NMPC cost.
+        # Pinocchio joint index 1 == root_joint (torso); .inertia is
+        # the 3x3 principal inertia tensor at the body CoM in body frame.
+        self.torso_planner.set_torso_inertia(
+            self.robot.model.inertias[1].inertia)
 
         # Precompute manipulability-optimal configs for anchor pairs
         # used in this gait. Only compute the pairs we actually need.
@@ -162,18 +214,19 @@ class SimulationLoop:
         self._activate_weld('b', start_b)
         mujoco.mj_forward(self.mj_model, self.mj_data)
 
-        for _ in range(cfg.n_settle_steps):
-            mujoco.mj_step(self.mj_model, self.mj_data)
-
-        # CoM calibration
+        # Initial CoM calibration (no settling yet — state is hot from the
+        # weld activation, but we only need total_mass + frame IDs for
+        # building the NMPC/QP, which are invariant to velocity.)
         rs0 = self.robot.update(
             *mujoco_to_pinocchio(self.mj_data.qpos, self.mj_data.qvel))
-        # LocomotionPlanner removed — CoM reference from TorsoPlanner
 
         # Site IDs
         self._cache_site_ids()
 
-        # NMPC — plans robot motion only (hw managed by AOCS independently)
+        # NMPC — plans robot motion only (hw managed by AOCS independently).
+        # M3: when enforce_hw_conservation is on, the NMPC adds a
+        # conservation-law box constraint at every knot using
+        # c_simple = h_w_0 + L_com_0 + r_com_0 × m·v_com_0.
         self.nmpc = CentroidalNMPC(CentroidalNMPCConfig(
             robot_mass=rs0.total_mass,
             N=cfg.nmpc_N, dt=cfg.nmpc_dt,
@@ -181,8 +234,45 @@ class SimulationLoop:
             L_max=cfg.L_max, tau_w_max=cfg.tau_w_max,
             tau_struct_max=cfg.tau_struct_max,
             p_max=cfg.nmpc_p_max,
-            Wv=cfg.nmpc_Wv * np.ones(3)))
+            Wv=cfg.nmpc_Wv * np.ones(3),
+            enforce_hw_conservation=cfg.enforce_hw_conservation,
+            h_max_tight=cfg.h_max_tight,
+            w_L=cfg.w_L_nmpc,
+            kappa_terminal=cfg.kappa_terminal))
         self.nmpc.build()
+
+        # M6: coarse pre-planner (optional). Built once; solved per step.
+        if cfg.use_coarse_preplanner:
+            # Match the TorsoPlanner's timeline: plan over SS + EXT
+            # minus the torso_delay, anchored at t_torso_start so the
+            # first ~torso_delay*t_swing seconds naturally hold (the
+            # interpolator clamps to r_com[0]).
+            T_plan_default = (cfg.t_swing + cfg.t_ext_max
+                              - cfg.torso_delay * cfg.t_swing)
+            pre_cfg = CoarsePrePlannerConfig(
+                M=cfg.preplanner_M,
+                robot_mass=rs0.total_mass,
+                h_max=np.asarray(cfg.h_max_tight, dtype=float).reshape(3),
+                kappa_terminal=cfg.preplanner_kappa,
+                f_max=cfg.preplanner_f_max,
+                tau_max=cfg.preplanner_tau_max,
+                tau_w_max=cfg.tau_w_max,
+                w_L=cfg.preplanner_w_L,
+                w_u=cfg.preplanner_w_u,
+                T_step_default=T_plan_default,
+                ipopt_max_iter=cfg.preplanner_max_iter,
+            )
+            self.preplanner = CoarsePrePlanner(pre_cfg)
+            self.preplanner.build()
+
+        # M1/M5: CoM-to-torso mapping layer. Converts NMPC centroidal
+        # outputs (r_com, v_com, a_com_ff) into torso position references
+        # via the mass-weighted identity
+        #   r_b_ref = (m_total/m_b) * r_com_ref - delta(q)/m_b
+        # The QP then tracks this mapped torso reference instead of the
+        # TorsoPlanner's raw p_torso, ensuring the torso task is
+        # consistent with the momentum-feasible NMPC plan.
+        self.mapping = CoMToTorsoMapping(self.robot)
 
         # QP variants
         self.qp_ss = self._build_qp(
@@ -237,6 +327,16 @@ class SimulationLoop:
         self.contact_sm = ContactStateMachine(obs_cfg)
         self._contact_confirmed = False
 
+        # ── Two-stage setup settling ──────────────────────────────────
+        # Stage 1: strong joint-velocity damping for n_settle_damping_steps
+        #          steps to absorb the weld activation impulse.
+        # Stage 2: M2 QP with settle_mode + passivity_active, exit when
+        #          T_kin < 0.5·epsilon_v²·lambda_min(H).
+        #
+        # qvel is NEVER zeroed — the passivity-constrained QP dissipates
+        # momentum via joint torques, respecting dynamics.
+        self._settling_log = self._settle_setup(start_a, start_b)
+
         print(f"[SimulationLoop] Initialized:")
         print(f"  Robot mass:     {rs0.total_mass:.1f} kg")
         print(f"  RWA model:      {'YES (3 wheels)' if self.has_rwa else 'NO'}")
@@ -249,15 +349,301 @@ class SimulationLoop:
               f"tau_joint={cfg.tau_max} Nm")
         print(f"  hw bounds:      [{cfg.hw_min[0]:.1f}, {cfg.hw_max[0]:.1f}] Nms")
         print(f"  Dock threshold: {cfg.weld_radius*1000:.1f} mm")
+        s = self._settling_log
+        T_dt = cfg.dt_qp
+        settle_time = (s['stage1_steps'] + s['stage2_steps']) * T_dt
+        print(f"  Settling:       stage1={s['stage1_steps']}, "
+              f"stage2={s['stage2_steps']} "
+              f"({settle_time:.2f}s sim, exit={s['exit_reason']})")
+        print(f"                  T: {s['T_start']:.3e} -> {s['T_end']:.3e} J  "
+              f"(target T_settle={s['T_settle']:.3e})")
+        print(f"                  lambda_min(H)={s['lambda_min']:.4e} kg·m²")
+        print(f"                  initial |v_com|={np.linalg.norm(s['initial_vcom'])*1000:.4f} mm/s, "
+              f"|L_com|={np.linalg.norm(s['initial_Lcom'])*1000:.4f} mNms")
+
+    def _settle_setup(self, start_a, start_b):
+        """Two-stage setup-phase settling.
+
+        Stage 1 — weld-snap absorption (open-loop damping):
+            Apply tau_j = -Kd * dq_j for n_settle_damping_steps steps.
+            No QP. Purpose: dissipate the large constraint-force impulse
+            from the weld activation (~300 N) which the QP cannot handle
+            gracefully because the initial constraint violation is large.
+
+        Stage 2 — passivity-constrained QP settling:
+            Use the M2 QP with settle_mode=True (skips torso/EE tasks,
+            adds joint velocity damping task) AND passivity_active=True
+            (adds dq_j^T·τ_q + 2α·T ≤ 0 inequality). Exit when
+            T_kin < T_settle = 0.5 · epsilon_v² · lambda_min(H).
+
+        Returns
+        -------
+        log : dict with keys
+            'stage1_steps', 'stage2_steps', 'T_start', 'T_end',
+            'T_settle', 'lambda_min', 't_log', 'T_log',
+            'initial_vcom', 'initial_Lcom'
+        """
+        cfg = self.cfg
+        n_j = self.robot.n_joints
+        dt = cfg.dt_qp
+
+        log = {
+            'stage1_steps': 0, 'stage2_steps': 0,
+            'T_start': 0.0, 'T_end': 0.0, 'T_settle': 0.0,
+            'lambda_min': 0.0, 'exit_reason': '',
+            't_log': [], 'T_log': [],
+            'initial_vcom': None, 'initial_Lcom': None,
+        }
+
+        def _kinetic_energy(v_full, H_robot):
+            return 0.5 * float(v_full @ H_robot @ v_full)
+
+        # Log the initial hot state after weld activation
+        pq0, pv0 = mujoco_to_pinocchio(
+            self.mj_data.qpos, self.mj_data.qvel)
+        rs0 = self.robot.update(pq0, pv0)
+        T_initial = _kinetic_energy(rs0.v, rs0.H)
+        log['T_start'] = T_initial
+
+        # ── Stage 1: open-loop damping ────────────────────────────────
+        Kd = cfg.Kd_settle_damping
+        for k in range(cfg.n_settle_damping_steps):
+            dq_j = self.mj_data.qvel[
+                -n_j - (3 if self.has_rwa else 0):
+                None if not self.has_rwa else -3]
+            tau_damp = np.clip(-Kd * dq_j, -cfg.tau_max, cfg.tau_max)
+            self.mj_data.ctrl[:n_j] = tau_damp
+            mujoco.mj_step(self.mj_model, self.mj_data)
+            log['stage1_steps'] += 1
+
+            if k % 5 == 0:
+                pq, pv = mujoco_to_pinocchio(
+                    self.mj_data.qpos, self.mj_data.qvel)
+                rs = self.robot.update(pq, pv)
+                T = _kinetic_energy(rs.v, rs.H)
+                log['t_log'].append(k * dt)
+                log['T_log'].append(T)
+
+        # ── Stage 2: passivity-constrained QP ─────────────────────────
+        # Delegated to the shared _run_ds_passivity_loop() helper so the
+        # inter-step settle (§7.1.1) reuses the exact same dissipation
+        # machinery. Pass the initial DS contact config (both anchors
+        # active at their start positions).
+        cc_ds_setup = self.sched.contact_config_at(0.1)
+        stage2_start_step = log['stage1_steps']
+        stage2_result = self._run_ds_passivity_loop(
+            contact_config=cc_ds_setup,
+            max_steps=cfg.n_settle_max_steps,
+            epsilon_v=cfg.settle_epsilon_v,
+            plateau_window=50,
+            plateau_ratio=cfg.settle_plateau_ratio,
+            min_steps=0,
+            fallback_Kd=cfg.Kd_settle_damping,
+            t_log=log['t_log'],
+            T_log=log['T_log'],
+            t_log_step_offset=stage2_start_step,
+        )
+        log['stage2_steps'] = stage2_result['n_steps']
+        log['lambda_min'] = stage2_result['lambda_min']
+        log['T_settle'] = stage2_result['T_settle']
+        log['exit_reason'] = stage2_result['exit_reason']
+
+        # Record final state
+        self.mj_data.ctrl[:] = 0.0
+        mujoco.mj_forward(self.mj_model, self.mj_data)
+        pq_end, pv_end = mujoco_to_pinocchio(
+            self.mj_data.qpos, self.mj_data.qvel)
+        rs_end = self.robot.update(pq_end, pv_end)
+        log['T_end'] = _kinetic_energy(rs_end.v, rs_end.H)
+        log['initial_vcom'] = rs_end.v_com.copy()
+        log['initial_Lcom'] = rs_end.L_com.copy()
+        # Final sample for the plot
+        t_final = (log['stage1_steps'] + log['stage2_steps']) * dt
+        log['t_log'].append(t_final)
+        log['T_log'].append(log['T_end'])
+        return log
+
+    def _run_ds_passivity_loop(
+        self,
+        *,
+        contact_config,
+        max_steps: int,
+        epsilon_v: float,
+        plateau_window: int = 50,
+        plateau_ratio: float = 0.999,
+        min_steps: int = 0,
+        fallback_Kd: float = 20.0,
+        t_log: Optional[list] = None,
+        T_log: Optional[list] = None,
+        t_log_step_offset: int = 0,
+    ) -> dict:
+        """Run the M2 QP in settle_mode + passivity_active until T<T_settle.
+
+        This is the shared dissipation engine used by BOTH the setup-phase
+        stage-2 settling and the inter-step DS settling (spec §7.1.1).
+
+        Assumptions on entry
+        --------------------
+        - The robot is in DS (both tools welded to their anchors).
+        - `self.qp_ss` is built with `use_m2_stack=True`.
+        - `self.mj_data` holds the current MuJoCo state.
+
+        The loop runs at dt_qp (100 Hz) and calls `self.qp_ss.solve(...)`
+        directly — NMPC is bypassed. Exit conditions (in priority order):
+            1. Target met: T_kin < T_settle = 0.5·epsilon_v²·lambda_min(H)
+            2. Plateau: no progress over `plateau_window` steps
+            3. Max steps reached
+        `min_steps` forces at least that many iterations before exits 1/2
+        fire — useful for the inter-step call, which should run for at
+        least a few dt_qp steps to absorb the post-dock impact.
+
+        Parameters
+        ----------
+        max_steps : int
+            Safety cap on the number of dt_qp iterations.
+        epsilon_v : float
+            Target ‖dq_full‖ bound [m/s]; defines T_settle via H's
+            smallest eigenvalue.
+        plateau_window : int
+            Window for plateau detection (steps).
+        plateau_ratio : float
+            Plateau fires when T(k) > plateau_ratio · T(k - plateau_window).
+        min_steps : int
+            Minimum iterations before target/plateau exits can fire.
+        fallback_Kd : float
+            Joint-damping gain used when the QP raises an exception.
+        t_log, T_log : list or None
+            Optional destinations for plot samples (appended every 5 steps).
+        t_log_step_offset : int
+            Absolute step offset used to compute the plot time stamps
+            (t = (t_log_step_offset + k) · dt_qp).
+
+        Returns
+        -------
+        dict with keys
+            n_steps       : int     actual iterations run
+            T_start       : float   kinetic energy at entry [J]
+            T_end         : float   kinetic energy at exit [J]
+            T_settle      : float   target threshold [J]
+            lambda_min    : float   min eigenvalue of H at entry [kg·m²]
+            exit_reason   : str     'target_met' | 'plateau' | 'max_steps'
+        """
+        cfg = self.cfg
+        n_j = self.robot.n_joints
+        dt = cfg.dt_qp
+        qp = self.qp_ss
+
+        def _kinetic_energy(v_full, H_robot):
+            return 0.5 * float(v_full @ H_robot @ v_full)
+
+        # Threshold from H at entry (stable over the small displacement
+        # we expect during settling).
+        pq0, pv0 = mujoco_to_pinocchio(
+            self.mj_data.qpos, self.mj_data.qvel)
+        rs0 = self.robot.update(pq0, pv0)
+        eig_H = np.linalg.eigvalsh(rs0.H)
+        lambda_min = float(np.min(np.abs(eig_H)))
+        T_settle = 0.5 * (epsilon_v ** 2) * lambda_min
+        T_start = _kinetic_energy(rs0.v, rs0.H)
+
+        # DS contact config (both anchors active). Caller must pass a
+        # ContactConfig whose r_contact_A/B hold the CURRENT structure-
+        # frame anchor positions — these are used by compute_momentum_map
+        # to build the lever arms for the hw safety constraint.
+        cc_ds = contact_config
+
+        hw_current = np.zeros(3) if not self.has_rwa else (
+            cfg.rwa_I_w * self.mj_data.qvel[6:9]).copy()
+
+        T_history = []
+        exit_reason = 'max_steps'
+        T = T_start
+        for k in range(max_steps):
+            pq, pv = mujoco_to_pinocchio(
+                self.mj_data.qpos, self.mj_data.qvel)
+            rs = self.robot.update(pq, pv)
+            T = _kinetic_energy(rs.v, rs.H)
+            T_history.append(T)
+
+            if (t_log is not None) and (T_log is not None) and (k % 5 == 0):
+                t_log.append((t_log_step_offset + k) * dt)
+                T_log.append(T)
+
+            # Exits (only after min_steps)
+            if k >= min_steps:
+                if T < T_settle:
+                    exit_reason = 'target_met'
+                    break
+                if k >= plateau_window:
+                    T_old = T_history[k - plateau_window]
+                    if T > plateau_ratio * T_old:
+                        exit_reason = 'plateau'
+                        break
+
+            Jc, Jdc = self.robot.get_contact_jacobians(True, True)
+
+            try:
+                _, _, _, tau, _ = qp.solve(
+                    q_t=rs.q_torso, dq_t=rs.dq_torso,
+                    q=rs.q_joints, dq=rs.dq_joints,
+                    r_com_ref=rs.r_com, v_com_ref=np.zeros(3),
+                    lambda_ref=np.zeros(12), a_com_ff=np.zeros(3),
+                    H_robot=rs.H, C_robot=rs.C,
+                    J_com=rs.J_com, Jdot_dq_com=rs.Jdot_dq_com,
+                    contact_config=cc_ds,
+                    J_contacts=Jc, Jdot_dq_contacts=Jdc,
+                    hw_current=hw_current,
+                    hw_min=cfg.hw_min, hw_max=cfg.hw_max,
+                    r_com=rs.r_com, L_com_current=rs.L_com,
+                    J_torso=rs.J_torso,
+                    Jdot_dq_torso=rs.Jdot_dq_torso,
+                    p_torso=rs.oMf_torso.translation.copy(),
+                    R_torso=rs.oMf_torso.rotation.copy(),
+                    p_torso_ref=rs.oMf_torso.translation.copy(),
+                    R_torso_ref=rs.oMf_torso.rotation.copy(),
+                    v_torso_ref=np.zeros(6),
+                    a_torso_ff=np.zeros(6),
+                    settle_mode=True,
+                    passivity_active=True)
+                tau = np.clip(tau, -cfg.tau_max, cfg.tau_max)
+            except Exception:
+                tau = -fallback_Kd * rs.dq_joints
+                tau = np.clip(tau, -cfg.tau_max, cfg.tau_max)
+
+            self.mj_data.ctrl[:n_j] = tau
+            if self.has_rwa:
+                self.mj_data.ctrl[n_j:n_j + 3] = 0.0
+            mujoco.mj_step(self.mj_model, self.mj_data)
+
+        n_steps_run = min(k + 1, max_steps) if max_steps > 0 else 0
+        # Record final energy (no ctrl reset — caller manages the handoff)
+        pq_end, pv_end = mujoco_to_pinocchio(
+            self.mj_data.qpos, self.mj_data.qvel)
+        rs_end = self.robot.update(pq_end, pv_end)
+        T_end = _kinetic_energy(rs_end.v, rs_end.H)
+
+        return {
+            'n_steps': n_steps_run,
+            'T_start': T_start,
+            'T_end': T_end,
+            'T_settle': T_settle,
+            'lambda_min': lambda_min,
+            'exit_reason': exit_reason,
+        }
 
     def _build_qp(self, ac, at, ae, ap, aw, ar_react,
                    kpc, kdc, kpt, kdt, kpe, kde,
                    kpe_ang=5.0, kde_ang=3.0):
         cfg = self.cfg
+        # M2: when use_m2_stack is on, the explicit CoM task is dropped,
+        # the torso 6D task becomes primary P1, EE is null-space projected
+        # against the torso task, and a soft CoM residual cost is added.
         c = WholeBodyQPConfig(
             nq=self.robot.n_joints, nc_max=2, dt_qp=cfg.dt_qp,
             tau_max=cfg.tau_max * np.ones(self.robot.n_joints),
-            alpha_com=ac, alpha_torso=at, alpha_ee=ae,
+            alpha_com=ac if not cfg.use_m2_stack else 0.0,
+            alpha_torso=at,
+            alpha_ee=ae,
             alpha_posture=ap, alpha_wrench=aw,
             alpha_reaction=ar_react,
             alpha_torque=1e0, alpha_reg=1e-2,
@@ -267,7 +653,11 @@ class SimulationLoop:
             Kp_ee=kpe * np.ones(3), Kd_ee=kde * np.ones(3),
             Kp_ee_ang=kpe_ang * np.ones(3), Kd_ee_ang=kde_ang * np.ones(3),
             Kp_posture=1.0, Kd_posture=1.5,
-            L_max=cfg.L_max, tau_w_max=cfg.tau_w_max)
+            L_max=cfg.L_max, tau_w_max=cfg.tau_w_max,
+            use_m2_stack=cfg.use_m2_stack,
+            ee_null_space=cfg.use_m2_stack,
+            alpha_com_soft=cfg.alpha_com_soft,
+            alpha_passivity=cfg.alpha_passivity)
         qp = WholeBodyQP(c)
         qp.set_nominal_posture(self.q_dock_init[self.robot.joints_q_slice])
         return qp
@@ -317,6 +707,21 @@ class SimulationLoop:
             return np.inf
         return float(np.linalg.norm(
             self.mj_data.site_xpos[grip_sid] - self.mj_data.site_xpos[anch_sid]))
+
+    def _gripper_ori_err_deg(self, arm, anchor_idx):
+        """Angle between the gripper frame and its target anchor frame.
+
+        Anchor frames are Identity in the structure frame, so this
+        reduces to the angle between the gripper's structure-frame
+        rotation matrix and I. Returns the angle in degrees.
+        """
+        pq, pv = mujoco_to_pinocchio(self.mj_data.qpos, self.mj_data.qvel)
+        rs = self.robot.update(pq, pv)
+        _, _, oMf = self._get_ee_data(rs, arm)
+        R_ee = np.asarray(oMf.rotation)
+        R_tgt = np.asarray(self.sched.anchor_se3(arm, anchor_idx).rotation)
+        R_err = R_ee.T @ R_tgt
+        return float(np.degrees(np.linalg.norm(pin.log3(R_err))))
 
     # ── Torso planner setup per step ─────────────────────────────────────
 
@@ -373,15 +778,131 @@ class SimulationLoop:
             p_t0, R_t0, p_t1, R_t1,
             delta_com_start=delta0, delta_com_end=delta1)
 
+        # M6: run the coarse pre-planner over the TORSO TRAJECTORY HORIZON.
+        # Matching the torso planner's timeline (t_torso_start ..
+        # t_torso_end ≈ 14.8 s for default t_swing=6, t_ext_max=10,
+        # torso_delay=0.2) ensures the pre-planner's velocity profile
+        # is consistent with the rest of the stack. Anchoring at
+        # t_torso_start gives the same ~1.2 s initial hold the torso
+        # planner uses (the interpolator clamps to r_com[0] before the
+        # first knot), then a smooth ramp from r_com0 → r_com1.
+        if self.preplanner is not None:
+            self._run_preplanner(
+                t_plan_start=t_torso_start,
+                t_plan_end=t_torso_end,
+                stance_arm='a' if target_arm == 'b' else 'b',
+                stance_a=stance_a, stance_b=stance_b,
+                r_com_0=r_com0, r_com_goal=r_com1,
+            )
+
         return q_end
 
+    def _run_preplanner(
+        self,
+        t_plan_start: float,
+        t_plan_end: float,
+        stance_arm: str,
+        stance_a: int,
+        stance_b: int,
+        r_com_0: np.ndarray,
+        r_com_goal: np.ndarray,
+    ) -> None:
+        """Solve the coarse pre-planner for the upcoming step.
+
+        Anchored at `t_plan_start` with T_step = t_plan_end - t_plan_start.
+        This matches the TorsoPlanner's timeline so the pre-planner and
+        the 6D torso orientation reference share a common velocity
+        profile.
+
+        The solve uses the live Pinocchio state for (v_com_0, L_com_0)
+        and the current wheel momentum for c_const. Stance contact point
+        is the anchor of the stance arm in structure frame (constant
+        through SS). On success, caches `_coarse_plan` and
+        `_coarse_plan_t0 = t_plan_start` so `_step()` can evaluate the
+        reference at current sim time via `r_com_at(t - t0)`.
+        """
+        cfg = self.cfg
+        # Live state for (v0, L0)
+        pq_live, pv_live = mujoco_to_pinocchio(
+            self.mj_data.qpos, self.mj_data.qvel)
+        rs_live = self.robot.update(pq_live, pv_live)
+        v_com_0 = rs_live.v_com.copy()
+        L_com_0 = rs_live.L_com.copy()
+        # Conservation constant c = hw_0 + L_com_0 + r_com_0 × m·v_com_0
+        if self.has_rwa:
+            hw_0 = cfg.rwa_I_w * self.mj_data.qvel[6:9].copy()
+        else:
+            hw_0 = np.zeros(3)
+        m = float(rs_live.total_mass)
+        c_const = hw_0 + L_com_0 + np.cross(r_com_0, m * v_com_0)
+
+        # Stance contact point (constant anchor in structure frame).
+        # During SS the swing arm lifts → stance arm is the other one.
+        if stance_arm == 'a':
+            r_C = self.sched.anchors_a[stance_a].copy()
+        else:
+            r_C = self.sched.anchors_b[stance_b].copy()
+
+        T_step = max(0.1, t_plan_end - t_plan_start)
+        result = self.preplanner.solve(
+            r_com_0=r_com_0,
+            v_com_0=v_com_0,
+            L_com_0=L_com_0,
+            r_com_goal=r_com_goal,
+            r_C_stance=r_C,
+            c_const=c_const,
+            T_step=T_step,
+            h_max=np.asarray(cfg.h_max_tight, dtype=float).reshape(3),
+        )
+        self._preplanner_stats.append({
+            'success': result.success,
+            'solve_ms': result.solve_time_ms,
+            'iter_count': result.iter_count,
+            'cost': result.cost,
+            'status': result.status,
+            't_plan_start': t_plan_start,
+        })
+        if result.success:
+            self._coarse_plan = result
+            self._coarse_plan_t0 = t_plan_start
+            peak_v = float(max(np.linalg.norm(v) for v in result.v_com))
+            peak_L = float(max(np.linalg.norm(L) for L in result.L_com))
+            print(f"[CoarsePrePlanner] success in "
+                  f"{result.solve_time_ms:.1f} ms "
+                  f"({result.iter_count} iters, cost={result.cost:.3f}, "
+                  f"T_step={T_step:.2f}s, peak |v|={peak_v:.3f} m/s, "
+                  f"peak |L|={peak_L:.3f} Nms)")
+        else:
+            # On failure, clear the plan so _step() falls back to the
+            # TorsoPlanner-derived reference.
+            self._coarse_plan = None
+            print(f"[CoarsePrePlanner] FAILED: {result.status}")
+
     # ── Run ──────────────────────────────────────────────────────────────
+
+    def _capture_snapshot(self, log, t, label):
+        """Append a snapshot (t, qpos, qvel, label) for offline rendering."""
+        log.snapshots.append((
+            round(t, 3),
+            self.mj_data.qpos.copy(),
+            self.mj_data.qvel.copy(),
+            label))
 
     def run(self, verbose=True):
         """Run full multi-step locomotion simulation."""
         cfg = self.cfg
         log = SimLog()
         plan = self.plan
+
+        # Copy the setup-phase settling trace into the log so it shows
+        # up in Fig 4 (energy decay) of the diagnostic suite.
+        s = self._settling_log
+        log.settling_t = list(s['t_log'])
+        log.settling_T = list(s['T_log'])
+        log.settling_T_target = float(s['T_settle'])
+        log.settling_stage1_steps = int(s['stage1_steps'])
+        log.settling_stage2_steps = int(s['stage2_steps'])
+        log.settling_exit_reason = str(s['exit_reason'])
 
         hw = cfg.hw_init.copy()
         t = 0.0
@@ -392,6 +913,7 @@ class SimulationLoop:
         step_idx = 0
         i = 0
         t_offset = 0.0   # Cumulative time offset from inter-step settling
+        self._t_plan_offset = 0.0  # mirror for _step's swing-planner query
         while i < len(phases):
             gp = phases[i]
             if gp.phase.value == 'double':
@@ -427,6 +949,8 @@ class SimulationLoop:
 
                     # DS (use original plan time for contact config lookup)
                     cc_ds = self.sched.contact_config_at(plan.t_start[i] + 0.1)
+                    if step_idx == 0 and len(log.snapshots) == 0:
+                        self._capture_snapshot(log, t, 'initial')
                     if verbose:
                         print(f"  DS: [{t_ds_start:.2f}, {t_ds_end:.2f}]")
                     while t < t_ds_end:
@@ -437,8 +961,14 @@ class SimulationLoop:
                         t += cfg.dt_nmpc
 
                     # SS: release swing arm
+                    self._capture_snapshot(log, t,
+                                           f'release_step{step_idx}')
                     old_anchor = ss_gp.swing_from_idx
                     self._deactivate_weld(swing_arm, old_anchor)
+                    # M3: reset NMPC warm start at the DS→SS transition —
+                    # contact configuration has changed, so the previous
+                    # solution is no longer feasible.
+                    self.nmpc.reset_warm_start()
                     # Reset GMO on phase transition (contact force discontinuity)
                     pq_r, pv_r = mujoco_to_pinocchio(
                         self.mj_data.qpos, self.mj_data.qvel)
@@ -479,6 +1009,8 @@ class SimulationLoop:
 
                         mujoco.mj_forward(self.mj_model, self.mj_data)
                         d = self._gripper_distance(swing_arm, target_idx)
+                        ori_err_deg = self._gripper_ori_err_deg(
+                            swing_arm, target_idx)
 
                         # Latch close-approach mode: once d < 20mm, stay in
                         # EE-dominant QP for the rest of the EXT phase
@@ -496,31 +1028,49 @@ class SimulationLoop:
                                 r_com=rs_snap.r_com.copy())
                             torso_frozen = True
 
-                        # Dock detection: GMO (100 Hz) or legacy kinematic (10 Hz)
+                        # Dock detection: BOTH position AND orientation
+                        # must be within their thresholds (spec §2 —
+                        # MuJoCo's weld is position-gated only, so this
+                        # is the only safeguard against welding at a
+                        # large orientation misalignment that corrupts
+                        # the next step's initial conditions).
+                        pos_ok = d < cfg.weld_radius
+                        ori_ok = ori_err_deg < cfg.dock_ori_threshold_deg
                         if cfg.use_gmo_dock:
-                            docked = self._contact_confirmed
+                            docked = self._contact_confirmed and ori_ok
                         else:
-                            docked = d < cfg.weld_radius
+                            docked = pos_ok and ori_ok
 
                         if docked:
                             log.dock_events.append({
                                 't': round(t, 3), 'step': step_idx,
                                 'd_mm': round(d*1000, 2),
+                                'ori_deg': round(ori_err_deg, 2),
                                 'arm': swing_arm, 'anchor': target_idx,
                                 'method': 'gmo' if cfg.use_gmo_dock else 'kinematic'})
+                            self._capture_snapshot(
+                                log, t, f'dock_step{step_idx}')
                             if verbose:
                                 print(f"  *** DOCK step {step_idx}: t={t:.2f}s "
-                                      f"d={d*1000:.1f}mm ***")
+                                      f"d={d*1000:.1f}mm "
+                                      f"ori={ori_err_deg:.2f}° ***")
 
                     if not docked and verbose:
                         recent = log.d_grip_swing[-20:] if len(log.d_grip_swing) >= 20 else log.d_grip_swing
+                        min_d = min(recent) * 1000
+                        # Report the ori at the same time we report d
+                        ori_at_timeout = self._gripper_ori_err_deg(
+                            swing_arm, target_idx)
                         print(f"  TIMEOUT step {step_idx}: "
-                              f"min d={min(recent)*1000:.1f}mm")
+                              f"min d={min_d:.1f}mm "
+                              f"ori_at_exit={ori_at_timeout:.1f}°")
 
                     # Post-dock: activate weld + inelastic impact projection
                     if docked:
                         self._activate_weld(swing_arm, target_idx)
                         mujoco.mj_forward(self.mj_model, self.mj_data)
+                        # M3: reset NMPC warm start at SS→DS transition too.
+                        self.nmpc.reset_warm_start()
 
                         # Inelastic impact: project velocity onto new constraint
                         # manifold. The weld creates a bilateral constraint that
@@ -554,22 +1104,69 @@ class SimulationLoop:
                             self.mj_data.qvel[6+off_v:] = mj_qvel_post[6+off_v:]
                             mujoco.mj_forward(self.mj_model, self.mj_data)
 
-                    # Inter-step settle: damp velocities before next swing
-                    if cfg.t_settle_inter > 0 and docked:
+                    # Inter-step DS passivity settle (spec §7.1.1).
+                    # Energy-based exit: remain in DS with passivity_active
+                    # until T_kin < T_settle_inter = 0.5·epsilon_v²·lambda_min(H).
+                    # NMPC is bypassed; the QP in settle_mode dissipates
+                    # momentum through joint torques, respecting dynamics.
+                    # The warm start was already reset at the SS→DS edge
+                    # above (see `self.nmpc.reset_warm_start()`), so the
+                    # first NMPC solve of the next step starts clean.
+                    if (docked
+                            and cfg.use_m2_stack
+                            and cfg.use_energy_settle_inter):
                         t_settle_start = t
-                        t_settle_end = t + cfg.t_settle_inter
-                        cc_settle = self.sched.contact_config_at(t)
+                        # Post-dock DS config. The swing arm is now welded
+                        # to target_idx; the stance arm is still at its
+                        # original index (stance_a / stance_b).
+                        if swing_arm == 'a':
+                            new_anchor_a = target_idx
+                            new_anchor_b = stance_b
+                        else:
+                            new_anchor_a = stance_a
+                            new_anchor_b = target_idx
+                        from crawlbot.solvers.contact_phase import ContactPhase
+                        cc_settle = ContactConfig.from_phase(
+                            ContactPhase.DOUBLE,
+                            r_contact_A=self.sched.anchors_a[new_anchor_a].copy(),
+                            r_contact_B=self.sched.anchors_b[new_anchor_b].copy(),
+                        )
+                        min_steps = max(
+                            0,
+                            int(round(cfg.t_settle_inter_min / cfg.dt_qp)))
+                        settle_result = self._run_ds_passivity_loop(
+                            contact_config=cc_settle,
+                            max_steps=cfg.n_settle_inter_max_steps,
+                            epsilon_v=cfg.settle_inter_epsilon_v,
+                            plateau_window=50,
+                            plateau_ratio=cfg.settle_plateau_ratio,
+                            min_steps=min_steps,
+                            fallback_Kd=cfg.Kd_settle_damping,
+                        )
+                        dt_elapsed = settle_result['n_steps'] * cfg.dt_qp
+                        t += dt_elapsed
+                        t_offset += dt_elapsed
+                        self._t_plan_offset = t_offset
+                        log.inter_step_settles.append({
+                            'step_idx': int(step_idx),
+                            't_start': float(t_settle_start),
+                            't_end': float(t),
+                            'n_steps': int(settle_result['n_steps']),
+                            'T_start': float(settle_result['T_start']),
+                            'T_end': float(settle_result['T_end']),
+                            'T_settle': float(settle_result['T_settle']),
+                            'lambda_min': float(settle_result['lambda_min']),
+                            'exit_reason': settle_result['exit_reason'],
+                        })
                         if verbose:
-                            print(f"  Inter-step settle: {t:.2f} → +{cfg.t_settle_inter}s")
-                        while t < t_settle_end:
-                            hw, L_com_prev = self._step(
-                                t, 'DS', step_idx, swing_arm, stance_arm,
-                                cc_settle, target_idx, stance_a, stance_b,
-                                hw, L_com_prev, log, ss_end=t,
-                                settle_mode=True)
-                            t += cfg.dt_nmpc
-                        # Shift subsequent plan timing to account for settle
-                        t_offset += t - t_settle_start
+                            print(
+                                f"  Inter-step settle: {t_settle_start:.2f}"
+                                f" → +{dt_elapsed:.3f}s "
+                                f"({settle_result['n_steps']} steps, "
+                                f"exit={settle_result['exit_reason']}, "
+                                f"T: {settle_result['T_start']:.2e} → "
+                                f"{settle_result['T_end']:.2e} J, "
+                                f"T_settle={settle_result['T_settle']:.2e} J)")
 
                     step_idx += 1
                     i += 2  # skip SS phase (already processed)
@@ -629,6 +1226,7 @@ class SimulationLoop:
                 # Standalone SS phase (shouldn't happen in normal plan)
                 i += 1
 
+        self._capture_snapshot(log, t, 'final')
         if verbose:
             self._print_summary(log)
         return log
@@ -649,6 +1247,20 @@ class SimulationLoop:
         t_horizon = t + cfg.nmpc_N * cfg.nmpc_dt
         cref = self.torso_planner.com_reference_at(t_horizon)
 
+        # M6: override the NMPC CoM reference with the coarse pre-planner
+        # trajectory when it is available. Replaces the geometric CoM
+        # path with a momentum-feasible one, so the NMPC tracks something
+        # it can actually realize within the hw box.
+        if (self._coarse_plan is not None) and (not settle_mode):
+            tau_rel = t_horizon - self._coarse_plan_t0
+            rp_coarse = self._coarse_plan.r_com_at(tau_rel)
+            vp_coarse = self._coarse_plan.v_com_at(tau_rel)
+            cref_r = rp_coarse
+            cref_v = vp_coarse
+        else:
+            cref_r = cref.r_com
+            cref_v = cref.v_com
+
         # Robot state in structure frame.
         # Extract structure angular velocity for non-inertial corrections.
         omega_s = self.mj_data.qvel[3:6].copy()
@@ -665,18 +1277,82 @@ class SimulationLoop:
 
         # NMPC — plans robot motion only; AOCS manages wheels independently.
         nmpc_ok = True
+        nmpc_status_code = 0  # 0=ok, 1=max_iter, 2=infeasible
+        nmpc_cost_val = np.inf
         t_nmpc_start = time.perf_counter()
+        # M3: pass current hw (wheel momentum) so NMPC can compute c_simple
+        # for the conservation-law box.
+        # M5: pass L_com_ref from the TorsoPlanner — nonzero during SS
+        # when the torso is rotating. Prevents the NMPC from treating
+        # intentional rotation as a disturbance to be cancelled.
+        if self.has_rwa:
+            hw_for_nmpc = (cfg.rwa_I_w * self.mj_data.qvel[6:9]).copy()
+        else:
+            hw_for_nmpc = hw.copy()
+        # Query L_com_ref at the horizon midpoint to track the
+        # planner's rotation phase reasonably.
+        t_mid = t + 0.5 * cfg.nmpc_N * cfg.nmpc_dt
+        L_com_ref_nmpc = self.torso_planner.l_com_reference_at(t_mid)
+        if self._diag_pure_pd:
+            L_com_ref_nmpc = np.zeros(3)
         try:
             rp, vp, _, lr, info_n = self.nmpc.solve(
                 r_com=rs.r_com, v_com=rs.v_com, L_com=rs.L_com,
-                r_com_ref=cref.r_com, v_com_ref=cref.v_com,
-                contact_config=cc_nmpc, warm_start=True)
+                r_com_ref=cref_r, v_com_ref=cref_v,
+                contact_config=cc_nmpc, warm_start=True,
+                hw_current=hw_for_nmpc,
+                L_com_ref=L_com_ref_nmpc)
             af = self.nmpc.compute_feedforward_acceleration(lr)
             nmpc_ok = info_n.success
+            nmpc_cost_val = float(info_n.cost) if np.isfinite(info_n.cost) else np.inf
+            if not info_n.success:
+                nmpc_status_code = 2 if 'infeasib' in info_n.status.lower() else 1
         except Exception:
-            rp, vp, lr, af = cref.r_com, cref.v_com, np.zeros(12), np.zeros(3)
             nmpc_ok = False
+            nmpc_status_code = 2
+            af = np.zeros(3)
         t_nmpc_ms = (time.perf_counter() - t_nmpc_start) * 1000
+
+        # ── M5 Fix 2: infeasibility fallback via receding-horizon shift ─
+        # On NMPC failure, do NOT jump to cref.r_com (creates a reference
+        # discontinuity that saturates actuators). Instead, warm-shift
+        # the previous feasible trajectory by one NMPC step. We do NOT
+        # update _last_x_opt in place — repeated failures re-shift the
+        # same last-successful trajectory, so the fallback never drifts
+        # more than ~1 NMPC step from a real plan.
+        x_plan, u_plan, _ = self.nmpc.get_last_trajectory()
+        if not nmpc_ok:
+            x_shift, u_shift = self.nmpc.get_shifted_fallback()
+            if x_shift is not None and u_shift is not None:
+                x_plan = x_shift
+                u_plan = u_shift
+                rp = x_plan[0:3, 1]
+                vp = x_plan[3:6, 1]
+                lr = u_plan[:, 0]
+                af = self.nmpc.compute_feedforward_acceleration(lr)
+            else:
+                # No previous solve — only possible on the very first
+                # NMPC call. Use the reference-level CoM as a last resort
+                # (pre-planner if active, else the TorsoPlanner cref).
+                rp = np.asarray(cref_r, dtype=float).copy()
+                vp = np.asarray(cref_v, dtype=float).copy()
+                lr = np.zeros(12)
+                af = np.zeros(3)
+
+        # ── M5 Fix 1b: interpolate across QP sub-steps ─────────────────
+        # Cache the full trajectory's first two knots for linear
+        # interpolation inside the inner QP loop. The control u_0 is
+        # piecewise constant over [t, t+dt_nmpc] and is NOT interpolated.
+        if x_plan is not None:
+            rp_k0 = x_plan[0:3, 0].copy()
+            rp_k1 = x_plan[0:3, 1].copy()
+            vp_k0 = x_plan[3:6, 0].copy()
+            vp_k1 = x_plan[3:6, 1].copy()
+        else:
+            rp_k0 = rp.copy()
+            rp_k1 = rp.copy()
+            vp_k0 = vp.copy()
+            vp_k1 = vp.copy()
 
         # QP inner loop: select QP variant for current phase
         if phase == 'EXT_CLOSE':
@@ -696,6 +1372,9 @@ class SimulationLoop:
             ss_end = t + cfg.dt_nmpc  # fallback
 
         _L_com_qp_prev = rs.L_com.copy()
+        # M4: track v_com across QP sub-steps to estimate dv_com for the
+        # orbital feedforward term r_com × m·dv_com_est.
+        _v_com_qp_prev = rs.v_com.copy()
 
         for qs in range(self.n_qp_per_nmpc):
             tq = t + qs * cfg.dt_qp
@@ -705,18 +1384,75 @@ class SimulationLoop:
             Jc, Jdc = self.robot.get_contact_jacobians(
                 cc_ss.active_contacts[0], cc_ss.active_contacts[1])
 
-            # Torso reference (structure frame — no struct pose needed at QP rate)
+            # M5 Fix 1b: linear interpolation along the NMPC trajectory
+            # knot 0 -> knot 1 across the 10 QP sub-steps. alpha goes
+            # 0, 0.1, 0.2, ..., 0.9 — at qs=0 we target the current
+            # state (knot 0, matches rs), at qs=9 we target 90 % of the
+            # way to knot 1. This matches the time parameterisation
+            # tq = t + qs*dt_qp for the NMPC reference at that time,
+            # avoiding the staircase reference that otherwise creates
+            # impulsive torques through the mapping.
+            alpha_interp = qs / self.n_qp_per_nmpc
+            rp_interp = (1.0 - alpha_interp) * rp_k0 + alpha_interp * rp_k1
+            vp_interp = (1.0 - alpha_interp) * vp_k0 + alpha_interp * vp_k1
+
+            # Torso reference (structure frame — no struct pose needed at QP rate).
+            # M5.1: position/velocity/accel come from the mapping layer
+            # evaluated at the CURRENT configuration (arms at their
+            # current positions, not those from the start of the NMPC
+            # interval). Orientation comes from the TorsoPlanner SLERP.
             tr = self.torso_planner.reference_at(tq)
+            if self.mapping is not None and cfg.use_m2_stack:
+                # In pure-PD diagnostic mode, zero the CoM feedforward
+                # so the mapping's a_b_ff comes only from -δ̈(q)/m_b;
+                # then we also clobber it to zero below. This keeps the
+                # position reference (r_b_ref from the mapping) intact.
+                af_for_mapping = np.zeros(3) if self._diag_pure_pd else af
+                r_b_ref_m, v_b_ref_m, a_b_ff_m, _ = self.mapping.compute(
+                    r_com_ref=rp_interp, v_com_ref=vp_interp,
+                    a_com_ff=af_for_mapping, q_current=rs.q, dq_current=rs.v)
+                p_torso_ref_used = r_b_ref_m
+                v_torso_ref_used = np.concatenate([v_b_ref_m, tr.v[3:6]])
+                a_torso_ff_used = np.concatenate([a_b_ff_m, tr.a[3:6]])
+            else:
+                p_torso_ref_used = tr.p
+                v_torso_ref_used = tr.v
+                a_torso_ff_used = tr.a
+
+            if self._diag_freeze_ref:
+                # Freeze r_b_ref / R_b_ref to the first sample taken.
+                # Used to probe PD stability at a STATIC target.
+                if self._diag_frozen_r_b_ref is None:
+                    self._diag_frozen_r_b_ref = p_torso_ref_used.copy()
+                    self._diag_frozen_R_b_ref = tr.R.copy()
+                p_torso_ref_used = self._diag_frozen_r_b_ref.copy()
+                R_b_ref_frozen = self._diag_frozen_R_b_ref.copy()
+                v_torso_ref_used = np.zeros(6)
+                a_torso_ff_used = np.zeros(6)
+
+            if self._diag_pure_pd:
+                # Strip all feedforward terms entering the QP.
+                a_torso_ff_used = np.zeros(6)
+                lr = np.zeros(12)
+                af = np.zeros(3)
+            R_torso_ref_used = (self._diag_frozen_R_b_ref
+                                if self._diag_freeze_ref else tr.R)
             tkw = dict(
                 J_torso=rs.J_torso, Jdot_dq_torso=rs.Jdot_dq_torso,
                 p_torso=rs.oMf_torso.translation,
                 R_torso=rs.oMf_torso.rotation,
-                p_torso_ref=tr.p, R_torso_ref=tr.R,
-                v_torso_ref=tr.v, a_torso_ff=tr.a)
+                p_torso_ref=p_torso_ref_used, R_torso_ref=R_torso_ref_used,
+                v_torso_ref=v_torso_ref_used, a_torso_ff=a_torso_ff_used)
 
             ek = {}
             if phase == 'SS':
-                sr = self.swing_planner.reference_at(min(tq, ss_end - 0.01))
+                # SwingPlanner uses the scheduler's plan timeline (which
+                # is NOT offset-adjusted), so we query it at plan-time
+                # = sim-time − cumulative inter-step settle offset.
+                tq_plan = tq - self._t_plan_offset
+                ss_end_plan = ss_end - self._t_plan_offset
+                sr = self.swing_planner.reference_at(
+                    min(tq_plan, ss_end_plan - 0.01))
                 if sr.is_swinging and sr.swing_arm == swing_arm:
                     J_ee, Jdq_ee, oMf_ee = self._get_ee_data(rs, swing_arm)
                     ek = dict(J_ee=J_ee, Jdot_dq_ee=Jdq_ee,
@@ -761,11 +1497,16 @@ class SimulationLoop:
                         else self.robot.arm_a_v_slice)
             H_bs = rs.H[:6, sw_slice]
 
+            # M2: enable passivity inequality during DS (settling) when the
+            # reworked task stack is active. settle_mode already bypasses
+            # torso/EE tasks; passivity just adds dq^T*tau_q + 2α*T ≤ 0.
+            passivity_active = bool(cfg.use_m2_stack and phase == 'DS')
+
             try:
-                _, _, _, tau, _ = qp.solve(
+                _, _, lambda_qp_sol, tau, _ = qp.solve(
                     q_t=rs.q_torso, dq_t=rs.dq_torso,
                     q=rs.q_joints, dq=rs.dq_joints,
-                    r_com_ref=rp, v_com_ref=vp,
+                    r_com_ref=rp_interp, v_com_ref=vp_interp,
                     lambda_ref=lr, a_com_ff=af,
                     H_robot=rs.H, C_robot=rs.C,
                     J_com=rs.J_com, Jdot_dq_com=rs.Jdot_dq_com,
@@ -774,13 +1515,21 @@ class SimulationLoop:
                     r_com=rs.r_com, L_com_current=rs.L_com,
                     H_base_swing=H_bs, swing_v_slice=sw_slice,
                     settle_mode=settle_mode,
+                    passivity_active=passivity_active,
                     **tkw, **ek)
             except Exception:
                 tau = np.zeros(12)
+                lambda_qp_sol = np.zeros(12)
                 qp_ok = False
 
             tau = np.clip(tau, -cfg.tau_max, cfg.tau_max)
             tau_last = tau.copy()
+            if self._diag_lock_arm_joints:
+                # Diagnostic: zero all joint torques so the arms hold
+                # their initial config (qvel[arm] is forced to 0 after
+                # every mj_step below).
+                tau = np.zeros_like(tau)
+                tau_last = tau.copy()
             self.mj_data.ctrl[:self.robot.n_joints] = tau
 
             # AOCS: reaction wheel torque command.
@@ -804,19 +1553,46 @@ class SimulationLoop:
                         K_omega=cfg.aocs_K_omega,
                         K_h=cfg.aocs_K_h,
                         tau_w_max=cfg.aocs_tau_w_max)
+                elif cfg.aocs_use_legacy_corrected:
+                    # M4: legacy formula + missing orbital term r × m·dv_com.
+                    from crawlbot.aocs.force_estimator import (
+                        compute_aocs_command_legacy_corrected)
+                    tau_w_cmd = compute_aocs_command_legacy_corrected(
+                        L_com=rs.L_com, L_com_prev=_L_com_qp_prev,
+                        r_com=rs.r_com, v_com=rs.v_com,
+                        v_com_prev=_v_com_qp_prev,
+                        hw_current=hw_phys, dt=cfg.dt_qp,
+                        robot_mass=self.robot._total_mass,
+                        K_hw=cfg.aocs_K_hw,
+                        hw_min=cfg.hw_min, hw_max=cfg.hw_max,
+                        tau_w_max=cfg.aocs_tau_w_max)
                 else:
                     # Legacy AOCS: L_dot feedforward only (spin component).
+                    # Desaturation sign matches compute_aocs_command_legacy_corrected
+                    # (+K_hw·hw_error). See that function's docstring for the
+                    # MuJoCo-convention derivation.
                     L_dot_est = (rs.L_com - _L_com_qp_prev) / cfg.dt_qp
                     hw_error = np.clip(hw_phys, cfg.hw_min, cfg.hw_max) - hw_phys
-                    tau_w_cmd = -L_dot_est - cfg.aocs_K_hw * hw_error
+                    tau_w_cmd = -L_dot_est + cfg.aocs_K_hw * hw_error
                     tau_w_cmd = np.clip(tau_w_cmd, -cfg.aocs_tau_w_max, cfg.aocs_tau_w_max)
 
+                if self._diag_disable_aocs:
+                    tau_w_cmd = np.zeros(3)
                 self.mj_data.ctrl[self.robot.n_joints:self.robot.n_joints + 3] = tau_w_cmd
                 tau_w_last = tau_w_cmd.copy()
                 _omega_s_last = omega_s.copy()
 
             _L_com_qp_prev = rs.L_com.copy()
+            _v_com_qp_prev = rs.v_com.copy()
             mujoco.mj_step(self.mj_model, self.mj_data)
+            if self._diag_lock_arm_joints:
+                # Re-freeze arm joints after the physics step. The arm
+                # joints live in the tail of qvel immediately after the
+                # structure(6) + RWA(3 if present) + torso(6) block.
+                off_rw = 3 if self.has_rwa else 0
+                arm_v_start = 6 + off_rw + 6
+                arm_v_end = arm_v_start + self.robot.n_joints
+                self.mj_data.qvel[arm_v_start:arm_v_end] = 0.0
 
             omega_s_post = self.mj_data.qvel[3:6].copy()
             rs2 = self.robot.update(
@@ -843,7 +1619,11 @@ class SimulationLoop:
                 hw = cfg.rwa_I_w * self.mj_data.qvel[6:9].copy()
             else:
                 hw -= (rs2.L_com - rs.L_com) / cfg.dt_qp * cfg.dt_qp
-            hw = np.clip(hw, cfg.hw_min, cfg.hw_max)
+            # Do NOT clip hw here. The QP's hw safety constraint is
+            # soft (slack variables with heavy quadratic penalty), so
+            # the QP stays feasible even when physical hw is beyond
+            # the box, and actively generates the maximum corrective
+            # wrench it can.
 
         t_qp_ms = (time.perf_counter() - t_qp_start) * 1000
 
@@ -854,6 +1634,19 @@ class SimulationLoop:
         # Recompute torso reference at the actual logged time (after QP steps)
         t_log = t + cfg.dt_nmpc
         tref_log = self.torso_planner.reference_at(t_log)
+        # For the torso-position error metric use the reference the QP
+        # actually tracked at the LAST sub-step — i.e. the output of
+        # the M5 mapping layer (`p_torso_ref_used`), not the geometric
+        # TorsoPlanner quintic (`tref_log.p`). These diverge whenever
+        # the mapping is wired, and the old metric was measuring the
+        # mapping-vs-planner discrepancy, not the controller's tracking
+        # quality. Orientation still comes from the TorsoPlanner SLERP
+        # since the mapping only maps position.
+        try:
+            p_torso_ref_log = p_torso_ref_used.copy()
+        except NameError:
+            # Sub-loop didn't run (shouldn't happen in production).
+            p_torso_ref_log = tref_log.p.copy()
         d_swing = self._gripper_distance(swing_arm, target_anchor)
         d_stance = self._gripper_distance(
             stance_arm, stance_a if stance_arm == 'a' else stance_b)
@@ -865,9 +1658,9 @@ class SimulationLoop:
         log.phase.append(phase)
         log.step_idx.append(step_idx)
         log.p_torso.append(rs_f.oMf_torso.translation.copy())
-        log.p_torso_ref.append(tref_log.p.copy())
+        log.p_torso_ref.append(p_torso_ref_log.copy())
         log.e_torso_pos.append(float(np.linalg.norm(
-            rs_f.oMf_torso.translation - tref_log.p)))
+            rs_f.oMf_torso.translation - p_torso_ref_log)))
         R_err = tref_log.R.T @ rs_f.oMf_torso.rotation
         angle_err = np.arccos(np.clip((np.trace(R_err) - 1) / 2, -1, 1))
         log.e_torso_ori.append(float(np.degrees(angle_err)))
@@ -875,9 +1668,10 @@ class SimulationLoop:
         log.d_grip_stance.append(d_stance)
         log.swing_arm.append(swing_arm)
 
-        # EE tracking error (vs planned trajectory reference, not just target)
+        # EE tracking error (vs planned trajectory reference, not just target).
+        # Plan-time (offset-corrected) for the swing planner lookup.
         import pinocchio as pin
-        sr_log = self.swing_planner.reference_at(t)
+        sr_log = self.swing_planner.reference_at(t - self._t_plan_offset)
         _, _, oMf_ee_log = self._get_ee_data(rs_f, swing_arm)
         log.e_ee_pos.append(float(np.linalg.norm(oMf_ee_log.translation - sr_log.p_ee)))
         e_ori_ee = pin.log3(oMf_ee_log.rotation.T @ sr_log.R_ee)
@@ -890,8 +1684,11 @@ class SimulationLoop:
         log.gmo_swing_residual.append(self.gmo.swing_residual_norm(sw_slice))
         log.gmo_contact_state.append(self.contact_sm.state.value)
         log.r_com.append(rs_f.r_com.copy())
-        log.r_com_ref.append(cref.r_com.copy())
-        log.e_com.append(float(np.linalg.norm(rs_f.r_com - cref.r_com)))
+        # Log the reference actually fed to the NMPC (pre-planner if
+        # active, else TorsoPlanner-derived cref) so diagnostics compare
+        # against what the controller was actually tracking.
+        log.r_com_ref.append(np.asarray(cref_r, dtype=float).copy())
+        log.e_com.append(float(np.linalg.norm(rs_f.r_com - np.asarray(cref_r))))
         log.L_com.append(rs_f.L_com.copy())
         log.L_com_norm.append(float(np.linalg.norm(rs_f.L_com)))
         log.L_dot.append(L_dot_est.copy())
@@ -931,6 +1728,53 @@ class SimulationLoop:
         log.lambda_ref_norm.append(float(np.linalg.norm(lr)))
         log.nmpc_time_ms.append(t_nmpc_ms)
         log.qp_time_ms.append(t_qp_ms)
+
+        # ── M0.2 enrichment ────────────────────────────────────────────
+        # Torso orientation (actual vs ref) as quaternion wxyz
+        R_torso = rs_f.oMf_torso.rotation
+        q_t_actual = pin.Quaternion(R_torso)  # xyzw
+        log.q_torso.append(np.array([q_t_actual.w, q_t_actual.x,
+                                      q_t_actual.y, q_t_actual.z]))
+        R_ref = tref_log.R
+        q_t_ref = pin.Quaternion(R_ref)
+        log.q_torso_ref.append(np.array([q_t_ref.w, q_t_ref.x,
+                                          q_t_ref.y, q_t_ref.z]))
+
+        # EE position/orientation (actual and ref)
+        _, _, oMf_ee_f = self._get_ee_data(rs_f, swing_arm)
+        log.p_ee.append(oMf_ee_f.translation.copy())
+        q_ee_actual = pin.Quaternion(oMf_ee_f.rotation)
+        log.q_ee.append(np.array([q_ee_actual.w, q_ee_actual.x,
+                                   q_ee_actual.y, q_ee_actual.z]))
+        sr_f = self.swing_planner.reference_at(t_log - self._t_plan_offset)
+        log.p_ee_ref.append(sr_f.p_ee.copy())
+        q_ee_r = pin.Quaternion(sr_f.R_ee)
+        log.q_ee_ref.append(np.array([q_ee_r.w, q_ee_r.x,
+                                       q_ee_r.y, q_ee_r.z]))
+
+        # CoM velocity (actual from Pinocchio, ref from NMPC)
+        log.v_com.append(rs_f.v_com.copy())
+        log.v_com_ref.append(vp.copy())
+
+        # L_com reference (NMPC-planned)
+        log.L_com_ref.append(rs_f.L_com.copy())  # best available: actual (no L plan)
+
+        # Platform angular velocity
+        log.omega_s.append(self.mj_data.qvel[3:6].copy())
+
+        # NMPC solver diagnostics
+        log.nmpc_status.append(nmpc_status_code)
+        log.nmpc_cost.append(nmpc_cost_val)
+
+        # Contact wrenches
+        log.lambda_ref.append(lr.copy())
+        log.lambda_qp.append(lambda_qp_sol.copy() if hasattr(lambda_qp_sol, 'copy')
+                              else np.zeros(12))
+
+        # Kinetic energy: 0.5 * v^T H v (relative to structure)
+        v_rel = rs_f.v[:rs_f.H.shape[0]]
+        T_kin = 0.5 * float(v_rel @ rs_f.H @ v_rel)
+        log.T_kinetic.append(T_kin)
 
         return hw, rs_f.L_com.copy()
 

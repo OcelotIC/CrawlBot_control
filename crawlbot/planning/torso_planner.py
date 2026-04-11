@@ -63,8 +63,24 @@ class TorsoPlanner:
         self._hold_p = None       # (3,) torso position in structure frame
         self._hold_R = None       # (3,3) torso rotation in structure frame
         self._hold_com = None     # (3,) CoM position in structure frame
+        # M5: torso inertia about its CoM in torso body frame. Used by
+        # l_com_reference_at(t) to produce the NMPC angular momentum
+        # reference L_com_ref(t) = R(t) * I_body * R(t)^T * omega_ref(t).
+        # None → L_com_ref returns zero (backwards compatible).
+        self._I_torso_body = None  # (3,3)
 
     # ── Public API ────────────────────────────────────────────────────────
+
+    def set_torso_inertia(self, I_body: np.ndarray) -> None:
+        """Set the torso inertia tensor about its CoM, in the torso
+        body frame. Usually extracted from Pinocchio:
+
+            I_body = robot.model.inertias[1].inertia   # (3,3)
+
+        This enables l_com_reference_at(t) to produce a meaningful
+        momentum feedforward for the NMPC cost `w_L * ||L - L_ref||²`.
+        """
+        self._I_torso_body = np.asarray(I_body, dtype=float).reshape(3, 3)
 
     def set_hold(self, p: np.ndarray, R: np.ndarray,
                  r_com: Optional[np.ndarray] = None):
@@ -194,6 +210,48 @@ class TorsoPlanner:
         # Fallback: use torso position (no CoM offset data)
         tref = self.reference_at(t)
         return ComReference(r_com=tref.p.copy(), v_com=tref.v[:3].copy())
+
+    def l_com_reference_at(self, t: float) -> np.ndarray:
+        """M5: angular-momentum reference for the NMPC cost.
+
+        Approximation (spec §5.3):
+
+            L_com_ref(t) = I_torso^com(t) · omega_ref(t)
+
+        where I_torso^com is the torso inertia about the torso CoM and
+        omega_ref comes from the SLERP derivative. Transported to the
+        structure frame via R(t):
+
+            I_world(t) = R(t) · I_body · R(t)^T
+            L_com_ref(t) = I_world(t) · omega_ref(t)
+
+        Limitations:
+          - Ignores the limb contribution to centroidal angular momentum
+            (~20 % error) — absorbed by the NMPC's feedback term
+            `w_L ||L_com - L_com_ref||²`.
+          - Returns zero if no torso inertia has been set
+            (backwards-compatible with the M3 stub).
+
+        Parameters
+        ----------
+        t : float
+            Query time.
+
+        Returns
+        -------
+        L_com_ref : (3,) ndarray
+            Angular momentum reference in the structure frame.
+        """
+        if self._I_torso_body is None:
+            return np.zeros(3)
+        tref = self.reference_at(t)
+        # tref.v = [v_lin(3), omega(3)]; tref.R is the current rotation.
+        omega = tref.v[3:6]
+        if np.linalg.norm(omega) < 1e-12:
+            return np.zeros(3)
+        R = tref.R
+        I_world = R @ self._I_torso_body @ R.T
+        return I_world @ omega
 
     # ── Internal helpers ──────────────────────────────────────────────────
 

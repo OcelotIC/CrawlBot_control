@@ -472,21 +472,6 @@ class NMPCSolver:
 
         return x_opt, u_opt, info
 
-    def get_first_control(
-        self,
-        x0: np.ndarray,
-        u_guess: Optional[np.ndarray] = None,
-        x_guess: Optional[np.ndarray] = None,
-        params: Optional[np.ndarray] = None,
-        warm_start: bool = True,
-    ) -> Tuple[np.ndarray, NMPCSolveInfo]:
-        """Convenience: solve and return only the first control action u_0*.
-
-        This is the standard receding-horizon call.
-        """
-        x_opt, u_opt, info = self.solve(x0, u_guess, x_guess, params, warm_start)
-        return u_opt[:, 0], info
-
     def shift_warm_start(self) -> None:
         """Shift the stored warm-start by one time step.
 
@@ -505,6 +490,18 @@ class NMPCSolver:
         u_shifted = np.hstack([u_prev[:, 1:], u_prev[:, -1:]])
 
         self._w0_prev = self._build_w0_from_trajectories(x_shifted, u_shifted)
+
+    def reset_warm_start(self) -> None:
+        """Clear the stored warm-start (decision and dual variables).
+
+        Call this at phase transitions (DS -> SS, SS -> DS) so the next
+        solve starts from a cold initial guess. Without this, the solver
+        may get stuck on a trajectory that was feasible under the previous
+        phase's contact configuration but is infeasible under the new one.
+        """
+        self._w0_prev = None
+        self._lam_g0_prev = None
+        self._lam_x0_prev = None
 
     # ------------------------------------------------------------------ #
     #  Private helpers                                                     #

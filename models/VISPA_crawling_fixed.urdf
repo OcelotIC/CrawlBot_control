@@ -1,5 +1,5 @@
 <?xml version="1.0" ?>
-<!-- VISPA Dual-Arm Crawling Robot — Corrected URDF
+<!-- VISPA Dual-Arm Crawling Robot — Corrected URDF (7-DOF arms)
      Fixes applied:
        1. Added <link name="world"/> (was referenced but undefined)
        2. Fixed tool_a / tool_b : self-closing tag prevented inertial assignment
@@ -7,6 +7,13 @@
           for floating-base use:
             - Pinocchio: buildModelFromUrdf(..., JointModelFreeFlyer())
             - MuJoCo:   use the companion VISPA_crawling.xml (MJCF) instead
+       4. Added an SEW-redundant elbow-swivel joint per arm
+          (Joint_swivel_{a,b}) between Joint_2 and Joint_3, axis
+          along the shoulder-elbow direction (Link_2's x-axis).
+          Per spec §4.9.6, this matches the standard 7-DOF VISPA
+          layout used in the MIRROR project (Mishra et al., 2022).
+          Each arm is now 7-DOF → total actuated joints = 14
+          (Pinocchio nq = 21, nv = 20 with free-flyer base).
 -->
 <robot name="VISPA">
 
@@ -62,6 +69,16 @@
       <inertia ixx="0.010" ixy="0" ixz="0"
                iyy="0.578" iyz="0" izz="0.574"/>
       <origin xyz="0.25 0 0.142"/>
+    </inertial>
+  </link>
+
+  <!-- Elbow-swivel dummy link for arm A (7-DOF SEW redundancy) -->
+  <link name="Link_2_swivel_a">
+    <inertial>
+      <mass value="0.001"/>
+      <inertia ixx="1e-6" ixy="0" ixz="0"
+               iyy="1e-6" iyz="0" izz="1e-6"/>
+      <origin xyz="0 0 0"/>
     </inertial>
   </link>
 
@@ -166,6 +183,16 @@
     </inertial>
   </link>
 
+  <!-- Elbow-swivel dummy link for arm B (7-DOF SEW redundancy) -->
+  <link name="Link_2_swivel_b">
+    <inertial>
+      <mass value="0.001"/>
+      <inertia ixx="1e-6" ixy="0" ixz="0"
+               iyy="1e-6" iyz="0" izz="1e-6"/>
+      <origin xyz="0 0 0"/>
+    </inertial>
+  </link>
+
   <link name="Link_3_b">
     <visual>
       <geometry><mesh filename="meshes/link3.stl"/></geometry>
@@ -261,12 +288,23 @@
     <origin xyz="0 0 0" rpy="1.57079632679 -1.57079632679 0"/>
   </joint>
 
-  <joint name="Joint_3_a" type="revolute">
+  <!-- Joint_swivel_a: SEW-redundant upper-arm roll (spec §4.9.6).
+       Axis = Link_2_a's x-axis (shoulder→elbow direction).
+       Origin is at the elbow, i.e. offset (0.5, 0, 0) from Link_2_a. -->
+  <joint name="Joint_swivel_a" type="revolute">
     <parent link="Link_2_a"/>
+    <child link="Link_2_swivel_a"/>
+    <axis xyz="1 0 0"/>
+    <limit effort="50" lower="-3.14159265359" upper="3.14159265359" velocity="0.09395689"/>
+    <origin xyz="0.5 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <joint name="Joint_3_a" type="revolute">
+    <parent link="Link_2_swivel_a"/>
     <child link="Link_3_a"/>
     <axis xyz="0 0 1"/>
     <limit effort="50" lower="-3.14159265359" upper="3.14159265359" velocity="0.09395689"/>
-    <origin xyz="0.5 0 0" rpy="0 0 -1.57079632679"/>
+    <origin xyz="0 0 0" rpy="0 0 -1.57079632679"/>
   </joint>
 
   <joint name="Joint_4_a" type="revolute">
@@ -316,12 +354,21 @@
     <origin xyz="0 0 0" rpy="1.57079632679 -1.57079632679 0"/>
   </joint>
 
-  <joint name="Joint_3_b" type="revolute">
+  <!-- Joint_swivel_b: SEW-redundant upper-arm roll (spec §4.9.6). -->
+  <joint name="Joint_swivel_b" type="revolute">
     <parent link="Link_2_b"/>
+    <child link="Link_2_swivel_b"/>
+    <axis xyz="1 0 0"/>
+    <limit effort="50" lower="-3.14159265359" upper="3.14159265359" velocity="0.09395689"/>
+    <origin xyz="0.5 0 0" rpy="0 0 0"/>
+  </joint>
+
+  <joint name="Joint_3_b" type="revolute">
+    <parent link="Link_2_swivel_b"/>
     <child link="Link_3_b"/>
     <axis xyz="0 0 1"/>
     <limit effort="50" lower="-3.14159265359" upper="3.14159265359" velocity="0.09395689"/>
-    <origin xyz="0.5 0 0" rpy="0 0 -1.57079632679"/>
+    <origin xyz="0 0 0" rpy="0 0 -1.57079632679"/>
   </joint>
 
   <joint name="Joint_4_b" type="revolute">

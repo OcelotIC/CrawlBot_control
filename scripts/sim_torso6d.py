@@ -32,16 +32,16 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 import mujoco
 import pinocchio as pin
-from robot_interface import RobotInterface
-from contact_scheduler import ContactScheduler, read_anchors_from_mujoco
-from locomotion_planner import LocomotionPlanner
-from swing_planner import SwingPlanner
-from ik import dock_configuration
-from simulation_loop import pinocchio_to_mujoco, mujoco_to_pinocchio
-from solvers.centroidal_nmpc import CentroidalNMPC, CentroidalNMPCConfig
-from solvers.wholebody_qp import WholeBodyQP, WholeBodyQPConfig
-from solvers.contact_phase import ContactPhase
-from torso_planner import TorsoPlanner
+from crawlbot.core.robot_interface import RobotInterface
+from crawlbot.planning.contact_scheduler import ContactScheduler, read_anchors_from_mujoco
+from crawlbot.planning.locomotion_planner import LocomotionPlanner
+from crawlbot.planning.swing_planner import SwingPlanner
+from crawlbot.core.ik import dock_configuration
+from crawlbot.core.state_conversions import pinocchio_to_mujoco, mujoco_to_pinocchio
+from crawlbot.solvers.centroidal_nmpc import CentroidalNMPC, CentroidalNMPCConfig
+from crawlbot.solvers.wholebody_qp import WholeBodyQP, WholeBodyQPConfig
+from crawlbot.solvers.contact_phase import ContactPhase
+from crawlbot.planning.torso_planner import TorsoPlanner
 
 
 # ═══════════════════════════════════════════════════════════════════

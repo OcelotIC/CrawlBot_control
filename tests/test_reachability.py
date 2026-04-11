@@ -16,10 +16,9 @@ sys.path.insert(0, _root)
 os.environ.setdefault('MUJOCO_GL', 'disabled')
 
 import pinocchio as pin
-from robot_interface import RobotInterface
-from contact_scheduler import ContactScheduler
-from ik import dock_configuration, solve_ik
-from dynamics import FRAME_TOOL_A, FRAME_TOOL_B
+from crawlbot.core.robot_interface import RobotInterface, FRAME_TOOL_A, FRAME_TOOL_B
+from crawlbot.planning.contact_scheduler import ContactScheduler
+from crawlbot.core.ik import dock_configuration, solve_ik
 
 PASS = '\033[92m PASS \033[0m'
 FAIL = '\033[91m FAIL \033[0m'

@@ -32,12 +32,12 @@ import pinocchio as pin
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
-from contact_scheduler import ContactScheduler, GaitPhase, GaitPlan
-from solvers.contact_phase import ContactPhase
+from .contact_scheduler import ContactScheduler, GaitPhase, GaitPlan
+from ..solvers.contact_phase import ContactPhase
 
 
-# Default clearance: 8 cm away from the structure surface.
-DEFAULT_CLEARANCE = 0.08
+# Default clearance [m] — matches SimConfig.swing_clearance.
+DEFAULT_CLEARANCE = 0.03
 
 # Normal vector pointing away from the structure surface (structure frame).
 # Structure surface is at z ≈ +0.025 in structure frame; robot hangs below → away = −z.
@@ -81,6 +81,7 @@ class SwingPlanner:
         scheduler: ContactScheduler,
         clearance: float = DEFAULT_CLEARANCE,
         away_normal: np.ndarray = DEFAULT_AWAY_NORMAL,
+        rotation_delay_ratio: float = 0.2,
     ):
         self.scheduler = scheduler
         self.clearance = clearance
@@ -89,6 +90,10 @@ class SwingPlanner:
         self._R_start: np.ndarray = np.eye(3)
         # Target orientation: identity (tool aligned with structure frame)
         self._R_end: np.ndarray = np.eye(3)
+        # M5: delayed cosine timing — orientation stays at R_start until
+        # τ = rotation_delay_ratio, then smoothly rotates to R_end.
+        # Concentrates the rotation in the approach phase.
+        self.rotation_delay_ratio = float(rotation_delay_ratio)
 
     def set_swing_orientation(self, R_start: np.ndarray) -> None:
         """Set the tool rotation at swing release for SLERP interpolation."""
@@ -127,6 +132,40 @@ class SwingPlanner:
     @staticmethod
     def _bump_ddot(tau: float) -> float:
         return 2.0 * np.pi * np.pi * np.cos(2.0 * np.pi * tau)
+
+    # ── M5: Delayed cosine timing for orientation SLERP ─────────
+    # Concentrates rotation in the second half of the swing so the
+    # EE first arcs over (clearance bump peaks at tau=0.5) and THEN
+    # rotates into the dock orientation during the approach.
+    #
+    #   σ(τ) = 0                                 if τ < τ_d
+    #          0.5 * (1 - cos(π·(τ - τ_d)/(1 - τ_d)))   else
+    # where τ_d = delay_ratio ∈ [0, 1).  σ(τ_d)=0, σ(1)=1, σ̇(τ_d)=0,
+    # σ̇(1)=0 (smooth at both endpoints and at the delay boundary).
+    @staticmethod
+    def _delayed_cosine(tau: float, tau_d: float) -> float:
+        if tau <= tau_d:
+            return 0.0
+        if tau >= 1.0:
+            return 1.0
+        u = (tau - tau_d) / (1.0 - tau_d)
+        return 0.5 * (1.0 - np.cos(np.pi * u))
+
+    @staticmethod
+    def _delayed_cosine_dot(tau: float, tau_d: float) -> float:
+        if tau <= tau_d or tau >= 1.0:
+            return 0.0
+        denom = 1.0 - tau_d
+        u = (tau - tau_d) / denom
+        return 0.5 * np.pi * np.sin(np.pi * u) / denom
+
+    @staticmethod
+    def _delayed_cosine_ddot(tau: float, tau_d: float) -> float:
+        if tau <= tau_d or tau >= 1.0:
+            return 0.0
+        denom = 1.0 - tau_d
+        u = (tau - tau_d) / denom
+        return 0.5 * (np.pi ** 2) * np.cos(np.pi * u) / (denom ** 2)
 
     # ── Main query ───────────────────────────────────────────────
 
@@ -186,12 +225,23 @@ class SwingPlanner:
         bump_ddot = self._bump_ddot(tau) / (T * T)
         a_ee = dp * s_ddot + self.clearance * n * bump_ddot
 
-        # Orientation via SLERP (log3/exp3 interpolation)
+        # M5: Orientation via SLERP with delayed-cosine timing.
+        # Position uses quintic `s` (above); orientation uses a
+        # separate σ_r that is zero until τ=rotation_delay_ratio and
+        # then smoothly rotates. This concentrates the orientation
+        # change in the approach phase while keeping the EE nearly
+        # flat during the clearance bump.
+        tau_d = self.rotation_delay_ratio
+        sigma_r = self._delayed_cosine(tau, tau_d)
+        sigma_r_dot = self._delayed_cosine_dot(tau, tau_d) / T
+        sigma_r_ddot = self._delayed_cosine_ddot(tau, tau_d) / (T * T)
+
         dR = self._R_start.T @ self._R_end
-        omega_total = pin.log3(dR)
-        R_ee = self._R_start @ pin.exp3(s * omega_total)
-        omega_ee = R_ee @ (s_dot * omega_total)
-        alpha_ee = R_ee @ (s_ddot * omega_total)
+        omega_total = pin.log3(dR)          # (3,) body-frame axis·angle
+        R_ee = self._R_start @ pin.exp3(sigma_r * omega_total)
+        # Body-frame angular velocity = σ̇·Δθ; transport to world via R.
+        omega_ee = R_ee @ (sigma_r_dot * omega_total)
+        alpha_ee = R_ee @ (sigma_r_ddot * omega_total)
 
         return SwingReference(
             p_ee=p_ee, v_ee=v_ee, a_ee=a_ee,

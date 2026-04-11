@@ -66,16 +66,43 @@ class WholeBodyQPConfig:
     # QP method
     method: str = 'weighted'      # 'weighted' or 'strict'
     solver: str = 'qpoases'
+    # HierarchicalQP weight ratio between priority levels.
+    # With the M2 null-space-projected task stack, task isolation is
+    # provided geometrically by the projections N_torso, N_torso·N_ee,
+    # etc. — NOT by weight scaling. weight_ratio = 1.0 therefore lets
+    # every task use its face-value α. Legacy (non-M2) users that
+    # rely on priority-by-scaling should override this to ~1000.
+    weight_ratio: float = 1.0
 
     # Task weights (Eq. VI-F.6)
-    alpha_com: float = 1e3        # CoM tracking (highest priority)
-    alpha_torso: float = 0.0      # Torso 6D tracking (replaces CoM when > 0)
+    alpha_com: float = 1e3        # Legacy CoM tracking as primary task (weighted hierarchy)
+    alpha_torso: float = 0.0      # Torso 6D tracking (P1 in M2 stack)
     alpha_ee: float = 5e2         # End-effector tracking (swing arm)
     alpha_posture: float = 1e2    # Posture regulation
     alpha_wrench: float = 1e1     # Wrench tracking (from NMPC)
     alpha_torque: float = 1e0     # Joint torque minimization
     alpha_reaction: float = 0.0   # Reaction null-space (minimize base disturbance from swing arm)
     alpha_reg: float = 1e-2       # Acceleration regularization (lowest)
+
+    # ── M2 stack: torso P1 + EE null-space P2 + posture P3 + soft CoM ──
+    use_m2_stack: bool = False    # Enable M2 reworked task stack (§5.6-5.7)
+    alpha_com_soft: float = 5.0   # Soft CoM residual weight (1-10 per spec)
+    ee_null_space: bool = False   # Null-space project EE task against torso task
+
+    # ── Passivity constraint (DS only) ──
+    alpha_passivity: float = 1.0  # Energy decay rate α [1/s] (α < 50 at 100 Hz)
+
+    # ── M5: soft slack on momentum safety backup constraint ──
+    # Replaces the hard inequality h_w(k+1) ∈ [h_min, h_max] with
+    #   h_w(k+1) ≤ h_max + s_upper, s_upper ≥ 0
+    #   h_w(k+1) ≥ h_min - s_lower, s_lower ≥ 0
+    # plus a heavy penalty w_slack * (||s_upper||² + ||s_lower||²)
+    # in the cost. When h_w is within the box, both slacks go to 0
+    # (constraint is effectively hard). When h_w is physically over
+    # the box, the slack allows the QP to remain feasible while the
+    # penalty drives the solution toward the maximum corrective
+    # wrench available.
+    w_hw_slack: float = 1e4       # Quadratic penalty on hw slack
 
     # PD gains for CoM tracking (Eq. VI-F.4)
     Kp_com: np.ndarray = field(default_factory=lambda: 100.0 * np.ones(3))
@@ -139,9 +166,15 @@ class WholeBodyQP:
         self._dim_qdd = nq                    # Joint accelerations
         self._dim_lambda = 6 * nc_max         # Contact wrenches
         self._dim_tau = nq                     # Joint torques
+        # M5: slack variables for the momentum safety backup constraint.
+        # 3 for the upper bound (hw ≤ h_max + s_up) and 3 for the lower
+        # bound (hw ≥ h_min - s_lo). Always allocated; they're zero-cost
+        # (and zero-bound) whenever the hw constraint is not active.
+        self._dim_slack_hw = 6
 
         self._n_vars = (self._dim_qdd_t + self._dim_qdd +
-                        self._dim_lambda + self._dim_tau)
+                        self._dim_lambda + self._dim_tau +
+                        self._dim_slack_hw)
 
         # Variable index ranges in z
         self._idx = self._compute_indices()
@@ -211,6 +244,9 @@ class WholeBodyQP:
         swing_v_slice: Optional[slice] = None,       # velocity-space slice of swing arm joints
         # DS settling mode (skip torso/CoM, damp velocities)
         settle_mode: bool = False,
+        # M2 passivity constraint: enforce dq_j^T*tau_q + 2*alpha*T <= 0
+        # Intended to be ON during DS phase only (see §3.6, §5.7).
+        passivity_active: bool = False,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, QPSolveInfo]:
         """Solve the whole-body QP.
 
@@ -275,8 +311,14 @@ class WholeBodyQP:
         n_robot = 6 + nq  # dimension of q̈_robot = [q̈_t; q̈]
 
         # --- Build QP ---
+        # weight_ratio is taken from the config. In the M2 task stack
+        # task isolation comes from null-space projection (N_torso,
+        # N_torso·N_ee, ...), NOT from weight scaling, so the default
+        # weight_ratio = 1 lets every task use its face-value α. See
+        # WholeBodyQPConfig.weight_ratio and the P1→P6 stack below.
         qp = HierarchicalQP(
             n_vars=n, method=cfg.method, solver=cfg.solver,
+            weight_ratio=cfg.weight_ratio,
         )
 
         # ============================================================ #
@@ -336,18 +378,32 @@ class WholeBodyQP:
         #  INEQUALITY CONSTRAINTS                                       #
         # ============================================================ #
 
-        # 1. Momentum safety: h_min ≤ hw - dt·M_λ·λ ≤ h_max
-        #    Upper: -dt·M_λ·λ ≤ h_max - hw  →  [0, 0, -dt·M_λ, 0] z ≤ h_max - hw
-        #    Lower:  dt·M_λ·λ ≤ hw - h_min   →  [0, 0,  dt·M_λ, 0] z ≤ hw - h_min
-        if hw_current is not None and hw_min is not None and r_com is not None:
+        # 1. Momentum safety (M5 soft slack): h_min ≤ hw - dt·M_λ·λ ≤ h_max
+        #    With slack s_up, s_lo ≥ 0:
+        #    Upper: -dt·M_λ·λ - s_up ≤ h_max - hw
+        #    Lower:  dt·M_λ·λ - s_lo ≤ hw - h_min
+        #    Bound: s_up, s_lo ≥ 0  (set later in the bounds block)
+        #    Cost: w_hw_slack * (||s_up||² + ||s_lo||²)  (added as a task)
+        #
+        # When h_w is within the box, both slacks go to 0 and the
+        # constraint is effectively hard. When physical h_w is beyond
+        # the box (e.g., during actuator saturation), the slack lets
+        # the QP stay feasible while the heavy penalty drives the
+        # slack toward zero — giving the maximum corrective wrench.
+        hw_constraint_active = (
+            hw_current is not None and hw_min is not None
+            and r_com is not None)
+        if hw_constraint_active:
             M_lambda = compute_momentum_map(r_com, contact_config)
 
             A_mom_upper = np.zeros((3, n))
             A_mom_upper[:, idx['lambda'][0]: idx['lambda'][1]] = -cfg.dt_qp * M_lambda
+            A_mom_upper[:, idx['slack_hw_up'][0]: idx['slack_hw_up'][1]] = -np.eye(3)
             b_mom_upper = hw_max - hw_current
 
             A_mom_lower = np.zeros((3, n))
             A_mom_lower[:, idx['lambda'][0]: idx['lambda'][1]] = cfg.dt_qp * M_lambda
+            A_mom_lower[:, idx['slack_hw_lo'][0]: idx['slack_hw_lo'][1]] = -np.eye(3)
             b_mom_lower = hw_current - hw_min
 
             qp.add_inequality_constraint(
@@ -385,6 +441,23 @@ class WholeBodyQP:
                     np.concatenate([b_Ld_upper, b_Ld_lower])
                 )
 
+        # 4. Passivity constraint (M2, DS only): dq_j^T * τ_q + 2α·T ≤ 0
+        #
+        # Enforces exponential kinetic-energy decay T(t) ≤ T(t0)·exp(-2α·t)
+        # during double-support. T = 0.5 * dq_j^T * H_jj * dq_j uses the
+        # joint block of the mass matrix (the full v=[dq_t; dq] is
+        # constrained by welds at both EEs so only the joint kinetic
+        # energy matters here). Linear in τ_q only:
+        #
+        #     [0, 0, 0, dq]^T · z ≤ -2α·T
+        if passivity_active and cfg.alpha_passivity > 0:
+            H_jj = H_robot[6:, 6:]
+            T_kin = 0.5 * float(dq @ H_jj @ dq)
+            A_pass = np.zeros((1, n))
+            A_pass[0, idx['tau'][0]: idx['tau'][1]] = dq
+            b_pass = np.array([-2.0 * cfg.alpha_passivity * T_kin])
+            qp.add_inequality_constraint(A_pass, b_pass)
+
         # ============================================================ #
         #  BOUNDS                                                       #
         # ============================================================ #
@@ -412,6 +485,19 @@ class WholeBodyQP:
                 lb[s: s + 6] = 0.0
                 ub[s: s + 6] = 0.0
 
+        # M5 hw slack bounds: non-negativity when constraint is active,
+        # pinned to 0 otherwise.
+        if hw_constraint_active:
+            lb[idx['slack_hw_up'][0]: idx['slack_hw_up'][1]] = 0.0
+            ub[idx['slack_hw_up'][0]: idx['slack_hw_up'][1]] = np.inf
+            lb[idx['slack_hw_lo'][0]: idx['slack_hw_lo'][1]] = 0.0
+            ub[idx['slack_hw_lo'][0]: idx['slack_hw_lo'][1]] = np.inf
+        else:
+            lb[idx['slack_hw_up'][0]: idx['slack_hw_up'][1]] = 0.0
+            ub[idx['slack_hw_up'][0]: idx['slack_hw_up'][1]] = 0.0
+            lb[idx['slack_hw_lo'][0]: idx['slack_hw_lo'][1]] = 0.0
+            ub[idx['slack_hw_lo'][0]: idx['slack_hw_lo'][1]] = 0.0
+
         qp.set_bounds(lb, ub)
 
         # ============================================================ #
@@ -420,114 +506,206 @@ class WholeBodyQP:
 
         dq_robot = np.concatenate([dq_t, dq])
 
-        # --- Task 1: CoM tracking (highest priority) ---
-        # r̈_com_des = a_ff + Kp(r_ref - r_com_actual) + Kd(v_ref - v_com_actual)
-        # We need current CoM pos/vel from J_com and state
+        # ──────────────────────────────────────────────────────────── #
+        # Helper: build the CoM cost row `J_com @ qdd = a_com_des - Jdq`
+        # (used for legacy Task 1 and M2 soft CoM)
+        # ──────────────────────────────────────────────────────────── #
         r_com_actual = r_com if r_com is not None else np.zeros(3)
         v_com_actual = J_com @ dq_robot
-
-        Kp = np.diag(cfg.Kp_com)
-        Kd = np.diag(cfg.Kd_com)
-        a_com_des = (a_com_ff +
-                     Kp @ (r_com_ref - r_com_actual) +
-                     Kd @ (v_com_ref - v_com_actual))
-
-        # Task: J_com @ q̈_robot = a_com_des - J̇_com q̇_robot
+        Kp_com_mat = np.diag(cfg.Kp_com)
+        Kd_com_mat = np.diag(cfg.Kd_com)
+        a_com_des = (a_com_ff
+                     + Kp_com_mat @ (r_com_ref - r_com_actual)
+                     + Kd_com_mat @ (v_com_ref - v_com_actual))
         A_com = np.zeros((3, n))
         A_com[:, idx['qdd_t'][0]: idx['qdd_t'][1]] = J_com[:, :6]
         A_com[:, idx['qdd'][0]: idx['qdd'][1]] = J_com[:, 6:]
         b_com = a_com_des - Jdot_dq_com
 
-        if cfg.alpha_com > 0 and not settle_mode:
+        # --- Task 1: Legacy CoM tracking (skipped in M2 stack) ---
+        if cfg.alpha_com > 0 and not settle_mode and not cfg.use_m2_stack:
             qp.add_task(A_com, b_com, cfg.alpha_com, priority=1)
 
-        # --- Task 1b: Torso 6D tracking (replaces CoM when active) ---
+        # --- Task 1b: Torso 6D tracking (primary P1 task in M2 stack) ---
         # Controls both position and orientation of the torso body frame.
         # a_torso_des = [a_lin_ff + Kp_lin(p_ref - p) + Kd_lin(v_ref - v);
         #                a_ang_ff + Kp_ang(log3(R^T R_ref)) + Kd_ang(ω_ref - ω)]
-        if cfg.alpha_torso > 0 and J_torso is not None and p_torso_ref is not None and not settle_mode:
+        torso_task_active = (
+            (cfg.alpha_torso > 0 or cfg.use_m2_stack)
+            and J_torso is not None
+            and p_torso_ref is not None
+            and not settle_mode
+        )
+        A_torso = None
+        b_torso = None
+        if torso_task_active:
             Kp_t = np.diag(cfg.Kp_torso)   # (6,6)
             Kd_t = np.diag(cfg.Kd_torso)   # (6,6)
 
-            # Current torso twist from Jacobian
             v_torso_actual = J_torso @ dq_robot  # (6,): [lin(3), ang(3)]
-
-            # Position error (3,)
             p_t = p_torso if p_torso is not None else np.zeros(3)
             e_pos = p_torso_ref - p_t
-
-            # Orientation error via log map (3,)
             R_t = R_torso if R_torso is not None else np.eye(3)
             R_ref_t = R_torso_ref if R_torso_ref is not None else np.eye(3)
             e_ori = pin.log3(R_t.T @ R_ref_t)
-
-            # 6D error
             e_6d = np.concatenate([e_pos, e_ori])
 
-            # Reference twist and feedforward
             v_ref_t = v_torso_ref if v_torso_ref is not None else np.zeros(6)
             a_ff_t = a_torso_ff if a_torso_ff is not None else np.zeros(6)
-
-            # Desired 6D acceleration
             a_torso_des = a_ff_t + Kp_t @ e_6d + Kd_t @ (v_ref_t - v_torso_actual)
 
-            # Task: J_torso @ q̈_robot = a_torso_des - J̇_torso q̇_robot
             jdq = Jdot_dq_torso if Jdot_dq_torso is not None else np.zeros(6)
             A_torso = np.zeros((6, n))
             A_torso[:, idx['qdd_t'][0]: idx['qdd_t'][1]] = J_torso[:, :6]
             A_torso[:, idx['qdd'][0]: idx['qdd'][1]] = J_torso[:, 6:]
             b_torso = a_torso_des - jdq
 
-            qp.add_task(A_torso, b_torso, cfg.alpha_torso, priority=1)
+            # Effective weight in M2 stack (sim_loop sets alpha_torso via config;
+            # in pure M2 testing, fall back to 1e3 if user left alpha_torso=0).
+            w_torso = cfg.alpha_torso if cfg.alpha_torso > 0 else 1e3
+            qp.add_task(A_torso, b_torso, w_torso, priority=1)
+
+        # ──────────────────────────────────────────────────────────── #
+        # Null-space projectors used by the rest of the M2 stack
+        # N_torso   = I − A_torso^+ A_torso  (projects x into null(A_torso))
+        # N_torso_ee = N_torso · (I − (A_ee·N_torso)^+ (A_ee·N_torso))
+        #           (further projects out EE subspace so lower-priority
+        #           tasks don't interfere with either torso or EE)
+        # These are shared between the EE task (priority 2) and the
+        # posture task (priority 3). Under the M2 stack this gives
+        # geometric isolation regardless of the task weights, so the
+        # HierarchicalQP weight_ratio can stay at 1.
+        # ──────────────────────────────────────────────────────────── #
+        N_torso = None
+        A_torso_pinv = None
+        if cfg.use_m2_stack and A_torso is not None:
+            A_torso_pinv = np.linalg.pinv(A_torso, rcond=1e-8)
+            N_torso = np.eye(n) - A_torso_pinv @ A_torso
 
         # --- Task 2: End-effector 6D tracking (swing arm, optional) ---
-        # a_ee_des = [a_lin_ff + Kp_lin(p_ref - p) + Kd_lin(v_ref - v);
-        #             a_ang_ff + Kp_ang(log3(R^T R_ref)) + Kd_ang(ω_ref - ω)]
+        # In the M2 stack the EE task is projected into the null space of
+        # the torso task via N_torso = I - J_torso^+ @ J_torso. This ensures
+        # EE tracking does not interfere with torso tracking.
+        A_ee = None
+        b_ee = None
+        A_ee_proj = None
+        b_ee_res = None
         if J_ee is not None and p_ee_ref is not None:
             jdq_ee = Jdot_dq_ee if Jdot_dq_ee is not None else np.zeros(6)
 
-            # Current EE twist from full 6D Jacobian
             v_ee_actual = J_ee @ dq_robot  # (6,): [lin(3), ang(3)]
 
-            # Position error (3,)
             p_ee_actual = p_ee if p_ee is not None else np.zeros(3)
             e_pos_ee = p_ee_ref - p_ee_actual
 
-            # Orientation error via log map (3,)
             R_ee_actual = R_ee if R_ee is not None else np.eye(3)
             R_ee_ref_actual = R_ee_ref if R_ee_ref is not None else np.eye(3)
             e_ori_ee = pin.log3(R_ee_actual.T @ R_ee_ref_actual)
 
-            # 6D error and gains
             e_6d_ee = np.concatenate([e_pos_ee, e_ori_ee])
             Kp_ee_full = np.diag(np.concatenate([cfg.Kp_ee, cfg.Kp_ee_ang]))
             Kd_ee_full = np.diag(np.concatenate([cfg.Kd_ee, cfg.Kd_ee_ang]))
 
-            # Reference twist and feedforward
             v_ref_ee = v_ee_ref if v_ee_ref is not None else np.zeros(6)
             a_ff_ee = a_ee_ff if a_ee_ff is not None else np.zeros(6)
-
-            # Desired 6D acceleration
             a_ee_des = a_ff_ee + Kp_ee_full @ e_6d_ee + Kd_ee_full @ (v_ref_ee - v_ee_actual)
 
-            # Task: J_ee @ q̈_robot = a_ee_des - J̇_ee q̇
             A_ee = np.zeros((6, n))
             A_ee[:, idx['qdd_t'][0]: idx['qdd_t'][1]] = J_ee[:, :6]
             A_ee[:, idx['qdd'][0]: idx['qdd'][1]] = J_ee[:, 6:]
             b_ee = a_ee_des - jdq_ee
 
-            qp.add_task(A_ee, b_ee, cfg.alpha_ee, priority=2)
+            # Null-space projection against the torso task: replace (A_ee,b_ee)
+            # with (N_torso @ A_ee, b_ee residual). Because we only scale
+            # the rows of the cost, the QP solution is equivalent to
+            # strict prioritization even when α_ee > α_torso.
+            apply_null_space = (
+                (cfg.use_m2_stack or cfg.ee_null_space)
+                and N_torso is not None
+            )
+            if apply_null_space:
+                A_ee_proj = A_ee @ N_torso
+                b_ee_res = b_ee - A_ee @ A_torso_pinv @ b_torso
+                qp.add_task(A_ee_proj, b_ee_res, cfg.alpha_ee, priority=2)
+            else:
+                A_ee_proj = A_ee
+                b_ee_res = b_ee
+                qp.add_task(A_ee, b_ee, cfg.alpha_ee, priority=2)
+        else:
+            A_ee_proj = None
+            b_ee_res = None
+
+        # --- Task 2b: Soft CoM residual (M2 stack only) ---
+        # Quadratic cost α_com_soft * ||J_com @ qdd - a_com_des||² with
+        # desired acceleration from NMPC ff + PD (NOT from the mapping).
+        # Weight is deliberately small (1-10) so it biases the residual
+        # null-space DOFs toward momentum-consistent trajectories
+        # without overriding the torso or EE tasks.
+        #
+        # With weight_ratio=1 the soft CoM is directly visible, and
+        # since J_com rows correlate with J_torso rows through the
+        # mass ratio, we null-space project it into N(A_torso) ∩ N(A_ee)
+        # — same as the posture task — so it never degrades the torso
+        # or EE targets.
+        if cfg.use_m2_stack and cfg.alpha_com_soft > 0 and not settle_mode:
+            if A_torso is not None:
+                if A_ee is not None:
+                    A_combo_com = np.vstack([A_torso, A_ee])
+                    b_combo_com = np.concatenate([b_torso, b_ee])
+                else:
+                    A_combo_com = A_torso
+                    b_combo_com = b_torso
+                A_combo_com_pinv = np.linalg.pinv(A_combo_com, rcond=1e-8)
+                N_com = np.eye(n) - A_combo_com_pinv @ A_combo_com
+                A_com_proj = A_com @ N_com
+                b_com_res = b_com - A_com @ A_combo_com_pinv @ b_combo_com
+                qp.add_task(A_com_proj, b_com_res,
+                            cfg.alpha_com_soft, priority=4)
+            else:
+                qp.add_task(A_com, b_com, cfg.alpha_com_soft, priority=4)
 
         # --- Task 3: Posture regulation ---
         # q̈_posture = Kp_post (q_nom - q) + Kd_post (0 - dq)
-        qdd_posture = (cfg.Kp_posture * (self._q_nominal - q) -
-                       cfg.Kd_posture * dq)
+        # Skipped in settle_mode: the settle task (P1) already dampens
+        # all joint velocities, and at weight_ratio=1 the posture PD
+        # would interfere with that dissipation (T10 regression).
+        if not settle_mode:
+            qdd_posture = (cfg.Kp_posture * (self._q_nominal - q) -
+                           cfg.Kd_posture * dq)
 
-        A_posture = np.zeros((nq, n))
-        A_posture[:, idx['qdd'][0]: idx['qdd'][1]] = np.eye(nq)
-        b_posture = qdd_posture
+            A_posture = np.zeros((nq, n))
+            A_posture[:, idx['qdd'][0]: idx['qdd'][1]] = np.eye(nq)
+            b_posture = qdd_posture
 
-        qp.add_task(A_posture, b_posture, cfg.alpha_posture, priority=3)
+            # M2: project posture into null(A_torso) ∩ null(A_ee) so
+            # that its contribution to q̈ perturbs NEITHER the torso
+            # task nor the EE task. This is what makes weight_ratio=1
+            # safe — task isolation is geometric, not via weight
+            # scaling.
+            #
+            #   A_combo = [A_torso; A_ee]
+            #   N_combo = I − A_combo^+ A_combo
+            #
+            # We also subtract the "particular solution" contribution
+            # so the posture residual is consistent with the torso / EE
+            # targets:
+            #   b_posture_res = b_posture − A_posture · A_combo^+ · b_combo
+            if cfg.use_m2_stack and A_torso is not None:
+                if A_ee is not None:
+                    A_combo = np.vstack([A_torso, A_ee])
+                    b_combo = np.concatenate([b_torso, b_ee])
+                else:
+                    A_combo = A_torso
+                    b_combo = b_torso
+                A_combo_pinv = np.linalg.pinv(A_combo, rcond=1e-8)
+                N_combo = np.eye(n) - A_combo_pinv @ A_combo
+                A_posture_proj = A_posture @ N_combo
+                b_posture_res = b_posture - A_posture @ A_combo_pinv @ b_combo
+                qp.add_task(A_posture_proj, b_posture_res,
+                            cfg.alpha_posture, priority=3)
+            else:
+                qp.add_task(A_posture, b_posture,
+                            cfg.alpha_posture, priority=3)
 
         # --- Task 3b: DS joint-space settle (damp all velocities to zero) ---
         # In settle mode, torso/CoM tasks are skipped (they conflict with
@@ -581,6 +759,18 @@ class WholeBodyQP:
 
         qp.add_task(A_reg, b_reg, cfg.alpha_reg, priority=6)
 
+        # --- M5 Task: hw slack penalty (heavy, high priority) ---
+        # Drive the slack variables to zero as fast as the actuator
+        # limits allow. Uses priority 1 so it can't be traded off
+        # against posture / torque minimisation. Weight = w_hw_slack
+        # (default 1e4 >> alpha_torso ≈ 1e3).
+        if cfg.w_hw_slack > 0:
+            A_slack = np.zeros((6, n))
+            A_slack[0: 3, idx['slack_hw_up'][0]: idx['slack_hw_up'][1]] = np.eye(3)
+            A_slack[3: 6, idx['slack_hw_lo'][0]: idx['slack_hw_lo'][1]] = np.eye(3)
+            b_slack = np.zeros(6)
+            qp.add_task(A_slack, b_slack, cfg.w_hw_slack, priority=1)
+
         # ============================================================ #
         #  SOLVE                                                        #
         # ============================================================ #
@@ -600,7 +790,11 @@ class WholeBodyQP:
     # ------------------------------------------------------------------ #
 
     def _compute_indices(self) -> Dict[str, Tuple[int, int]]:
-        """Compute start/end indices for each variable block in z."""
+        """Compute start/end indices for each variable block in z.
+
+        Layout: [qdd_t(6), qdd(nq), lambda(6*nc_max), tau(nq),
+                 slack_hw_upper(3), slack_hw_lower(3)]
+        """
         nq = self.config.nq
         n_lambda = 6 * self.config.nc_max
 
@@ -611,6 +805,8 @@ class WholeBodyQP:
         idx['qdd'] = (s, s + nq);            s += nq
         idx['lambda'] = (s, s + n_lambda);    s += n_lambda
         idx['tau'] = (s, s + nq);             s += nq
+        idx['slack_hw_up'] = (s, s + 3);     s += 3
+        idx['slack_hw_lo'] = (s, s + 3);     s += 3
 
         assert s == self._n_vars
         return idx

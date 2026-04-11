@@ -281,3 +281,91 @@ def compute_aocs_command(
     tau_w = -H_dot_est - K_omega * omega_s - K_h * (hw_current - hw_target)
     tau_w = np.clip(tau_w, -tau_w_max, tau_w_max)
     return tau_w
+
+
+def compute_aocs_command_legacy_corrected(
+    L_com: np.ndarray,
+    L_com_prev: np.ndarray,
+    r_com: np.ndarray,
+    v_com: np.ndarray,
+    v_com_prev: np.ndarray,
+    hw_current: np.ndarray,
+    dt: float,
+    robot_mass: float,
+    K_hw: float = 2.0,
+    hw_min: np.ndarray = None,
+    hw_max: np.ndarray = None,
+    tau_w_max: float = 5.0,
+) -> np.ndarray:
+    """Corrected legacy AOCS command with the orbital term (§5.8 / M4).
+
+    Sign derivation (MuJoCo convention, verified empirically):
+        ctrl[rw_i] is the motor torque on the wheel joint DOF.
+        Ḣ_wheels = +ctrl[rw_i]  (wheel accelerates positively)
+        Ḣ_struct = -ctrl[rw_i]  (Newton's third law reaction)
+
+    Feedforward (cancel the robot's angular-momentum disturbance):
+        conservation ⇒ Ḣ_struct = -ctrl[rw] - Ḣ_robot
+        Ḣ_robot = L̇_com + r_com × m·v̇_com ≡ L_dot_est + orbital
+        For Ḣ_struct = 0 : ctrl[rw] = -L_dot_est - orbital        ✓
+
+    Desaturation (pull h_w back into the box):
+        Ḣ_wheels = +ctrl[rw]; we want ḣ_w → hw_target, i.e.,
+            ḣ_w = K_hw · (hw_target − h_w)
+        With  hw_error := clip(h_w, box) − h_w = hw_target − h_w:
+            ctrl[rw] += +K_hw · hw_error
+        The "+" is correct — the code used to have "−K_hw · hw_error"
+        which actively accelerated a saturated wheel AWAY from the
+        box (verified 04/2026: with h_w=+7, K_hw=2, the old formula
+        drove h_w to +8.96 Nms over 1 s; the corrected form drives
+        it to +4.97 Nms).
+
+    Full command:
+        τ_w = -L̇_com_est - r_com × m·v̇_com_est + K_hw · hw_error
+
+    The orbital term r_com × m·v̇_com_est was missing from the
+    original legacy formula and is the M4 correction.
+
+    All quantities are in the structure frame. Finite differences are
+    one-step (suitable at dt_qp = 0.01 s). The `v_com_prev` and
+    `L_com_prev` arguments are the state **at the previous QP sub-step**
+    (before the current mj_step was applied).
+
+    Parameters
+    ----------
+    L_com, L_com_prev : (3,) current and previous centroidal angular
+        momentum (struct frame).
+    r_com : (3,) current robot CoM position.
+    v_com, v_com_prev : (3,) current and previous CoM velocity.
+    hw_current : (3,) current wheel angular momentum (I_w · ω_wheels).
+    dt : float, QP sub-step time step [s].
+    robot_mass : float, total robot mass [kg].
+    K_hw : float, desaturation gain [1/s].
+    hw_min, hw_max : (3,) wheel momentum bounds (clip target).
+    tau_w_max : float, wheel torque magnitude limit [Nm].
+
+    Returns
+    -------
+    tau_w : (3,) clipped wheel torque command.
+    """
+    if hw_min is None:
+        hw_min = -np.full(3, np.inf)
+    if hw_max is None:
+        hw_max = np.full(3, np.inf)
+
+    # Centroidal (spin) rate estimate.
+    L_dot_est = (L_com - L_com_prev) / dt
+
+    # CoM acceleration estimate (new — this enables the orbital term).
+    dv_com_est = (v_com - v_com_prev) / dt
+
+    # Orbital rate term: d/dt (r_com × m·v_com) under the product rule
+    # reduces to r_com × m·v̇_com (the v × m·v term vanishes identically).
+    orbital = np.cross(r_com, robot_mass * dv_com_est)
+
+    # Desaturation: drive h_w back into the feasible box.
+    hw_error = np.clip(hw_current, hw_min, hw_max) - hw_current
+
+    # Sign: +K_hw·hw_error, not −K_hw·hw_error (see docstring).
+    tau_w = -L_dot_est - orbital + K_hw * hw_error
+    return np.clip(tau_w, -tau_w_max, tau_w_max)

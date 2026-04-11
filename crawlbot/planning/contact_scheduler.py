@@ -30,7 +30,7 @@ from typing import List, Tuple, Optional
 
 import pinocchio as pin
 
-from solvers.contact_phase import ContactPhase, ContactConfig
+from ..solvers.contact_phase import ContactPhase, ContactConfig
 
 
 # ── Default anchor grid (matches dynamics.py DEFAULT_ANCHORS) ─────────────
