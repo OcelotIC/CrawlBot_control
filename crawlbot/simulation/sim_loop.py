@@ -708,6 +708,21 @@ class SimulationLoop:
         return float(np.linalg.norm(
             self.mj_data.site_xpos[grip_sid] - self.mj_data.site_xpos[anch_sid]))
 
+    def _gripper_ori_err_deg(self, arm, anchor_idx):
+        """Angle between the gripper frame and its target anchor frame.
+
+        Anchor frames are Identity in the structure frame, so this
+        reduces to the angle between the gripper's structure-frame
+        rotation matrix and I. Returns the angle in degrees.
+        """
+        pq, pv = mujoco_to_pinocchio(self.mj_data.qpos, self.mj_data.qvel)
+        rs = self.robot.update(pq, pv)
+        _, _, oMf = self._get_ee_data(rs, arm)
+        R_ee = np.asarray(oMf.rotation)
+        R_tgt = np.asarray(self.sched.anchor_se3(arm, anchor_idx).rotation)
+        R_err = R_ee.T @ R_tgt
+        return float(np.degrees(np.linalg.norm(pin.log3(R_err))))
+
     # ── Torso planner setup per step ─────────────────────────────────────
 
     def _setup_torso_for_step(self, t_ss_start, t_ss_end, swing_arm,
@@ -994,6 +1009,8 @@ class SimulationLoop:
 
                         mujoco.mj_forward(self.mj_model, self.mj_data)
                         d = self._gripper_distance(swing_arm, target_idx)
+                        ori_err_deg = self._gripper_ori_err_deg(
+                            swing_arm, target_idx)
 
                         # Latch close-approach mode: once d < 20mm, stay in
                         # EE-dominant QP for the rest of the EXT phase
@@ -1011,28 +1028,42 @@ class SimulationLoop:
                                 r_com=rs_snap.r_com.copy())
                             torso_frozen = True
 
-                        # Dock detection: GMO (100 Hz) or legacy kinematic (10 Hz)
+                        # Dock detection: BOTH position AND orientation
+                        # must be within their thresholds (spec §2 —
+                        # MuJoCo's weld is position-gated only, so this
+                        # is the only safeguard against welding at a
+                        # large orientation misalignment that corrupts
+                        # the next step's initial conditions).
+                        pos_ok = d < cfg.weld_radius
+                        ori_ok = ori_err_deg < cfg.dock_ori_threshold_deg
                         if cfg.use_gmo_dock:
-                            docked = self._contact_confirmed
+                            docked = self._contact_confirmed and ori_ok
                         else:
-                            docked = d < cfg.weld_radius
+                            docked = pos_ok and ori_ok
 
                         if docked:
                             log.dock_events.append({
                                 't': round(t, 3), 'step': step_idx,
                                 'd_mm': round(d*1000, 2),
+                                'ori_deg': round(ori_err_deg, 2),
                                 'arm': swing_arm, 'anchor': target_idx,
                                 'method': 'gmo' if cfg.use_gmo_dock else 'kinematic'})
                             self._capture_snapshot(
                                 log, t, f'dock_step{step_idx}')
                             if verbose:
                                 print(f"  *** DOCK step {step_idx}: t={t:.2f}s "
-                                      f"d={d*1000:.1f}mm ***")
+                                      f"d={d*1000:.1f}mm "
+                                      f"ori={ori_err_deg:.2f}° ***")
 
                     if not docked and verbose:
                         recent = log.d_grip_swing[-20:] if len(log.d_grip_swing) >= 20 else log.d_grip_swing
+                        min_d = min(recent) * 1000
+                        # Report the ori at the same time we report d
+                        ori_at_timeout = self._gripper_ori_err_deg(
+                            swing_arm, target_idx)
                         print(f"  TIMEOUT step {step_idx}: "
-                              f"min d={min(recent)*1000:.1f}mm")
+                              f"min d={min_d:.1f}mm "
+                              f"ori_at_exit={ori_at_timeout:.1f}°")
 
                     # Post-dock: activate weld + inelastic impact projection
                     if docked:

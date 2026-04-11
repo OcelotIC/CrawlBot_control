@@ -30,6 +30,12 @@ class SimConfig:
 
     # ── Docking ─────────────────────────────────────────────────
     weld_radius: float = 0.005    # Real dock threshold [m]
+    # Orientation gate for dock activation. The anchor frame is Identity
+    # in the structure frame (verified 2026-04-11), so this is the angle
+    # between the gripper's rotation matrix and I. MuJoCo's weld is
+    # position-gated only — without this gate, docking at large ori
+    # misalignment corrupts the next step's initial conditions.
+    dock_ori_threshold_deg: float = 5.0
 
     # ── Contact estimator (GMO) ────────────────────────────────
     gmo_K_O: float = 80.0              # Observer gain [1/s]
