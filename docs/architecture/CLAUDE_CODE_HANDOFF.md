@@ -746,40 +746,102 @@ New module `crawlbot/planning/coarse_preplanner.py`:
 
 ---
 
-## M7. Closed-Loop Integration
+## M7. Closed-Loop Integration — Two-Phase State Machine
 
 **Spec reference:** §7 (Operational Design), §8 (Validation T11–T20)
 
-### What to modify
+### Architectural decision: eliminate the EXT phase
 
-`crawlbot/simulation/sim_loop.py` — rewire the full pipeline:
+The legacy code has three phases: DS → SS → EXT. The EXT phase was a workaround for trajectory desynchronization — the torso was still moving when the swing arm reached the target, so a separate "close the gap" phase was added with special gains, threshold-based triggers, and reference freezing. All of these are patches for a coordination problem that shouldn't exist.
+
+**The reworked architecture has exactly two phases: DS and SS.** This mirrors the terrestrial legged locomotion convention (Belvedere et al., Henze et al., Mishra et al.). No EXT phase. No gain scheduling. No approach thresholds. No torso freezing.
+
+The key insight: in terrestrial bipedal walking, nobody has a special "foot landing" phase with gain scheduling. The swing foot trajectory is planned to arrive at the foothold at `t = T_step` with zero velocity — and it does, because the torso and swing trajectories are **synchronized over the same time horizon**.
+
+### Synchronized trajectory planning
+
+The root cause of the docking failure was trajectory desynchronization: the swing planned over 6s, the torso over 14.8s. The arm arrived first, the torso kept moving, and the arm got dragged away. The fix is not threshold-based freezing — it is trajectory synchronization.
+
+**Per-step planning sequence (runs once at DS exit, before SS entry):**
 
 ```
-CoarsePrePlanner (once/step)
-    → TorsoPlanner (orientation + L_com_ref)
-    → SwingPlanner 6D
-    → ContactScheduler
-    → CentroidalNMPC (10 Hz, with L_com_ref + conservation law)
-    → CoMToTorsoMapping (100 Hz)
-    → WholeBodyQP (100 Hz, reworked task stack)
-    → AOCS (100 Hz, with orbital correction)
-    → MuJoCo step
-    → SimLog
+1. CoarsePrePlanner(start_state, goal_com, contacts) → T_step, com_trajectory
+   - T_step is set by the momentum envelope (position-dependent feasibility)
+   - com_trajectory is momentum-feasible by construction
+
+2. TorsoPlanner(R_start, R_goal, T_step)
+   - Orientation: SLERP with quintic timing over [0, T_step]
+   - Position: comes from NMPC via mapping layer (not planned here)
+   - L_com_ref(t) = I_torso · ω_ref(t) for NMPC feedforward
+   - Terminal: ω_ref(T_step) = 0, R_ref(T_step) = R_goal
+
+3. SwingPlanner(p_start, p_dock, R_start, R_dock, T_step)
+   - Position: quintic + clearance bump over [0, T_step]
+   - Orientation: SLERP with quintic timing over [0, T_step]
+   - Terminal: v_ee(T_step) = 0, ω_ee(T_step) = 0
+   - Both position and orientation arrive at T_step simultaneously
 ```
 
-Phase transitions:
-- **DS exit:** energy-based (`T < T_settle`), not time-based
-- **On DS exit:** reset NMPC warm start, compute `c`, run coarse pre-planner, prepare 6D swing
-- **SS exit (dock):** position + orientation tolerance met → activate weld → DS
-- **Failure modes:** NMPC infeasible → `λ_ref = 0`; tracking divergence → pause
+**Critical: all three planners use the same `T_step`.** The torso and swing arm both arrive at their targets at the same time. No separate timing. No EXT phase needed.
+
+### Two-phase state machine
+
+#### Phase 1: DS (Double Support — both end-effectors welded)
+
+- **Purpose:** Settle after dock; prepare next step
+- **QP:** `passivity_active=True`, `dq^T τ_q + 2αT ≤ 0`
+- **Exit condition:** energy-based: `T < T_settle = 0.5 · ε_v² · λ_min(H)`
+  - NOT time-based. The passivity constraint guarantees exponential decay.
+  - Safety cap: `t_settle_max` to prevent infinite hang if T_settle is unreachable
+- **On exit:**
+  1. Reset NMPC warm start (`nmpc.reset_warm_start()`)
+  2. Compute `c = h_w_0 + L_robot_inertial_0` for the next NMPC horizon
+  3. Run coarse pre-planner → get `T_step` and momentum-feasible CoM trajectory
+  4. Plan torso orientation over `[0, T_step]`
+  5. Plan swing 6D trajectory over `[0, T_step]`
+  6. Release stance weld on the swing arm → enter SS
+
+#### Phase 2: SS (Single Support — swing arm free)
+
+- **Purpose:** Execute the locomotion step — move torso + dock swing arm
+- **QP:** `passivity_active=False` (energy injection needed for locomotion)
+  - Torso 6D (P1): position from NMPC→mapping, orientation from TorsoPlanner
+  - EE 6D (null-space projected): position + orientation from SwingPlanner
+  - Posture (null-space projected): manipulability optimization
+  - Soft CoM residual: NMPC feedforward + PD
+  - hw slack: soft momentum safety
+- **NMPC:** 10 Hz, conservation law constraint, `L_com_ref` from TorsoPlanner
+- **Duration:** `T_step` (from coarse pre-planner)
+- **Exit conditions:**
+  - **Dock success:** `‖p_ee - p_dock‖ < 5 mm` AND `‖Log(R_ee^T R_dock)‖ < 5°` → activate weld → DS
+  - **Timeout:** `t > T_step + T_margin` without docking → hold position, attempt convergence for `T_hold_max` seconds, then abort step
+  - **NMPC infeasible:** use warm-shifted fallback (shift previous plan by one step)
+  - **Tracking divergence:** if `‖r_com - r_com_ref‖ > d_abort` → pause and report
+
+### What to delete from sim_loop.py
+
+- The entire EXT phase branch
+- The `qp_approach` variant and its gain overrides
+- The torso-freeze logic (`d < 10mm` threshold)
+- The `t_ext_max` timeout parameter
+- The gain scheduling / approach-band logic
+- Any `phase == 'EXT'` conditionals
+
+### What to modify in sim_loop.py
+
+- Rewrite `_step()` to have exactly two branches: DS and SS
+- SwingPlanner and TorsoPlanner both receive `T_step` from the coarse pre-planner
+- The NMPC interpolation (10 QP steps per NMPC call) stays as implemented in M5
+- The NMPC infeasibility fallback (warm-shift) stays as implemented in M5
+- Inter-step DS settling uses the passivity-constrained QP with energy-based exit (same as setup settling)
 
 ### Pass criteria
 
-**T11** — Single step, 1% mass ratio: dock < 5 mm / 5°, `h_w` in box.
+**T11** — Single step, 1% mass ratio: dock < 5 mm / 5°, `h_w` in box, 7-DOF arms.
 **T12** — Single step, 14% mass ratio: dock < 5 mm / 5°, platform rotation < 5°.
 **T14** — DS settling within ±20% of theoretical `t_settle`.
 **T15/T16** — 3-step traversal at 1% and 14%.
-**T17** — EE orientation at dock < 5° (the 46° failure is resolved).
+**T17** — EE orientation at dock < 5° (confirmed by the 7-DOF upgrade).
 **T18** — NMPC > 95% solve rate within 50 ms.
 **T19/T20** — Zero QP failures, dynamics residual < 1e-8 across full traversal.
 
@@ -789,8 +851,11 @@ Phase transitions:
 
 | Action | File |
 |---|---|
-| MODIFY | `crawlbot/simulation/sim_loop.py` |
-| MODIFY | `crawlbot/simulation/config.py` (new parameters) |
+| MODIFY | `crawlbot/simulation/sim_loop.py` — rewrite phase machine, delete EXT |
+| MODIFY | `crawlbot/simulation/config.py` — remove EXT parameters, add T_step sync |
+| MODIFY | `crawlbot/planning/swing_planner.py` — accept T_step, synchronize with torso |
+| MODIFY | `crawlbot/planning/torso_planner.py` — accept T_step from pre-planner |
+| MODIFY | `crawlbot/planning/coarse_preplanner.py` — output T_step as primary duration |
 | CREATE | `scripts/run_reworked_single_step.py` |
 | CREATE | `scripts/run_reworked_3step.py` |
 | CREATE | `tests/test_closed_loop_reworked.py` |

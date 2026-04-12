@@ -80,7 +80,9 @@ pip install <package> --break-system-packages
 
 Update this line as work progresses:
 
-**→ Active: M-1 (Codebase Cleanup)**
+**→ Active: M7 (Closed-Loop Integration — Two-Phase State Machine)**
+
+**Completed:** M-1, M0, M1, M2, M3, M4, M5, M6 + 7-DOF arm upgrade + AOCS desaturation sign fix + weight_ratio=1 fix + dock gate (d<5mm AND ori<5°)
 
 ---
 
@@ -89,6 +91,10 @@ Update this line as work progresses:
 | Parameter | Value | Unit | Reference |
 |-----------|-------|------|-----------|
 | Robot mass | ~71 | kg | spec §0.4 |
+| Arm DOFs | 7 per arm (14 total) | — | spec §4.9, 7-DOF upgrade |
+| nq / nv / nu | 21 / 20 / 14 (Pinocchio) | — | 7-DOF model |
+| nq / nv / nu | 31 / 29 / 17 (MuJoCo+RWA) | — | 7-DOF + 3 wheels |
+| Free DOFs in SS | 14 | — | 20 - 6 weld |
 | hw_max | ±5 | Nms | spec §4.6 |
 | tau_w_max | 5 | Nm | spec §5.1 |
 | tau_max | 20 | Nm | SimConfig |
@@ -97,6 +103,7 @@ Update this line as work progresses:
 | NMPC horizon N | 8 | — | spec §5.1 |
 | NMPC state dim | 9 | — | spec §5.1 (B2) |
 | NMPC control dim | 12 | — | spec §5.1 |
+| weight_ratio | 1.0 | — | Tasks use face-value weights + null-space projection |
 
 ---
 
@@ -108,3 +115,7 @@ Update this line as work progresses:
 - Do not use `pinocchio>=2.7` — this project uses `pin==3.9.0`
 - Do not run simulations without `MUJOCO_GL=osmesa` (or `disabled` if rendering unavailable)
 - Do not assume quaternion conventions — verify in `state_conversions.py` (Pinocchio: xyzw, MuJoCo: wxyz)
+- Do not use `weight_ratio > 1` in the QP — task isolation comes from null-space projection, not weight penalties
+- Do not freeze references or add threshold-based switches to handle trajectory coordination failures — fix the trajectory synchronization instead
+- Do not implement a three-phase state machine (DS/SS/EXT) — the architecture is two-phase (DS/SS) per spec §7.1
+- Do not activate welds on position alone — require both `d < 5mm AND ori < 5°`
