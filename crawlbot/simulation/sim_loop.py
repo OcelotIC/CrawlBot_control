@@ -637,8 +637,14 @@ class SimulationLoop:
             alpha_reaction=ar_react,
             alpha_torque=1e0, alpha_reg=1e-2,
             Kp_com=np.diag([kpc]*3), Kd_com=np.diag([kdc]*3),
-            Kp_torso=np.array([kpt]*3 + [kpt*0.6]*3),
-            Kd_torso=np.array([kdt]*3 + [kdt*0.6]*3),
+            # M7: torso P1 task uses uniform PD gains across all 6
+            # dimensions. The legacy 0.6x angular scaling was a
+            # heuristic from the era when CoM was the primary task and
+            # torso was secondary; in the M2 stack the torso IS the
+            # primary task, so there's no reason for angular gains to
+            # be softer than linear.
+            Kp_torso=np.array([kpt]*6),
+            Kd_torso=np.array([kdt]*6),
             Kp_ee=kpe * np.ones(3), Kd_ee=kde * np.ones(3),
             Kp_ee_ang=kpe_ang * np.ones(3), Kd_ee_ang=kde_ang * np.ones(3),
             Kp_posture=1.0, Kd_posture=1.5,
@@ -1342,6 +1348,23 @@ class SimulationLoop:
         L_com_ref_nmpc = self.torso_planner.l_com_reference_at(t_mid)
         if self._diag_pure_pd:
             L_com_ref_nmpc = np.zeros(3)
+        # M7 debug: capture L_com_ref trace for the first N SS calls so
+        # we can verify the TorsoPlanner momentum feedforward is wired
+        # (expected nonzero during the 45.7° reorientation). Opt-in via
+        # setattr(sim, '_debug_l_com_ref_trace_limit', N) before run().
+        if (phase == 'SS'
+                and getattr(self, '_debug_l_com_ref_trace_limit', 0) > 0):
+            trace = getattr(self, '_debug_l_com_ref_trace', None)
+            if trace is None:
+                self._debug_l_com_ref_trace = []
+                trace = self._debug_l_com_ref_trace
+            if len(trace) < self._debug_l_com_ref_trace_limit:
+                trace.append({
+                    't': float(t),
+                    't_mid': float(t_mid),
+                    'L_com_ref': L_com_ref_nmpc.copy(),
+                    'norm': float(np.linalg.norm(L_com_ref_nmpc)),
+                })
         try:
             rp, vp, _, lr, info_n = self.nmpc.solve(
                 r_com=rs.r_com, v_com=rs.v_com, L_com=rs.L_com,

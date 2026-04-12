@@ -128,7 +128,29 @@ def run_case(tag, output_dir, n_steps=1):
     cfg = _make_m7_config()
     sim = SimulationLoop(mjcf_path=MJCF, urdf_path=URDF, config=cfg)
     sim.setup(n_steps=n_steps, start_a=2, start_b=2)
+    # M7 debug: capture L_com_ref for the first 5 SS NMPC calls so we
+    # can confirm the TorsoPlanner momentum feedforward is nonzero
+    # during torso reorientation (M5 wiring check).
+    sim._debug_l_com_ref_trace_limit = 5
     log = sim.run(verbose=True)
+
+    # Print the L_com_ref trace right after the run so it appears above
+    # the metrics table in the output.
+    trace = getattr(sim, '_debug_l_com_ref_trace', [])
+    print("\n" + "=" * 70)
+    print("  L_com_ref fed to NMPC (first 5 SS calls)")
+    print("=" * 70)
+    if not trace:
+        print("  !! empty trace (no SS NMPC calls captured)")
+    else:
+        print(f"  {'t [s]':>8}  {'t_mid [s]':>10}  {'L_com_ref [Nms]':>36}  {'||L_com_ref||':>14}")
+        for e in trace:
+            L = e['L_com_ref']
+            print(f"  {e['t']:8.2f}  {e['t_mid']:10.2f}  "
+                  f"[{L[0]:+8.4f}, {L[1]:+8.4f}, {L[2]:+8.4f}]  "
+                  f"{e['norm']:14.6f}")
+        any_nonzero = any(e['norm'] > 1e-9 for e in trace)
+        print(f"  L_com_ref wired: {'YES' if any_nonzero else 'NO — all zero, M5 feedforward is off'}")
 
     os.makedirs(output_dir, exist_ok=True)
     log.save(os.path.join(output_dir, 'sim_log.json'))
