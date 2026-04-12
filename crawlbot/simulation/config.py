@@ -140,6 +140,18 @@ class SimConfig:
     # ── Swing planner ──────────────────────────────────────────
     swing_clearance: float = 0.03  # [m]
 
+    # ── M7 change A: minimize torso reorientation per step ──────
+    # The IK per step first tries to solve with torso rotation held
+    # at R_start ("the robot crawls forward, it doesn't pirouette").
+    # Only if the resulting manipulability product w_a*w_b falls
+    # below `ik_fixed_rotation_w_min` do we fall back to the
+    # manipulability-optimized configuration from the torso_map.
+    # Threshold is in the same units as w_a*w_b (dimensionally
+    # m^6 for two 6D Jacobians); 1e-4 is a conservative floor —
+    # well above near-singularity (w < ~1e-6).
+    ik_fixed_rotation: bool = True
+    ik_fixed_rotation_w_min: float = 1e-4
+
     # ── MuJoCo settling ────────────────────────────────────────
     n_settle_steps: int = 500
 

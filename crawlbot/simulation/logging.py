@@ -117,6 +117,10 @@ class SimLog:
     # | 'dock_timeout'), and — for dock_timeout — d_mm, ori_deg.
     aborted_steps: list = field(default_factory=list)
 
+    # M7: one T_step per SS phase, in the order they occur.  Used by
+    # the per-axis tracking plots to draw τ=0.5 / τ=1.0 markers.
+    preplanner_T_steps: list = field(default_factory=list)
+
     # MuJoCo snapshots for offline rendering
     snapshots: list = field(default_factory=list)       # [(t, qpos, qvel, label)]
 

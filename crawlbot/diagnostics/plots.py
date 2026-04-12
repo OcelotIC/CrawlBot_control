@@ -87,6 +87,10 @@ def generate_plots(log, output_dir, cfg=None, dpi=150):
     _fig6_wrenches(t, phases, log, output_dir, dpi)
     _fig7_joints(t, phases, log, tau_max, output_dir, dpi)
     _fig8_snapshots(log, output_dir, dpi)
+    # M7 per-axis 6D tracking — separate EE and torso panels so temporal
+    # dynamics are visible (the aggregate metrics hide transients).
+    _fig9_ee_6d_tracking(t, phases, docks, log, output_dir, dpi, cfg=cfg)
+    _fig10_torso_6d_tracking(t, phases, docks, log, output_dir, dpi, cfg=cfg)
 
 
 # ── Figure 1: Tracking overview ─────────────────────────────────────────────
@@ -480,4 +484,205 @@ def _fig8_snapshots(log, out, dpi):
     fig.suptitle('Fig 8: MuJoCo Snapshots', fontsize=12)
     fig.tight_layout()
     fig.savefig(os.path.join(out, 'fig8_snapshots_grid.png'), dpi=dpi)
+    plt.close(fig)
+
+
+# ── M7 Figure 9: EE 6D tracking ─────────────────────────────────────────────
+# Position error per axis [mm] + orientation error [deg] vs time, with
+# SS trajectory markers at τ=0.5 and τ=1.0 per step. Aggregate metrics
+# hide these temporal dynamics; this plot exposes them.
+
+def _quat_diff_deg(q_act, q_ref):
+    """Angle in degrees between two wxyz quaternions."""
+    qa = np.asarray(q_act, dtype=float)
+    qr = np.asarray(q_ref, dtype=float)
+    na = np.linalg.norm(qa); nr = np.linalg.norm(qr)
+    if na < 1e-12 or nr < 1e-12:
+        return 0.0
+    qa = qa / na; qr = qr / nr
+    dot = abs(float(qa @ qr))
+    dot = min(1.0, max(-1.0, dot))
+    return float(np.degrees(2.0 * np.arccos(dot)))
+
+
+def _ss_tau_markers(ax, t, phases, log):
+    """Overlay vertical lines at τ=0.5 and τ=1.0 for each SS window."""
+    if len(t) == 0 or len(phases) == 0:
+        return
+    # Walk SS runs; each run's first sample is τ≈0, last is the
+    # trajectory deadline. Use inter_step_settles and aborted_steps to
+    # locate SS starts reliably. Fallback: detect DS→SS edges.
+    ss_runs = []
+    prev = None
+    start_i = None
+    for i, p in enumerate(phases):
+        if p == 'SS' and prev != 'SS':
+            start_i = i
+        if p != 'SS' and prev == 'SS' and start_i is not None:
+            ss_runs.append((start_i, i - 1))
+            start_i = None
+        prev = p
+    if prev == 'SS' and start_i is not None:
+        ss_runs.append((start_i, len(phases) - 1))
+    # For each run, draw τ=0.5 and τ=1.0 markers. Use the planner
+    # T_step captured in _preplanner_stats if available; else fall back
+    # to (end_t - start_t) of the SS run.
+    T_steps = []
+    stats = getattr(log, '_preplanner_stats', None)
+    if stats is None and hasattr(log, 'inter_step_settles'):
+        stats = None  # not stored on log by default; best-effort below
+    for k, (s, e) in enumerate(ss_runs):
+        t_start = t[s]
+        # Prefer the real T_step from preplanner_stats (attribute may
+        # not exist on SimLog; only available when caller attaches it).
+        T_step = None
+        if hasattr(log, 'preplanner_T_steps') and k < len(log.preplanner_T_steps):
+            T_step = log.preplanner_T_steps[k]
+        if T_step is None:
+            T_step = float(t[e] - t_start)
+        ax.axvline(t_start + 0.5 * T_step, color='gray', ls=':',  lw=1.0, alpha=0.6)
+        ax.axvline(t_start + 1.0 * T_step, color='gray', ls='--', lw=1.0, alpha=0.7)
+
+
+def _fig9_ee_6d_tracking(t, phases, docks, log, out, dpi, cfg=None):
+    fig, axes = plt.subplots(5, 1, figsize=(12, 11), sharex=True)
+    fig.suptitle(
+        'Fig 9 — EE 6D tracking (dashed=τ=1 trajectory end, dotted=τ=0.5)',
+        fontsize=12)
+
+    have_ee = _has(log, 'p_ee') and _has(log, 'p_ee_ref')
+    if not have_ee or len(t) == 0:
+        for ax in axes.ravel():
+            _na_text(ax, "EE pose not logged")
+        fig.tight_layout()
+        fig.savefig(os.path.join(out, 'fig9_ee_6d_tracking.png'), dpi=dpi)
+        plt.close(fig)
+        return
+
+    p_ee = _to_np2d(log.p_ee, cols=3)
+    p_ee_ref = _to_np2d(log.p_ee_ref, cols=3)
+    n = min(len(t), len(p_ee), len(p_ee_ref))
+    t_ = t[:n]
+    err = (p_ee[:n] - p_ee_ref[:n]) * 1000.0   # mm
+    err_norm = np.linalg.norm(err, axis=1)
+
+    labels = ['x', 'y', 'z']
+    for ax, k, lab in zip(axes[:3], range(3), labels):
+        _phase_shading(ax, t_, phases[:n])
+        ax.axhline(0.0, color='black', lw=0.5, alpha=0.4)
+        ax.plot(t_, err[:, k], lw=1.3, color=f'C{k}')
+        ax.set_ylabel(f'e_p_ee[{lab}] [mm]')
+        ax.grid(True, alpha=0.3)
+        _ss_tau_markers(ax, t_, phases[:n], log)
+        _dock_lines(ax, docks)
+
+    ax = axes[3]
+    _phase_shading(ax, t_, phases[:n])
+    ax.plot(t_, err_norm, lw=1.4, color='k', label='||e_p_ee||')
+    if cfg is not None:
+        ax.axhline(cfg.weld_radius * 1000.0, color='red', ls='--',
+                   lw=0.8, alpha=0.5, label=f'{cfg.weld_radius*1000:.1f} mm gate')
+    ax.set_ylabel('||e_p_ee|| [mm]')
+    ax.grid(True, alpha=0.3)
+    _ss_tau_markers(ax, t_, phases[:n], log)
+    _dock_lines(ax, docks)
+    ax.legend(loc='upper right', fontsize=9)
+
+    # Orientation error (deg)
+    ax = axes[4]
+    _phase_shading(ax, t_, phases[:n])
+    if _has(log, 'q_ee') and _has(log, 'q_ee_ref'):
+        q_ee = list(log.q_ee)
+        q_ref = list(log.q_ee_ref)
+        m = min(n, len(q_ee), len(q_ref))
+        ori = np.array([_quat_diff_deg(q_ee[i], q_ref[i]) for i in range(m)])
+        ax.plot(t_[:m], ori, lw=1.4, color='C3')
+    elif _has(log, 'e_ee_ori'):
+        eo = _to_np(log.e_ee_ori)[:n]
+        ax.plot(t_[:len(eo)], eo, lw=1.4, color='C3')
+    else:
+        _na_text(ax, "no EE orientation data")
+    if cfg is not None:
+        ax.axhline(cfg.dock_ori_threshold_deg, color='red', ls='--',
+                   lw=0.8, alpha=0.5,
+                   label=f'{cfg.dock_ori_threshold_deg:.1f}° gate')
+        ax.legend(loc='upper right', fontsize=9)
+    ax.set_ylabel('e_ori_ee [deg]')
+    ax.set_xlabel('t [s]')
+    ax.grid(True, alpha=0.3)
+    _ss_tau_markers(ax, t_, phases[:n], log)
+    _dock_lines(ax, docks)
+
+    fig.tight_layout()
+    fig.savefig(os.path.join(out, 'fig9_ee_6d_tracking.png'), dpi=dpi)
+    plt.close(fig)
+
+
+# ── M7 Figure 10: Torso 6D tracking ─────────────────────────────────────────
+
+def _fig10_torso_6d_tracking(t, phases, docks, log, out, dpi, cfg=None):
+    fig, axes = plt.subplots(5, 1, figsize=(12, 11), sharex=True)
+    fig.suptitle(
+        'Fig 10 — Torso 6D tracking (dashed=τ=1 trajectory end, dotted=τ=0.5)',
+        fontsize=12)
+
+    have = _has(log, 'p_torso') and _has(log, 'p_torso_ref')
+    if not have or len(t) == 0:
+        for ax in axes.ravel():
+            _na_text(ax, "torso pose not logged")
+        fig.tight_layout()
+        fig.savefig(os.path.join(out, 'fig10_torso_6d_tracking.png'), dpi=dpi)
+        plt.close(fig)
+        return
+
+    p = _to_np2d(log.p_torso, cols=3)
+    pr = _to_np2d(log.p_torso_ref, cols=3)
+    n = min(len(t), len(p), len(pr))
+    t_ = t[:n]
+    err = (p[:n] - pr[:n]) * 1000.0
+    err_norm = np.linalg.norm(err, axis=1)
+
+    for ax, k, lab in zip(axes[:3], range(3), ['x', 'y', 'z']):
+        _phase_shading(ax, t_, phases[:n])
+        ax.axhline(0.0, color='black', lw=0.5, alpha=0.4)
+        ax.plot(t_, err[:, k], lw=1.3, color=f'C{k}')
+        ax.set_ylabel(f'e_p_torso[{lab}] [mm]')
+        ax.grid(True, alpha=0.3)
+        _ss_tau_markers(ax, t_, phases[:n], log)
+        _dock_lines(ax, docks)
+
+    ax = axes[3]
+    _phase_shading(ax, t_, phases[:n])
+    ax.plot(t_, err_norm, lw=1.4, color='k', label='||e_p_torso||')
+    ax.set_ylabel('||e_p_torso|| [mm]')
+    ax.grid(True, alpha=0.3)
+    _ss_tau_markers(ax, t_, phases[:n], log)
+    _dock_lines(ax, docks)
+    ax.legend(loc='upper right', fontsize=9)
+
+    # Orientation error — prefer the scalar log; fall back to quat diff.
+    ax = axes[4]
+    _phase_shading(ax, t_, phases[:n])
+    if _has(log, 'e_torso_ori'):
+        eo = _to_np(log.e_torso_ori)[:n]
+        ax.plot(t_[:len(eo)], eo, lw=1.4, color='C3')
+    elif _has(log, 'q_torso') and _has(log, 'q_torso_ref'):
+        q_t = list(log.q_torso); q_r = list(log.q_torso_ref)
+        m = min(n, len(q_t), len(q_r))
+        ori = np.array([_quat_diff_deg(q_t[i], q_r[i]) for i in range(m)])
+        ax.plot(t_[:m], ori, lw=1.4, color='C3')
+    else:
+        _na_text(ax, "no torso orientation data")
+    if cfg is not None:
+        ax.axhline(5.0, color='red', ls='--', lw=0.8, alpha=0.5,
+                   label='5° ref gate')
+        ax.legend(loc='upper right', fontsize=9)
+    ax.set_ylabel('e_ori_torso [deg]')
+    ax.set_xlabel('t [s]')
+    ax.grid(True, alpha=0.3)
+    _ss_tau_markers(ax, t_, phases[:n], log)
+    _dock_lines(ax, docks)
+
+    fig.tight_layout()
+    fig.savefig(os.path.join(out, 'fig10_torso_6d_tracking.png'), dpi=dpi)
     plt.close(fig)

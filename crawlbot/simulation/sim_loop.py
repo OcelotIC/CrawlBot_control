@@ -38,7 +38,8 @@ from crawlbot.core.state_conversions import (
     mujoco_to_pinocchio, pinocchio_to_mujoco, quat_wxyz_to_euler_deg)
 from crawlbot.core.com_to_torso_mapping import CoMToTorsoMapping
 from crawlbot.core.ik import (
-    dock_configuration, solve_ik, solve_ik_waypoints,
+    dock_configuration, dock_configuration_fixed_rotation,
+    solve_ik, solve_ik_waypoints,
     manipulability_config, precompute_torso_map,
 )
 from crawlbot.planning.contact_scheduler import ContactScheduler, read_anchors_from_mujoco
@@ -753,25 +754,70 @@ class SimulationLoop:
         r_com0 = rs_s.r_com.copy()
         delta0 = R_t0.T @ (r_com0 - p_t0)
 
-        # End configuration from manipulability map.
-        # The target anchor pair after docking:
+        # End configuration — M7 change A: prefer to hold torso
+        # rotation at R_start ("crawl forward, don't pirouette").
+        # Fall back to manipulability-optimized q_end only when the
+        # fixed-rotation solution is near-singular.
         if target_arm == 'b':
             end_a, end_b = stance_a, target_idx
         else:
             end_a, end_b = target_idx, stance_b
+        se3_a = self.sched.anchor_se3('a', end_a)
+        se3_b = self.sched.anchor_se3('b', end_b)
 
-        q_end = self.torso_map.get((end_a, end_b))
+        q_end = None
+        ik_mode = 'manipulability'  # default label for logging
+        w_fixed = float('nan')
+
+        if cfg.ik_fixed_rotation:
+            try:
+                q_fixed, err_fixed, w_fixed = dock_configuration_fixed_rotation(
+                    model, se3_a, se3_b,
+                    R_torso_fixed=R_t0,
+                    torso_pos=0.5 * (se3_a.translation + se3_b.translation),
+                    q_init=pq_live.copy())
+                if err_fixed < 1e-4 and w_fixed >= cfg.ik_fixed_rotation_w_min:
+                    q_end = q_fixed
+                    ik_mode = 'fixed_rotation'
+            except Exception:
+                q_end = None
+
         if q_end is None:
-            # Fallback: dock_configuration from neutral
-            se3_a = self.sched.anchor_se3('a', end_a)
-            se3_b = self.sched.anchor_se3('b', end_b)
-            q_end = dock_configuration(model, se3_a, se3_b)
+            # Fallback: manipulability-optimized configuration.
+            q_end = self.torso_map.get((end_a, end_b))
+            if q_end is None:
+                q_end = dock_configuration(model, se3_a, se3_b)
+            ik_mode = 'manipulability'
 
         rs_e = self.robot.update(q_end, np.zeros(self.robot.model.nv))
         p_t1 = rs_e.oMf_torso.translation.copy()
         R_t1 = rs_e.oMf_torso.rotation.copy()
         r_com1 = rs_e.r_com.copy()
         delta1 = R_t1.T @ (r_com1 - p_t1)
+
+        # Print R_start / R_goal / rotation-angle diagnostics.
+        dR = R_t0.T @ R_t1
+        theta_goal = float(np.linalg.norm(pin.log3(dR)))
+        dp_torso = p_t1 - p_t0
+        print(
+            f"  [IK] mode={ik_mode}  "
+            f"||log(R_start^T R_goal)|| = {np.degrees(theta_goal):.2f} deg  "
+            f"|Δp_torso| = {np.linalg.norm(dp_torso)*1000:.1f} mm  "
+            f"w_a*w_b(fixed) = {w_fixed:.2e}  threshold = {cfg.ik_fixed_rotation_w_min:.2e}"
+        )
+        # Capture for top-level scripts
+        trace = getattr(self, '_debug_ik_trace', None)
+        if trace is None:
+            self._debug_ik_trace = []
+        self._debug_ik_trace.append({
+            'step_ab_end': (int(end_a), int(end_b)),
+            'mode': ik_mode,
+            'R_start': R_t0.copy(),
+            'R_goal': R_t1.copy(),
+            'theta_deg': float(np.degrees(theta_goal)),
+            'dp_mm': float(np.linalg.norm(dp_torso) * 1000),
+            'w_fixed': w_fixed,
+        })
 
         # 2. Run the coarse pre-planner. T_step is produced by the
         #    pre-planner from the momentum envelope; on failure we do
@@ -1033,6 +1079,7 @@ class SimulationLoop:
 
                     self.qp_ss.set_nominal_posture(
                         q_dock[self.robot.joints_q_slice])
+                    log.preplanner_T_steps.append(float(T_step))
 
                     # Contact config during SS (swing arm lifted).
                     # The scheduler's plan was just updated with T_step,
