@@ -15,15 +15,17 @@ class SimConfig:
     configuration at 8% mass ratio (888 kg structure, 3/3 docks, 10°).
     """
 
-    # ── Timing ──────────────────────────────────────────────────
+    # ── Timing (M7: two-phase state machine) ────────────────────
+    # Per spec §6 and HANDOFF §M7: there is no EXT phase, no fixed
+    # swing duration, and no torso delay. DS exits on T < T_settle
+    # (energy-based, spec §7.1.1). SS runs for T_step + t_ss_margin
+    # where T_step is produced by the coarse pre-planner.
     dt_nmpc: float = 0.1          # NMPC period [s] (10 Hz)
     dt_qp: float = 0.01           # QP/MuJoCo period [s] (100 Hz)
-    t_ds: float = 0.5             # Double-support duration [s]
-    t_swing: float = 6.0          # Single-support (swing) duration [s]
-    t_ext_max: float = 10.0       # Max extension phase before timeout [s]
-
-    # ── Torso trajectory ────────────────────────────────────────
-    torso_delay: float = 0.20     # Delay before torso starts (fraction of t_swing)
+    t_ss_margin: float = 1.0      # Extra SS time beyond T_step before timeout [s]
+    t_hold_max: float = 3.0       # Convergence hold after timeout before aborting step [s]
+    dock_check_delay: float = 0.5 # Skip dock checks for first N s of SS (avoid release noise) [s]
+    n_ds_max_steps: int = 1000    # Safety cap on energy-based DS settle (10 s @ 100 Hz)
 
     # ── Actuator limits ─────────────────────────────────────────
     tau_max: float = 20.0         # Joint torque limit [Nm]
@@ -79,13 +81,16 @@ class SimConfig:
     w_L_nmpc: float = 1.0         # Cost weight on ||L_com - L_com_ref||²
     kappa_terminal: float = 1.0   # Terminal margin multiplier
 
-    # ── M6: coarse pre-planner ──────────────────────────────────
+    # ── M6/M7: coarse pre-planner (mandatory) ────────────────────
     # Runs once per step before SS starts. Solves a centroidal NLP
-    # over the full step horizon to produce a momentum-feasible CoM
-    # reference that replaces the TorsoPlanner's geometric path as
-    # the NMPC reference. See crawlbot/planning/coarse_preplanner.py
-    # and spec §6.2.
-    use_coarse_preplanner: bool = False
+    # over [0, T_step] to produce (a) a momentum-feasible CoM
+    # trajectory and (b) the T_step that the TorsoPlanner and
+    # SwingPlanner use to synchronize their trajectories. The
+    # pre-planner is mandatory for M7 — there is no use_* flag to
+    # disable it. On solver failure the sim loop logs the failure
+    # and skips the step (no silent heuristic fallback); unit tests
+    # that want to avoid the IPOPT dependency use
+    # CoarsePlanResult.from_heuristic() directly.
     preplanner_M: int = 15                  # collocation intervals
     preplanner_kappa: float = 0.7           # terminal margin multiplier (< 1)
     preplanner_f_max: float = 25.0          # [N] per active contact
@@ -122,14 +127,6 @@ class SimConfig:
     ss_alpha_wrench: float = 1e2
     ss_alpha_reaction: float = 0.0   # Reaction null-space (0 = disabled)
 
-    # ── QP weights — Extension ──────────────────────────────────
-    ext_alpha_com: float = 1e2
-    ext_alpha_torso: float = 5e1
-    ext_alpha_ee: float = 1e4
-    ext_alpha_posture: float = 5e0
-    ext_alpha_wrench: float = 1e2
-    ext_alpha_reaction: float = 0.0  # Reaction null-space (0 = disabled)
-
     # ── QP gains — Single-support ──────────────────────────────
     ss_Kp_com: float = 3.0
     ss_Kd_com: float = 3.0
@@ -139,16 +136,6 @@ class SimConfig:
     ss_Kd_ee: float = 12.0
     ss_Kp_ee_ang: float = 6.0
     ss_Kd_ee_ang: float = 4.5
-
-    # ── QP gains — Extension ───────────────────────────────────
-    ext_Kp_com: float = 2.0
-    ext_Kd_com: float = 2.0
-    ext_Kp_torso: float = 3.0
-    ext_Kd_torso: float = 3.0
-    ext_Kp_ee: float = 25.0
-    ext_Kd_ee: float = 15.0
-    ext_Kp_ee_ang: float = 10.0
-    ext_Kd_ee_ang: float = 5.0
 
     # ── Swing planner ──────────────────────────────────────────
     swing_clearance: float = 0.03  # [m]

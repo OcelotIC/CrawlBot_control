@@ -47,12 +47,10 @@ def plot_simulation(log, save_path=None, cfg=None):
     tm = cfg.tau_max if cfg else 10.0
 
     def shade(ax):
-        """Shade DS (blue) and EXT (red) phases."""
+        """Shade DS (blue) phases; SS is unshaded. (M7: two-phase.)"""
         for i in range(len(t)):
             if ph[i] == 'DS':
                 ax.axvspan(t[i] - .04, t[i] + .04, alpha=.08, color='blue')
-            elif ph[i] == 'EXT':
-                ax.axvspan(t[i] - .04, t[i] + .04, alpha=.08, color='red')
         for i in range(1, len(ph)):
             if ph[i] != ph[i - 1]:
                 ax.axvline(t[i], color='gray', ls=':', alpha=.5)

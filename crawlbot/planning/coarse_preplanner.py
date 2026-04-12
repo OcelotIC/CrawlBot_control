@@ -158,6 +158,91 @@ class CoarsePlanResult:
             )
         return hw
 
+    # ── Test-only constructor ─────────────────────────────────────────
+    @classmethod
+    def from_heuristic(
+        cls,
+        r_com_0: np.ndarray,
+        r_com_goal: np.ndarray,
+        h_max: np.ndarray,
+        robot_mass: float,
+        M: int = 15,
+        lever_arm: float = 1.0,
+    ) -> 'CoarsePlanResult':
+        """Analytic CoarsePlanResult from the momentum feasibility envelope.
+
+        Provides a valid `T_step` + straight-line `r_com` trajectory
+        without invoking IPOPT. **Test fixtures only** — production paths
+        always call `CoarsePrePlanner.solve()`, and `sim_loop.py` skips
+        the step if the solve fails rather than falling back here.
+
+        Reasoning
+        ---------
+        Momentum feasibility requires ‖h_w‖_∞ ≤ h_max. Ignoring L_com
+        (conservative), h_w ≈ r_com × m v_com, so
+            v_max_transverse ≈ min(h_max) / (m · lever_arm)
+        and T_step ≈ ‖Δr_com‖ / v_max_transverse. A floor of 0.5 s
+        guards against degenerate goals.
+
+        Parameters
+        ----------
+        r_com_0, r_com_goal : (3,)
+            CoM endpoints in the structure frame.
+        h_max : (3,)
+            Per-axis momentum box.
+        robot_mass : float
+            Total robot mass [kg].
+        M : int
+            Number of collocation intervals (must match downstream
+            consumers that index r_com[k]).
+        lever_arm : float
+            Nominal |r_com| used in the envelope formula. 1.0 m is a
+            conservative default for ASTROHUB-scale geometries.
+
+        Returns
+        -------
+        CoarsePlanResult with ``status='heuristic'``, ``success=True``,
+        ``L_com=0``, and a quintic straight-line ``r_com``.
+        """
+        r0 = np.asarray(r_com_0, dtype=float).reshape(3)
+        r1 = np.asarray(r_com_goal, dtype=float).reshape(3)
+        h_arr = np.asarray(h_max, dtype=float).reshape(3)
+
+        distance = float(np.linalg.norm(r1 - r0))
+        v_max = float(np.min(np.abs(h_arr))) / max(float(robot_mass), 1e-6) / max(float(lever_arm), 1e-6)
+        if v_max <= 0.0:
+            T_step = 1.0
+        else:
+            T_step = max(0.5, distance / v_max)
+
+        t_grid = np.linspace(0.0, T_step, M + 1)
+        # Quintic s(τ) = 10τ³ − 15τ⁴ + 6τ⁵ interpolation
+        tau = t_grid / T_step
+        s = 10.0 * tau**3 - 15.0 * tau**4 + 6.0 * tau**5
+        s_dot = (30.0 * tau**2 - 60.0 * tau**3 + 30.0 * tau**4) / T_step
+        r_com = r0[None, :] + (r1 - r0)[None, :] * s[:, None]
+        v_com = (r1 - r0)[None, :] * s_dot[:, None]
+        L_com = np.zeros((M + 1, 3))
+        f_stance = np.zeros((M, 3))
+        tau_stance = np.zeros((M, 3))
+
+        result = cls(
+            T_step=T_step,
+            t_grid=t_grid,
+            r_com=r_com,
+            v_com=v_com,
+            L_com=L_com,
+            f_stance=f_stance,
+            tau_stance=tau_stance,
+            success=True,
+            solve_time_ms=0.0,
+            cost=0.0,
+            status='heuristic',
+            iter_count=0,
+        )
+        result._mass = float(robot_mass)
+        return result
+
 
 # ---------------------------------------------------------------------------
 # Solver

@@ -9,8 +9,8 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-# Phase colors
-_PHASE_COLORS = {'DS': 'blue', 'SS': 'orange', 'EXT': 'red', 'EXT_CLOSE': 'red'}
+# Phase colors (M7: two-phase state machine — DS and SS only)
+_PHASE_COLORS = {'DS': 'blue', 'SS': 'orange'}
 
 
 def _to_np(lst):

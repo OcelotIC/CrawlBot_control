@@ -112,6 +112,11 @@ class SimLog:
     # Dock events
     dock_events: list = field(default_factory=list)
 
+    # M7: aborted steps (pre-planner infeasible or dock timeout).
+    # Each dict carries: step_idx, t, reason ('preplanner_infeasible'
+    # | 'dock_timeout'), and — for dock_timeout — d_mm, ori_deg.
+    aborted_steps: list = field(default_factory=list)
+
     # MuJoCo snapshots for offline rendering
     snapshots: list = field(default_factory=list)       # [(t, qpos, qvel, label)]
 
