@@ -82,6 +82,7 @@ class SwingPlanner:
         clearance: float = DEFAULT_CLEARANCE,
         away_normal: np.ndarray = DEFAULT_AWAY_NORMAL,
         rotation_delay_ratio: float = 0.2,
+        bump_peak_tau: float = 0.5,
     ):
         self.scheduler = scheduler
         self.clearance = clearance
@@ -94,6 +95,16 @@ class SwingPlanner:
         # τ = rotation_delay_ratio, then smoothly rotates to R_end.
         # Concentrates the rotation in the approach phase.
         self.rotation_delay_ratio = float(rotation_delay_ratio)
+        # M7: clearance-bump peak location.
+        # 0.5 = legacy symmetric sin²(πτ) — peak at mid-swing.
+        # 0.25 = shift peak early so the arm is back near the port
+        # plane during the (N_torso·J_ee)-singular window at τ≈0.5.
+        # The bump is a C¹-smooth asymmetric sin² built from two
+        # half-period sinusoids joined at τ=bump_peak_tau.
+        if not (0.0 < bump_peak_tau < 1.0):
+            raise ValueError(
+                f"bump_peak_tau must be in (0,1), got {bump_peak_tau}")
+        self.bump_peak_tau = float(bump_peak_tau)
 
     def set_swing_orientation(self, R_start: np.ndarray) -> None:
         """Set the tool rotation at swing release for SLERP interpolation."""
@@ -120,18 +131,42 @@ class SwingPlanner:
     def _quintic_ddot(tau: float) -> float:
         return 60.0 * tau - 180.0 * tau * tau + 120.0 * tau * tau * tau
 
-    @staticmethod
-    def _bump(tau: float) -> float:
-        s = np.sin(np.pi * tau)
+    # M7: asymmetric clearance bump. Peak at tau = bump_peak_tau
+    # (default 0.5 = legacy symmetric sin²(πτ)). Built from two
+    # half-period sinusoids joined C¹-smoothly at the peak:
+    #   rise    (τ ≤ τ_p)  : sin²( π·τ       / (2·τ_p)     )
+    #   descent (τ ≥ τ_p)  : sin²( π·(1-τ)   / (2·(1-τ_p)) )
+    # Both reach 1 at τ=τ_p, 0 at τ=0 and τ=1, with zero first
+    # derivative at 0, τ_p, and 1. Reduces to sin²(πτ) when τ_p=0.5.
+    def _bump(self, tau: float) -> float:
+        tp = self.bump_peak_tau
+        if tau <= tp:
+            s = np.sin(np.pi * tau / (2.0 * tp))
+        else:
+            s = np.sin(np.pi * (1.0 - tau) / (2.0 * (1.0 - tp)))
         return s * s
 
-    @staticmethod
-    def _bump_dot(tau: float) -> float:
-        return np.pi * np.sin(2.0 * np.pi * tau)
+    def _bump_dot(self, tau: float) -> float:
+        tp = self.bump_peak_tau
+        if tau <= tp:
+            # d/dτ sin²(πτ/(2τ_p)) = (π/(2τ_p))·sin(πτ/τ_p)
+            return (np.pi / (2.0 * tp)) * np.sin(np.pi * tau / tp)
+        else:
+            # d/dτ sin²(π(1-τ)/(2(1-τ_p))) =
+            #   -(π/(2(1-τ_p)))·sin(π(1-τ)/(1-τ_p))
+            return -(np.pi / (2.0 * (1.0 - tp))) * \
+                np.sin(np.pi * (1.0 - tau) / (1.0 - tp))
 
-    @staticmethod
-    def _bump_ddot(tau: float) -> float:
-        return 2.0 * np.pi * np.pi * np.cos(2.0 * np.pi * tau)
+    def _bump_ddot(self, tau: float) -> float:
+        tp = self.bump_peak_tau
+        if tau <= tp:
+            # d²/dτ² = (π²/(2·τ_p²))·cos(πτ/τ_p)
+            return (np.pi ** 2 / (2.0 * tp * tp)) * \
+                np.cos(np.pi * tau / tp)
+        else:
+            # d²/dτ² = (π²/(2·(1-τ_p)²))·cos(π(1-τ)/(1-τ_p))
+            return (np.pi ** 2 / (2.0 * (1.0 - tp) ** 2)) * \
+                np.cos(np.pi * (1.0 - tau) / (1.0 - tp))
 
     # ── M5: Delayed cosine timing for orientation SLERP ─────────
     # Concentrates rotation in the second half of the swing so the

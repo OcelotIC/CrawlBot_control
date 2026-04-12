@@ -173,7 +173,10 @@ class SimulationLoop:
             start_a=start_a, start_b=start_b, n_steps=n_steps)
 
         # Swing planner (anchors already in structure frame — no transforms needed)
-        self.swing_planner = SwingPlanner(self.sched, clearance=cfg.swing_clearance)
+        self.swing_planner = SwingPlanner(
+            self.sched,
+            clearance=cfg.swing_clearance,
+            bump_peak_tau=cfg.swing_bump_peak_tau)
 
         # Torso planner (reconfigured per step)
         self.torso_planner = TorsoPlanner()

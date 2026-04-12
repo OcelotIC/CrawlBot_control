@@ -139,6 +139,13 @@ class SimConfig:
 
     # ── Swing planner ──────────────────────────────────────────
     swing_clearance: float = 0.03  # [m]
+    # M7: shift the clearance-bump peak from τ=0.5 (legacy symmetric
+    # sin²(πτ)) to τ=0.25. The arm lifts early, clears the structure,
+    # and is back near the port plane by τ=0.5 when the
+    # (N_torso·J_ee) singular window would have been worst. The
+    # descent phase happens in the better-conditioned second half of
+    # the swing. Amplitude and terminal conditions are unchanged.
+    swing_bump_peak_tau: float = 0.25
 
     # ── M7 change A: minimize torso reorientation per step ──────
     # The IK per step first tries to solve with torso rotation held
