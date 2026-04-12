@@ -249,6 +249,12 @@ def run_case(tag, output_dir, n_steps=1):
     os.makedirs(output_dir, exist_ok=True)
     log.save(os.path.join(output_dir, 'sim_log.json'))
 
+    # Pickle the physics trace (includes live q) for offline analysis.
+    import pickle
+    trace = getattr(sim, '_debug_physics_trace', [])
+    if trace:
+        with open(os.path.join(output_dir, 'physics_trace.pkl'), 'wb') as f:
+            pickle.dump(trace, f)
     _print_physics_trace(sim)
     _print_phase_sync_report(sim, log)
 

@@ -1700,6 +1700,8 @@ class SimulationLoop:
                              float(np.linalg.norm(tq_c))))
                     tau_arr = np.asarray(tau, dtype=float).ravel()
                     sat_mask = np.abs(tau_arr) >= 0.99 * cfg.tau_max
+                    # Also capture q so we can reproduce κ offline.
+                    q_snap = np.asarray(rs.q, dtype=float).copy()
                     trace.append({
                         't': float(t),
                         'phase': str(phase),
@@ -1715,6 +1717,7 @@ class SimulationLoop:
                         'sig_min_J_t': float(sig_t[-1]),
                         'cond_NJe':    cond_NJe,
                         'sig_min_NJe': sig_NJe_min,
+                        'q':           q_snap,
                     })
 
             tau = np.clip(tau, -cfg.tau_max, cfg.tau_max)
