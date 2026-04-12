@@ -152,6 +152,21 @@ class SimConfig:
     ik_fixed_rotation: bool = True
     ik_fixed_rotation_w_min: float = 1e-4
 
+    # ── M7 change B: staggered torso-vs-swing velocity profiles ─
+    # The torso trajectory is compressed into the first
+    # `torso_early_finish_fraction` of T_step and HOLDS for the
+    # remainder; the swing trajectory still uses the full T_step.
+    # Motivation: the QP's (N_torso · J_ee_stance) projection
+    # becomes near-singular around tau=0.5 during the swing bump
+    # peak (see physics trace in results/M7_1pct_1step_v5/). The
+    # QP cannot compensate arm-reaction torques during that window
+    # regardless of gains; giving it a STATIC torso reference
+    # during the post-singular recovery window (the last ~30% of
+    # T_step) lets PD arrest the accumulated drift without
+    # simultaneously tracking a moving target. 0.7 covers the
+    # recovery window t=16-19s of T_step=8.14s run.
+    torso_early_finish_fraction: float = 0.7
+
     # ── MuJoCo settling ────────────────────────────────────────
     n_settle_steps: int = 500
 

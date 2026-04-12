@@ -842,14 +842,21 @@ class SimulationLoop:
         self._current_T_step = T_step
 
         # 4. Torso planner over the SAME [t_ss_start, t_ss_start + T_step].
-        #    No torso_delay, no EXT extension — synchronized with the
-        #    swing planner so both arrive at their targets at T_step.
+        #    No torso_delay, no EXT extension.
+        #    M7 change (B): the torso trajectory completes in
+        #    `torso_early_finish_fraction · T_step` (default 0.7) and
+        #    holds for the remainder. This gives the QP a STATIC torso
+        #    reference during the post-singularity recovery window of
+        #    (N_torso · J_ee_stance), letting PD arrest the drift
+        #    accumulated during the singular window without
+        #    simultaneously tracking a moving target.
         self.torso_planner.clear_phases()
         self.torso_planner.set_hold(p_t0, R_t0, r_com=r_com0)
         self.torso_planner.add_phase(
             t_ss_start, t_ss_start + T_step,
             p_t0, R_t0, p_t1, R_t1,
-            delta_com_start=delta0, delta_com_end=delta1)
+            delta_com_start=delta0, delta_com_end=delta1,
+            early_finish_fraction=cfg.torso_early_finish_fraction)
 
         return (q_end, T_step, True)
 
@@ -1351,10 +1358,35 @@ class SimulationLoop:
         # trajectory when it is available. Replaces the geometric CoM
         # path with a momentum-feasible one, so the NMPC tracks something
         # it can actually realize within the hw box.
+        #
+        # M7 change (B): the *torso* CoM reference is compressed into
+        # the first `torso_early_finish_fraction` of T_step and holds
+        # thereafter. The pre-planner's CoM trajectory runs over the
+        # FULL T_step (matching the swing), so to stagger we rescale
+        # the query time here. The torso position reference (through
+        # the M5 mapping below) sees a static r_com_goal during the
+        # last (1 - ff)·T_step. The swing planner is queried
+        # independently on the full T_step — unchanged.
         if (self._coarse_plan is not None) and (not settle_mode):
             tau_rel = t_horizon - self._coarse_plan_t0
-            rp_coarse = self._coarse_plan.r_com_at(tau_rel)
-            vp_coarse = self._coarse_plan.v_com_at(tau_rel)
+            ff = float(getattr(cfg, 'torso_early_finish_fraction', 1.0))
+            T_plan = float(self._coarse_plan.T_step)
+            if 0.0 < ff < 1.0:
+                # Compressed time: profile covers [0, ff·T_plan] in
+                # real-time, then holds. Positions accelerate; velocity
+                # scales by 1/ff during the active window, goes to 0
+                # afterwards (the pre-planner's v_com[-1] ≈ 0 anyway,
+                # so clamping is safe).
+                if tau_rel <= ff * T_plan:
+                    tau_comp = tau_rel / ff
+                    rp_coarse = self._coarse_plan.r_com_at(tau_comp)
+                    vp_coarse = self._coarse_plan.v_com_at(tau_comp) / ff
+                else:
+                    rp_coarse = self._coarse_plan.r_com_at(T_plan)
+                    vp_coarse = np.zeros(3)
+            else:
+                rp_coarse = self._coarse_plan.r_com_at(tau_rel)
+                vp_coarse = self._coarse_plan.v_com_at(tau_rel)
             cref_r = rp_coarse
             cref_v = vp_coarse
         else:
