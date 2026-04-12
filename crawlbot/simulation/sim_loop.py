@@ -1098,16 +1098,22 @@ class SimulationLoop:
                                           f"t={t:.2f}s d={d*1000:.1f}mm "
                                           f"ori={ori_err_deg:.2f}° ***")
 
-                    # ── 5. Convergence hold with passivity (if not docked) ─
+                    # ── 5. Convergence hold (if not docked) ──────────────
                     # The torso planner holds at its last endpoint past
                     # T_step (reference_at falls through to _hold_reference);
-                    # the swing planner clamps tau to 1.0 → p_dock, v=0, a=0.
-                    # passivity_hold=True engages the QP's passivity
-                    # inequality so the system dissipates residual kinetic
-                    # energy while converging — without it the EE bounces.
+                    # the swing planner clamps tau to 1.0 → p_dock with
+                    # v=0, a=0. Because both terminal references are
+                    # static with zero velocity, PD feedback is
+                    # self-decelerating — no passivity constraint is
+                    # needed. We ran a first pass with
+                    # passivity_hold=True and it prevented the arm from
+                    # doing the positive work required to close the last
+                    # few mm of position error. Normal SS tracking
+                    # (passivity_active=False) is the correct regime for
+                    # the hold window.
                     if not docked:
                         if verbose:
-                            print(f"  HOLD (passivity): {t:.2f} → "
+                            print(f"  HOLD (tracking): {t:.2f} → "
                                   f"{t_hold_deadline:.2f}s")
                         while t < t_hold_deadline and not docked:
                             hw, L_com_prev = self._step(
@@ -1115,7 +1121,7 @@ class SimulationLoop:
                                 cc_ss, target_idx, stance_a, stance_b,
                                 hw, L_com_prev, log,
                                 ss_end=t_ss_start + T_step,
-                                passivity_hold=True)
+                                passivity_hold=False)
                             t += cfg.dt_nmpc
 
                             mujoco.mj_forward(self.mj_model, self.mj_data)
