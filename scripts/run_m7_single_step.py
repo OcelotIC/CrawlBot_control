@@ -60,6 +60,96 @@ def _make_m7_config():
     )
 
 
+def _print_physics_trace(sim):
+    """Dump the per-second SS physics trace captured in _step().
+
+    Reads sim._debug_physics_trace and prints:
+      - per-second sample of qdd_t angular magnitude, |τ|_max, |τ|_2,
+        saturated joint indices, stance-contact |f| and |τ_c|, and
+        condition numbers for J_torso and N_torso·J_ee_stance.
+      - a per-suspect one-line verdict at the end (joint saturation,
+        weld wrench magnitude, J_torso conditioning, null-space
+        conditioning for the stance EE).
+    """
+    trace = getattr(sim, '_debug_physics_trace', []) or []
+    print("\n" + "=" * 108)
+    print("  Physics trace — 1 Hz SS samples  "
+          "(what the QP commands + how well the kinematics transmit it)")
+    print("=" * 108)
+    if not trace:
+        print("  !! empty trace")
+        return
+    cfg = sim.cfg
+    tau_max = float(cfg.tau_max)
+    # Column headers
+    print(f"  {'t':>6}  {'|qdd_t_ang|':>11}  "
+          f"{'|τ|_max':>8}  {'|τ|_2':>8}  {'sat_j':>6}  "
+          f"{'|f|_stance':>11}  {'|τ_c|_stance':>12}  "
+          f"{'κ(J_t)':>10}  {'σmin(J_t)':>10}  "
+          f"{'κ(N_t·J_ee)':>11}  {'σmin(NJe)':>10}")
+    print("  " + "-" * 106)
+    max_sat = (0, -1, None)   # (n_saturated_joints, t, list)
+    max_fc  = (0.0, -1, 0.0)  # (|f|, t, |tau_c|)
+    max_cond_t = (0.0, -1)
+    max_cond_NJe = (0.0, -1)
+    for s in trace:
+        qdd_ang = float(np.linalg.norm(s['qdd_t'][3:6]))
+        n_sat = len(s['tau_sat_idx'])
+        # Stance contact is the ACTIVE 6D slot (during SS one is zero,
+        # one is nonzero). Pick the one with the larger |f|.
+        if s['contact_fL']:
+            chosen = max(s['contact_fL'], key=lambda x: x[0])
+            f_mag, tc_mag = chosen
+        else:
+            f_mag, tc_mag = 0.0, 0.0
+        print(f"  {s['t']:6.2f}  {qdd_ang:11.4f}  "
+              f"{s['tau_abs_max']:8.2f}  {s['tau_l2']:8.2f}  {n_sat:>6d}  "
+              f"{f_mag:11.3f}  {tc_mag:12.3f}  "
+              f"{s['cond_J_t']:10.2e}  {s['sig_min_J_t']:10.3e}  "
+              f"{s['cond_NJe']:11.2e}  {s['sig_min_NJe']:10.3e}")
+        if n_sat > max_sat[0]:
+            max_sat = (n_sat, s['t'], list(s['tau_sat_idx']))
+        if f_mag > max_fc[0] or tc_mag > max_fc[2]:
+            max_fc = (max(f_mag, max_fc[0]), s['t'],
+                      max(tc_mag, max_fc[2]))
+        if s['cond_J_t'] > max_cond_t[0]:
+            max_cond_t = (s['cond_J_t'], s['t'])
+        if s['cond_NJe'] > max_cond_NJe[0]:
+            max_cond_NJe = (s['cond_NJe'], s['t'])
+
+    print()
+    print("  Per-suspect verdict:")
+    # Suspect 2: joint saturation
+    if max_sat[0] > 0:
+        print(f"    [JOINT-SAT]    worst at t={max_sat[1]:.2f}s : "
+              f"{max_sat[0]} joint(s) at ≥0.99·τ_max  (τ_max={tau_max} Nm), "
+              f"indices={max_sat[2]}")
+    else:
+        print(f"    [JOINT-SAT]    no saturation observed at "
+              f"≥0.99·τ_max={tau_max:.1f} Nm in any sample")
+    # Suspect 3: weld wrench
+    print(f"    [STANCE-WELD]  peak |f|={max_fc[0]:.2f} N, "
+          f"peak |τ_c|={max_fc[2]:.2f} Nm "
+          f"(QP bounds f_max={cfg.nmpc_f_max:.1f} N, "
+          f"τ_max={cfg.nmpc_tau_max:.1f} Nm)")
+    # Suspect 4: kinematic conditioning
+    kt, tt = max_cond_t
+    kne, tne = max_cond_NJe
+    def _cond_verdict(c):
+        if c > 1e6: return 'SINGULAR (>1e6)'
+        if c > 1e3: return 'MARGINAL (>1e3)'
+        return 'OK (<1e3)'
+    print(f"    [J_torso]      peak κ={kt:.2e} at t={tt:.2f}s "
+          f"— {_cond_verdict(kt)}")
+    print(f"    [N_t · J_ee]   peak κ={kne:.2e} at t={tne:.2f}s "
+          f"— {_cond_verdict(kne)}")
+    # Suspect 1: command magnitude (not a binary verdict — report peak)
+    peak_qdd_ang = max(float(np.linalg.norm(s['qdd_t'][3:6])) for s in trace)
+    print(f"    [QDD-CMD]      peak |qdd_t_ang| command = "
+          f"{peak_qdd_ang:.4f} rad/s²  "
+          f"({np.degrees(peak_qdd_ang):.2f} deg/s²)")
+
+
 def _print_phase_sync_report(sim, log):
     """Print the M7 trajectory-sync validation block."""
     print("\n" + "=" * 70)
@@ -132,6 +222,10 @@ def run_case(tag, output_dir, n_steps=1):
     # can confirm the TorsoPlanner momentum feedforward is nonzero
     # during torso reorientation (M5 wiring check).
     sim._debug_l_com_ref_trace_limit = 5
+    # M7 physics-trace: 1 Hz sampling during SS (NMPC is 10 Hz → every
+    # 10th tick). 20 samples covers any realistic T_step + margin+hold.
+    sim._debug_physics_trace_limit = 20
+    sim._debug_physics_sample_every = 10
     log = sim.run(verbose=True)
 
     # Print the L_com_ref trace right after the run so it appears above
@@ -155,6 +249,7 @@ def run_case(tag, output_dir, n_steps=1):
     os.makedirs(output_dir, exist_ok=True)
     log.save(os.path.join(output_dir, 'sim_log.json'))
 
+    _print_physics_trace(sim)
     _print_phase_sync_report(sim, log)
 
     print("\n" + "=" * 70)

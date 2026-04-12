@@ -1594,7 +1594,7 @@ class SimulationLoop:
                 cfg.use_m2_stack and (phase == 'DS' or passivity_hold))
 
             try:
-                _, _, lambda_qp_sol, tau, _ = qp.solve(
+                qdd_t_qp, qdd_qp, lambda_qp_sol, tau, _ = qp.solve(
                     q_t=rs.q_torso, dq_t=rs.dq_torso,
                     q=rs.q_joints, dq=rs.dq_joints,
                     r_com_ref=rp_interp, v_com_ref=vp_interp,
@@ -1611,7 +1611,76 @@ class SimulationLoop:
             except Exception:
                 tau = np.zeros(12)
                 lambda_qp_sol = np.zeros(12)
+                qdd_t_qp = np.zeros(6)
+                qdd_qp = np.zeros(self.robot.model.nv)
                 qp_ok = False
+
+            # M7 physics-trace capture (SS only, first-QP-substep, 1 Hz).
+            # No control change — reads QP outputs + kinematic conditioning
+            # to diagnose where the 67° torso disturbance is coming from.
+            if (phase == 'SS' and qs == 0 and qp_ok
+                    and getattr(self, '_debug_physics_trace_limit', 0) > 0):
+                self._debug_physics_count = getattr(
+                    self, '_debug_physics_count', 0) + 1
+                sample_every = int(getattr(
+                    self, '_debug_physics_sample_every', 10))
+                sample_idx = self._debug_physics_count - 1
+                trace = getattr(self, '_debug_physics_trace', None)
+                if trace is None:
+                    self._debug_physics_trace = []
+                    trace = self._debug_physics_trace
+                if (sample_idx % sample_every == 0
+                        and len(trace) < self._debug_physics_trace_limit):
+                    # Stance EE Jacobian and null-space projection.
+                    try:
+                        J_ee_stance, _, _ = self._get_ee_data(rs, stance_arm)
+                    except Exception:
+                        J_ee_stance = None
+                    J_t = rs.J_torso
+                    sig_t = np.linalg.svd(J_t, compute_uv=False)
+                    cond_t = (float(sig_t[0] / sig_t[-1])
+                              if sig_t[-1] > 1e-12 else float('inf'))
+                    cond_NJe = float('nan')
+                    sig_NJe_min = float('nan')
+                    if J_ee_stance is not None:
+                        # Damped pseudo-inverse of J_torso
+                        lam = 1e-6
+                        JJt = J_t @ J_t.T + lam * np.eye(J_t.shape[0])
+                        J_t_pinv = J_t.T @ np.linalg.inv(JJt)
+                        N_t = (np.eye(J_t.shape[1])
+                               - J_t_pinv @ J_t)
+                        NJe = J_ee_stance @ N_t
+                        sig_n = np.linalg.svd(NJe, compute_uv=False)
+                        sig_NJe_min = float(sig_n[-1])
+                        cond_NJe = (float(sig_n[0] / sig_n[-1])
+                                    if sig_n[-1] > 1e-12 else float('inf'))
+                    # Split lambda into per-contact 6D (force, torque).
+                    lam_v = np.asarray(lambda_qp_sol, dtype=float).ravel()
+                    per_contact = []
+                    for ci in range(len(lam_v) // 6):
+                        f = lam_v[6*ci:6*ci+3]
+                        tq_c = lam_v[6*ci+3:6*ci+6]
+                        per_contact.append(
+                            (float(np.linalg.norm(f)),
+                             float(np.linalg.norm(tq_c))))
+                    tau_arr = np.asarray(tau, dtype=float).ravel()
+                    sat_mask = np.abs(tau_arr) >= 0.99 * cfg.tau_max
+                    trace.append({
+                        't': float(t),
+                        'phase': str(phase),
+                        'qdd_t': np.asarray(qdd_t_qp, dtype=float).copy(),
+                        'tau_q': tau_arr.copy(),
+                        'tau_abs_max': float(np.max(np.abs(tau_arr))),
+                        'tau_l2':      float(np.linalg.norm(tau_arr)),
+                        'tau_sat_idx': [int(i) for i, s in
+                                        enumerate(sat_mask) if s],
+                        'lambda':      lam_v.copy(),
+                        'contact_fL':  per_contact,
+                        'cond_J_t':    cond_t,
+                        'sig_min_J_t': float(sig_t[-1]),
+                        'cond_NJe':    cond_NJe,
+                        'sig_min_NJe': sig_NJe_min,
+                    })
 
             tau = np.clip(tau, -cfg.tau_max, cfg.tau_max)
             tau_last = tau.copy()
