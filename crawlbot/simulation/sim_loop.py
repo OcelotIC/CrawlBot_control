@@ -203,11 +203,22 @@ class SimulationLoop:
             except RuntimeError:
                 pass
 
-        # Initial IK
-        self.q_dock_init = dock_configuration(
-            self.robot.model,
-            self.sched.anchor_se3('a', start_a),
-            self.sched.anchor_se3('b', start_b))
+        # Initial configuration — M7: use the manipulability-optimized
+        # torso_map entry so the setup qpos AND the QP nominal posture
+        # both start at an extended-arm pose, rather than whatever
+        # branch neutral-seeded IK returns. The torso_map was built
+        # above for every feasible anchor pair via
+        # manipulability_config(); (start_a, start_b) is a DS pair so
+        # it should always be present. Fall back to a plain
+        # dock_configuration only if the entry is missing.
+        q_manip = self.torso_map.get((start_a, start_b))
+        if q_manip is not None:
+            self.q_dock_init = q_manip.copy()
+        else:
+            self.q_dock_init = dock_configuration(
+                self.robot.model,
+                self.sched.anchor_se3('a', start_a),
+                self.sched.anchor_se3('b', start_b))
 
         sp = self.mj_data.qpos[0:3].copy()
         sq = self.mj_data.qpos[3:7].copy()

@@ -226,6 +226,28 @@ def run_case(tag, output_dir, n_steps=1):
     # 10th tick). 20 samples covers any realistic T_step + margin+hold.
     sim._debug_physics_trace_limit = 20
     sim._debug_physics_sample_every = 10
+
+    # M7 option-2 verification: post-setup stance-arm reach. If the
+    # init-from-torso_map change sticks through the setup settle,
+    # reach should be >500 mm (≥ 36% of 1375 mm neutral).
+    import pinocchio as pin
+    from crawlbot.core.state_conversions import mujoco_to_pinocchio
+    pq, pv = mujoco_to_pinocchio(sim.mj_data.qpos, sim.mj_data.qvel)
+    rs0 = sim.robot.update(pq, pv)
+    _data = sim.robot.model.createData()
+    pin.forwardKinematics(sim.robot.model, _data, rs0.q)
+    pin.updateFramePlacements(sim.robot.model, _data)
+    _jid_shoulder_a = sim.robot.model.getJointId('Joint_1_a')
+    _shoulder = _data.oMi[_jid_shoulder_a].translation
+    _tool_a = rs0.oMf_tool_a.translation
+    reach_mm = float(np.linalg.norm(_tool_a - _shoulder) * 1000.0)
+    print(f"\n  [post-settle] stance-arm A reach = {reach_mm:.1f} mm "
+          f"({reach_mm / 1375.0 * 100:.1f}% of neutral 1375 mm)")
+    if reach_mm >= 500.0:
+        print("  OK — arm extended enough to avoid folded-branch singularity")
+    else:
+        print("  WARNING — arm still folded below 500 mm threshold")
+
     log = sim.run(verbose=True)
 
     # Print the L_com_ref trace right after the run so it appears above
