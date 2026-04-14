@@ -139,13 +139,12 @@ class SimConfig:
 
     # ── Swing planner ──────────────────────────────────────────
     swing_clearance: float = 0.03  # [m]
-    # M7: shift the clearance-bump peak from τ=0.5 (legacy symmetric
-    # sin²(πτ)) to τ=0.25. The arm lifts early, clears the structure,
-    # and is back near the port plane by τ=0.5 when the
-    # (N_torso·J_ee) singular window would have been worst. The
-    # descent phase happens in the better-conditioned second half of
-    # the swing. Amplitude and terminal conditions are unchanged.
-    swing_bump_peak_tau: float = 0.25
+    # Symmetric sin²(πτ) bump (peak at τ=0.5). The τ=0.25 shift was
+    # a workaround for the folded-arm (N_torso·J_ee) singularity
+    # around mid-swing; with the manipulability-optimized init
+    # keeping κ(N_t·J_ee) ≤ 6.5 throughout SS (v8 trace), that
+    # workaround is no longer needed.
+    swing_bump_peak_tau: float = 0.5
 
     # ── M7 change A: minimize torso reorientation per step ──────
     # The IK per step first tries to solve with torso rotation held
@@ -159,20 +158,13 @@ class SimConfig:
     ik_fixed_rotation: bool = True
     ik_fixed_rotation_w_min: float = 1e-4
 
-    # ── M7 change B: staggered torso-vs-swing velocity profiles ─
-    # The torso trajectory is compressed into the first
-    # `torso_early_finish_fraction` of T_step and HOLDS for the
-    # remainder; the swing trajectory still uses the full T_step.
-    # Motivation: the QP's (N_torso · J_ee_stance) projection
-    # becomes near-singular around tau=0.5 during the swing bump
-    # peak (see physics trace in results/M7_1pct_1step_v5/). The
-    # QP cannot compensate arm-reaction torques during that window
-    # regardless of gains; giving it a STATIC torso reference
-    # during the post-singular recovery window (the last ~30% of
-    # T_step) lets PD arrest the accumulated drift without
-    # simultaneously tracking a moving target. 0.7 covers the
-    # recovery window t=16-19s of T_step=8.14s run.
-    torso_early_finish_fraction: float = 0.7
+    # ── Torso-vs-swing velocity profile ─────────────────────────
+    # 1.0 = torso quintic runs over the full [0, T_step] alongside
+    # the swing. The 0.7 stagger was a workaround for the folded-arm
+    # (N_torso·J_ee) singularity around the bump peak; with the
+    # manipulability-optimized init keeping κ(N_t·J_ee) ≤ 6.5
+    # throughout SS (v8 trace), that workaround is no longer needed.
+    torso_early_finish_fraction: float = 1.0
 
     # ── MuJoCo settling ────────────────────────────────────────
     n_settle_steps: int = 500
