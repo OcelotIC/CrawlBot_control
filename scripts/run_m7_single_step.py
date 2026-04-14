@@ -38,7 +38,7 @@ def _make_m7_config():
     return SimConfig(
         # M2: reworked QP stack
         use_m2_stack=True,
-        alpha_com_soft=5.0,
+        alpha_com_soft=0.0,
         alpha_passivity=1.0,
         # M3: NMPC conservation-law box
         enforce_hw_conservation=True,

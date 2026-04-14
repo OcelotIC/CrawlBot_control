@@ -72,7 +72,7 @@ class SimConfig:
 
     # ── M2: reworked QP task stack ──────────────────────────────
     use_m2_stack: bool = False    # Enable reworked QP (torso P1 + EE null-space P2 + soft CoM)
-    alpha_com_soft: float = 5.0   # Weight for the soft CoM residual
+    alpha_com_soft: float = 0.0   # Soft CoM residual disabled — redundant with torso 6D position task; 5.0 was fighting torso tracking
     alpha_passivity: float = 1.0  # DS passivity decay rate [1/s]
 
     # ── M3: NMPC conservation-law box constraint ────────────────
@@ -124,7 +124,7 @@ class SimConfig:
     ss_alpha_torso: float = 5e2
     ss_alpha_ee: float = 3e3
     ss_alpha_posture: float = 2e1
-    ss_alpha_wrench: float = 1e2
+    ss_alpha_wrench: float = 1e-2  # pure regularisation; 1e2 was penalising contact forces (the only actuation path through the stance weld) and attenuating the torso task 7x (see scripts/test_qp_tracking.py)
     ss_alpha_reaction: float = 0.0   # Reaction null-space (0 = disabled)
 
     # ── QP gains — Single-support ──────────────────────────────
