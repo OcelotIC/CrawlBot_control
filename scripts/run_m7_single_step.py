@@ -222,10 +222,10 @@ def run_case(tag, output_dir, n_steps=1):
     # can confirm the TorsoPlanner momentum feedforward is nonzero
     # during torso reorientation (M5 wiring check).
     sim._debug_l_com_ref_trace_limit = 5
-    # M7 physics-trace: 1 Hz sampling during SS (NMPC is 10 Hz → every
-    # 10th tick). 20 samples covers any realistic T_step + margin+hold.
-    sim._debug_physics_trace_limit = 20
-    sim._debug_physics_sample_every = 10
+    # M7 physics-trace: 50 Hz sampling during SS (every 2nd QP tick at 100 Hz).
+    # 400-entry cap covers full SS + margin+hold for detailed PD diagnosis.
+    sim._debug_physics_trace_limit = 400
+    sim._debug_physics_sample_every = 2
 
     # M7 option-2 verification: post-setup stance-arm reach. If the
     # init-from-torso_map change sticks through the setup settle,

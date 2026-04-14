@@ -783,6 +783,24 @@ class WholeBodyQP:
         lambda_opt = z_opt[idx['lambda'][0]: idx['lambda'][1]]
         tau_q_opt = z_opt[idx['tau'][0]: idx['tau'][1]]
 
+        # --- Debug capture: torso task pre- vs post-solve (M7 diagnosis) ---
+        if torso_task_active and A_torso is not None:
+            qdd_full = np.concatenate([qdd_t_opt, qdd_opt])
+            x_dd_torso_post = J_torso @ qdd_full
+            self.last_torso_debug = {
+                'a_torso_des_pre': a_torso_des.copy(),   # PD+ff target (6,)
+                'x_dd_torso_post': x_dd_torso_post.copy(),  # J_torso @ qdd_opt (6,)
+                'e_pos': e_pos.copy(), 'e_ori': e_ori.copy(),
+                'v_torso_actual': v_torso_actual.copy(),
+                'v_ref_t': v_ref_t.copy(),
+                'a_ff_t': a_ff_t.copy(),
+                'Kp_t_diag': cfg.Kp_torso.copy(),
+                'Kd_t_diag': cfg.Kd_torso.copy(),
+                'Jdot_dq_torso': jdq.copy(),
+            }
+        else:
+            self.last_torso_debug = None
+
         return qdd_t_opt, qdd_opt, lambda_opt, tau_q_opt, info
 
     # ------------------------------------------------------------------ #

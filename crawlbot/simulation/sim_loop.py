@@ -1713,7 +1713,10 @@ class SimulationLoop:
                     sat_mask = np.abs(tau_arr) >= 0.99 * cfg.tau_max
                     # Also capture q so we can reproduce κ offline.
                     q_snap = np.asarray(rs.q, dtype=float).copy()
-                    trace.append({
+                    # M7 torso PD diagnosis: capture pre-solve desired
+                    # torso accel vs post-solve achieved torso accel.
+                    torso_dbg = getattr(qp, 'last_torso_debug', None)
+                    entry = {
                         't': float(t),
                         'phase': str(phase),
                         'qdd_t': np.asarray(qdd_t_qp, dtype=float).copy(),
@@ -1729,7 +1732,12 @@ class SimulationLoop:
                         'cond_NJe':    cond_NJe,
                         'sig_min_NJe': sig_NJe_min,
                         'q':           q_snap,
-                    })
+                    }
+                    if torso_dbg is not None:
+                        entry['torso_debug'] = {
+                            k: (v.copy() if hasattr(v, 'copy') else v)
+                            for k, v in torso_dbg.items()}
+                    trace.append(entry)
 
             tau = np.clip(tau, -cfg.tau_max, cfg.tau_max)
             tau_last = tau.copy()
