@@ -144,6 +144,18 @@ def run():
     sim = SimulationLoop(mjcf_path=MJCF, urdf_path=URDF, config=cfg)
     sim.setup(n_steps=1, start_a=2, start_b=2)
 
+    # ── QP weight override (QP-isolation diagnosis) ───────────────────
+    # α_wrench=100 fights the dynamics: with λ_ref=0 it penalises every
+    # contact force, but contact forces are the only way to produce
+    # torso acceleration through the stance weld. Drop it to pure
+    # regularisation. α_com_soft redundant with torso position.
+    _aw_old = sim.qp_ss.config.alpha_wrench
+    _acs_old = sim.qp_ss.config.alpha_com_soft
+    sim.qp_ss.config.alpha_wrench = 0.01
+    sim.qp_ss.config.alpha_com_soft = 0.0
+    print(f"[QP override] alpha_wrench: {_aw_old} → {sim.qp_ss.config.alpha_wrench}")
+    print(f"[QP override] alpha_com_soft: {_acs_old} → {sim.qp_ss.config.alpha_com_soft}")
+
     # Robot references
     mj_model = sim.mj_model
     mj_data = sim.mj_data
@@ -206,6 +218,7 @@ def run():
 
     # ── Main QP loop ─────────────────────────────────────────────────
     fail_count = 0
+    torso_pre_post_log = []   # list of (t, ||a_des_pre||, ||J_t@qdd_post||) per tick
     for k in range(n_ticks):
         t = k * dt
 
@@ -258,6 +271,19 @@ def run():
             tau = np.zeros(n_j)
             qp_ok = False
             fail_count += 1
+
+        # Capture pre- vs post-solve torso accel (added by QP instrumentation)
+        tdbg = getattr(qp, 'last_torso_debug', None)
+        if tdbg is not None:
+            pre = np.asarray(tdbg['a_torso_des_pre'])
+            # Reconstruct J_torso @ qdd_opt using rs.J_torso at solve time
+            qdd_full = np.concatenate([qdd_t, qdd])
+            post = rs.J_torso @ qdd_full
+            torso_pre_post_log.append((
+                float(t),
+                float(np.linalg.norm(pre[:3])),   float(np.linalg.norm(post[:3])),
+                float(np.linalg.norm(pre[3:])),   float(np.linalg.norm(post[3:])),
+            ))
 
         # Apply torques; disable RWA ctrl
         tau = np.clip(tau, -cfg.tau_max, cfg.tau_max)
@@ -364,6 +390,38 @@ def run():
         if val >= thv:
             all_pass = False
         summary_lines.append(f"  {name:<24}{val:>12.4f}{thv:>10.3f}  {status}")
+
+    # Pre- vs post-solve torso accel ratios (over trajectory window)
+    if torso_pre_post_log:
+        arr = np.array(torso_pre_post_log)   # (N, 5): t, pre_lin, post_lin, pre_ang, post_ang
+        in_win = arr[:, 0] <= T_traj
+        a = arr[in_win]
+        # Use medians + peaks to summarise
+        ratio_lin = a[:, 2] / np.maximum(a[:, 1], 1e-9)
+        ratio_ang = a[:, 4] / np.maximum(a[:, 3], 1e-9)
+        summary_lines.append('')
+        summary_lines.append(
+            '  Pre- vs post-solve torso accel (across 0..T_traj):')
+        summary_lines.append(
+            f"    ||a_pre_lin||  peak={a[:,1].max():.4f}  mean={a[:,1].mean():.4f} m/s²")
+        summary_lines.append(
+            f"    ||a_post_lin|| peak={a[:,2].max():.4f}  mean={a[:,2].mean():.4f} m/s²")
+        summary_lines.append(
+            f"    linear ratio   median={np.median(ratio_lin):.4f}  p90={np.percentile(ratio_lin,90):.4f}")
+        summary_lines.append(
+            f"    ||a_pre_ang||  peak={a[:,3].max():.4f}  mean={a[:,3].mean():.4f} rad/s²")
+        summary_lines.append(
+            f"    ||a_post_ang|| peak={a[:,4].max():.4f}  mean={a[:,4].mean():.4f} rad/s²")
+        summary_lines.append(
+            f"    angular ratio  median={np.median(ratio_ang):.4f}  p90={np.percentile(ratio_ang,90):.4f}")
+
+    # Peak joint torque over the whole run
+    taus = np.stack([np.asarray(t_) for t_ in log.tau])
+    taus_inf = np.max(np.abs(taus), axis=1)
+    summary_lines.append('')
+    summary_lines.append(
+        f'  |tau|_inf over full run:  peak={taus_inf.max():.3f} Nm  '
+        f'mean={taus_inf.mean():.3f} Nm  (budget {cfg.tau_max:.1f} Nm)')
 
     summary_lines.append('')
     summary_lines.append(
