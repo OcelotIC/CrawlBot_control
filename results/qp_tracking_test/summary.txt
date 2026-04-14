@@ -1,0 +1,20 @@
+======================================================================
+  QP tracking test — standalone validation
+======================================================================
+  T_traj        : 8.00 s
+  T_total       : 10.00 s
+  dt_qp         : 10.0 ms   (1000 ticks)
+  swing arm     : b
+  dp            : [0.2, 0.0, 0.0] m  (‖dp‖=200.0 mm)
+  dtheta        : 15.00°  axis=[0.0, 0.0, 1.0]
+  QP exceptions : 0
+
+  Peak errors over trajectory window (t ≤ T_traj):
+metric                            peak       thr  status
+  ----------------------------------------------------------
+  torso_pos_err_peak_mm        22.7937     5.000  **FAIL
+  torso_ori_err_peak_deg        3.2692     2.000  **FAIL
+  ee_pos_err_peak_mm           20.9964    10.000  **FAIL
+  ee_ori_err_peak_deg           3.0301     5.000  PASS
+
+  VERDICT: QP CANNOT TRACK — problem is in the QP itself
