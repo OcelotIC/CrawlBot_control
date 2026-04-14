@@ -52,6 +52,12 @@ class SimConfig:
     hw_init: np.ndarray = field(default_factory=lambda: np.zeros(3))
     hw_min: np.ndarray = field(default_factory=lambda: np.full(3, -5.0))
     hw_max: np.ndarray = field(default_factory=lambda: np.full(3, 5.0))
+    # Tight QP-level hw safety bounds: the main SS QP uses these in its
+    # soft-slack momentum safety constraint so the chosen contact wrench
+    # stays well within the physical ±hw_max envelope, leaving AOCS
+    # headroom. NMPC (`h_max_tight`) and AOCS still see the physical
+    # ±5 Nms limit, so the momentum handoff remains consistent.
+    hw_qp_tight: np.ndarray = field(default_factory=lambda: np.full(3, 3.0))
     L_max: float = 10.0           # Robot angular momentum limit [Nms]
     tau_w_max: float = 5.0        # Reaction wheel torque limit [Nm]
     tau_struct_max: float = np.inf  # Structure disturbance torque limit [Nm]
