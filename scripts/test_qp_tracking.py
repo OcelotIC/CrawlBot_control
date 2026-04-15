@@ -192,12 +192,15 @@ def run():
     J_ee0, _, oMf_ee0 = sim._get_ee_data(rs0, swing_arm)
     p_ee_0 = oMf_ee0.translation.copy()
     R_ee_0 = oMf_ee0.rotation.copy()
-    # 200 mm translation along structure +x; 15° rotation about structure +z
-    dp = np.array([0.20, 0.0, 0.0])
-    dtheta = np.deg2rad(15.0)
+    # 800 mm translation along structure +x; 45° rotation about structure +z.
+    # Matches the M7 1% single-step geometry: swing arm traverses
+    # ~0.8 m between adjacent anchor pairs with ~45 deg orientation
+    # change between anchor frames.
+    dp = np.array([0.80, 0.0, 0.0])
+    dtheta = np.deg2rad(45.0)
     axis = np.array([0.0, 0.0, 1.0])
 
-    T_traj = 8.0                      # trajectory duration [s]
+    T_traj = 7.3                     # trajectory duration [s] — matches pre-planner T_step
     T_total = T_traj + 2.0            # run 2 s extra to observe post-end hold
     dt = cfg.dt_qp
     n_ticks = int(round(T_total / dt))
