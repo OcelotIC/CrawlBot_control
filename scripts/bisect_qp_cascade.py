@@ -114,13 +114,15 @@ def run_case(case: str):
     n_j = robot.n_joints
     has_rwa = sim.has_rwa
     use_nmpc = case in ('B', 'C', 'B_aware', 'B_aware_free', 'B_measured',
-                        'B_const_torso', 'B_compensated')
+                        'B_const_torso', 'B_compensated', 'B_slow_torso')
     use_aocs = case in ('C',)
     arm_aware_ref = case in ('B_aware', 'B_aware_free')
     aware_base_gain = 1.0 if case == 'B_aware_free' else 0.0
     measured_ref = case in ('B_measured',)
     bypass_mapping = case in ('B_const_torso',)
     compensated_ref = case in ('B_compensated',)
+    slow_torso = case in ('B_slow_torso',)
+    slow_torso_scale = 0.5
 
     swing_arm = 'b'
     stance_arm = 'a'
@@ -161,6 +163,31 @@ def run_case(case: str):
     print(f"           T_traj={T_traj}s  n_ticks={n_ticks}  n_qp_per_nmpc={n_qp_per_nmpc}")
     print(f"           p_ee_0={p_ee_0}  p_torso_ref0={p_torso_ref0}")
     print(f"           r_com_target={r_com_target}")
+
+    # ── Predicted natural CoM trajectory (for B_slow_torso) ───────────
+    # Solve IK at the END EE pose with free base, get q_natural_end,
+    # then FK -> r_com_natural_end. The "planned" r_com displacement
+    # over [0, T_traj] is (r_com_natural_end - r_com_initial). For
+    # B_slow_torso we scale this displacement by 0.5 and follow it
+    # along a septic profile.
+    r_com_natural_end = r_com_target.copy()
+    if slow_torso:
+        fid_swing = (robot.frame_tool_b if swing_arm == 'b'
+                     else robot.frame_tool_a)
+        p_ee_end = p_ee_0 + dp
+        rv_end = axis * dtheta
+        R_ee_end = pin.exp3(rv_end) @ R_ee_0
+        tgt_end = pin.SE3(R_ee_end, p_ee_end)
+        q_pred_end, ik_err_end = solve_ik(
+            robot.model, rs0.q.copy(), {fid_swing: tgt_end},
+            max_iter=200, tol=1e-7, base_gain=1.0)
+        d_end = robot.model.createData()
+        pin.centerOfMass(robot.model, d_end, q_pred_end)
+        r_com_natural_end = d_end.com[0].copy()
+        delta_r_com_natural = r_com_natural_end - r_com_target
+        print(f"           [slow_torso] predicted natural CoM displacement = "
+              f"{delta_r_com_natural} m  ‖·‖={np.linalg.norm(delta_r_com_natural)*1000:.1f} mm")
+        print(f"           [slow_torso] scale = {slow_torso_scale}, IK final err = {ik_err_end:.2e}")
 
     # NMPC plan caches (linear interp between knots 0 and 1).
     rp_k0 = r_com_target.copy()
@@ -227,6 +254,17 @@ def run_case(case: str):
                 # Track current measured CoM; do not regulate against drift.
                 r_com_ref_nmpc = rs.r_com.copy()
                 v_com_ref_nmpc = rs.v_com.copy()
+            elif slow_torso:
+                # Septic profile from r_com_initial toward
+                # r_com_initial + scale * (r_com_natural_end - r_com_initial)
+                # over [0, T_traj]. Tests whether slowing the planned CoM
+                # motion (which the mapping translates into torso motion)
+                # lets the arm track better.
+                tau_st = float(np.clip(t / T_traj, 0.0, 1.0))
+                s_st, sd_st, _ = septic(tau_st)
+                disp = r_com_natural_end - r_com_target
+                r_com_ref_nmpc = r_com_target + slow_torso_scale * s_st * disp
+                v_com_ref_nmpc = slow_torso_scale * (sd_st / T_traj) * disp
             elif compensated_ref:
                 # Cancel the mapping's delta(q) term. Want r_b_ref(t) =
                 # p_torso_ref0 for all q, so set
@@ -411,7 +449,7 @@ if __name__ == '__main__':
     parser.add_argument(
         '--case',
         choices=['A', 'B', 'C', 'B_aware', 'B_aware_free', 'B_measured',
-                 'B_const_torso', 'B_compensated'],
+                 'B_const_torso', 'B_compensated', 'B_slow_torso'],
         required=True)
     args = parser.parse_args()
     run_case(args.case)

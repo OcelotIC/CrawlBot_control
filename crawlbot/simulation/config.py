@@ -172,6 +172,14 @@ class SimConfig:
     # throughout SS (v8 trace), that workaround is no longer needed.
     torso_early_finish_fraction: float = 1.0
 
+    # M7 v13: scale the pre-planner's r_com displacement (relative to its
+    # t=0 value) by this factor. 1.0 = unchanged. <1.0 makes the torso
+    # (via mapping) traverse less ground over T_step, giving the swing
+    # arm more time to track. Tests the hypothesis that the residual
+    # closed-loop EE error is dominated by the torso moving too fast
+    # for the arm to follow.
+    r_com_displacement_scale: float = 1.0
+
     # ── MuJoCo settling ────────────────────────────────────────
     n_settle_steps: int = 500
 

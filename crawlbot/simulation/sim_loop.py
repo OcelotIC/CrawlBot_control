@@ -1401,6 +1401,15 @@ class SimulationLoop:
             else:
                 rp_coarse = self._coarse_plan.r_com_at(tau_rel)
                 vp_coarse = self._coarse_plan.v_com_at(tau_rel)
+            # M7 v13: scale the planned r_com displacement (relative to its
+            # t=0 value) so the torso moves a smaller fraction of the
+            # planned distance over T_step, leaving more time/headroom
+            # for the swing arm to track.
+            disp_scale = float(getattr(cfg, 'r_com_displacement_scale', 1.0))
+            if disp_scale != 1.0:
+                rp_coarse_0 = self._coarse_plan.r_com_at(0.0)
+                rp_coarse = rp_coarse_0 + disp_scale * (rp_coarse - rp_coarse_0)
+                vp_coarse = disp_scale * vp_coarse
             cref_r = rp_coarse
             cref_v = vp_coarse
         else:
