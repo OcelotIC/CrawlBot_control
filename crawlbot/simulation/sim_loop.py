@@ -1555,41 +1555,31 @@ class SimulationLoop:
             vp_interp = (1.0 - alpha_interp) * vp_k0 + alpha_interp * vp_k1
 
             # Torso reference (structure frame — no struct pose needed at QP rate).
-            # M5.1: position/velocity/accel come from the mapping layer
-            # evaluated at the CURRENT configuration (arms at their
-            # current positions, not those from the start of the NMPC
-            # interval). Orientation comes from the TorsoPlanner SLERP.
             #
-            # M7 v15: when torso_early_finish_fraction < 1.0, the torso
-            # is designed to arrive at its terminal pose at
-            # t_local = ff * T_step and HOLD for the remaining (1-ff)
-            # fraction. The mapping must be bypassed during the hold
-            # window — otherwise its delta(q)/m_b term keeps tracking
-            # the swing arm's motion and p_torso_ref never actually
-            # holds (v14 regression). During the hold window we use the
-            # TorsoPlanner's terminal-pose hold directly: p = p_end,
-            # R = R_end, v = 0, a = 0. This gives the swing arm a
-            # genuinely stationary base for its precision approach
-            # (the B_const_torso regime — synthetic 13.5 mm tracking).
-            tr = self.torso_planner.reference_at(tq)
-            ff_eff = float(getattr(cfg, 'torso_early_finish_fraction', 1.0))
-            T_step_eff = float(getattr(self, '_current_T_step', 0.0))
-            in_torso_hold = (
-                phase == 'SS'
-                and ff_eff < 1.0
-                and T_step_eff > 0.0
-                and ss_end is not None
-                and (tq - (ss_end - T_step_eff)) > ff_eff * T_step_eff
-            )
-            if in_torso_hold:
-                p_torso_ref_used = tr.p
-                v_torso_ref_used = tr.v
-                a_torso_ff_used = tr.a
-            elif self.mapping is not None and cfg.use_m2_stack:
-                # In pure-PD diagnostic mode, zero the CoM feedforward
-                # so the mapping's a_b_ff comes only from -δ̈(q)/m_b;
-                # then we also clobber it to zero below. This keeps the
-                # position reference (r_b_ref from the mapping) intact.
+            # M7 v16: phase-selective reference source.
+            #   SS: use TorsoPlanner directly (p, v, a from the planner's
+            #       quintic over [t_ss_start, t_ss_start + T_step]). The
+            #       NMPC still runs — its contribution enters the QP
+            #       through the wrench task (lambda_ref) and the CoM
+            #       feedforward acceleration (a_com_ff), both of which
+            #       are passed to qp.solve() below. The torso displacement
+            #       itself is driven by the planner, NOT by the mapping —
+            #       this avoids the delta(q)/m_b term continuing to push
+            #       the torso ref as the arm moves during SS.
+            #   DS: keep the M1 mapping (centroidal-consistent torso
+            #       reference for settling phases where arm/torso are
+            #       co-planned).
+            # Cap the query time to ss_end - ε so reference_at() returns
+            # the quintic's terminal pose (p_t1, v=0, a=0) during the
+            # post-T_step margin/hold window instead of falling through
+            # to _hold_reference() which holds p_t0 (initial) — see
+            # TorsoPlanner.reference_at().
+            if phase == 'SS' and ss_end is not None:
+                tq_planner = min(tq, ss_end - 1e-3)
+            else:
+                tq_planner = tq
+            tr = self.torso_planner.reference_at(tq_planner)
+            if phase == 'DS' and self.mapping is not None and cfg.use_m2_stack:
                 af_for_mapping = np.zeros(3) if self._diag_pure_pd else af
                 r_b_ref_m, v_b_ref_m, a_b_ff_m, _ = self.mapping.compute(
                     r_com_ref=rp_interp, v_com_ref=vp_interp,
