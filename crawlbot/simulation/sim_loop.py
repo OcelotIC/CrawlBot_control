@@ -285,6 +285,8 @@ class SimulationLoop:
             w_L=cfg.preplanner_w_L,
             w_u=cfg.preplanner_w_u,
             ipopt_max_iter=cfg.preplanner_max_iter,
+            a_cruise_max=cfg.preplanner_a_cruise_max,
+            cruise_ramp_frac=cfg.preplanner_cruise_ramp_frac,
         )
         self.preplanner = CoarsePrePlanner(pre_cfg)
         self.preplanner.build()

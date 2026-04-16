@@ -104,6 +104,8 @@ class SimConfig:
     preplanner_w_L: float = 1.0             # cost weight on ||L_com||²
     preplanner_w_u: float = 1e-2            # cost weight on ||[f; τ]||²
     preplanner_max_iter: int = 300          # IPOPT max iterations
+    preplanner_a_cruise_max: float = 0.0     # [m/s²] cruise accel limit (0=off)
+    preplanner_cruise_ramp_frac: float = 0.2 # ramp fraction for cruise window
 
     # ── NMPC solver ─────────────────────────────────────────────
     nmpc_N: int = 8

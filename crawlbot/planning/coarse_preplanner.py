@@ -91,6 +91,14 @@ class CoarsePrePlannerConfig:
     # Step duration handling
     T_step_default: float = 6.0      # [s] default, can be overridden per solve
 
+    # M7 v21: cruise-phase acceleration limit.
+    # For knots k in [cruise_ramp_frac*M, (1-cruise_ramp_frac)*M],
+    # constrain ||a_com(k)||² ≤ a_cruise_max². This shapes the CoM
+    # trajectory into a trapezoidal velocity profile: accelerate early,
+    # cruise in the middle (near-zero a_com), decelerate late.
+    a_cruise_max: float = 0.0            # [m/s²] 0 = disabled
+    cruise_ramp_frac: float = 0.2        # fraction of M for each ramp
+
     # Solver
     ipopt_print_level: int = 0
     ipopt_max_iter: int = 300
@@ -333,6 +341,16 @@ class CoarsePrePlanner:
             rk = xk[0:3]
             L_dot = ca.cross(p_r_C - rk, fk) + tauk
             opti.subject_to(opti.bounded(-cfg.tau_w_max, L_dot, cfg.tau_w_max))
+
+        # --- Cruise-phase acceleration constraint (v21) ---
+        if cfg.a_cruise_max > 0.0:
+            k_lo = int(np.ceil(cfg.cruise_ramp_frac * M))
+            k_hi = int(np.floor((1.0 - cfg.cruise_ramp_frac) * M))
+            f_bound = cfg.a_cruise_max * m
+            f_bound_sq = f_bound * f_bound
+            for k in range(k_lo, k_hi):
+                fk = U[0:3, k]
+                opti.subject_to(ca.dot(fk, fk) <= f_bound_sq)
 
         # --- Boundary conditions ---
         opti.subject_to(X[:, 0] == p_x0)

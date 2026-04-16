@@ -348,20 +348,16 @@ class TorsoPlanner:
         return tau, s, ds, dds
 
     def _profile_params(self, t: float, phase: dict):
-        """Compute time-scaling parameters using trapezoidal profile (v20).
+        """Compute time-scaling parameters (quintic, restored in v21).
 
-        History
-        -------
-        * v17 and earlier: trapezoidal (ramp=0.35) — the a_ff≡0 cruise
-          window leaked arm-reaction into the torso PD (120mm drift).
-        * v18: quintic — a_ff always non-zero, but peak acceleration
-          saturated the joint torque budget (20 Nm) and degraded EE.
-        * v20: trapezoidal, ramp=0.20 (20/60/20). The planned-δ v19
-          mapping supplies feedforward through v_b_ref = -δ̇/m_b even
-          during the constant-velocity cruise. Peak torque is released
-          to the EE task during cruise.
+        v18: switched to quintic from trapezoidal. v20: briefly back to
+        trap (no closed-loop effect since SS linear is via mapping).
+        v21: quintic restored — SS angular reference needs continuous
+        a_ff; the cruise-phase shaping is now handled at the preplanner
+        level (CoM acceleration constraint) which flows through the
+        mapping into the torso linear reference.
         """
-        return self._trapezoidal_params(t, phase)
+        return self._quintic_params(t, phase)
 
     def _quintic_params(self, t: float, phase: dict):
         """Compute quintic time scaling parameters.
