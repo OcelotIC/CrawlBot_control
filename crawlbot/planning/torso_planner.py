@@ -312,7 +312,12 @@ class TorsoPlanner:
         """
         T = phase.get('effective_duration', phase['duration'])
         tau = np.clip((t - phase['t_start']) / T, 0.0, 1.0)
-        ramp = 0.35  # fraction of total time for each ramp
+        # M7 v20: ramp = 0.2 gives 20/60/20 split — ramp-up τ∈[0, 0.2],
+        # cruise τ∈[0.2, 0.8], ramp-down τ∈[0.8, 1.0]. During cruise
+        # a_torso_ff ≡ 0, freeing the actuator budget for EE tracking;
+        # planned-δ mapping (v19) continues to supply feedforward
+        # compensation against arm-induced base drift through v_b_ref.
+        ramp = 0.20  # fraction of total time for each ramp
 
         # Cruise velocity such that total displacement = 1:
         # Area = ramp*v_c/2 + (1-2*ramp)*v_c + ramp*v_c/2 = (1-ramp)*v_c = 1
@@ -343,17 +348,20 @@ class TorsoPlanner:
         return tau, s, ds, dds
 
     def _profile_params(self, t: float, phase: dict):
-        """Compute time-scaling parameters using quintic profile.
+        """Compute time-scaling parameters using trapezoidal profile (v20).
 
-        M7 v18: switched from trapezoidal to quintic. The trapezoidal
-        cruise window had a_ff ≡ 0 over ~30 % of T_step, leaving the
-        QP's torso task as pure position PD on a moving reference —
-        the arm-reaction torque was absorbed as position lag, peaking
-        at 120 mm in v17. The quintic has a_ff = 0 only at
-        τ ∈ {0, 0.5, 1} (instantaneous), so the FF is always available
-        to preempt the arm disturbance.
+        History
+        -------
+        * v17 and earlier: trapezoidal (ramp=0.35) — the a_ff≡0 cruise
+          window leaked arm-reaction into the torso PD (120mm drift).
+        * v18: quintic — a_ff always non-zero, but peak acceleration
+          saturated the joint torque budget (20 Nm) and degraded EE.
+        * v20: trapezoidal, ramp=0.20 (20/60/20). The planned-δ v19
+          mapping supplies feedforward through v_b_ref = -δ̇/m_b even
+          during the constant-velocity cruise. Peak torque is released
+          to the EE task during cruise.
         """
-        return self._quintic_params(t, phase)
+        return self._trapezoidal_params(t, phase)
 
     def _quintic_params(self, t: float, phase: dict):
         """Compute quintic time scaling parameters.
