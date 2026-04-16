@@ -41,6 +41,7 @@ import pinocchio as pin
 from crawlbot.simulation.sim_loop import SimulationLoop
 from crawlbot.simulation.config import SimConfig
 from crawlbot.core.state_conversions import mujoco_to_pinocchio
+from crawlbot.core.ik import solve_ik
 from crawlbot.solvers.contact_phase import ContactConfig, ContactPhase
 from crawlbot.aocs.force_estimator import compute_aocs_command_legacy_corrected
 
@@ -112,8 +113,14 @@ def run_case(case: str):
     qp = sim.qp_ss
     n_j = robot.n_joints
     has_rwa = sim.has_rwa
-    use_nmpc = case in ('B', 'C')
+    use_nmpc = case in ('B', 'C', 'B_aware', 'B_aware_free', 'B_measured',
+                        'B_const_torso', 'B_compensated')
     use_aocs = case in ('C',)
+    arm_aware_ref = case in ('B_aware', 'B_aware_free')
+    aware_base_gain = 1.0 if case == 'B_aware_free' else 0.0
+    measured_ref = case in ('B_measured',)
+    bypass_mapping = case in ('B_const_torso',)
+    compensated_ref = case in ('B_compensated',)
 
     swing_arm = 'b'
     stance_arm = 'a'
@@ -188,10 +195,58 @@ def run_case(case: str):
         if use_nmpc and (k % n_qp_per_nmpc == 0):
             hw_for_nmpc = (cfg.rwa_I_w * mj_data.qvel[6:9]).copy() if has_rwa \
                           else np.zeros(3)
+
+            # Arm-aware r_com_ref: predict CoM via FK at the swing-arm
+            # config that places the EE on the swing reference at horizon
+            # midpoint. Base frozen (base_gain=0); arm IK only.
+            if arm_aware_ref:
+                fid_swing = (robot.frame_tool_b if swing_arm == 'b'
+                             else robot.frame_tool_a)
+                t_mid = t + 0.5 * cfg.nmpc_N * cfg.nmpc_dt
+                p_ee_mid, R_ee_mid, _, _ = ee_reference(
+                    t_mid, T_traj, p_ee_0, R_ee_0, dp, dtheta, axis)
+                tgt_mid = pin.SE3(R_ee_mid, p_ee_mid)
+                q_pred, ik_err = solve_ik(
+                    robot.model, rs.q.copy(), {fid_swing: tgt_mid},
+                    max_iter=80, tol=1e-6, base_gain=aware_base_gain)
+                d_pred = robot.model.createData()
+                pin.centerOfMass(robot.model, d_pred, q_pred)
+                r_com_ref_nmpc = d_pred.com[0].copy()
+                # v_com_ref: finite-diff using a second IK at t_mid + dt_nmpc
+                p_ee_n, R_ee_n, _, _ = ee_reference(
+                    t_mid + cfg.dt_nmpc, T_traj, p_ee_0, R_ee_0,
+                    dp, dtheta, axis)
+                tgt_n = pin.SE3(R_ee_n, p_ee_n)
+                q_pred_n, _ = solve_ik(
+                    robot.model, q_pred.copy(), {fid_swing: tgt_n},
+                    max_iter=40, tol=1e-6, base_gain=aware_base_gain)
+                d_pred_n = robot.model.createData()
+                pin.centerOfMass(robot.model, d_pred_n, q_pred_n)
+                v_com_ref_nmpc = (d_pred_n.com[0] - r_com_ref_nmpc) / cfg.dt_nmpc
+            elif measured_ref:
+                # Track current measured CoM; do not regulate against drift.
+                r_com_ref_nmpc = rs.r_com.copy()
+                v_com_ref_nmpc = rs.v_com.copy()
+            elif compensated_ref:
+                # Cancel the mapping's delta(q) term. Want r_b_ref(t) =
+                # p_torso_ref0 for all q, so set
+                #   r_com_ref = (m_b * p_torso_ref0 + delta(q_current)) / m_total
+                # which is the CoM that would result if torso stayed put
+                # while the arm did its thing. The mapping then yields
+                # r_b_ref = p_torso_ref0 exactly.
+                delta_now = sim.mapping.compute_delta(rs.q)
+                m_b = sim.mapping.m_b
+                m_total = sim.mapping.m_total
+                r_com_ref_nmpc = (m_b * p_torso_ref0 + delta_now) / m_total
+                v_com_ref_nmpc = np.zeros(3)  # let NMPC infer drift
+            else:
+                r_com_ref_nmpc = r_com_target
+                v_com_ref_nmpc = np.zeros(3)
+
             try:
                 rp, vp, _, lr, info_n = sim.nmpc.solve(
                     r_com=rs.r_com, v_com=rs.v_com, L_com=rs.L_com,
-                    r_com_ref=r_com_target, v_com_ref=np.zeros(3),
+                    r_com_ref=r_com_ref_nmpc, v_com_ref=v_com_ref_nmpc,
                     contact_config=cc_ss, warm_start=True,
                     hw_current=hw_for_nmpc, L_com_ref=np.zeros(3))
                 a_com_ff_curr = sim.nmpc.compute_feedforward_acceleration(lr)
@@ -217,12 +272,19 @@ def run_case(case: str):
             alpha_interp = qs / n_qp_per_nmpc
             rp_interp = (1 - alpha_interp) * rp_k0 + alpha_interp * rp_k1
             vp_interp = (1 - alpha_interp) * vp_k0 + alpha_interp * vp_k1
-            r_b_ref, v_b_ref, a_b_ff, _ = sim.mapping.compute(
-                r_com_ref=rp_interp, v_com_ref=vp_interp,
-                a_com_ff=a_com_ff_curr, q_current=rs.q, dq_current=rs.v)
-            p_torso_ref = r_b_ref
-            v_torso_ref = np.concatenate([v_b_ref, np.zeros(3)])
-            a_torso_ff = np.concatenate([a_b_ff, np.zeros(3)])
+            if bypass_mapping:
+                # Constant torso ref (matches case A); NMPC outputs lambda_ref
+                # and a_com_ff still feed the QP. Isolates NMPC plan vs mapping.
+                p_torso_ref = p_torso_ref0
+                v_torso_ref = np.zeros(6)
+                a_torso_ff = np.zeros(6)
+            else:
+                r_b_ref, v_b_ref, a_b_ff, _ = sim.mapping.compute(
+                    r_com_ref=rp_interp, v_com_ref=vp_interp,
+                    a_com_ff=a_com_ff_curr, q_current=rs.q, dq_current=rs.v)
+                p_torso_ref = r_b_ref
+                v_torso_ref = np.concatenate([v_b_ref, np.zeros(3)])
+                a_torso_ff = np.concatenate([a_b_ff, np.zeros(3)])
             r_com_for_qp = rp_interp
             v_com_for_qp = vp_interp
             lambda_ref_qp = lr if 'lr' in dir() else np.zeros(12)
@@ -346,6 +408,10 @@ def run_case(case: str):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--case', choices=['A', 'B', 'C'], required=True)
+    parser.add_argument(
+        '--case',
+        choices=['A', 'B', 'C', 'B_aware', 'B_aware_free', 'B_measured',
+                 'B_const_torso', 'B_compensated'],
+        required=True)
     args = parser.parse_args()
     run_case(args.case)
