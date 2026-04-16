@@ -343,8 +343,17 @@ class TorsoPlanner:
         return tau, s, ds, dds
 
     def _profile_params(self, t: float, phase: dict):
-        """Compute time-scaling parameters using trapezoidal profile."""
-        return self._trapezoidal_params(t, phase)
+        """Compute time-scaling parameters using quintic profile.
+
+        M7 v18: switched from trapezoidal to quintic. The trapezoidal
+        cruise window had a_ff ≡ 0 over ~30 % of T_step, leaving the
+        QP's torso task as pure position PD on a moving reference —
+        the arm-reaction torque was absorbed as position lag, peaking
+        at 120 mm in v17. The quintic has a_ff = 0 only at
+        τ ∈ {0, 0.5, 1} (instantaneous), so the FF is always available
+        to preempt the arm disturbance.
+        """
+        return self._quintic_params(t, phase)
 
     def _quintic_params(self, t: float, phase: dict):
         """Compute quintic time scaling parameters.
