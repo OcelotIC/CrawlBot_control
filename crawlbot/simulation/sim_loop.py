@@ -1559,8 +1559,33 @@ class SimulationLoop:
             # evaluated at the CURRENT configuration (arms at their
             # current positions, not those from the start of the NMPC
             # interval). Orientation comes from the TorsoPlanner SLERP.
+            #
+            # M7 v15: when torso_early_finish_fraction < 1.0, the torso
+            # is designed to arrive at its terminal pose at
+            # t_local = ff * T_step and HOLD for the remaining (1-ff)
+            # fraction. The mapping must be bypassed during the hold
+            # window — otherwise its delta(q)/m_b term keeps tracking
+            # the swing arm's motion and p_torso_ref never actually
+            # holds (v14 regression). During the hold window we use the
+            # TorsoPlanner's terminal-pose hold directly: p = p_end,
+            # R = R_end, v = 0, a = 0. This gives the swing arm a
+            # genuinely stationary base for its precision approach
+            # (the B_const_torso regime — synthetic 13.5 mm tracking).
             tr = self.torso_planner.reference_at(tq)
-            if self.mapping is not None and cfg.use_m2_stack:
+            ff_eff = float(getattr(cfg, 'torso_early_finish_fraction', 1.0))
+            T_step_eff = float(getattr(self, '_current_T_step', 0.0))
+            in_torso_hold = (
+                phase == 'SS'
+                and ff_eff < 1.0
+                and T_step_eff > 0.0
+                and ss_end is not None
+                and (tq - (ss_end - T_step_eff)) > ff_eff * T_step_eff
+            )
+            if in_torso_hold:
+                p_torso_ref_used = tr.p
+                v_torso_ref_used = tr.v
+                a_torso_ff_used = tr.a
+            elif self.mapping is not None and cfg.use_m2_stack:
                 # In pure-PD diagnostic mode, zero the CoM feedforward
                 # so the mapping's a_b_ff comes only from -δ̈(q)/m_b;
                 # then we also clobber it to zero below. This keeps the
