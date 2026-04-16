@@ -1,14 +1,19 @@
-"""CoM-to-torso reference mapping (M1).
+"""CoM-to-torso reference mapping (M1, v1: with delta_dot).
 
 Converts centroidal references (r_com, v_com, a_com) into torso references
 (r_b, v_b, a_b) using the mass-weighted identity:
 
     r_b_ref = (m_total/m_b) * r_com_ref - (1/m_b) * delta(q)
-    v_b_ref = (m_total/m_b) * v_com_ref                   [drop delta_dot]
-    a_b_ff  = (m_total/m_b) * a_com_ff
+    v_b_ref = (m_total/m_b) * v_com_ref - (1/m_b) * delta_dot(q, dq)
+    a_b_ff  = (m_total/m_b) * a_com_ff                   [drop delta_ddot]
 
-where  delta(q) = sum_{i != torso} m_i * r_i(q)
-is the mass-weighted sum of non-torso body CoM positions (world frame).
+where  delta(q)        = sum_{i != torso} m_i * r_i(q)
+       delta_dot(q,dq) = sum_{i != torso} m_i * J_i(q) @ dq
+
+is the mass-weighted sum of non-torso body CoM positions/velocities
+(world frame). Per-body translational Jacobians J_i are computed in
+LOCAL_WORLD_ALIGNED. delta_ddot is dropped at v1 (PD handles it); see
+docs/architecture/STATUS.md §7 (cascade bisection 2026-04-16).
 
 This exists so the whole-body QP can track the torso position (rigid-body
 task) instead of the CoM position (centroidal task). The two are exactly
@@ -102,6 +107,25 @@ class CoMToTorsoMapping:
             delta += m_i * r_i
         return delta
 
+    def compute_delta_dot(self, q: np.ndarray, dq: np.ndarray) -> np.ndarray:
+        """Compute delta_dot(q, dq) = sum_{i != torso} m_i * J_i(q) @ dq.
+
+        Mathematically d/dt of delta(q): consistent with the time
+        derivative of the position-level identity
+            r_b * m_b + delta = m_total * r_com.
+
+        J_i is the translational (3, nv) Jacobian of body i's CoM in the
+        LOCAL_WORLD_ALIGNED frame (see body_com_jacobian).
+        """
+        data = self.model.createData()
+        pin.forwardKinematics(self.model, data, q)
+        pin.computeJointJacobians(self.model, data, q)
+        delta_dot = np.zeros(3)
+        for i, m_i in zip(self.non_torso_joints, self.m_others):
+            J_i = self.body_com_jacobian(data, i)
+            delta_dot += m_i * (J_i @ dq)
+        return delta_dot
+
     # ------------------------------------------------------------------ #
     # Forward mapping: (r_com, v_com, a_com, q) -> torso refs              #
     # ------------------------------------------------------------------ #
@@ -117,8 +141,10 @@ class CoMToTorsoMapping:
         v_com_ref : (3,)   CoM velocity reference (world frame)
         a_com_ff  : (3,)   CoM acceleration feedforward (world frame)
         q_current : (nq,)  current configuration (Pinocchio layout)
-        dq_current : (nv,) current velocity (unused in v0 — kept for API
-                           symmetry once delta_dot is enabled)
+        dq_current : (nv,) current velocity. When provided, the
+                           delta_dot/m_b correction is added to v_b_ref
+                           (v1 fix). When None, behaviour matches v0
+                           (no delta_dot term).
 
         Returns
         -------
@@ -127,7 +153,6 @@ class CoMToTorsoMapping:
         a_b_ff  : (3,)   torso linear acceleration feedforward
         delta   : (3,)   Sum_{i != torso} m_i * r_i (for monitoring)
         """
-        del dq_current  # v0: drop delta_dot term; handled by PD
         r_com_ref = np.asarray(r_com_ref, dtype=float).reshape(3)
         v_com_ref = np.asarray(v_com_ref, dtype=float).reshape(3)
         a_com_ff = np.asarray(a_com_ff, dtype=float).reshape(3)
@@ -136,6 +161,11 @@ class CoMToTorsoMapping:
         delta = self.compute_delta(q_current)
         r_b_ref = self.ratio * r_com_ref - delta / self.m_b
         v_b_ref = self.ratio * v_com_ref
+        if dq_current is not None:
+            dq_current = np.asarray(dq_current, dtype=float).ravel()
+            delta_dot = self.compute_delta_dot(q_current, dq_current)
+            v_b_ref = v_b_ref - delta_dot / self.m_b
+        # delta_ddot dropped at v1; PD handles the residual accel.
         a_b_ff = self.ratio * a_com_ff
         return r_b_ref, v_b_ref, a_b_ff, delta
 
