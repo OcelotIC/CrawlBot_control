@@ -90,6 +90,13 @@ class SimulationLoop:
         self._coarse_plan: Optional[CoarsePlanResult] = None
         # M7: T_step from the pre-planner for the active step.
         self._current_T_step: float = 0.0
+        # M7 v19: planned arm-joint trajectory endpoints (captured in
+        # _setup_torso_for_step). Used by _planned_arm_config so the
+        # mapping can see where the arm *will* be, not where it is.
+        self._step_q_start: Optional[np.ndarray] = None
+        self._step_q_end: Optional[np.ndarray] = None
+        self._step_t_ss_start: float = 0.0
+        self._step_T_step: float = 0.0
         # Simulation time at which the active coarse plan was anchored
         # (so r_com_at(t - t0) gives the right reference at current time).
         self._coarse_plan_t0: float = 0.0
@@ -735,6 +742,41 @@ class SimulationLoop:
 
     # ── Per-step planning handoff (M7) ───────────────────────────────────
 
+    def _planned_arm_config(self, t: float, rs):
+        """Return (q_planned, dq_planned) at sim time `t` for v19 mapping.
+
+        Mixes the live floating-base state (rs.q / rs.v) with an arm
+        portion obtained by quintic interpolation between
+        self._step_q_start and self._step_q_end over [t_ss_start,
+        t_ss_start + T_step]. The arm slice therefore reflects the
+        trajectory the SwingPlanner is commanding at time `t`, not the
+        arm's actual (tracking-lagged) configuration.
+
+        Why: delta(q) in the mapping formula is dominated by the arms
+        (torso block contributes 0 by construction). Using the live
+        arm state makes the mapping a feedback path on arm tracking
+        error; using the planned arm state makes it a clean feedforward.
+        The floating-base portion is kept at rs.q/rs.v so the world-
+        frame assembly of delta stays consistent with where the torso
+        really is.
+        """
+        if self._step_q_start is None or self._step_q_end is None:
+            return rs.q.copy(), rs.v.copy()
+        T = max(self._step_T_step, 1e-6)
+        tau = float(np.clip((t - self._step_t_ss_start) / T, 0.0, 1.0))
+        s = 10.0*tau**3 - 15.0*tau**4 + 6.0*tau**5
+        sd = (30.0*tau**2 - 60.0*tau**3 + 30.0*tau**4) / T
+        sl_q = self.robot.joints_q_slice
+        sl_v = self.robot.joints_v_slice
+        q_arm_start = self._step_q_start[sl_q]
+        q_arm_end = self._step_q_end[sl_q]
+        dq_arm = q_arm_end - q_arm_start
+        q_plan = rs.q.copy()
+        q_plan[sl_q] = q_arm_start + s * dq_arm
+        dq_plan = rs.v.copy()
+        dq_plan[sl_v] = sd * dq_arm
+        return q_plan, dq_plan
+
     def _setup_torso_for_step(self, t_ss_start, swing_arm,
                               stance_a, stance_b, target_arm, target_idx,
                               ss_phase_idx: int):
@@ -871,6 +913,17 @@ class SimulationLoop:
             p_t0, R_t0, p_t1, R_t1,
             delta_com_start=delta0, delta_com_end=delta1,
             early_finish_fraction=cfg.torso_early_finish_fraction)
+
+        # M7 v19: capture per-step planned joint trajectory endpoints so
+        # the CoM->torso mapping can be fed q_planned (arm configuration
+        # the swing planner will track) instead of q_current. Turns the
+        # mapping from a feedback-on-actual-state path into a feedforward
+        # path that anticipates arm motion and is not disturbed by arm
+        # tracking errors.
+        self._step_q_start = pq_live.copy()
+        self._step_q_end = q_end.copy()
+        self._step_t_ss_start = float(t_ss_start)
+        self._step_T_step = float(T_step)
 
         return (q_end, T_step, True)
 
@@ -1556,19 +1609,18 @@ class SimulationLoop:
 
             # Torso reference (structure frame — no struct pose needed at QP rate).
             #
-            # M7 v16: phase-selective reference source.
-            #   SS: use TorsoPlanner directly (p, v, a from the planner's
-            #       quintic over [t_ss_start, t_ss_start + T_step]). The
-            #       NMPC still runs — its contribution enters the QP
-            #       through the wrench task (lambda_ref) and the CoM
-            #       feedforward acceleration (a_com_ff), both of which
-            #       are passed to qp.solve() below. The torso displacement
-            #       itself is driven by the planner, NOT by the mapping —
-            #       this avoids the delta(q)/m_b term continuing to push
-            #       the torso ref as the arm moves during SS.
-            #   DS: keep the M1 mapping (centroidal-consistent torso
-            #       reference for settling phases where arm/torso are
-            #       co-planned).
+            # M7 v19: mapping-based torso reference in BOTH SS and DS,
+            # but SS uses q_planned (quintic interp between step start
+            # and end arm configurations) while DS uses q_current.
+            # Rationale:
+            #   - v12 (mapping + δ̇, q_current everywhere) had SS torso
+            #     peak 22 mm — the mapping's δ(q) term implicitly
+            #     anticipates arm-induced base drift.
+            #   - v16..v18 (TorsoPlanner direct in SS, no mapping) lost
+            #     that compensation and peaked at 120+ mm.
+            #   - v19 restores the mapping in SS but feeds it q_planned
+            #     so it becomes a feedforward term on the nominal
+            #     trajectory, not a feedback term on arm tracking error.
             # Cap the query time to ss_end - ε so reference_at() returns
             # the quintic's terminal pose (p_t1, v=0, a=0) during the
             # post-T_step margin/hold window instead of falling through
@@ -1579,11 +1631,15 @@ class SimulationLoop:
             else:
                 tq_planner = tq
             tr = self.torso_planner.reference_at(tq_planner)
-            if phase == 'DS' and self.mapping is not None and cfg.use_m2_stack:
+            if phase in ('SS', 'DS') and self.mapping is not None and cfg.use_m2_stack:
                 af_for_mapping = np.zeros(3) if self._diag_pure_pd else af
+                if phase == 'SS':
+                    q_map, dq_map = self._planned_arm_config(tq, rs)
+                else:
+                    q_map, dq_map = rs.q, rs.v
                 r_b_ref_m, v_b_ref_m, a_b_ff_m, _ = self.mapping.compute(
                     r_com_ref=rp_interp, v_com_ref=vp_interp,
-                    a_com_ff=af_for_mapping, q_current=rs.q, dq_current=rs.v)
+                    a_com_ff=af_for_mapping, q_current=q_map, dq_current=dq_map)
                 p_torso_ref_used = r_b_ref_m
                 v_torso_ref_used = np.concatenate([v_b_ref_m, tr.v[3:6]])
                 a_torso_ff_used = np.concatenate([a_b_ff_m, tr.a[3:6]])
