@@ -608,6 +608,18 @@ class WholeBodyQP:
 
             v_ref_ee = v_ee_ref if v_ee_ref is not None else np.zeros(6)
             a_ff_ee = a_ee_ff if a_ee_ff is not None else np.zeros(6)
+
+            # M7 v17: task-consistent feedforward. When the torso accelerates
+            # at a_torso_des, the EE sees J_ee · J_torso^+ · a_torso_des of
+            # induced motion through the shared floating base. Pre-add this
+            # to the EE feedforward so the PD doesn't have to chase the
+            # coupling reactively. J_torso^+ is the damped pseudo-inverse
+            # (rcond=1e-8), matching the one used for the null-space
+            # projector above.
+            if torso_task_active and J_torso is not None:
+                J_torso_pinv = np.linalg.pinv(J_torso, rcond=1e-8)
+                a_ff_ee = a_ff_ee + J_ee @ J_torso_pinv @ a_torso_des
+
             a_ee_des = a_ff_ee + Kp_ee_full @ e_6d_ee + Kd_ee_full @ (v_ref_ee - v_ee_actual)
 
             A_ee = np.zeros((6, n))
