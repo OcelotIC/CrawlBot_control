@@ -225,9 +225,52 @@ The EE's precision approach (last 30-40% of swing) must coincide with the torso'
 - EE tracking during cruise phase: should approach the B_const_torso floor (13.5mm) since the torso is moving at constant velocity (minimal coupling disturbance)
 - Torso tracking: planned-δ maintains feedforward compensation even during cruise, preventing the 120mm drift seen in v18
 
+### v20 result — trapezoidal on TorsoPlanner (FAILED)
+Trapezoidal on TorsoPlanner had no effect on closed-loop because the SS linear torso reference comes from the mapping (not TorsoPlanner). TorsoPlanner only drives angular reference in SS, and with fixed-rotation IK the angular motion is ~0°.
+
+### v21 result — CoM shaping at pre-planner level (POSITION SOLVED, ORIENTATION ISOLATED)
+Added acceleration constraints at the pre-planner: `‖a_com(k)‖ ≤ 0.01 m/s²` for knots k ∈ [0.2·M, 0.8·M]. Forces trapezoidal-like CoM profile.
+
+| Metric | v19 standalone | v21 standalone | v21 closed-loop |
+|---|---|---|---|
+| torso_pos peak | 42 mm | **34 mm** | 44 mm |
+| torso_ori peak | — | **0.72°** | **45.5°** |
+| ee_pos peak | 165 mm | **24 mm** | no dock |
+| |τ|_∞ peak | 20 Nm (saturated) | **1.17 Nm** | 2.2 Nm |
+
+**The position tracking chain is solved.** 24mm EE at 1.2 Nm in standalone. Actuator saturation eliminated.
+
+**The remaining problem is purely torso orientation:** 0.72° standalone → 45° closed-loop. This is an independent problem from position tracking that has persisted at 29-45° across ALL versions (v12-v21). The next investigation must focus exclusively on why the closed-loop cascade inflates torso orientation error 60× vs the standalone.
+
 ---
 
-## 10. Files Reference
+## 11. Current State (v21) — Orientation Is The Last Blocker
+
+### What's solved
+- QP task stack: correct (standalone proves 24mm EE, 0.72° torso ori)
+- Actuator budget: no longer saturated (1.2 Nm of 20 Nm)
+- Position tracking chain: CoM shaping + planned-δ mapping + EE feedforward
+- Momentum management: NMPC conservation law + hw constraint on λ
+- Singularity: eliminated with manipulability init (κ < 7)
+- AOCS: sign fixed, orbital term present, exonerated by bisection
+
+### What's broken
+- **Torso orientation error: 45° in closed-loop vs 0.72° in standalone**
+- This has been 29-45° across all versions since v12
+- With zero planned rotation (fixed-rotation IK), this is pure arm-reaction disturbance
+- The QP has authority (0.72° standalone proves it) but something in the cascade prevents it from using that authority
+
+### Next investigation
+The same bisection approach that identified the mapping as the position culprit should be applied to orientation:
+- (A) Standalone QP: 0.72° — baseline
+- (B) + NMPC + mapping: measure
+- (C) + AOCS: measure
+- (D) Full sim_loop: 45°
+Identify which cascade component inflates orientation error from 0.72° to 45°.
+
+---
+
+## 12. Files Reference
 
 ### Key source files
 ```

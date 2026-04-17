@@ -818,22 +818,33 @@ The root cause of the docking failure was trajectory desynchronization: the swin
   - **NMPC infeasible:** use warm-shifted fallback (shift previous plan by one step)
   - **Tracking divergence:** if `‖r_com - r_com_ref‖ > d_abort` → pause and report
 
-### What to delete from sim_loop.py
+### Current state (v21) — Position solved, orientation is the last blocker
 
-- The entire EXT phase branch
-- The `qp_approach` variant and its gain overrides
-- The torso-freeze logic (`d < 10mm` threshold)
-- The `t_ext_max` timeout parameter
-- The gain scheduling / approach-band logic
-- Any `phase == 'EXT'` conditionals
+The two-phase state machine is implemented and working. The position tracking chain is solved through a combination of fixes discovered during M7 integration. The **only remaining blocker** is torso orientation error: 0.72° in standalone, 45° in closed-loop.
 
-### What to modify in sim_loop.py
+#### Position chain — SOLVED
+The following fixes are all active and validated:
+- **CoM shaping at pre-planner:** Trapezoidal acceleration profile (`a_cruise_max=0.01 m/s²` for knots ∈ [0.2·M, 0.8·M]). Eliminates actuator saturation: 1.2 Nm peak vs 20 Nm budget.
+- **Planned-δ mapping:** `δ(q_planned)` instead of `δ(q_current)`. Feedforward instead of feedback. Eliminates jitter from arm tracking errors. Includes δ̇ correction for velocity.
+- **EE task-consistent feedforward:** `a_ee_ff += J_ee · J_torso† · a_torso_des`. Compensates first-order null-space projection drift.
+- **α_wrench = 0.01, α_com_soft = 0:** Eliminates competing tasks that were consuming 20%+ of QP budget.
 
-- Rewrite `_step()` to have exactly two branches: DS and SS
-- SwingPlanner and TorsoPlanner both receive `T_step` from the coarse pre-planner
-- The NMPC interpolation (10 QP steps per NMPC call) stays as implemented in M5
-- The NMPC infeasibility fallback (warm-shift) stays as implemented in M5
-- Inter-step DS settling uses the passivity-constrained QP with energy-based exit (same as setup settling)
+Standalone QP result with all fixes: **24mm EE position, 0.72° torso orientation, 1.2 Nm peak torque.**
+
+#### Orientation — LAST BLOCKER
+Torso orientation error has been 29-45° across ALL versions (v12-v21). It persists with zero planned rotation (fixed-rotation IK). It's pure arm-reaction disturbance that the QP rejects perfectly in standalone (0.72°) but fails in closed-loop (45°).
+
+**Next task: orientation-focused bisection.** Same approach as the position bisection (scripts/bisect_qp_cascade.py) but tracking torso_ori_peak as the primary metric. Run cases A (standalone), B (+NMPC+mapping), C (+AOCS), D (full sim_loop). Identify which cascade component inflates orientation error 60×.
+
+### Lessons learned during M7 integration
+
+1. **Trajectory generation must be actuator-aware.** The coarse pre-planner checks momentum feasibility but not joint torque feasibility. Geometric quintics can demand accelerations that exceed actuator limits. The CoM shaping fix (trapezoidal acceleration at the pre-planner level) is pragmatic; a principled solution is whole-body trajectory optimization with torque bounds.
+
+2. **Component testing is necessary but insufficient.** Every module passed standalone testing. The coupling between them through the kinematic chain, the mapping, and the AOCS creates emergent failures invisible to isolated tests. The cascade bisection (A/B/C/D) is the essential diagnostic for integration problems.
+
+3. **The mapping is powerful but dangerous.** The CoM→torso mapping is algebraically exact (T3 at machine precision) but its live δ(q_current) creates a feedback loop: arm tracking error → δ jitter → torso reference noise → more arm tracking error. Using planned δ(q_planned) breaks this loop.
+
+4. **Reference quality dominates controller performance.** The QP can track to 15.6mm EE. Every closed-loop degradation was caused by references that collectively exceed the actuator budget, not by the QP algorithm.
 
 ### Pass criteria
 
@@ -845,7 +856,7 @@ The root cause of the docking failure was trajectory desynchronization: the swin
 **T18** — NMPC > 95% solve rate within 50 ms.
 **T19/T20** — Zero QP failures, dynamics residual < 1e-8 across full traversal.
 
-→ **Run diagnostics** on every closed-loop sim. All 8 figures, full metrics table.
+→ **Run diagnostics** on every closed-loop sim. All 8+ figures, full metrics table.
 
 ### Files
 

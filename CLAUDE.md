@@ -80,9 +80,13 @@ pip install <package> --break-system-packages
 
 Update this line as work progresses:
 
-**→ Active: M7 (Closed-Loop Integration — Two-Phase State Machine)**
+**→ Active: M7 — Orientation bisection (position chain solved, torso ori 45° is last blocker)**
 
-**Completed:** M-1, M0, M1, M2, M3, M4, M5, M6 + 7-DOF arm upgrade + AOCS desaturation sign fix + weight_ratio=1 fix + dock gate (d<5mm AND ori<5°)
+**Completed:** M-1, M0, M1, M2, M3, M4, M5, M6, M7 state machine rework, 7-DOF arm upgrade, AOCS desaturation sign fix, weight_ratio=1 fix, dock gate (d<5mm AND ori<5°), α_wrench=0.01 fix, CoM shaping at pre-planner, planned-δ mapping, EE task-consistent feedforward, δ̇ velocity correction, manipulability-optimized init
+
+**Position tracking chain solved:** QP standalone 24mm EE / 0.72° torso ori / 1.2 Nm torque (of 20 Nm budget)
+
+**Last blocker:** Torso orientation 45° in closed-loop vs 0.72° standalone. Next: orientation-focused bisection to identify the cascade culprit.
 
 ---
 
@@ -104,6 +108,10 @@ Update this line as work progresses:
 | NMPC state dim | 9 | — | spec §5.1 (B2) |
 | NMPC control dim | 12 | — | spec §5.1 |
 | weight_ratio | 1.0 | — | Tasks use face-value weights + null-space projection |
+| α_wrench | 0.01 | — | Pure regularization, not a competing objective |
+| α_com_soft | 0.0 | — | Redundant with mapping; disabled |
+| CoM shaping | a_cruise_max=0.01 m/s² | — | Trapezoidal accel profile at pre-planner |
+| Mapping mode (SS) | planned-δ with δ̇ | — | Feedforward, not feedback |
 
 ---
 
@@ -119,3 +127,7 @@ Update this line as work progresses:
 - Do not freeze references or add threshold-based switches to handle trajectory coordination failures — fix the trajectory synchronization instead
 - Do not implement a three-phase state machine (DS/SS/EXT) — the architecture is two-phase (DS/SS) per spec §7.1
 - Do not activate welds on position alone — require both `d < 5mm AND ori < 5°`
+- Do not use α_wrench > 1 — wrench regularization at 100 consumed 20% of QP budget and blocked torso/EE authority
+- Do not use live δ(q_current) in the mapping during SS — use planned δ(q_planned) to avoid feedback jitter
+- Do not assume standalone component tests guarantee closed-loop success — always run the cascade bisection (A/B/C/D) to isolate integration failures
+- Do not generate trajectory acceleration profiles without checking actuator feasibility — quintic on 591mm torso displacement saturates 20 Nm joints
