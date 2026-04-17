@@ -1,0 +1,21 @@
+======================================================================
+  QP tracking test v21 — pre-planner CoM cruise box (a_cruise_max=0.01)
+======================================================================
+  T_traj: 7.30 s   dt_qp: 10.0 ms   QP exceptions: 0
+  preplanner: M=15, kappa=1.0, a_cruise_max=0.01, ramp_frac=0.2
+  ||Δr_com|| = 114.36 mm, success=True, iters=10
+
+  Peak errors over trajectory window (t <= T_traj):
+  metric                            peak       thr  status
+  ----------------------------------------------------------
+  torso_pos_err_peak_mm        33.9780     5.000  **FAIL
+  torso_ori_err_peak_deg        0.7220     2.000  PASS
+  ee_pos_err_peak_mm           23.9329    10.000  **FAIL
+  ee_ori_err_peak_deg           3.9743     5.000  PASS
+
+  |tau|_inf per sub-phase:
+    ramp_up   peak= 0.684 Nm  mean= 0.339 Nm  n=147
+    cruise    peak= 1.165 Nm  mean= 0.769 Nm  n=438
+    ramp_dn   peak= 1.124 Nm  mean= 0.624 Nm  n=146
+
+  VERDICT: peaks above threshold — see breakdown

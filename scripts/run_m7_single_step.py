@@ -210,12 +210,12 @@ def _print_phase_sync_report(sim, log):
               f"t={ab.get('t', float('nan')):.2f} s")
 
 
-def run_case(tag, output_dir, n_steps=1):
+def run_case(tag, output_dir, n_steps=1, config=None):
     print("\n" + "=" * 70)
     print(f"  M7 closed-loop: {tag}, n_steps={n_steps}")
     print("=" * 70)
 
-    cfg = _make_m7_config()
+    cfg = config if config is not None else _make_m7_config()
     sim = SimulationLoop(mjcf_path=MJCF, urdf_path=URDF, config=cfg)
     sim.setup(n_steps=n_steps, start_a=2, start_b=2)
     # M7 debug: capture L_com_ref for the first 5 SS NMPC calls so we
