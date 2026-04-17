@@ -132,16 +132,51 @@ class GaitPlan:
         # Edge case: exactly at end
         return self.phases[-1], len(self.phases) - 1
 
+    def set_step_duration(self, idx: int, T_step: float) -> None:
+        """Set the duration of phase `idx` to `T_step` and cascade the
+        timing offset to every subsequent phase.
+
+        M7: called once per step by `sim_loop.py` after the coarse
+        pre-planner returns `T_step`. The SS phase skeleton is built
+        with `duration=0.0` (no fixed swing time); this method installs
+        the real duration before the SwingPlanner is queried.
+        """
+        if idx < 0 or idx >= len(self.phases):
+            raise IndexError(
+                f"set_step_duration: idx={idx} out of range (0..{len(self.phases)-1})")
+        if T_step <= 0.0:
+            raise ValueError(f"set_step_duration: T_step must be positive, got {T_step}")
+
+        self.phases[idx].duration = float(T_step)
+        # Rebuild t_start/t_end from scratch so the invariant
+        # t_end[k] = t_start[k] + phases[k].duration,
+        # t_start[k+1] = t_end[k] is preserved.
+        t = self.t_start[0]
+        for k in range(len(self.phases)):
+            self.t_start[k] = t
+            t += self.phases[k].duration
+            self.t_end[k] = t
+        self.total_duration = t
+
 
 class ContactScheduler:
     """Generates and queries locomotion gait plans.
 
     Parameters
     ----------
-    dt_ss : float
-        Duration of single-support phases [s]. Default: 1.0.
     dt_ds : float
         Duration of double-support transitions [s]. Default: 0.5.
+        (DS is nominally bounded by the energy-settle cap in
+        `sim_loop.py`; this value is only used for plan skeleton
+        timing so queries before the energy-settle runs have a
+        valid initial timeline.)
+    dt_ss : float
+        Initial placeholder duration for single-support phases [s].
+        Default: 0.0 — in M7 the real SS duration comes from the
+        coarse pre-planner and is installed per-step via
+        ``GaitPlan.set_step_duration(idx, T_step)``. Unit tests that
+        query the SwingPlanner directly (without going through
+        sim_loop) may pass a positive value here for convenience.
     anchors_a : list of ndarray (3,)
         Arm-A anchor positions (ascending along structure).
     anchors_b : list of ndarray (3,)
@@ -150,13 +185,13 @@ class ContactScheduler:
 
     def __init__(
         self,
-        dt_ss: float = 1.0,
         dt_ds: float = 0.5,
+        dt_ss: float = 0.0,
         anchors_a: Optional[List[np.ndarray]] = None,
         anchors_b: Optional[List[np.ndarray]] = None,
     ):
-        self.dt_ss = dt_ss
         self.dt_ds = dt_ds
+        self.dt_ss = dt_ss
 
         if anchors_a is None or anchors_b is None:
             anchors_a, anchors_b = make_anchor_grid()

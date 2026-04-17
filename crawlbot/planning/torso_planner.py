@@ -156,7 +156,8 @@ class TorsoPlanner:
                   p_start: np.ndarray, R_start: np.ndarray,
                   p_end: np.ndarray, R_end: np.ndarray,
                   delta_com_start: Optional[np.ndarray] = None,
-                  delta_com_end: Optional[np.ndarray] = None):
+                  delta_com_end: Optional[np.ndarray] = None,
+                  early_finish_fraction: float = 1.0):
         """Add a trajectory phase (all coordinates in structure frame).
 
         Parameters
@@ -171,12 +172,30 @@ class TorsoPlanner:
             CoM offset in torso body frame at start config.
         delta_com_end : ndarray (3,), optional
             CoM offset in torso body frame at end config.
+        early_finish_fraction : float in (0, 1], default 1.0
+            M7 change (B): fraction of the phase window over which the
+            torso trajectory is interpolated. 1.0 → the profile fills
+            the full [t_start, t_end] window (legacy behaviour).
+            Values < 1 (e.g. 0.7) compress the profile so the torso
+            arrives at p_end, R_end at t_start + ff·(t_end - t_start)
+            and then HOLDS static for the remaining (1-ff) fraction.
+            The swing-arm's planner is unaffected, so this decouples
+            the torso's completion time from the swing's — giving the
+            swing a stable base during its precision-approach tail.
         """
+        ff = float(early_finish_fraction)
+        if not (0.0 < ff <= 1.0):
+            raise ValueError(
+                f"early_finish_fraction must be in (0, 1], got {ff}")
+        duration = t_end - t_start
+        effective_duration = duration * ff
         self._phases.append({
             't_start': t_start, 't_end': t_end,
             'p_start': p_start.copy(), 'R_start': R_start.copy(),
             'p_end':   p_end.copy(),   'R_end':   R_end.copy(),
-            'duration': t_end - t_start,
+            'duration': duration,
+            'effective_duration': effective_duration,
+            'early_finish_fraction': ff,
             'delta_com_start': delta_com_start.copy() if delta_com_start is not None else None,
             'delta_com_end':   delta_com_end.copy()   if delta_com_end   is not None else None,
         })
@@ -284,10 +303,21 @@ class TorsoPlanner:
             s   : position fraction [0, 1]
             ds  : ds/dt [1/s]
             dds : d²s/dt² [1/s²]
+
+        M7 change (B): time is scaled by the phase's `effective_duration`
+        rather than its `duration`. When effective_duration < duration,
+        the profile finishes early (at t = t_start + effective_duration)
+        and tau is clipped to 1 thereafter — producing a static HOLD on
+        the torso reference through the rest of the phase window.
         """
-        T = phase['duration']
+        T = phase.get('effective_duration', phase['duration'])
         tau = np.clip((t - phase['t_start']) / T, 0.0, 1.0)
-        ramp = 0.35  # fraction of total time for each ramp
+        # M7 v20: ramp = 0.2 gives 20/60/20 split — ramp-up τ∈[0, 0.2],
+        # cruise τ∈[0.2, 0.8], ramp-down τ∈[0.8, 1.0]. During cruise
+        # a_torso_ff ≡ 0, freeing the actuator budget for EE tracking;
+        # planned-δ mapping (v19) continues to supply feedforward
+        # compensation against arm-induced base drift through v_b_ref.
+        ramp = 0.20  # fraction of total time for each ramp
 
         # Cruise velocity such that total displacement = 1:
         # Area = ramp*v_c/2 + (1-2*ramp)*v_c + ramp*v_c/2 = (1-ramp)*v_c = 1
@@ -318,12 +348,24 @@ class TorsoPlanner:
         return tau, s, ds, dds
 
     def _profile_params(self, t: float, phase: dict):
-        """Compute time-scaling parameters using trapezoidal profile."""
-        return self._trapezoidal_params(t, phase)
+        """Compute time-scaling parameters (quintic, restored in v21).
+
+        v18: switched to quintic from trapezoidal. v20: briefly back to
+        trap (no closed-loop effect since SS linear is via mapping).
+        v21: quintic restored — SS angular reference needs continuous
+        a_ff; the cruise-phase shaping is now handled at the preplanner
+        level (CoM acceleration constraint) which flows through the
+        mapping into the torso linear reference.
+        """
+        return self._quintic_params(t, phase)
 
     def _quintic_params(self, t: float, phase: dict):
-        """Compute quintic time scaling parameters."""
-        T = phase['duration']
+        """Compute quintic time scaling parameters.
+
+        M7 change (B): uses `effective_duration` so the quintic finishes
+        at t_start + effective_duration (<= t_end) and then HOLDS.
+        """
+        T = phase.get('effective_duration', phase['duration'])
         tau = np.clip((t - phase['t_start']) / T, 0.0, 1.0)
         s   = 10*tau**3  - 15*tau**4  + 6*tau**5
         ds  = (30*tau**2 - 60*tau**3  + 30*tau**4) / T

@@ -24,7 +24,7 @@ def _make_synthetic_log(n=100):
     for i in range(n):
         t = i * dt
         log.t.append(t)
-        log.phase.append('DS' if i < 5 else ('SS' if i < 60 else 'EXT'))
+        log.phase.append('DS' if i < 5 else 'SS')
         log.step_idx.append(0)
 
         # Torso tracking

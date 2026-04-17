@@ -1,0 +1,18 @@
+======================================================================
+  QP tracking test v19 — standalone (v19 torso ref + EE FF)
+======================================================================
+  T_traj: 7.30 s   T_total: 9.30 s   dt_qp: 10.0 ms
+  swing: b   dp: [0.8, 0.0, 0.0] m   dtheta: 45.00 deg
+  QP exceptions: 0
+
+  Peak errors over trajectory window (t <= T_traj):
+  metric                            peak       thr  status
+  ----------------------------------------------------------
+  torso_pos_err_peak_mm        75.3627     5.000  **FAIL
+  torso_ori_err_peak_deg        3.3025     2.000  **FAIL
+  ee_pos_err_peak_mm          105.2779    10.000  **FAIL
+  ee_ori_err_peak_deg           8.5882     5.000  **FAIL
+
+  |tau|_inf full-run peak=20.000 Nm  mean=2.831 Nm  (budget 20.0)
+
+  VERDICT: QP+v19 CANNOT TRACK (see peaks)

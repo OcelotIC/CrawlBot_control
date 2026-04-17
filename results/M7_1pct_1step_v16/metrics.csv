@@ -1,0 +1,14 @@
+metric,value,threshold,status
+torso_pos_err_peak_mm,666.537567,10.000000,FAIL
+torso_ori_err_peak_deg,179.260712,5.000000,FAIL
+ee_pos_err_at_dock_mm,,5.000000,SKIP
+ee_ori_err_at_dock_deg,,5.000000,SKIP
+com_tracking_err_rms_mm,90.491440,15.000000,FAIL
+hw_saturation_ratio_peak,0.926423,1.000000,PASS
+hw_saturation_ratio_rms,0.543057,0.700000,PASS
+platform_rotation_total_deg,13.226494,5.000000,FAIL
+platform_omega_peak_deg_s,1.372493,2.000000,PASS
+tau_w_peak_ratio,1.000000,1.000000,PASS
+passivity_violations,,0.000000,SKIP
+nmpc_solve_rate_50ms,0.862620,0.950000,FAIL
+nmpc_infeasibility_rate,0.015974,0.020000,PASS

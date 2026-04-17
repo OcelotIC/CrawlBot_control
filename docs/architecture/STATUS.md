@@ -1,9 +1,9 @@
 # STATUS — Session Handoff
 
-**Last updated:** 2026-04-11
-**Branch:** `claude/run-test-suite-HH3Nl`
-**Head commit:** `a9a36f5` (7-DOF arms: add SEW elbow-swivel joint)
-**Active milestone:** M7 (state machine + synchronized trajectories) — rework pending
+**Last updated:** 2026-04-15
+**Branch:** `claude/m7-core-task-replace-3Hmf4`
+**Head commit:** `90d7b13` (QP tracking test: realistic swing geometry 800 mm / 45° / 7.3 s)
+**Active milestone:** M7 — two-phase state machine wired; dock still failing; QP tracking defect isolated (α_wrench fix) but closed-loop regression not yet explained
 
 This document is a handoff for the next Claude Code session. It is not a
 status report for Idriss. Read the two authoritative documents first:
@@ -293,3 +293,100 @@ All four runs must dump logs to `results/` and run `run_diagnostics()`.
    or document that it's known and why.
 6. Do not edit model files by copy-paste. One URDF, one MJCF per mass
    ratio. Parametric variations via Python, not new files.
+
+---
+
+## 7. 2026-04-15 session — QP tracking isolation (in progress)
+
+Goal this session: find why 7-DOF + two-phase + dock-gate still times out at
+close approach (~20–38 mm from the 5 mm weld gate).
+
+### Cascade of closed-loop runs
+
+| Tag | Key change from prior | Result (best `d_swing`, notes) |
+|-----|------------------------|--------------------------------|
+| v7  | Baseline two-phase, stage-1 damping on, bump_peak=0.25, torso stagger=0.7 | dock fails; κ(N_t·J_ee)=1e5 elbow-unfold singularity |
+| v8  | Manipulability-optimized qpos init (torso_map entry instead of `dock_configuration`) | reach ≥ 650 mm (fixed fold); κ(N_t·J_ee) < 7 in SS |
+| v9  | Reverted trajectory shaping: `swing_bump_peak_tau=0.5`, `torso_early_finish_fraction=1.0` | torso ori error 32°, EE peak far from anchor; QP delivering 14.5°/s² when PD wants 102°/s² (7× attenuation) |
+| v10 | `ss_alpha_wrench=0.01`, `alpha_com_soft=0.0` in `SimConfig` | SS tracking great; **closed-loop breaks** — NMPC infeasibility 11%, hw saturates, post-SS DS explodes |
+| v11 | Added `hw_qp_tight = ±3 Nms` (tight QP momentum bound; NMPC still sees ±5) | bound never activates (\|hw\| < 3); same failure mode as v10 |
+
+All logs + physics traces in `results/M7_1pct_1step_v{4..11}/`.
+
+### Standalone QP-only diagnosis (no NMPC, no AOCS, no planners)
+
+Script: `scripts/test_qp_tracking.py`. Setup: manipulability-optimized DS
+init, release arm `b`, drive EE with septic 6D reference (C³-continuous,
+zero vel/acc/jerk at both endpoints). Override QP weights after `setup()`:
+`sim.qp_ss.config.alpha_wrench = 0.01`, `sim.qp_ss.config.alpha_com_soft = 0`.
+
+- **Small swing (200 mm / 15° / 8 s)** with default `α_wrench=100`:
+  all 4 metrics fail; pre-vs-post torso-accel ratio ≈ 0.14 (7× attenuation).
+- **Same swing with `α_wrench=0.01`**:
+  all 4 metrics pass; ratio → ~1.0; torque commands 5–7 Nm (vs 0.22 Nm before).
+- **Realistic swing (800 mm / 45° / 7.3 s, matching closed-loop step geometry)**
+  with `α_wrench=0.01, α_com_soft=0`:
+  **EE position peak 15.6 mm**, torso/ori/ee-ori metrics clean. Standalone QP
+  can track the real step geometry with ~16 mm peak EE error.
+
+### The unexplained delta
+
+- Standalone QP with full-geometry septic trajectory: **EE peak ≈ 16 mm.**
+- Closed-loop v10/v11 with the same α values and similar-shape reference:
+  **EE peak ≈ 193 mm** (12× worse), NMPC infeasible, hw saturated, dock fails.
+
+The QP is not intrinsically unable to track this trajectory. Something in
+the cascade (coarse pre-planner / NMPC / CoM→torso mapping / AOCS) is
+injecting a disturbance that the QP then fights.
+
+### Next diagnostic (planned, not yet run)
+
+Run the full cascade **minus** the coarse pre-planner: feed `T_step=7.3 s`
+directly, keep the same septic swing reference, but enable NMPC + CoM→torso
+mapping + AOCS. Expected outcomes:
+
+- If EE peak stays ≈ 16 mm → the coarse pre-planner's `T_step` or
+  reference shape is the disturbance source. Narrow to pre-planner.
+- If EE peak jumps to ≈ 190 mm → one of {NMPC, mapping, AOCS} is the
+  source. Next cut: bisect NMPC vs mapping vs AOCS individually.
+
+Script stub to be created: `scripts/test_cascade_no_preplanner.py`. Use
+`SimulationLoop.setup()` for initialization, then a manual 100 Hz loop
+that calls `sim.nmpc.solve(...)` every 10 ticks (constant `r_com_ref`,
+`L_com_ref=0`), `sim.mapping.compute(...)` for torso position reference
+(orientation held at `R_torso_0`), septic 800/45/7.3 for EE reference,
+QP solve with overrides, `compute_aocs_command_legacy_corrected(...)`
+for `τ_w`. Release weld `('b', 2)` before entering the loop. Compare
+EE peak error against standalone (15.6 mm) and closed-loop v11 (193 mm).
+
+APIs confirmed this session:
+- `NMPC.solve(r_com, v_com, L_com, r_com_ref, v_com_ref, contact_config,
+  warm_start, hw_current, L_com_ref) -> (rp, vp, _, lr, info)` then
+  `nmpc.compute_feedforward_acceleration(lr)` (see `sim_loop.py:1462`).
+- `CoMToTorsoMapping.compute(r_com_ref, v_com_ref, a_com_ff, q_current,
+  dq_current) -> (r_b_ref, v_b_ref, a_b_ff, delta)` (see
+  `crawlbot/core/com_to_torso_mapping.py:109`).
+- `compute_aocs_command_legacy_corrected(L_com, L_com_prev, r_com, v_com,
+  v_com_prev, hw_current, dt, robot_mass, K_hw, hw_min, hw_max, tau_w_max)`
+  (see `crawlbot/aocs/force_estimator.py:286`).
+
+### SimConfig state at end of session
+
+Current values (committed, in effect for any re-run):
+
+- `n_settle_damping_steps = 0` — stage-1 damping skipped (manipulability
+  init places arms near weld equilibrium, no impulse to absorb).
+- `swing_bump_peak_tau = 0.5` — symmetric sin²(πτ) bump (v9 revert).
+- `torso_early_finish_fraction = 1.0` — torso runs full [0, T_step] (v9 revert).
+- `alpha_com_soft = 0.0` — soft CoM residual disabled (v10).
+- `ss_alpha_wrench = 0.01` — pure regularization (v10 fix, justified in config.py).
+- `hw_qp_tight = np.full(3, 3.0)` — tight QP momentum bound (v11, inactive in practice).
+- `ss_Kp_torso = 6.0, ss_Kd_torso = 5.0, ss_Kp_ee = 10.0, ss_Kp_ee_ang = 6.0`
+  (v8 post-init values).
+
+### Rule reminder
+
+Do not rationalize the 193 mm EE peak by blaming trajectory speed before
+the cascade bisection runs. The QP can track this geometry with 16 mm peak
+error *in isolation* — the disturbance source is inside the
+NMPC/mapping/AOCS/pre-planner chain and will be isolated by the next test.

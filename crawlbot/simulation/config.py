@@ -15,15 +15,17 @@ class SimConfig:
     configuration at 8% mass ratio (888 kg structure, 3/3 docks, 10°).
     """
 
-    # ── Timing ──────────────────────────────────────────────────
+    # ── Timing (M7: two-phase state machine) ────────────────────
+    # Per spec §6 and HANDOFF §M7: there is no EXT phase, no fixed
+    # swing duration, and no torso delay. DS exits on T < T_settle
+    # (energy-based, spec §7.1.1). SS runs for T_step + t_ss_margin
+    # where T_step is produced by the coarse pre-planner.
     dt_nmpc: float = 0.1          # NMPC period [s] (10 Hz)
     dt_qp: float = 0.01           # QP/MuJoCo period [s] (100 Hz)
-    t_ds: float = 0.5             # Double-support duration [s]
-    t_swing: float = 6.0          # Single-support (swing) duration [s]
-    t_ext_max: float = 10.0       # Max extension phase before timeout [s]
-
-    # ── Torso trajectory ────────────────────────────────────────
-    torso_delay: float = 0.20     # Delay before torso starts (fraction of t_swing)
+    t_ss_margin: float = 1.0      # Extra SS time beyond T_step before timeout [s]
+    t_hold_max: float = 3.0       # Convergence hold after timeout before aborting step [s]
+    dock_check_delay: float = 0.5 # Skip dock checks for first N s of SS (avoid release noise) [s]
+    n_ds_max_steps: int = 1000    # Safety cap on energy-based DS settle (10 s @ 100 Hz)
 
     # ── Actuator limits ─────────────────────────────────────────
     tau_max: float = 20.0         # Joint torque limit [Nm]
@@ -50,6 +52,12 @@ class SimConfig:
     hw_init: np.ndarray = field(default_factory=lambda: np.zeros(3))
     hw_min: np.ndarray = field(default_factory=lambda: np.full(3, -5.0))
     hw_max: np.ndarray = field(default_factory=lambda: np.full(3, 5.0))
+    # Tight QP-level hw safety bounds: the main SS QP uses these in its
+    # soft-slack momentum safety constraint so the chosen contact wrench
+    # stays well within the physical ±hw_max envelope, leaving AOCS
+    # headroom. NMPC (`h_max_tight`) and AOCS still see the physical
+    # ±5 Nms limit, so the momentum handoff remains consistent.
+    hw_qp_tight: np.ndarray = field(default_factory=lambda: np.full(3, 3.0))
     L_max: float = 10.0           # Robot angular momentum limit [Nms]
     tau_w_max: float = 5.0        # Reaction wheel torque limit [Nm]
     tau_struct_max: float = np.inf  # Structure disturbance torque limit [Nm]
@@ -70,7 +78,7 @@ class SimConfig:
 
     # ── M2: reworked QP task stack ──────────────────────────────
     use_m2_stack: bool = False    # Enable reworked QP (torso P1 + EE null-space P2 + soft CoM)
-    alpha_com_soft: float = 5.0   # Weight for the soft CoM residual
+    alpha_com_soft: float = 0.0   # Soft CoM residual disabled — redundant with torso 6D position task; 5.0 was fighting torso tracking
     alpha_passivity: float = 1.0  # DS passivity decay rate [1/s]
 
     # ── M3: NMPC conservation-law box constraint ────────────────
@@ -79,13 +87,16 @@ class SimConfig:
     w_L_nmpc: float = 1.0         # Cost weight on ||L_com - L_com_ref||²
     kappa_terminal: float = 1.0   # Terminal margin multiplier
 
-    # ── M6: coarse pre-planner ──────────────────────────────────
+    # ── M6/M7: coarse pre-planner (mandatory) ────────────────────
     # Runs once per step before SS starts. Solves a centroidal NLP
-    # over the full step horizon to produce a momentum-feasible CoM
-    # reference that replaces the TorsoPlanner's geometric path as
-    # the NMPC reference. See crawlbot/planning/coarse_preplanner.py
-    # and spec §6.2.
-    use_coarse_preplanner: bool = False
+    # over [0, T_step] to produce (a) a momentum-feasible CoM
+    # trajectory and (b) the T_step that the TorsoPlanner and
+    # SwingPlanner use to synchronize their trajectories. The
+    # pre-planner is mandatory for M7 — there is no use_* flag to
+    # disable it. On solver failure the sim loop logs the failure
+    # and skips the step (no silent heuristic fallback); unit tests
+    # that want to avoid the IPOPT dependency use
+    # CoarsePlanResult.from_heuristic() directly.
     preplanner_M: int = 15                  # collocation intervals
     preplanner_kappa: float = 0.7           # terminal margin multiplier (< 1)
     preplanner_f_max: float = 25.0          # [N] per active contact
@@ -93,6 +104,8 @@ class SimConfig:
     preplanner_w_L: float = 1.0             # cost weight on ||L_com||²
     preplanner_w_u: float = 1e-2            # cost weight on ||[f; τ]||²
     preplanner_max_iter: int = 300          # IPOPT max iterations
+    preplanner_a_cruise_max: float = 0.0     # [m/s²] cruise accel limit (0=off)
+    preplanner_cruise_ramp_frac: float = 0.2 # ramp fraction for cruise window
 
     # ── NMPC solver ─────────────────────────────────────────────
     nmpc_N: int = 8
@@ -119,16 +132,8 @@ class SimConfig:
     ss_alpha_torso: float = 5e2
     ss_alpha_ee: float = 3e3
     ss_alpha_posture: float = 2e1
-    ss_alpha_wrench: float = 1e2
+    ss_alpha_wrench: float = 1e-2  # pure regularisation; 1e2 was penalising contact forces (the only actuation path through the stance weld) and attenuating the torso task 7x (see scripts/test_qp_tracking.py)
     ss_alpha_reaction: float = 0.0   # Reaction null-space (0 = disabled)
-
-    # ── QP weights — Extension ──────────────────────────────────
-    ext_alpha_com: float = 1e2
-    ext_alpha_torso: float = 5e1
-    ext_alpha_ee: float = 1e4
-    ext_alpha_posture: float = 5e0
-    ext_alpha_wrench: float = 1e2
-    ext_alpha_reaction: float = 0.0  # Reaction null-space (0 = disabled)
 
     # ── QP gains — Single-support ──────────────────────────────
     ss_Kp_com: float = 3.0
@@ -140,18 +145,34 @@ class SimConfig:
     ss_Kp_ee_ang: float = 6.0
     ss_Kd_ee_ang: float = 4.5
 
-    # ── QP gains — Extension ───────────────────────────────────
-    ext_Kp_com: float = 2.0
-    ext_Kd_com: float = 2.0
-    ext_Kp_torso: float = 3.0
-    ext_Kd_torso: float = 3.0
-    ext_Kp_ee: float = 25.0
-    ext_Kd_ee: float = 15.0
-    ext_Kp_ee_ang: float = 10.0
-    ext_Kd_ee_ang: float = 5.0
-
     # ── Swing planner ──────────────────────────────────────────
     swing_clearance: float = 0.03  # [m]
+    # Symmetric sin²(πτ) bump (peak at τ=0.5). The τ=0.25 shift was
+    # a workaround for the folded-arm (N_torso·J_ee) singularity
+    # around mid-swing; with the manipulability-optimized init
+    # keeping κ(N_t·J_ee) ≤ 6.5 throughout SS (v8 trace), that
+    # workaround is no longer needed.
+    swing_bump_peak_tau: float = 0.5
+
+    # ── M7 change A: minimize torso reorientation per step ──────
+    # The IK per step first tries to solve with torso rotation held
+    # at R_start ("the robot crawls forward, it doesn't pirouette").
+    # Only if the resulting manipulability product w_a*w_b falls
+    # below `ik_fixed_rotation_w_min` do we fall back to the
+    # manipulability-optimized configuration from the torso_map.
+    # Threshold is in the same units as w_a*w_b (dimensionally
+    # m^6 for two 6D Jacobians); 1e-4 is a conservative floor —
+    # well above near-singularity (w < ~1e-6).
+    ik_fixed_rotation: bool = True
+    ik_fixed_rotation_w_min: float = 1e-4
+
+    # ── Torso-vs-swing velocity profile ─────────────────────────
+    # 1.0 = torso quintic runs over the full [0, T_step] alongside
+    # the swing. The 0.7 stagger was a workaround for the folded-arm
+    # (N_torso·J_ee) singularity around the bump peak; with the
+    # manipulability-optimized init keeping κ(N_t·J_ee) ≤ 6.5
+    # throughout SS (v8 trace), that workaround is no longer needed.
+    torso_early_finish_fraction: float = 1.0
 
     # ── MuJoCo settling ────────────────────────────────────────
     n_settle_steps: int = 500
@@ -165,7 +186,7 @@ class SimConfig:
     #   (a) T < T_settle, or
     #   (b) T stops decreasing (plateau detection), or
     #   (c) n_settle_max_steps reached (safety cap).
-    n_settle_damping_steps: int = 100       # stage 1: hard-damped steps
+    n_settle_damping_steps: int = 0         # stage 1: skipped — manipulability-optimized init places arms near weld equilibrium, no impulse to absorb; stage 2 passivity QP holds posture
     Kd_settle_damping: float = 20.0         # Nm·s/rad per joint (stage 1)
     n_settle_max_steps: int = 1000          # stage 2: safety cap
     settle_epsilon_v: float = 1e-3          # target ‖dq_full‖ bound [m/s]

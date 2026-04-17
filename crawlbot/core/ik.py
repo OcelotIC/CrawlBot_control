@@ -165,6 +165,112 @@ def dock_configuration(
     return q
 
 
+def dock_configuration_fixed_rotation(
+    model: pin.Model,
+    anchor_a: pin.SE3,
+    anchor_b: pin.SE3,
+    R_torso_fixed: np.ndarray,
+    torso_pos: np.ndarray = None,
+    q_init: np.ndarray = None,
+    max_iter: int = 2000,
+    tol: float = 1e-8,
+) -> Tuple[np.ndarray, float, float]:
+    """IK with torso rotation held at R_torso_fixed (M7 / change A).
+
+    Solves for (torso_position, arm joints) such that both tools reach
+    their anchor poses while the torso orientation stays at
+    `R_torso_fixed`. Per the M7 crawling philosophy: the robot
+    translates between steps and only reorients when the geometry
+    strictly demands it.
+
+    The torso has 3 free DOFs (position) plus 2*7=14 arm DOFs = 17
+    DOFs to satisfy 12 constraints (2 × SE3), leaving a 5-dim null
+    space — enough slack for a good solution when one exists.
+
+    Parameters
+    ----------
+    R_torso_fixed : (3,3)
+        Desired torso rotation matrix (structure frame).
+    torso_pos : (3,), optional
+        Initial guess for torso position. Defaults to the midpoint of
+        the two anchors.
+    q_init : (nq,), optional
+        Full configuration seed. Its torso rotation is overwritten by
+        `R_torso_fixed`.
+
+    Returns
+    -------
+    q : (nq,) converged configuration (torso rotation = R_torso_fixed)
+    err : float — final residual norm
+    w_product : float — manipulability product w_a * w_b at q
+    """
+    # Seed q0 with the fixed torso rotation. Pinocchio free-flyer uses
+    # quaternion (x, y, z, w) at q[3:7].
+    q0 = q_init.copy() if q_init is not None else pin.neutral(model)
+    if torso_pos is None:
+        torso_pos = 0.5 * (anchor_a.translation + anchor_b.translation)
+    q0[:3] = torso_pos
+    quat = pin.Quaternion(R_torso_fixed)
+    q0[3] = quat.x
+    q0[4] = quat.y
+    q0[5] = quat.z
+    q0[6] = quat.w
+
+    fid_a, fid_b = _get_tool_frames(model)
+    targets = {fid_a: anchor_a, fid_b: anchor_b}
+
+    q = q0.copy()
+    data = model.createData()
+    nv = model.nv
+
+    # Custom IK loop: same as solve_ik but zero out base angular dq
+    # at every iteration to hold the rotation fixed.
+    for it in range(max_iter):
+        pin.forwardKinematics(model, data, q)
+        pin.updateFramePlacements(model, data)
+        pin.computeJointJacobians(model, data, q)
+        dq = np.zeros(nv)
+        err_tot = 0.0
+
+        for fid, tgt in targets.items():
+            err = pin.log6(data.oMf[fid].actInv(tgt)).vector
+            J = pin.getFrameJacobian(model, data, fid, pin.LOCAL)
+
+            # Arm joints: primary contribution
+            idx = _arm_v_slice(model, fid)
+            n_arm = idx.stop - idx.start
+            Ja = J[:, idx]
+            dq[idx] += np.linalg.solve(
+                Ja.T @ Ja + 1e-4 * np.eye(n_arm), Ja.T @ err)
+
+            # Base: only the *linear* 3 DOFs are free (drop angular cols).
+            Jb_lin = J[:, :3]
+            dq[:3] += np.linalg.solve(
+                Jb_lin.T @ Jb_lin + 1e-3 * np.eye(3),
+                Jb_lin.T @ err) * 0.3
+
+            err_tot += np.linalg.norm(err)
+
+        # Integrate; base angular dq stays zero so rotation is held.
+        alpha = min(1.0, 0.5 / max(np.max(np.abs(dq)), 1e-10))
+        q = pin.integrate(model, q, alpha * dq)
+
+        if err_tot < tol:
+            break
+
+    # Manipulability product (Yoshikawa, combined) at the solution.
+    pin.forwardKinematics(model, data, q)
+    pin.updateFramePlacements(model, data)
+    pin.computeJointJacobians(model, data, q)
+    sl_a = _arm_v_slice(model, fid_a)
+    sl_b = _arm_v_slice(model, fid_b)
+    Ja = pin.getFrameJacobian(model, data, fid_a, pin.LOCAL)[:, sl_a]
+    Jb = pin.getFrameJacobian(model, data, fid_b, pin.LOCAL)[:, sl_b]
+    w_a = float(np.sqrt(max(np.linalg.det(Ja @ Ja.T), 0.0)))
+    w_b = float(np.sqrt(max(np.linalg.det(Jb @ Jb.T), 0.0)))
+    return q, float(err_tot), w_a * w_b
+
+
 def manipulability_config(
     model: pin.Model,
     anchor_a: pin.SE3,
