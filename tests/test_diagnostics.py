@@ -133,7 +133,7 @@ class TestComputeMetrics:
         log = _make_synthetic_log(50)
         results = compute_metrics(log)
         for name, (val, thresh, passed) in results.items():
-            assert passed in (True, False, 'SKIP'), \
+            assert passed in (True, False, 'SKIP', 'WARN', 'INFO'), \
                 f"{name}: bad status {passed}"
             if passed != 'SKIP':
                 assert isinstance(val, float), f"{name}: val not float"
