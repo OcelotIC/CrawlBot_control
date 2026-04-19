@@ -7,6 +7,14 @@
 
 ---
 
+## 0. Correction Notice (2026-04-17)
+
+This log was written against global-max metrics (a single `np.max(np.abs(·))` over the full simulation window) and, in consequence, drew conclusions that do not survive the per-phase re-diagnostic carried out on 2026-04-17. The refactored diagnostic suite (`crawlbot/diagnostics/metrics.py`, Step 1) splits every peak metric into an SS window (useful locomotion), a DS window (hold/recovery), and a `_global` value flagged `WARN` when the run aborted. Re-running the existing archived `sim_log.json` files for v17, v19, v20, v21 through this refactored suite produced `results/archive_rediagnostic.md`. Sections making claims that the per-phase data contradicts have been amended in place; sections whose diagnosis remains correct (notably §2) are preserved unchanged. Amended paragraphs are tagged `(amended 2026-04-17)`.
+
+Corrected picture: SS torso orientation tracking is 0.53 ± 0.01° across v17–v21 — below the 0.72° standalone floor and well inside the 5° dock threshold — and was never the blocker; the remaining real problem in SS is EE position tracking (24 mm standalone vs. 153–165 mm closed-loop peak, 25–41 mm closest approach at dock_timeout, ~6.7× inflation); a second, orthogonal issue is a post-abort DS divergence triggered by the gait scheduler entering a pre-planned trailing-DS phase regardless of whether the preceding SS docked. (amended 2026-04-17)
+
+---
+
 ## 1. What Works (Validated)
 
 ### QP Standalone — PROVEN CORRECT
@@ -109,8 +117,9 @@ Two-phase state machine (DS energy-based / SS synchronized)
 
 ### v19 SS Metrics (1%, single step)
 ```
-torso_pos_peak:     42.0 mm    (v12: 22, v16: 121, target: 10)
-torso_ori_peak:     31.1°      (v12: 29, target: 5)
+torso_pos_peak:     42.0 mm    (v12: 22, v16: 121, target: 10)  [global max]
+torso_ori_peak:     31.1°      (v12: 29, target: 5)             [global max — post-abort DS]
+  └─ torso_ori_peak_SS (2026-04-17 re-diag):  0.5432°           [SS-only, actual]
 ee_pos_peak:       165.4 mm    (v12: 137, standalone: 15.6, target: 10)
 ee_ori_peak:       437°        (accumulated, not peak instant)
 min_d_swing:        40.8 mm    (v17: 24.9, target: 5)
@@ -119,6 +128,7 @@ hw_sat_peak:        ~0.95      (PASS)
 platform_rotation:   ~5°       (marginal)
 dock:               NO (timeout)
 ```
+Note (amended 2026-04-17): `torso_ori_peak` above was a global `np.max(np.abs(·))`; the SS-only value (0.5432°) comes from `results/archive_rediagnostic.md`. Other entries were not re-split; see §10's per-phase table for v19's EE peak in each phase.
 
 ### Achievable Floor (from standalone/bisection)
 ```
@@ -141,7 +151,7 @@ Ratio:       10.6× inflation from standalone to closed-loop
 
 2. **Why v17 got closer (24.9mm) than v19 (40.8mm).** v17 had no mapping (TorsoPlanner direct) — the torso drifted 120mm toward the arm, effectively shortening the remaining reach distance. v19 holds the torso at its planned position, forcing the arm to cover the full 800mm. The arm may not be able to reach 800mm in 7.3s with these gains against the coupling disturbance.
 
-3. **The 31° torso orientation error** persists across all versions (v12: 29°, v16: 31°, v19: 31°). With zero planned rotation (fixed-rotation IK), this is pure arm-reaction disturbance on the torso orientation. The torso PD (Kp=6) can't reject it. But the singularity (κ<7) and torque headroom (4.4% used) suggest this should be fixable with higher angular gains — yet the v3 experiment showed only 18% improvement from doubling Kp. Needs investigation.
+3. **The 31° torso orientation figure** was a `_global` metric artefact, not an SS tracking failure. The per-phase re-diagnostic (2026-04-17, `results/archive_rediagnostic.md`) shows SS torso orientation peak at 0.53 ± 0.01° across v17–v21 — below the 0.72° standalone floor. The 29–45° values came from the post-abort DS hold window and are accounted for separately (see §11). SS orientation is tracked to the standalone floor and is not an open unknown. (amended 2026-04-17)
 
 4. **Anchor spacing / step geometry.** DEFAULT_DX=0.8, DEFAULT_DY=0.3 gives a 1.0m diagonal step. The arm reach is 1.375m. The step is 73% of reach — ambitious. Shorter steps would help but the architecture should handle the designed geometry.
 
@@ -187,7 +197,7 @@ Replace the decoupled (TorsoPlanner + SwingPlanner + NMPC) planning with a singl
 The current planned δ(q_planned) uses a linear interpolation of arm joints between start and end. A quintic interpolation matching the swing planner's actual timing would produce a more accurate δ prediction, reducing the gap between planned and actual δ. Also add the δ̈ term to complete the feedforward chain.
 
 ### F. Torso orientation management
-The 31° orientation error from arm reaction is independent of all the position-tracking work. With κ<7 and 4.4% torque usage, there should be room for better orientation rejection. Possible: arm-reaction feedforward for orientation (predict the torque the swing arm will exert on the torso from the planned swing trajectory, and include it in the orientation feedforward).
+~~Struck 2026-04-17: SS orientation is at the standalone floor. No management needed.~~
 
 ### G. EE gain investigation
 Kp_ee=10 with Kd_ee=12 gives ω_n≈3.2 rad/s, ζ≈1.9 (overdamped). The standalone tracks to 15.6mm at these gains. In closed-loop the effective gains are reduced by the null-space projection. Higher Kp_ee (20-30) might close the gap, but needs to be tested against the coupling disturbance.
@@ -240,33 +250,52 @@ Added acceleration constraints at the pre-planner: `‖a_com(k)‖ ≤ 0.01 m/s�
 
 **The position tracking chain is solved.** 24mm EE at 1.2 Nm in standalone. Actuator saturation eliminated.
 
-**The remaining problem is purely torso orientation:** 0.72° standalone → 45° closed-loop. This is an independent problem from position tracking that has persisted at 29-45° across ALL versions (v12-v21). The next investigation must focus exclusively on why the closed-loop cascade inflates torso orientation error 60× vs the standalone.
+~~The remaining problem is purely torso orientation: 0.72° standalone → 45° closed-loop... (the next investigation must focus exclusively on why the closed-loop cascade inflates torso orientation error ... vs the standalone).~~ Struck 2026-04-17: this reading is wrong. The per-phase re-diagnostic below shows SS torso orientation is at the standalone floor across v17–v21; the remaining closed-loop problem is EE position, and the large orientation numbers came from the post-abort DS window. (amended 2026-04-17)
+
+### Per-phase re-diagnostic (2026-04-17)
+
+Re-running v17, v19, v20, v21 `sim_log.json` through the per-phase diagnostic refactor (no re-simulation, no parameter change) gives:
+
+| version | SS peak ori [°] | DS peak ori [°] | ori at SS end [°] | q_ref jump [°] | EE pos peak SS [mm] | EE pos peak DS [mm] | abort? | abort d_mm | abort ori_deg |
+|---|---|---|---|---|---|---|---|---|---|
+| v17 | 0.5348 | 179.5354 | 0.1431 | 2.9440 | 153.91 | 3811.24 | yes | 24.88 | 6.30 |
+| v19 | 0.5432 | 171.9536 | 0.2022 | 3.3173 | 165.37 | 2314.60 | yes | 40.78 | 6.97 |
+| v20 | 0.5432 | 118.0349 | 0.2022 | 3.3173 | 165.37 | 2512.07 | yes | 40.78 | 6.97 |
+| v21 | 0.5334 | 45.4672 | 0.1990 | 3.4162 | 162.38 | 933.31 | yes | 40.84 | 6.97 |
+
+The SS orientation column is essentially constant at 0.53° across all four versions — the 29–45° figures reported previously (v19 §4, v21 §10 above) were the `_global` column, dominated by post-abort DS divergence. The v20/v21 rationale for CoM shaping at the pre-planner — freeing actuator budget so the EE position task can use it — remains valid and is confirmed by the standalone column (τ peak 1.17 Nm, EE 24 mm). The architectural work in v20/v21 was sound; the characterization of what it had and had not achieved was not. (amended 2026-04-17)
 
 ---
 
-## 11. Current State (v21) — Orientation Is The Last Blocker
+## 11. Current State (v21) — Position Inflation in SS Is the Remaining Blocker
 
 ### What's solved
-- QP task stack: correct (standalone proves 24mm EE, 0.72° torso ori)
-- Actuator budget: no longer saturated (1.2 Nm of 20 Nm)
+
+- QP task stack: correct (standalone proves 24 mm EE, 0.72° torso ori)
+- Actuator budget: no longer saturated (1.17 Nm of 20 Nm in standalone)
 - Position tracking chain: CoM shaping + planned-δ mapping + EE feedforward
 - Momentum management: NMPC conservation law + hw constraint on λ
 - Singularity: eliminated with manipulability init (κ < 7)
 - AOCS: sign fixed, orbital term present, exonerated by bisection
+- SS torso orientation: at the standalone floor (0.53° closed-loop vs 0.72° standalone) across v17–v21 — not a blocker. (amended 2026-04-17)
 
-### What's broken
-- **Torso orientation error: 45° in closed-loop vs 0.72° in standalone**
-- This has been 29-45° across all versions since v12
-- With zero planned rotation (fixed-rotation IK), this is pure arm-reaction disturbance
-- The QP has authority (0.72° standalone proves it) but something in the cascade prevents it from using that authority
+### What's broken (revised)
 
-### Next investigation
-The same bisection approach that identified the mapping as the position culprit should be applied to orientation:
-- (A) Standalone QP: 0.72° — baseline
-- (B) + NMPC + mapping: measure
-- (C) + AOCS: measure
-- (D) Full sim_loop: 45°
-Identify which cascade component inflates orientation error from 0.72° to 45°.
+1. **EE position inflation in SS.** Across v17–v21 the SS peak is 153–165 mm and the closest approach at dock_timeout is 25–41 mm; the standalone floor is 24 mm. Roughly 6.7× inflation from standalone to closed-loop. This is the locus §2 already identified (mapping 3.6× + null-space drift 3.4×). It is the primary blocker for M7 dock success. (amended 2026-04-17)
+
+2. **Post-abort DS divergence.** In every archived run the simulation aborts on dock_timeout and then enters a trailing-DS "settle" window in which the torso tumbles 45–180° and both joint and wheel torques saturate. The root cause is at the gait-scheduler level: the main loop at `sim_loop.py:1337-1338` executes `step_idx += 1; i += 2` unconditionally after the SS phase, so the pre-planned trailing-DS entry at `sim_loop.py:1339-1390` is reached regardless of whether SS docked. The trailing DS is a scheduled plan entry, not a post-dock consequence. When SS aborts, trailing-DS runs with arm B un-welded in MuJoCo while the plan, the QP, and the reference generator all treat the system as double-support. Three downstream symptoms follow from this one cause:
+
+   - **H_DS1 (contact config).** `cc_ds = self.sched.contact_config_at(plan.t_start[i]+0.1)` at `sim_loop.py:1343` returns `ContactConfig.DOUBLE`; `get_contact_jacobians(True, True)` at `sim_loop.py:1597-1598` stacks both tool Jacobians against a single-weld physical state.
+   - **H_DS2 (reference discontinuity).** `dock_configuration(anchor_a, anchor_b, q_init=pq)` at `sim_loop.py:1365-1375` IKs a pose with both tools at their anchors; `set_hold(rs_eq.oMf_torso, …)` then injects a 2.9–3.4° step in `q_torso_ref` at the SS→DS boundary.
+   - **H_DS3 (passivity).** `passivity_active = True` at `sim_loop.py:1712` is gated on `phase == 'DS'` (plan string), not on physical contact state; the passivity inequality's `T_kin` formulation at `wholebody_qp.py:444-459` assumes both welds are rigid.
+
+   See `docs/architecture/POST_ABORT_DIVERGENCE.md` for line-by-line evidence and conclusions. (amended 2026-04-17)
+
+### Next investigation (revised)
+
+**Scheduler-level.** The scheduler needs an `if docked` branch before trailing-DS setup. The *architectural* decision — what the abort-DS semantics should be (freeze swing arm / attempt retraction / declare step failure and stop) — is Idriss's to specify; it is not derivable from the diagnostic data. The three orthogonal experiments in `POST_ABORT_DIVERGENCE.md` (cc_ds → SINGLE_A, set_hold on actual pose, passivity_active off) are retained as **diagnostic decomposition**: they quantify how much of the 45° is attributable to each symptom and are useful for scientific characterization, but they are not the candidate fix.
+
+**Position (primary track).** Apply the A/B/C/D cascade bisection originally drafted for orientation to `ee_pos_peak_SS` as the primary metric (standalone → +NMPC/mapping → +AOCS → full sim_loop). The standalone-with-v21-config floor is 24 mm; the closed-loop peak is 162 mm; bisection isolates which cascade stage contributes each factor in the 6.7× inflation. Until the position chain closes and a step docks cleanly, the post-abort DS question does not gate a 1 % traversal run — but the scheduler-level fix is still required for operational robustness at the operating point. (amended 2026-04-17)
 
 ---
 
