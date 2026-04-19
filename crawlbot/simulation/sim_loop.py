@@ -56,7 +56,7 @@ from crawlbot.aocs.force_estimator import (
     MomentumDisturbanceEstimator, EstimatorConfig, compute_aocs_command)
 
 from .config import SimConfig
-from .logging import SimLog
+from .logging import SimLog, capture_environment
 from .plotting import plot_simulation
 # ── Simulation loop ──────────────────────────────────────────────────────────
 
@@ -1039,6 +1039,10 @@ class SimulationLoop:
         """Run full multi-step locomotion simulation."""
         cfg = self.cfg
         log = SimLog()
+        # Fingerprint the execution environment once at simulation start.
+        # Stored under log.environment and persisted in sim_log.json so
+        # archived logs carry the toolchain state that produced them.
+        log.environment = capture_environment()
         plan = self.plan
 
         # Copy the setup-phase settling trace into the log so it shows
