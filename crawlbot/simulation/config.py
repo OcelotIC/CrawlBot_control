@@ -191,3 +191,26 @@ class SimConfig:
     n_settle_max_steps: int = 1000          # stage 2: safety cap
     settle_epsilon_v: float = 1e-3          # target ‖dq_full‖ bound [m/s]
     settle_plateau_ratio: float = 0.999     # T(k+50) > ratio·T(k) → plateau
+
+    # ── Post-abort DS diagnostic flags (2026-04-17) ─────────────
+    # All three default False. When enabled individually they apply
+    # ONLY to the trailing-DS phase entered after a dock_timeout
+    # abort — never to SS, never to the pre-SS DS settle, never to
+    # the pre-planner. See docs/architecture/M7_DS_DIAGNOSTIC_EXPERIMENTS.md.
+    diag_freeze_torso_ref_on_abort: bool = False
+    # Diagnostic for H_DS2 (POST_ABORT_DIVERGENCE.md).
+    # When True, skip dock_configuration + set_hold at sim_loop.py:1365-1375
+    # on trailing-DS entry after dock_timeout, and freeze the TorsoPlanner
+    # hold target to the actual oMf_torso at the last SS sample.
+
+    diag_force_single_contact_on_abort: bool = False
+    # Diagnostic for H_DS1 (POST_ABORT_DIVERGENCE.md).
+    # When True, force cc_ds = ContactConfig.from_phase(
+    #   ContactPhase.SINGLE_A, r_contact_a, r_contact_b) at sim_loop.py:1343
+    # on trailing-DS entry after dock_timeout, matching the physical state.
+
+    diag_disable_passivity_on_abort: bool = False
+    # Diagnostic for H_DS3 (POST_ABORT_DIVERGENCE.md).
+    # When True, pass passivity_active=False to the QP during trailing DS
+    # entered after dock_timeout, overriding the phase=='DS' gate at
+    # sim_loop.py:1712.

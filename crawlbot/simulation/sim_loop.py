@@ -51,7 +51,7 @@ from crawlbot.planning.coarse_preplanner import (
 )
 from crawlbot.solvers.centroidal_nmpc import CentroidalNMPC, CentroidalNMPCConfig
 from crawlbot.solvers.wholebody_qp import WholeBodyQP, WholeBodyQPConfig
-from crawlbot.solvers.contact_phase import ContactConfig
+from crawlbot.solvers.contact_phase import ContactConfig, ContactPhase
 from crawlbot.aocs.force_estimator import (
     MomentumDisturbanceEstimator, EstimatorConfig, compute_aocs_command)
 
@@ -1342,6 +1342,23 @@ class SimulationLoop:
                     t_ds_settle = t + cfg.t_settle_final
                     cc_ds = self.sched.contact_config_at(plan.t_start[i] + 0.1)
 
+                    # Diagnostic: did the preceding SS abort on dock_timeout?
+                    # Used only to gate the three diag_*_on_abort flags. No
+                    # effect on normal operation.
+                    _abort_ds = bool(
+                        log.aborted_steps
+                        and log.aborted_steps[-1].get('reason') == 'dock_timeout'
+                        and log.aborted_steps[-1].get('step_idx') == step_idx - 1
+                    )
+
+                    # H_DS1 diagnostic override — force SINGLE_A to match the
+                    # physical single-weld state after dock_timeout.
+                    if _abort_ds and cfg.diag_force_single_contact_on_abort:
+                        cc_ds = ContactConfig.from_phase(
+                            ContactPhase.SINGLE_A,
+                            cc_ds.r_contact_A.copy(),
+                            cc_ds.r_contact_B.copy())
+
                     # Use last swing step's info for logging
                     last_swing = 'b'; last_stance = 'a'
                     last_sa = plan.phases[i].anchor_a_idx if hasattr(plan.phases[i], 'anchor_a_idx') else 0
@@ -1362,29 +1379,48 @@ class SimulationLoop:
                     pq, pv = mujoco_to_pinocchio(
                         self.mj_data.qpos, self.mj_data.qvel)
                     rs_hold = self.robot.update(pq, pv)
-                    try:
-                        anchor_a_se3 = self.sched.anchor_se3('a', last_sa)
-                        anchor_b_se3 = self.sched.anchor_se3('b', last_sb)
-                        q_eq = dock_configuration(
-                            self.robot.model, anchor_a_se3, anchor_b_se3,
-                            q_init=pq)
-                        rs_eq = self.robot.update(q_eq, np.zeros(self.robot.model.nv))
-                        self.torso_planner.set_hold(
-                            rs_eq.oMf_torso.translation.copy(),
-                            rs_eq.oMf_torso.rotation.copy(),
-                            r_com=rs_eq.r_com.copy())
-                    except RuntimeError:
-                        # IK failed — fall back to current state
+                    if _abort_ds and cfg.diag_freeze_torso_ref_on_abort:
+                        # H_DS2 diagnostic override — freeze the hold target
+                        # at the actual torso pose at the last SS sample,
+                        # bypassing the both-tools-at-anchors IK.
                         self.torso_planner.set_hold(
                             rs_hold.oMf_torso.translation.copy(),
                             rs_hold.oMf_torso.rotation.copy(),
                             r_com=rs_hold.r_com.copy())
+                    else:
+                        try:
+                            anchor_a_se3 = self.sched.anchor_se3('a', last_sa)
+                            anchor_b_se3 = self.sched.anchor_se3('b', last_sb)
+                            q_eq = dock_configuration(
+                                self.robot.model, anchor_a_se3, anchor_b_se3,
+                                q_init=pq)
+                            rs_eq = self.robot.update(q_eq, np.zeros(self.robot.model.nv))
+                            self.torso_planner.set_hold(
+                                rs_eq.oMf_torso.translation.copy(),
+                                rs_eq.oMf_torso.rotation.copy(),
+                                r_com=rs_eq.r_com.copy())
+                        except RuntimeError:
+                            # IK failed — fall back to current state
+                            self.torso_planner.set_hold(
+                                rs_hold.oMf_torso.translation.copy(),
+                                rs_hold.oMf_torso.rotation.copy(),
+                                r_com=rs_hold.r_com.copy())
+
+                    # H_DS3 diagnostic override — disable the passivity
+                    # inequality for trailing DS post-abort (_step reads this
+                    # via the passivity_override kwarg).
+                    _pass_override = (
+                        False if (_abort_ds and cfg.diag_disable_passivity_on_abort)
+                        else None
+                    )
+
                     while t < t_ds_settle:
                         hw, L_com_prev = self._step(
                             t, 'DS', step_idx - 1, last_swing, last_stance,
                             cc_ds, 0, last_sa, last_sb,
                             hw, L_com_prev, log, ss_end=t,
-                            settle_mode=True)
+                            settle_mode=True,
+                            passivity_override=_pass_override)
                         t += cfg.dt_nmpc
 
                     i += 1
@@ -1402,7 +1438,8 @@ class SimulationLoop:
     def _step(self, t, phase, step_idx, swing_arm, stance_arm,
               cc_ss, target_anchor, stance_a, stance_b,
               hw, L_com_prev, log, ss_end=None, settle_mode=False,
-              passivity_hold: bool = False):
+              passivity_hold: bool = False,
+              passivity_override=None):
         """Single NMPC+QP step.  All quantities are in structure frame.
 
         Parameters
@@ -1412,6 +1449,11 @@ class SimulationLoop:
             SS. Used during the convergence-hold window (after the
             trajectory has ended and the EE is still converging on the
             dock) so the system dissipates residual kinetic energy.
+        passivity_override : Optional[bool]
+            Diagnostic (H_DS3). When not None, overrides the phase-based
+            passivity gate below. Wired only by the trailing-DS branch
+            when `cfg.diag_disable_passivity_on_abort` is set and the
+            preceding SS aborted on dock_timeout.
         """
         cfg = self.cfg
 
@@ -1711,6 +1753,8 @@ class SimulationLoop:
             # while the EE closes on the target.
             passivity_active = bool(
                 cfg.use_m2_stack and (phase == 'DS' or passivity_hold))
+            if passivity_override is not None:
+                passivity_active = bool(passivity_override)
 
             try:
                 qdd_t_qp, qdd_qp, lambda_qp_sol, tau, _ = qp.solve(
