@@ -17,3 +17,7 @@ Thumbs.db
 /*.json
 /*.png
 results/benchmarks/*.json
+
+# Scratch from ad-hoc diagnostic checks (regenerable from scripts + committed sim_logs)
+results/_diag_check/
+scripts/_diag_check_*.py
