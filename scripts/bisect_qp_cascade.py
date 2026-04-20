@@ -444,12 +444,305 @@ def run_case(case: str):
     }
 
 
+def run_v21_case(case: str):
+    """M7 EE-position bisection (M7_EE_POSITION_BISECTION.md).
+
+    Three v21-baseline cases that share initial state and SwingPlanner
+    EE reference. Differences:
+
+      A_swing  : standalone QP, torso ref constant, no NMPC, no mapping.
+      B_minus  : + NMPC (r_com_ref from coarse plan), torso ref constant.
+      B_v21    : + mapping with planned-δ.
+
+    Per spec §6: no module edits beyond minimal wrappers; this function
+    only orchestrates existing helpers (sim._setup_torso_for_step,
+    sim.swing_planner.reference_at, sim.nmpc.solve, sim.mapping.compute,
+    sim._planned_arm_config). Output: results/M7_ee_bisection/<case>/trace.csv.
+    """
+    import csv
+    import scripts.run_m7_single_step as r_single
+
+    use_nmpc = case in ('B_minus', 'B_v21')
+    use_mapping = case in ('B_v21',)
+
+    cfg = r_single._make_m7_config()
+    cfg.preplanner_a_cruise_max = 0.01
+    cfg.preplanner_cruise_ramp_frac = 0.2
+
+    sim = SimulationLoop(mjcf_path=MJCF, urdf_path=URDF, config=cfg)
+    sim.setup(n_steps=1, start_a=2, start_b=2)
+
+    # Snapshot initial qpos for the cross-case invariant check.
+    qpos_init = sim.mj_data.qpos.copy()
+
+    # Locate the SS phase in the gait plan and run the per-step setup.
+    # n_steps=1 produces phases [DS, SS, DS]; SS is index 1.
+    ss_phase_idx = 1
+    ss_gp = sim.plan.phases[ss_phase_idx]
+    assert ss_gp.swing_arm == 'b' and ss_gp.swing_to_idx == 3, \
+        f"unexpected SS phase: {ss_gp}"
+    t_ss_start = sim.plan.t_start[ss_phase_idx]
+
+    q_dock, T_step, step_feasible = sim._setup_torso_for_step(
+        t_ss_start, swing_arm='b',
+        stance_a=ss_gp.anchor_a_idx, stance_b=ss_gp.anchor_b_idx,
+        target_arm='b', target_idx=3,
+        ss_phase_idx=ss_phase_idx)
+    assert step_feasible, "pre-planner reported infeasible"
+    assert abs(T_step - 7.284) < 0.01, \
+        f"T_step={T_step:.4f}s deviates from spec 7.284 s"
+    print(f"[case {case}] T_step = {T_step:.6f} s, t_ss_start = {t_ss_start:.6f} s")
+
+    # Release swing weld, set swing-planner orientation (mirrors sim_loop).
+    sim._deactivate_weld('b', ss_gp.swing_from_idx)
+    mujoco.mj_forward(sim.mj_model, sim.mj_data)
+    pq_r, pv_r = mujoco_to_pinocchio(sim.mj_data.qpos, sim.mj_data.qvel)
+    rs_r = sim.robot.update(pq_r, pv_r)
+    _, _, oMf_release = sim._get_ee_data(rs_r, 'b')
+    sim.swing_planner.set_swing_orientation(oMf_release.rotation)
+    sim.nmpc.reset_warm_start()
+
+    # Initial torso pose (constant reference for A_swing/B_minus).
+    p_torso_ref0 = rs_r.oMf_torso.translation.copy()
+    R_torso_ref0 = rs_r.oMf_torso.rotation.copy()
+    r_com_target = rs_r.r_com.copy()
+
+    # Contact: SINGLE_A (only stance arm welded).
+    cc_ss = ContactConfig.from_phase(
+        ContactPhase.SINGLE_A,
+        sim.sched.anchors_a[ss_gp.anchor_a_idx].copy(),
+        sim.sched.anchors_b[ss_gp.anchor_b_idx].copy())
+
+    # ── Run loop ───────────────────────────────────────────────────────
+    qp = sim.qp_ss
+    n_j = sim.robot.n_joints
+    has_rwa = sim.has_rwa
+    n_qp_per_nmpc = int(round(cfg.dt_nmpc / cfg.dt_qp))
+    dt = cfg.dt_qp
+
+    # Time grid: from t_ss_start to t_ss_start + T_step + small margin.
+    T_total = T_step + 0.5
+    n_ticks = int(round(T_total / dt))
+
+    # NMPC plan caches (linear interp between knots 0 and 1).
+    rp_k0 = r_com_target.copy(); rp_k1 = r_com_target.copy()
+    vp_k0 = np.zeros(3);          vp_k1 = np.zeros(3)
+    a_com_ff_curr = np.zeros(3)
+    lambda_ref_curr = np.zeros(12)
+
+    nmpc_calls = 0
+    nmpc_fail = 0
+    mapping_calls = 0
+    qp_fail = 0
+
+    e_ee_pos_peak = 0.0
+    tau_peak = 0.0
+    e_ee_pos_at_T_step = float('nan')
+    trace_rows = []
+
+    for k in range(n_ticks):
+        t_loop = t_ss_start + k * dt
+        t_rel = k * dt                        # time since SS start (for trace.csv)
+
+        pq, pv = mujoco_to_pinocchio(sim.mj_data.qpos, sim.mj_data.qvel)
+        omega_s = sim.mj_data.qvel[3:6].copy()
+        rs = sim.robot.update(pq, pv, omega_struct=omega_s)
+
+        # ── NMPC every n_qp_per_nmpc ticks ─────────────────────────────
+        if use_nmpc and (k % n_qp_per_nmpc == 0):
+            t_plan = t_loop - sim._coarse_plan_t0
+            r_com_ref_nmpc = sim._coarse_plan.r_com_at(t_plan)
+            v_com_ref_nmpc = sim._coarse_plan.v_com_at(t_plan)
+            hw_for_nmpc = (cfg.rwa_I_w * sim.mj_data.qvel[6:9]).copy() \
+                          if has_rwa else np.zeros(3)
+            try:
+                rp, vp, _, lr, info_n = sim.nmpc.solve(
+                    r_com=rs.r_com, v_com=rs.v_com, L_com=rs.L_com,
+                    r_com_ref=r_com_ref_nmpc, v_com_ref=v_com_ref_nmpc,
+                    contact_config=cc_ss, warm_start=True,
+                    hw_current=hw_for_nmpc, L_com_ref=np.zeros(3))
+                a_com_ff_curr = sim.nmpc.compute_feedforward_acceleration(lr)
+                lambda_ref_curr = lr
+                if not info_n.success:
+                    nmpc_fail += 1
+            except Exception:
+                nmpc_fail += 1
+                rp = r_com_target.copy(); vp = np.zeros(3)
+                a_com_ff_curr = np.zeros(3); lambda_ref_curr = np.zeros(12)
+            nmpc_calls += 1
+            x_plan, _, _ = sim.nmpc.get_last_trajectory()
+            if x_plan is not None:
+                rp_k0 = x_plan[0:3, 0].copy(); rp_k1 = x_plan[0:3, 1].copy()
+                vp_k0 = x_plan[3:6, 0].copy(); vp_k1 = x_plan[3:6, 1].copy()
+            else:
+                rp_k0 = rp.copy(); rp_k1 = rp.copy()
+                vp_k0 = vp.copy(); vp_k1 = vp.copy()
+
+        # ── Build torso reference for this QP sub-step ─────────────────
+        if use_nmpc:
+            qs = k % n_qp_per_nmpc
+            alpha_interp = qs / n_qp_per_nmpc
+            rp_interp = (1 - alpha_interp) * rp_k0 + alpha_interp * rp_k1
+            vp_interp = (1 - alpha_interp) * vp_k0 + alpha_interp * vp_k1
+            r_com_for_qp = rp_interp
+            v_com_for_qp = vp_interp
+            lambda_ref_qp = lambda_ref_curr
+            a_com_ff_qp = a_com_ff_curr
+        else:
+            rp_interp = r_com_target
+            vp_interp = np.zeros(3)
+            r_com_for_qp = rs.r_com
+            v_com_for_qp = np.zeros(3)
+            lambda_ref_qp = np.zeros(12)
+            a_com_ff_qp = np.zeros(3)
+
+        if use_mapping:
+            q_planned, dq_planned = sim._planned_arm_config(t_loop, rs)
+            r_b_ref, v_b_ref, a_b_ff, _ = sim.mapping.compute(
+                r_com_ref=rp_interp, v_com_ref=vp_interp,
+                a_com_ff=a_com_ff_qp,
+                q_current=q_planned, dq_current=dq_planned)
+            p_torso_ref = r_b_ref
+            v_torso_ref = np.concatenate([v_b_ref, np.zeros(3)])
+            a_torso_ff = np.concatenate([a_b_ff, np.zeros(3)])
+            mapping_calls += 1
+        else:
+            p_torso_ref = p_torso_ref0
+            v_torso_ref = np.zeros(6)
+            a_torso_ff = np.zeros(6)
+
+        R_torso_ref = R_torso_ref0    # orientation always held
+
+        # ── EE reference: SwingPlanner (closed-loop reference shape) ──
+        sref = sim.swing_planner.reference_at(t_loop)
+        p_ee_ref = sref.p_ee
+        R_ee_ref = sref.R_ee
+        v_ee_ref = np.concatenate([sref.v_ee, sref.omega_ee])
+        a_ee_ff  = np.concatenate([sref.a_ee, sref.alpha_ee])
+
+        J_ee, Jdq_ee, oMf_ee = sim._get_ee_data(rs, 'b')
+        Jc, Jdc = sim.robot.get_contact_jacobians(
+            cc_ss.active_contacts[0], cc_ss.active_contacts[1])
+
+        sw_slice = sim.robot.arm_b_v_slice
+        H_bs = rs.H[:6, sw_slice]
+
+        hw_phys = (cfg.rwa_I_w * sim.mj_data.qvel[6:9]).copy() if has_rwa \
+                  else np.zeros(3)
+
+        try:
+            qdd_t, qdd, lam_sol, tau, _info = qp.solve(
+                q_t=rs.q_torso, dq_t=rs.dq_torso,
+                q=rs.q_joints, dq=rs.dq_joints,
+                r_com_ref=r_com_for_qp, v_com_ref=v_com_for_qp,
+                lambda_ref=lambda_ref_qp, a_com_ff=a_com_ff_qp,
+                H_robot=rs.H, C_robot=rs.C,
+                J_com=rs.J_com, Jdot_dq_com=rs.Jdot_dq_com,
+                contact_config=cc_ss, J_contacts=Jc, Jdot_dq_contacts=Jdc,
+                hw_current=hw_phys,
+                hw_min=-cfg.hw_qp_tight, hw_max=cfg.hw_qp_tight,
+                r_com=rs.r_com, L_com_current=rs.L_com,
+                H_base_swing=H_bs, swing_v_slice=sw_slice,
+                settle_mode=False, passivity_active=False,
+                J_torso=rs.J_torso, Jdot_dq_torso=rs.Jdot_dq_torso,
+                p_torso=rs.oMf_torso.translation,
+                R_torso=rs.oMf_torso.rotation,
+                p_torso_ref=p_torso_ref, R_torso_ref=R_torso_ref,
+                v_torso_ref=v_torso_ref, a_torso_ff=a_torso_ff,
+                J_ee=J_ee, Jdot_dq_ee=Jdq_ee,
+                p_ee=oMf_ee.translation, R_ee=oMf_ee.rotation,
+                p_ee_ref=p_ee_ref, R_ee_ref=R_ee_ref,
+                v_ee_ref=v_ee_ref, a_ee_ff=a_ee_ff)
+        except Exception as e:
+            print(f"  [QP exception @ t={t_rel:.3f}: {e}]")
+            tau = np.zeros(n_j)
+            qp_fail += 1
+
+        tau = np.clip(tau, -cfg.tau_max, cfg.tau_max)
+        sim.mj_data.ctrl[:n_j] = tau
+        if has_rwa:
+            sim.mj_data.ctrl[n_j:n_j + 3] = 0.0     # AOCS off
+
+        mujoco.mj_step(sim.mj_model, sim.mj_data)
+
+        # ── Trace + peaks (over SS window [0, T_step]) ─────────────────
+        e_ep = float(np.linalg.norm(oMf_ee.translation - p_ee_ref)) * 1000
+        tau_max = float(np.max(np.abs(tau)))
+        if t_rel <= T_step + 1e-9:
+            trace_rows.append((t_rel, e_ep, tau_max))
+            if e_ep > e_ee_pos_peak:
+                e_ee_pos_peak = e_ep
+            if tau_max > tau_peak:
+                tau_peak = tau_max
+            e_ee_pos_at_T_step = e_ep   # last value within [0, T_step]
+
+        if (k % 100) == 0:
+            print(f"  t_rel={t_rel:6.3f}s  e_ee={e_ep:7.2f}mm  "
+                  f"|tau|={tau_max:5.2f}Nm  "
+                  f"nmpc={nmpc_calls}  map={mapping_calls}")
+
+    # ── Invariants ─────────────────────────────────────────────────────
+    print()
+    print(f"[case {case}] INVARIANTS:")
+    print(f"  qpos_init checksum (norm): {np.linalg.norm(qpos_init):.10f}")
+    print(f"  T_step:        {T_step:.6f} s (spec: 7.284 s)")
+    print(f"  NMPC calls:    {nmpc_calls}  (spec: "
+          f"{'>0' if use_nmpc else '=0'})")
+    print(f"  mapping calls: {mapping_calls}  (spec: "
+          f"{'>0' if use_mapping else '=0'})")
+    print(f"  QP failures:   {qp_fail}")
+    print(f"  NMPC failures: {nmpc_fail}")
+    if use_nmpc and nmpc_calls == 0:
+        raise AssertionError(f"[{case}] expected NMPC calls > 0")
+    if not use_nmpc and nmpc_calls > 0:
+        raise AssertionError(f"[{case}] expected zero NMPC calls")
+    if use_mapping and mapping_calls == 0:
+        raise AssertionError(f"[{case}] expected mapping calls > 0")
+    if not use_mapping and mapping_calls > 0:
+        raise AssertionError(f"[{case}] expected zero mapping calls")
+
+    # ── Outputs ────────────────────────────────────────────────────────
+    out_dir = os.path.join(_root, 'results', 'M7_ee_bisection', case)
+    os.makedirs(out_dir, exist_ok=True)
+    csv_path = os.path.join(out_dir, 'trace.csv')
+    with open(csv_path, 'w', newline='') as f:
+        w = csv.writer(f)
+        w.writerow(['t_s', 'e_ee_pos_mm', 'tau_q_max_Nm'])
+        for row in trace_rows:
+            w.writerow([f'{row[0]:.6f}', f'{row[1]:.6f}', f'{row[2]:.6f}'])
+
+    # qpos snapshot for cross-case invariant check
+    np.save(os.path.join(out_dir, 'qpos_init.npy'), qpos_init)
+
+    print()
+    print(f"[case {case}] RESULT over t in [0, T_step]:")
+    print(f"  ee_pos_peak_SS    = {e_ee_pos_peak:8.2f} mm")
+    print(f"  ee_pos_at_T_step  = {e_ee_pos_at_T_step:8.2f} mm")
+    print(f"  tau_q_peak_SS     = {tau_peak:8.2f} Nm")
+    print(f"  trace.csv saved → {csv_path}")
+    return {
+        'case': case,
+        'T_step': T_step,
+        'ee_pos_peak_SS_mm': e_ee_pos_peak,
+        'ee_pos_at_T_step_mm': e_ee_pos_at_T_step,
+        'tau_q_peak_SS_Nm': tau_peak,
+        'nmpc_calls': nmpc_calls,
+        'mapping_calls': mapping_calls,
+        'qp_fail': qp_fail,
+        'nmpc_fail': nmpc_fail,
+    }
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument(
         '--case',
         choices=['A', 'B', 'C', 'B_aware', 'B_aware_free', 'B_measured',
-                 'B_const_torso', 'B_compensated', 'B_slow_torso'],
+                 'B_const_torso', 'B_compensated', 'B_slow_torso',
+                 'A_swing', 'B_minus', 'B_v21'],
         required=True)
     args = parser.parse_args()
-    run_case(args.case)
+    if args.case in ('A_swing', 'B_minus', 'B_v21'):
+        run_v21_case(args.case)
+    else:
+        run_case(args.case)
