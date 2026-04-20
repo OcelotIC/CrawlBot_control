@@ -214,3 +214,13 @@ class SimConfig:
     # When True, pass passivity_active=False to the QP during trailing DS
     # entered after dock_timeout, overriding the phase=='DS' gate at
     # sim_loop.py:1712.
+
+    mapping_bypass_in_ss: bool = False
+    # M7 EE bisection follow-up. When True, sim_loop bypasses the
+    # CoM->torso mapping during SS only: the QP receives
+    #   r_torso_ref = r_torso(t = t_ss_start)   (frozen at SS entry)
+    #   v_torso_ref_lin = 0
+    #   a_torso_ff_lin  = 0
+    # for the linear components of the torso reference. Angular
+    # reference still comes from TorsoPlanner (orientation tracking
+    # unchanged). DS phase is unchanged (mapping still active there).

@@ -97,6 +97,10 @@ class SimulationLoop:
         self._step_q_end: Optional[np.ndarray] = None
         self._step_t_ss_start: float = 0.0
         self._step_T_step: float = 0.0
+        # M7 EE-bisection follow-up: torso linear position at SS entry
+        # (set in _setup_torso_for_step). Read by _step() when
+        # cfg.mapping_bypass_in_ss is True; otherwise unused.
+        self._ss_entry_p_torso: Optional[np.ndarray] = None
         # Simulation time at which the active coarse plan was anchored
         # (so r_com_at(t - t0) gives the right reference at current time).
         self._coarse_plan_t0: float = 0.0
@@ -926,6 +930,12 @@ class SimulationLoop:
         self._step_q_end = q_end.copy()
         self._step_t_ss_start = float(t_ss_start)
         self._step_T_step = float(T_step)
+        # Snapshot the torso linear position at SS entry — read by the
+        # mapping_bypass_in_ss diagnostic in _step() to freeze the SS
+        # linear torso reference. p_t0 is the torso pose computed from
+        # the live state above (line ~810), so it equals the actual
+        # torso position at the moment SS begins.
+        self._ss_entry_p_torso = p_t0.copy()
 
         return (q_end, T_step, True)
 
@@ -1679,7 +1689,15 @@ class SimulationLoop:
             else:
                 tq_planner = tq
             tr = self.torso_planner.reference_at(tq_planner)
-            if phase in ('SS', 'DS') and self.mapping is not None and cfg.use_m2_stack:
+            if (phase == 'SS' and cfg.mapping_bypass_in_ss
+                    and self._ss_entry_p_torso is not None):
+                # Diagnostic bypass: freeze the linear torso reference at
+                # its SS-entry value; angular reference still from
+                # TorsoPlanner. Mapping is not called this tick.
+                p_torso_ref_used = self._ss_entry_p_torso.copy()
+                v_torso_ref_used = np.concatenate([np.zeros(3), tr.v[3:6]])
+                a_torso_ff_used = np.concatenate([np.zeros(3), tr.a[3:6]])
+            elif phase in ('SS', 'DS') and self.mapping is not None and cfg.use_m2_stack:
                 af_for_mapping = np.zeros(3) if self._diag_pure_pd else af
                 if phase == 'SS':
                     q_map, dq_map = self._planned_arm_config(tq, rs)
