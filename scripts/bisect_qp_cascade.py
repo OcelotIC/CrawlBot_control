@@ -524,6 +524,14 @@ def run_v21_case(case: str):
     T_total = T_step + 0.5
     n_ticks = int(round(T_total / dt))
 
+    # Wrist-joint indices in tau-space (joints-only). For arm 'b' the
+    # last 2 joints (= the 6th and 7th of the 7-DOF arm) carry the
+    # angular wrist DOFs whose torques are reported separately.
+    tau_offset_b = sim.robot.arm_b_v_slice.start - sim.robot.joints_v_slice.start
+    n_per_arm_b  = sim.robot.arm_b_v_slice.stop  - sim.robot.arm_b_v_slice.start
+    wrist_b_tau_slice = slice(tau_offset_b + n_per_arm_b - 2,
+                              tau_offset_b + n_per_arm_b)
+
     # NMPC plan caches (linear interp between knots 0 and 1).
     rp_k0 = r_com_target.copy(); rp_k1 = r_com_target.copy()
     vp_k0 = np.zeros(3);          vp_k1 = np.zeros(3)
@@ -538,7 +546,20 @@ def run_v21_case(case: str):
     e_ee_pos_peak = 0.0
     tau_peak = 0.0
     e_ee_pos_at_T_step = float('nan')
-    trace_rows = []
+    e_ee_ori_peak_deg = 0.0
+    e_ee_ori_t_at_peak = float('nan')
+    e_ee_ori_at_T_step_deg = float('nan')
+    trace_rows = []         # legacy 3-column trace
+    trace_rows_v2 = []      # extended 5-column trace
+
+    # One-tick matrix dump for offline linear-algebra audit (A_swing only).
+    # Triggered on the QP tick closest to t_rel == 3.6 s; matrices saved
+    # to results/M7_ee_ori_diag/<case>_t3p6.npz. Used by
+    # scripts/_ee_null_space_rank.py to compute torso/EE rank intersection.
+    dump_t_target = 3.6
+    dump_done = False
+    dump_path_for_qp = None  # set when the pre-QP dump fires; used to
+                              # append qdd_qp / tau / lambda after the QP solve
 
     for k in range(n_ticks):
         t_loop = t_ss_start + k * dt
@@ -627,6 +648,68 @@ def run_v21_case(case: str):
         sw_slice = sim.robot.arm_b_v_slice
         H_bs = rs.H[:6, sw_slice]
 
+        # Dump J_ee, J_torso, plus state at the tick closest to t=3.6 s.
+        if not dump_done and t_rel >= dump_t_target - 1e-9:
+            dump_dir = os.path.join(
+                _root, 'results', 'M7_ee_ori_diag')
+            os.makedirs(dump_dir, exist_ok=True)
+            dump_path = os.path.join(dump_dir, f'{case}_t3p6.npz')
+            # Build the SwingPlanner reference at this tick (already
+            # computed below as p_ee_ref/R_ee_ref/v_ee_ref/a_ee_ff via
+            # `sref`, but we re-derive it inline here so the dump
+            # doesn't depend on later loop ordering).
+            _sref = sim.swing_planner.reference_at(t_loop)
+            _qp_qpos = sim.mj_data.qpos.copy()
+            _qp_qvel = sim.mj_data.qvel.copy()
+            np.savez(
+                dump_path,
+                t_rel=np.array(t_rel),
+                t_loop=np.array(t_loop),
+                # Jacobians and inertia
+                J_ee=J_ee, J_torso=rs.J_torso, J_com=rs.J_com,
+                Jdot_dq_ee=Jdq_ee,
+                Jdot_dq_torso=rs.Jdot_dq_torso,
+                H_robot=rs.H,
+                # Robot configuration
+                q=rs.q, v=rs.v,
+                qpos=_qp_qpos, qvel=_qp_qvel,
+                # EE actuals
+                p_ee=oMf_ee.translation.copy(),
+                R_ee=oMf_ee.rotation.copy(),
+                # Torso actuals
+                p_torso=rs.oMf_torso.translation.copy(),
+                R_torso=rs.oMf_torso.rotation.copy(),
+                # SwingPlanner reference at this tick
+                p_ee_ref=_sref.p_ee.copy(),
+                R_ee_ref=_sref.R_ee.copy(),
+                v_ee_ref=np.concatenate([_sref.v_ee, _sref.omega_ee]),
+                a_ee_ff =np.concatenate([_sref.a_ee, _sref.alpha_ee]),
+                # Constant torso reference (A_swing)
+                p_torso_ref=p_torso_ref0.copy(),
+                R_torso_ref=R_torso_ref0.copy(),
+                v_torso_ref=np.zeros(6),
+                a_torso_ff=np.zeros(6),
+                # QP gains (read from the live qp_ss config — the actual
+                # values entering the solve, not the scalar SimConfig knobs)
+                Kp_torso=np.asarray(sim.qp_ss.config.Kp_torso, dtype=float),
+                Kd_torso=np.asarray(sim.qp_ss.config.Kd_torso, dtype=float),
+                Kp_ee=np.array(sim.qp_ss.config.Kp_ee, dtype=float),
+                Kd_ee=np.array(sim.qp_ss.config.Kd_ee, dtype=float),
+                Kp_ee_ang=np.array(sim.qp_ss.config.Kp_ee_ang, dtype=float),
+                Kd_ee_ang=np.array(sim.qp_ss.config.Kd_ee_ang, dtype=float),
+                # Slice metadata
+                arm_a_v_start=np.array(sim.robot.arm_a_v_slice.start),
+                arm_a_v_stop =np.array(sim.robot.arm_a_v_slice.stop),
+                arm_b_v_start=np.array(sim.robot.arm_b_v_slice.start),
+                arm_b_v_stop =np.array(sim.robot.arm_b_v_slice.stop),
+                joints_v_start=np.array(sim.robot.joints_v_slice.start),
+                joints_v_stop =np.array(sim.robot.joints_v_slice.stop),
+            )
+            print(f"  [dump] wrote dump (pre-QP) at t_rel={t_rel:.4f} s "
+                  f"-> {dump_path}")
+            dump_done = True
+            dump_path_for_qp = dump_path
+
         hw_phys = (cfg.rwa_I_w * sim.mj_data.qvel[6:9]).copy() if has_rwa \
                   else np.zeros(3)
 
@@ -658,6 +741,19 @@ def run_v21_case(case: str):
             tau = np.zeros(n_j)
             qp_fail += 1
 
+        # On the dump tick, append the QP solution to the npz so the
+        # offline analysis can reconstruct J_ee · qdd_qp + Jdot_dq.
+        if dump_path_for_qp is not None and t_rel >= dump_t_target - 1e-9 \
+                and 'qdd_t_qp_logged' not in dir():
+            existing = dict(np.load(dump_path_for_qp))
+            existing['qdd_t_qp']  = np.asarray(qdd_t,  dtype=float)
+            existing['qdd_qp']    = np.asarray(qdd,    dtype=float)
+            existing['tau_qp']    = np.asarray(tau,    dtype=float)
+            existing['lambda_qp'] = np.asarray(lam_sol, dtype=float)
+            np.savez(dump_path_for_qp, **existing)
+            qdd_t_qp_logged = True
+            print(f"  [dump] appended QP solution -> {dump_path_for_qp}")
+
         tau = np.clip(tau, -cfg.tau_max, cfg.tau_max)
         sim.mj_data.ctrl[:n_j] = tau
         if has_rwa:
@@ -667,18 +763,30 @@ def run_v21_case(case: str):
 
         # ── Trace + peaks (over SS window [0, T_step]) ─────────────────
         e_ep = float(np.linalg.norm(oMf_ee.translation - p_ee_ref)) * 1000
+        # EE orientation error: ||log3(R_ee^T R_ee_ref)|| in degrees.
+        e_eo_deg = float(np.degrees(np.linalg.norm(
+            pin.log3(oMf_ee.rotation.T @ R_ee_ref))))
         tau_max = float(np.max(np.abs(tau)))
+        # Wrist-only torque magnitude (last 2 joints of arm 'b').
+        tau_max_ang = float(np.max(np.abs(tau[wrist_b_tau_slice])))
+
         if t_rel <= T_step + 1e-9:
             trace_rows.append((t_rel, e_ep, tau_max))
+            trace_rows_v2.append((t_rel, e_ep, e_eo_deg, tau_max, tau_max_ang))
             if e_ep > e_ee_pos_peak:
                 e_ee_pos_peak = e_ep
             if tau_max > tau_peak:
                 tau_peak = tau_max
-            e_ee_pos_at_T_step = e_ep   # last value within [0, T_step]
+            if e_eo_deg > e_ee_ori_peak_deg:
+                e_ee_ori_peak_deg = e_eo_deg
+                e_ee_ori_t_at_peak = t_rel
+            e_ee_pos_at_T_step = e_ep              # last value within [0, T_step]
+            e_ee_ori_at_T_step_deg = e_eo_deg
 
         if (k % 100) == 0:
             print(f"  t_rel={t_rel:6.3f}s  e_ee={e_ep:7.2f}mm  "
-                  f"|tau|={tau_max:5.2f}Nm  "
+                  f"e_ee_ori={e_eo_deg:5.2f}°  "
+                  f"|tau|={tau_max:5.2f}Nm  |tau_wrist|={tau_max_ang:4.2f}Nm  "
                   f"nmpc={nmpc_calls}  map={mapping_calls}")
 
     # ── Invariants ─────────────────────────────────────────────────────
@@ -711,6 +819,16 @@ def run_v21_case(case: str):
         for row in trace_rows:
             w.writerow([f'{row[0]:.6f}', f'{row[1]:.6f}', f'{row[2]:.6f}'])
 
+    csv_path_v2 = os.path.join(out_dir, 'trace_v2.csv')
+    with open(csv_path_v2, 'w', newline='') as f:
+        w = csv.writer(f)
+        w.writerow(['t_s', 'e_ee_pos_mm', 'e_ee_ori_deg',
+                    'tau_q_max_Nm', 'tau_q_max_ang_Nm'])
+        for row in trace_rows_v2:
+            w.writerow([f'{row[0]:.6f}', f'{row[1]:.6f}',
+                        f'{row[2]:.6f}', f'{row[3]:.6f}',
+                        f'{row[4]:.6f}'])
+
     # qpos snapshot for cross-case invariant check
     np.save(os.path.join(out_dir, 'qpos_init.npy'), qpos_init)
 
@@ -718,13 +836,20 @@ def run_v21_case(case: str):
     print(f"[case {case}] RESULT over t in [0, T_step]:")
     print(f"  ee_pos_peak_SS    = {e_ee_pos_peak:8.2f} mm")
     print(f"  ee_pos_at_T_step  = {e_ee_pos_at_T_step:8.2f} mm")
+    print(f"  ee_ori_peak_SS    = {e_ee_ori_peak_deg:8.4f} deg "
+          f"(at t = {e_ee_ori_t_at_peak:.3f} s)")
+    print(f"  ee_ori_at_T_step  = {e_ee_ori_at_T_step_deg:8.4f} deg")
     print(f"  tau_q_peak_SS     = {tau_peak:8.2f} Nm")
-    print(f"  trace.csv saved → {csv_path}")
+    print(f"  trace.csv saved   → {csv_path}")
+    print(f"  trace_v2.csv saved→ {csv_path_v2}")
     return {
         'case': case,
         'T_step': T_step,
         'ee_pos_peak_SS_mm': e_ee_pos_peak,
         'ee_pos_at_T_step_mm': e_ee_pos_at_T_step,
+        'ee_ori_peak_SS_deg': e_ee_ori_peak_deg,
+        'ee_ori_t_at_peak_s': e_ee_ori_t_at_peak,
+        'ee_ori_at_T_step_deg': e_ee_ori_at_T_step_deg,
         'tau_q_peak_SS_Nm': tau_peak,
         'nmpc_calls': nmpc_calls,
         'mapping_calls': mapping_calls,
