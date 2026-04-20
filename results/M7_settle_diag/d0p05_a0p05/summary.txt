@@ -1,0 +1,9 @@
+n_steps_run        = 11
+T_start            = 0.0
+T_end              = 7.335535138483019e-12
+T_settle           = 5.224006359042165e-10
+lambda_min         = 0.001044801271808433
+exit_reason        = target_met
+alpha              = 1.0
+(damping, armature) = (0.05, 0.05)
+rows logged          = 10

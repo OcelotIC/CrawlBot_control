@@ -1,0 +1,9 @@
+n_steps_run        = 51
+T_start            = 0.0
+T_end              = 0.7622391047159759
+T_settle           = 5.224006359042165e-10
+lambda_min         = 0.001044801271808433
+exit_reason        = plateau
+alpha              = 1.0
+(damping, armature) = (0.0, 0.0)
+rows logged          = 50

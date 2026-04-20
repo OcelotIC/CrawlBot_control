@@ -555,11 +555,14 @@ def run_v21_case(case: str):
     # One-tick matrix dump for offline linear-algebra audit (A_swing only).
     # Triggered on the QP tick closest to t_rel == 3.6 s; matrices saved
     # to results/M7_ee_ori_diag/<case>_t3p6.npz. Used by
-    # scripts/_ee_null_space_rank.py to compute torso/EE rank intersection.
+    # scripts/ee_null_space_rank.py and scripts/ee_ang_task_residual.py.
     dump_t_target = 3.6
     dump_done = False
     dump_path_for_qp = None  # set when the pre-QP dump fires; used to
                               # append qdd_qp / tau / lambda after the QP solve
+    capture_post_v = False   # set after mj_step on the dump tick; consumed
+                              # at the start of the NEXT iteration to record
+                              # v_post for finite-difference qdd estimation
 
     for k in range(n_ticks):
         t_loop = t_ss_start + k * dt
@@ -568,6 +571,20 @@ def run_v21_case(case: str):
         pq, pv = mujoco_to_pinocchio(sim.mj_data.qpos, sim.mj_data.qvel)
         omega_s = sim.mj_data.qvel[3:6].copy()
         rs = sim.robot.update(pq, pv, omega_struct=omega_s)
+
+        # If the previous iteration was the dump tick, append the
+        # post-step Pinocchio velocity (v at t_dump + dt_qp) to the npz
+        # so the offline analysis can finite-difference qdd_mujoco.
+        if capture_post_v and dump_path_for_qp is not None:
+            existing = dict(np.load(dump_path_for_qp))
+            existing['v_post']    = pv.copy()
+            existing['qpos_post'] = sim.mj_data.qpos.copy()
+            existing['qvel_post'] = sim.mj_data.qvel.copy()
+            existing['dt_qp']     = np.array(cfg.dt_qp)
+            existing['tau_max']   = np.array(cfg.tau_max)
+            np.savez(dump_path_for_qp, **existing)
+            print(f"  [dump] appended v_post + dt + tau_max -> {dump_path_for_qp}")
+            capture_post_v = False
 
         # ── NMPC every n_qp_per_nmpc ticks ─────────────────────────────
         if use_nmpc and (k % n_qp_per_nmpc == 0):
@@ -752,6 +769,7 @@ def run_v21_case(case: str):
             existing['lambda_qp'] = np.asarray(lam_sol, dtype=float)
             np.savez(dump_path_for_qp, **existing)
             qdd_t_qp_logged = True
+            capture_post_v = True
             print(f"  [dump] appended QP solution -> {dump_path_for_qp}")
 
         tau = np.clip(tau, -cfg.tau_max, cfg.tau_max)
