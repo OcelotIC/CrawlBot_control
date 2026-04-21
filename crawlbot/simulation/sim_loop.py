@@ -51,12 +51,12 @@ from crawlbot.planning.coarse_preplanner import (
 )
 from crawlbot.solvers.centroidal_nmpc import CentroidalNMPC, CentroidalNMPCConfig
 from crawlbot.solvers.wholebody_qp import WholeBodyQP, WholeBodyQPConfig
-from crawlbot.solvers.contact_phase import ContactConfig
+from crawlbot.solvers.contact_phase import ContactConfig, ContactPhase
 from crawlbot.aocs.force_estimator import (
     MomentumDisturbanceEstimator, EstimatorConfig, compute_aocs_command)
 
 from .config import SimConfig
-from .logging import SimLog
+from .logging import SimLog, capture_environment
 from .plotting import plot_simulation
 # ── Simulation loop ──────────────────────────────────────────────────────────
 
@@ -97,6 +97,10 @@ class SimulationLoop:
         self._step_q_end: Optional[np.ndarray] = None
         self._step_t_ss_start: float = 0.0
         self._step_T_step: float = 0.0
+        # M7 EE-bisection follow-up: torso linear position at SS entry
+        # (set in _setup_torso_for_step). Read by _step() when
+        # cfg.mapping_bypass_in_ss is True; otherwise unused.
+        self._ss_entry_p_torso: Optional[np.ndarray] = None
         # Simulation time at which the active coarse plan was anchored
         # (so r_com_at(t - t0) gives the right reference at current time).
         self._coarse_plan_t0: float = 0.0
@@ -183,7 +187,8 @@ class SimulationLoop:
         self.swing_planner = SwingPlanner(
             self.sched,
             clearance=cfg.swing_clearance,
-            bump_peak_tau=cfg.swing_bump_peak_tau)
+            bump_peak_tau=cfg.swing_bump_peak_tau,
+            early_finish_fraction=cfg.swing_early_finish_fraction)
 
         # Torso planner (reconfigured per step)
         self.torso_planner = TorsoPlanner()
@@ -926,6 +931,12 @@ class SimulationLoop:
         self._step_q_end = q_end.copy()
         self._step_t_ss_start = float(t_ss_start)
         self._step_T_step = float(T_step)
+        # Snapshot the torso linear position at SS entry — read by the
+        # mapping_bypass_in_ss diagnostic in _step() to freeze the SS
+        # linear torso reference. p_t0 is the torso pose computed from
+        # the live state above (line ~810), so it equals the actual
+        # torso position at the moment SS begins.
+        self._ss_entry_p_torso = p_t0.copy()
 
         return (q_end, T_step, True)
 
@@ -1039,6 +1050,10 @@ class SimulationLoop:
         """Run full multi-step locomotion simulation."""
         cfg = self.cfg
         log = SimLog()
+        # Fingerprint the execution environment once at simulation start.
+        # Stored under log.environment and persisted in sim_log.json so
+        # archived logs carry the toolchain state that produced them.
+        log.environment = capture_environment()
         plan = self.plan
 
         # Copy the setup-phase settling trace into the log so it shows
@@ -1201,7 +1216,16 @@ class SimulationLoop:
                             ss_end=t_ss_start + T_step)
                         t += cfg.dt_nmpc
 
-                        if (t - t_ss_start) > cfg.dock_check_delay:
+                        # Dock gate prerequisites (all must hold):
+                        #   (1) dock_check_delay satisfied (avoid release noise)
+                        #   (2) M7 v22: t ≥ t_ss_start + ef·T_step so the
+                        #       swing planner has completed its trajectory
+                        #       (velocity and acceleration at target are zero)
+                        #   (3) position + orientation thresholds
+                        swing_done = ((t - t_ss_start)
+                                      >= cfg.swing_early_finish_fraction * T_step)
+                        if ((t - t_ss_start) > cfg.dock_check_delay
+                                and swing_done):
                             mujoco.mj_forward(self.mj_model, self.mj_data)
                             d = self._gripper_distance(swing_arm, target_idx)
                             ori_err_deg = self._gripper_ori_err_deg(
@@ -1342,6 +1366,23 @@ class SimulationLoop:
                     t_ds_settle = t + cfg.t_settle_final
                     cc_ds = self.sched.contact_config_at(plan.t_start[i] + 0.1)
 
+                    # Diagnostic: did the preceding SS abort on dock_timeout?
+                    # Used only to gate the three diag_*_on_abort flags. No
+                    # effect on normal operation.
+                    _abort_ds = bool(
+                        log.aborted_steps
+                        and log.aborted_steps[-1].get('reason') == 'dock_timeout'
+                        and log.aborted_steps[-1].get('step_idx') == step_idx - 1
+                    )
+
+                    # H_DS1 diagnostic override — force SINGLE_A to match the
+                    # physical single-weld state after dock_timeout.
+                    if _abort_ds and cfg.diag_force_single_contact_on_abort:
+                        cc_ds = ContactConfig.from_phase(
+                            ContactPhase.SINGLE_A,
+                            cc_ds.r_contact_A.copy(),
+                            cc_ds.r_contact_B.copy())
+
                     # Use last swing step's info for logging
                     last_swing = 'b'; last_stance = 'a'
                     last_sa = plan.phases[i].anchor_a_idx if hasattr(plan.phases[i], 'anchor_a_idx') else 0
@@ -1362,29 +1403,48 @@ class SimulationLoop:
                     pq, pv = mujoco_to_pinocchio(
                         self.mj_data.qpos, self.mj_data.qvel)
                     rs_hold = self.robot.update(pq, pv)
-                    try:
-                        anchor_a_se3 = self.sched.anchor_se3('a', last_sa)
-                        anchor_b_se3 = self.sched.anchor_se3('b', last_sb)
-                        q_eq = dock_configuration(
-                            self.robot.model, anchor_a_se3, anchor_b_se3,
-                            q_init=pq)
-                        rs_eq = self.robot.update(q_eq, np.zeros(self.robot.model.nv))
-                        self.torso_planner.set_hold(
-                            rs_eq.oMf_torso.translation.copy(),
-                            rs_eq.oMf_torso.rotation.copy(),
-                            r_com=rs_eq.r_com.copy())
-                    except RuntimeError:
-                        # IK failed — fall back to current state
+                    if _abort_ds and cfg.diag_freeze_torso_ref_on_abort:
+                        # H_DS2 diagnostic override — freeze the hold target
+                        # at the actual torso pose at the last SS sample,
+                        # bypassing the both-tools-at-anchors IK.
                         self.torso_planner.set_hold(
                             rs_hold.oMf_torso.translation.copy(),
                             rs_hold.oMf_torso.rotation.copy(),
                             r_com=rs_hold.r_com.copy())
+                    else:
+                        try:
+                            anchor_a_se3 = self.sched.anchor_se3('a', last_sa)
+                            anchor_b_se3 = self.sched.anchor_se3('b', last_sb)
+                            q_eq = dock_configuration(
+                                self.robot.model, anchor_a_se3, anchor_b_se3,
+                                q_init=pq)
+                            rs_eq = self.robot.update(q_eq, np.zeros(self.robot.model.nv))
+                            self.torso_planner.set_hold(
+                                rs_eq.oMf_torso.translation.copy(),
+                                rs_eq.oMf_torso.rotation.copy(),
+                                r_com=rs_eq.r_com.copy())
+                        except RuntimeError:
+                            # IK failed — fall back to current state
+                            self.torso_planner.set_hold(
+                                rs_hold.oMf_torso.translation.copy(),
+                                rs_hold.oMf_torso.rotation.copy(),
+                                r_com=rs_hold.r_com.copy())
+
+                    # H_DS3 diagnostic override — disable the passivity
+                    # inequality for trailing DS post-abort (_step reads this
+                    # via the passivity_override kwarg).
+                    _pass_override = (
+                        False if (_abort_ds and cfg.diag_disable_passivity_on_abort)
+                        else None
+                    )
+
                     while t < t_ds_settle:
                         hw, L_com_prev = self._step(
                             t, 'DS', step_idx - 1, last_swing, last_stance,
                             cc_ds, 0, last_sa, last_sb,
                             hw, L_com_prev, log, ss_end=t,
-                            settle_mode=True)
+                            settle_mode=True,
+                            passivity_override=_pass_override)
                         t += cfg.dt_nmpc
 
                     i += 1
@@ -1402,7 +1462,8 @@ class SimulationLoop:
     def _step(self, t, phase, step_idx, swing_arm, stance_arm,
               cc_ss, target_anchor, stance_a, stance_b,
               hw, L_com_prev, log, ss_end=None, settle_mode=False,
-              passivity_hold: bool = False):
+              passivity_hold: bool = False,
+              passivity_override=None):
         """Single NMPC+QP step.  All quantities are in structure frame.
 
         Parameters
@@ -1412,6 +1473,11 @@ class SimulationLoop:
             SS. Used during the convergence-hold window (after the
             trajectory has ended and the EE is still converging on the
             dock) so the system dissipates residual kinetic energy.
+        passivity_override : Optional[bool]
+            Diagnostic (H_DS3). When not None, overrides the phase-based
+            passivity gate below. Wired only by the trailing-DS branch
+            when `cfg.diag_disable_passivity_on_abort` is set and the
+            preceding SS aborted on dock_timeout.
         """
         cfg = self.cfg
 
@@ -1633,7 +1699,15 @@ class SimulationLoop:
             else:
                 tq_planner = tq
             tr = self.torso_planner.reference_at(tq_planner)
-            if phase in ('SS', 'DS') and self.mapping is not None and cfg.use_m2_stack:
+            if (phase == 'SS' and cfg.mapping_bypass_in_ss
+                    and self._ss_entry_p_torso is not None):
+                # Diagnostic bypass: freeze the linear torso reference at
+                # its SS-entry value; angular reference still from
+                # TorsoPlanner. Mapping is not called this tick.
+                p_torso_ref_used = self._ss_entry_p_torso.copy()
+                v_torso_ref_used = np.concatenate([np.zeros(3), tr.v[3:6]])
+                a_torso_ff_used = np.concatenate([np.zeros(3), tr.a[3:6]])
+            elif phase in ('SS', 'DS') and self.mapping is not None and cfg.use_m2_stack:
                 af_for_mapping = np.zeros(3) if self._diag_pure_pd else af
                 if phase == 'SS':
                     q_map, dq_map = self._planned_arm_config(tq, rs)
@@ -1711,6 +1785,8 @@ class SimulationLoop:
             # while the EE closes on the target.
             passivity_active = bool(
                 cfg.use_m2_stack and (phase == 'DS' or passivity_hold))
+            if passivity_override is not None:
+                passivity_active = bool(passivity_override)
 
             try:
                 qdd_t_qp, qdd_qp, lambda_qp_sol, tau, _ = qp.solve(

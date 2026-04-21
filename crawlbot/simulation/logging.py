@@ -4,9 +4,69 @@ SimLog collects time-series data from each NMPC step for post-processing
 and plotting. All fields are lists of scalars or numpy arrays.
 """
 
+import contextlib
+import io
 import json
+import os
+import subprocess
+import sys
+
 import numpy as np
 from dataclasses import dataclass, field
+
+
+_ENV_VAR_NAMES = ('MUJOCO_GL', 'OMP_NUM_THREADS', 'OPENBLAS_NUM_THREADS')
+
+
+def capture_environment() -> dict:
+    """Snapshot versions + env vars + BLAS config at simulation start.
+
+    Every probe is best-effort: any exception is recorded as an
+    ``<error: ...>`` string so a transient introspection failure cannot
+    abort a simulation. Returned keys are stable (always present):
+
+    - ``python_version``           — ``sys.version``
+    - ``mujoco_version``           — ``mujoco.__version__``
+    - ``pinocchio_version``        — ``pinocchio.__version__``
+    - ``numpy_version``            — ``numpy.__version__``
+    - ``numpy_show_config``        — output of ``np.show_config()``
+    - ``pip_freeze``               — ``python -m pip freeze`` stdout
+    - ``env_vars``                 — dict with ``MUJOCO_GL``,
+      ``OMP_NUM_THREADS``, ``OPENBLAS_NUM_THREADS`` (``None`` if unset).
+    """
+    def _safe(fn):
+        try:
+            return fn()
+        except Exception as e:                    # noqa: BLE001
+            return f'<error: {type(e).__name__}: {e}>'
+
+    def _import_version(name):
+        import importlib
+        m = importlib.import_module(name)
+        return getattr(m, '__version__', '<no __version__>')
+
+    def _show_config():
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            np.show_config()
+        return buf.getvalue()
+
+    def _pip_freeze():
+        out = subprocess.run(
+            [sys.executable, '-m', 'pip', 'freeze',
+             '--disable-pip-version-check'],
+            capture_output=True, text=True, timeout=30, check=True)
+        return out.stdout
+
+    return {
+        'python_version':    sys.version,
+        'mujoco_version':    _safe(lambda: _import_version('mujoco')),
+        'pinocchio_version': _safe(lambda: _import_version('pinocchio')),
+        'numpy_version':     _safe(lambda: _import_version('numpy')),
+        'numpy_show_config': _safe(_show_config),
+        'pip_freeze':        _safe(_pip_freeze),
+        'env_vars': {k: os.environ.get(k) for k in _ENV_VAR_NAMES},
+    }
 
 
 @dataclass
@@ -123,6 +183,12 @@ class SimLog:
 
     # MuJoCo snapshots for offline rendering
     snapshots: list = field(default_factory=list)       # [(t, qpos, qvel, label)]
+
+    # Environment fingerprint populated by SimulationLoop.run() via
+    # capture_environment(). Empty dict on legacy logs that predate this
+    # field — SimLog.load() silently drops unknown keys and the
+    # default_factory fills in {} for missing ones.
+    environment: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         d = {}

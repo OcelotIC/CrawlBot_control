@@ -17,3 +17,16 @@ Thumbs.db
 /*.json
 /*.png
 results/benchmarks/*.json
+
+# Scratch from ad-hoc diagnostic checks (regenerable from scripts + committed sim_logs)
+results/_diag_check/
+scripts/_diag_check_*.py
+
+# One-off exploratory run: v21 + mapping-bypass + raised EE-ang gains.
+# Numerics reported in chat; not preserved on branch per instruction.
+results/M7_1pct_1step_v21_mapping_off_hi_ori_gain/
+
+# v22 sweep sample: swing_early_finish_fraction=0.70 (primary run is 0.80,
+# preserved on-branch in results/M7_1pct_1step_v22_with_swing_hold/).
+results/M7_1pct_1step_v22_hold_070/
+scripts/_run_m7_v22_hold_070.py

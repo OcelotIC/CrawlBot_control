@@ -174,6 +174,15 @@ class SimConfig:
     # throughout SS (v8 trace), that workaround is no longer needed.
     torso_early_finish_fraction: float = 1.0
 
+    # Swing-planner analogue (M7 v22). When < 1.0, the swing trajectory
+    # (position, clearance bump, orientation SLERP) completes at
+    # t = t_ss_start + swing_early_finish_fraction · T_step and then
+    # HOLDS (v=0, a=0) for the remainder of the planned window. Paired
+    # with a gate in sim_loop that prevents dock activation before the
+    # swing trajectory has finished, so contact is made only after the
+    # commanded reference has settled.
+    swing_early_finish_fraction: float = 1.0
+
     # ── MuJoCo settling ────────────────────────────────────────
     n_settle_steps: int = 500
 
@@ -191,3 +200,36 @@ class SimConfig:
     n_settle_max_steps: int = 1000          # stage 2: safety cap
     settle_epsilon_v: float = 1e-3          # target ‖dq_full‖ bound [m/s]
     settle_plateau_ratio: float = 0.999     # T(k+50) > ratio·T(k) → plateau
+
+    # ── Post-abort DS diagnostic flags (2026-04-17) ─────────────
+    # All three default False. When enabled individually they apply
+    # ONLY to the trailing-DS phase entered after a dock_timeout
+    # abort — never to SS, never to the pre-SS DS settle, never to
+    # the pre-planner. See docs/architecture/M7_DS_DIAGNOSTIC_EXPERIMENTS.md.
+    diag_freeze_torso_ref_on_abort: bool = False
+    # Diagnostic for H_DS2 (POST_ABORT_DIVERGENCE.md).
+    # When True, skip dock_configuration + set_hold at sim_loop.py:1365-1375
+    # on trailing-DS entry after dock_timeout, and freeze the TorsoPlanner
+    # hold target to the actual oMf_torso at the last SS sample.
+
+    diag_force_single_contact_on_abort: bool = False
+    # Diagnostic for H_DS1 (POST_ABORT_DIVERGENCE.md).
+    # When True, force cc_ds = ContactConfig.from_phase(
+    #   ContactPhase.SINGLE_A, r_contact_a, r_contact_b) at sim_loop.py:1343
+    # on trailing-DS entry after dock_timeout, matching the physical state.
+
+    diag_disable_passivity_on_abort: bool = False
+    # Diagnostic for H_DS3 (POST_ABORT_DIVERGENCE.md).
+    # When True, pass passivity_active=False to the QP during trailing DS
+    # entered after dock_timeout, overriding the phase=='DS' gate at
+    # sim_loop.py:1712.
+
+    mapping_bypass_in_ss: bool = False
+    # M7 EE bisection follow-up. When True, sim_loop bypasses the
+    # CoM->torso mapping during SS only: the QP receives
+    #   r_torso_ref = r_torso(t = t_ss_start)   (frozen at SS entry)
+    #   v_torso_ref_lin = 0
+    #   a_torso_ff_lin  = 0
+    # for the linear components of the torso reference. Angular
+    # reference still comes from TorsoPlanner (orientation tracking
+    # unchanged). DS phase is unchanged (mapping still active there).

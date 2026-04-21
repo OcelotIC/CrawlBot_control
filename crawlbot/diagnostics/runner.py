@@ -46,7 +46,10 @@ def run_diagnostics(log, output_dir, cfg=None, thresholds=None,
     n_pass = sum(1 for _, _, p in results.values() if p is True)
     n_fail = sum(1 for _, _, p in results.values() if p is False)
     n_skip = sum(1 for _, _, p in results.values() if p == 'SKIP')
-    print(f'\nSummary: {n_pass} PASS, {n_fail} FAIL, {n_skip} SKIP')
+    n_warn = sum(1 for _, _, p in results.values() if p == 'WARN')
+    n_info = sum(1 for _, _, p in results.values() if p == 'INFO')
+    print(f'\nSummary: {n_pass} PASS, {n_fail} FAIL, {n_skip} SKIP, '
+          f'{n_warn} WARN, {n_info} INFO')
     print('=' * 67)
 
     # 3. Save metrics CSV

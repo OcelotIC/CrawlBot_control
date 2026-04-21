@@ -188,6 +188,18 @@ class RobotInterface:
         self.n_arm_b = slices['n_per_arm_b']        # DOFs per arm B
         self.n_joints = slices['n_joints']           # total actuated joints
 
+        # ── Armature consistency with MJCF (M7 armature decomposition) ──
+        # The MJCF's robot_joint default assigns armature=0.05 to each of
+        # the 14 arm joints; Pinocchio's URDF loader ignores any such
+        # attribute and leaves model.armature at zero. Install the same
+        # rotor-inertia diagonal here so pin.crba produces
+        # H = H_link + diag(armature) matching MuJoCo's integrator mass.
+        # The free-flyer base (v[0:6]) keeps armature=0.
+        _arm = np.zeros(self.model.nv)
+        _arm[slices['joints_v']] = 0.05
+        self.model.armature = _arm
+        self.data = self.model.createData()
+
         # Frame IDs by name lookup
         self.frame_tool_a = self.model.getFrameId("tool_a")
         self.frame_tool_b = self.model.getFrameId("tool_b")
