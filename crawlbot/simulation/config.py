@@ -174,6 +174,15 @@ class SimConfig:
     # throughout SS (v8 trace), that workaround is no longer needed.
     torso_early_finish_fraction: float = 1.0
 
+    # Swing-planner analogue (M7 v22). When < 1.0, the swing trajectory
+    # (position, clearance bump, orientation SLERP) completes at
+    # t = t_ss_start + swing_early_finish_fraction · T_step and then
+    # HOLDS (v=0, a=0) for the remainder of the planned window. Paired
+    # with a gate in sim_loop that prevents dock activation before the
+    # swing trajectory has finished, so contact is made only after the
+    # commanded reference has settled.
+    swing_early_finish_fraction: float = 1.0
+
     # ── MuJoCo settling ────────────────────────────────────────
     n_settle_steps: int = 500
 

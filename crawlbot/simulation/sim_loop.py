@@ -187,7 +187,8 @@ class SimulationLoop:
         self.swing_planner = SwingPlanner(
             self.sched,
             clearance=cfg.swing_clearance,
-            bump_peak_tau=cfg.swing_bump_peak_tau)
+            bump_peak_tau=cfg.swing_bump_peak_tau,
+            early_finish_fraction=cfg.swing_early_finish_fraction)
 
         # Torso planner (reconfigured per step)
         self.torso_planner = TorsoPlanner()
@@ -1215,7 +1216,16 @@ class SimulationLoop:
                             ss_end=t_ss_start + T_step)
                         t += cfg.dt_nmpc
 
-                        if (t - t_ss_start) > cfg.dock_check_delay:
+                        # Dock gate prerequisites (all must hold):
+                        #   (1) dock_check_delay satisfied (avoid release noise)
+                        #   (2) M7 v22: t ≥ t_ss_start + ef·T_step so the
+                        #       swing planner has completed its trajectory
+                        #       (velocity and acceleration at target are zero)
+                        #   (3) position + orientation thresholds
+                        swing_done = ((t - t_ss_start)
+                                      >= cfg.swing_early_finish_fraction * T_step)
+                        if ((t - t_ss_start) > cfg.dock_check_delay
+                                and swing_done):
                             mujoco.mj_forward(self.mj_model, self.mj_data)
                             d = self._gripper_distance(swing_arm, target_idx)
                             ori_err_deg = self._gripper_ori_err_deg(

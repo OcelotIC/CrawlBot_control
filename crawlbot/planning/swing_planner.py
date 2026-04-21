@@ -83,6 +83,7 @@ class SwingPlanner:
         away_normal: np.ndarray = DEFAULT_AWAY_NORMAL,
         rotation_delay_ratio: float = 0.2,
         bump_peak_tau: float = 0.5,
+        early_finish_fraction: float = 1.0,
     ):
         self.scheduler = scheduler
         self.clearance = clearance
@@ -105,6 +106,19 @@ class SwingPlanner:
             raise ValueError(
                 f"bump_peak_tau must be in (0,1), got {bump_peak_tau}")
         self.bump_peak_tau = float(bump_peak_tau)
+        # M7 v22: effective-duration fraction. Analogue of
+        # TorsoPlanner's early_finish_fraction. When < 1.0, the swing
+        # trajectory completes at τ=1 on the compressed timebase
+        # `t_eff = (t - t_start) / (ef · T)`, then HOLDS at the target
+        # with v=0, a=0 for the remainder of the planned phase. The
+        # hold is automatic because the quintic, bump, and
+        # delayed-cosine profiles all have zero first derivative at
+        # τ=1 by construction, and `np.clip(..., 0, 1)` freezes τ.
+        if not (0.0 < float(early_finish_fraction) <= 1.0):
+            raise ValueError(
+                f"early_finish_fraction must be in (0, 1], "
+                f"got {early_finish_fraction}")
+        self.early_finish_fraction = float(early_finish_fraction)
 
     def set_swing_orientation(self, R_start: np.ndarray) -> None:
         """Set the tool rotation at swing release for SLERP interpolation."""
@@ -229,8 +243,15 @@ class SwingPlanner:
 
         # ── Single support: compute swing trajectory ─────────────
         t_start = plan.t_start[idx]
+        # M7 v22: effective duration = early_finish_fraction · T_step.
+        # tau reaches 1 at t = t_start + T_eff, then stays clipped at 1
+        # for the remainder of the planned phase → position at target,
+        # velocity and acceleration are zero (all three profiles
+        # — quintic s, bump, delayed-cosine σ_r — have ṗ(τ=1)=0 by
+        # construction, and np.clip freezes τ).
         T = gp.duration
-        tau = np.clip((t - t_start) / T, 0.0, 1.0)
+        T_eff = T * self.early_finish_fraction
+        tau = np.clip((t - t_start) / T_eff, 0.0, 1.0)
 
         # Anchor positions from scheduler (constant structure-frame coordinates)
         if gp.swing_arm == 'b':
@@ -250,14 +271,14 @@ class SwingPlanner:
         bump = self._bump(tau)
         p_ee = p_start + dp * s + self.clearance * n * bump
 
-        # Velocity (chain rule: dp/dt = dp/dτ · 1/T)
-        s_dot = self._quintic_dot(tau) / T
-        bump_dot = self._bump_dot(tau) / T
+        # Velocity (chain rule: dτ/dt = 1/T_eff)
+        s_dot = self._quintic_dot(tau) / T_eff
+        bump_dot = self._bump_dot(tau) / T_eff
         v_ee = dp * s_dot + self.clearance * n * bump_dot
 
-        # Acceleration (d²p/dt² = d²p/dτ² · 1/T²)
-        s_ddot = self._quintic_ddot(tau) / (T * T)
-        bump_ddot = self._bump_ddot(tau) / (T * T)
+        # Acceleration (d²τ/dt² scales as 1/T_eff²)
+        s_ddot = self._quintic_ddot(tau) / (T_eff * T_eff)
+        bump_ddot = self._bump_ddot(tau) / (T_eff * T_eff)
         a_ee = dp * s_ddot + self.clearance * n * bump_ddot
 
         # M5: Orientation via SLERP with delayed-cosine timing.
@@ -268,8 +289,8 @@ class SwingPlanner:
         # flat during the clearance bump.
         tau_d = self.rotation_delay_ratio
         sigma_r = self._delayed_cosine(tau, tau_d)
-        sigma_r_dot = self._delayed_cosine_dot(tau, tau_d) / T
-        sigma_r_ddot = self._delayed_cosine_ddot(tau, tau_d) / (T * T)
+        sigma_r_dot = self._delayed_cosine_dot(tau, tau_d) / T_eff
+        sigma_r_ddot = self._delayed_cosine_ddot(tau, tau_d) / (T_eff * T_eff)
 
         dR = self._R_start.T @ self._R_end
         omega_total = pin.log3(dR)          # (3,) body-frame axis·angle
