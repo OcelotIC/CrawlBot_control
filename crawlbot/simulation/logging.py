@@ -147,6 +147,11 @@ class SimLog:
     qp_time_ms: list = field(default_factory=list)
     nmpc_status: list = field(default_factory=list)     # 0=ok, 1=max_iter, 2=infeasible
     nmpc_cost: list = field(default_factory=list)       # NMPC objective value
+    nmpc_status_str: list = field(default_factory=list) # IPOPT return string
+    nmpc_iterations: list = field(default_factory=list) # IPOPT iter count
+    transport_term_mag: list = field(default_factory=list)
+    # |ω_s × H_{r/O}| per tick, N·m. Diagnostic for Mode B
+    # transport-term gap (see AOCS_CONCERN.md).
 
     # Contact wrenches
     lambda_ref: list = field(default_factory=list)      # NMPC planned wrench (12,)
