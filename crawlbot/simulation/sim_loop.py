@@ -911,6 +911,13 @@ class SimulationLoop:
         self.plan.set_step_duration(ss_phase_idx, T_step)
         self._current_T_step = T_step
 
+        # Option Z: reset plan-time offset at SS entry so that
+        # plan_query_t(t_ss_start) aligns with plan.t_start[ss_phase_idx].
+        # This absorbs both (a) unused SS runway from prior-step early
+        # dock and (b) any inter-step DS-settle slack vs nominal DS
+        # duration. Idempotent per SS entry.
+        self._t_plan_offset = t_ss_start - self.plan.t_start[ss_phase_idx]
+
         # 4. Torso planner over the SAME [t_ss_start, t_ss_start + T_step].
         #    No torso_delay, no EXT extension.
         #    M7 change (B): the torso trajectory completes in
@@ -1168,6 +1175,8 @@ class SimulationLoop:
                         t_ss_start, swing_arm,
                         stance_a, stance_b, swing_arm, target_idx,
                         ss_phase_idx=ss_phase_idx)
+                    # Mirror Option Z reset into the outer loop's offset.
+                    t_offset = self._t_plan_offset
                     if not step_feasible:
                         log.aborted_steps.append({
                             'step_idx': int(step_idx),
