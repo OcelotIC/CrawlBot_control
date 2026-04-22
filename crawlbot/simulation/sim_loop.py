@@ -101,6 +101,13 @@ class SimulationLoop:
         # (set in _setup_torso_for_step). Read by _step() when
         # cfg.mapping_bypass_in_ss is True; otherwise unused.
         self._ss_entry_p_torso: Optional[np.ndarray] = None
+        # Option A (T12 fix, 2026-04-22): post-dock blend state for
+        # the DS torso position reference. Populated at weld
+        # activation; cleared on SS entry. See
+        # cfg.ds_ramp_duration_s and docs/architecture/M7_T12_MEMO.md §5.
+        self._ds_ramp_t_start: Optional[float] = None
+        self._ds_ramp_p_start: Optional[np.ndarray] = None
+        self._ds_ramp_p_end: Optional[np.ndarray] = None
         # Simulation time at which the active coarse plan was anchored
         # (so r_com_at(t - t0) gives the right reference at current time).
         self._coarse_plan_t0: float = 0.0
@@ -937,6 +944,11 @@ class SimulationLoop:
         # the live state above (line ~810), so it equals the actual
         # torso position at the moment SS begins.
         self._ss_entry_p_torso = p_t0.copy()
+        # Option A: reset DS ramp state at SS entry; the next weld
+        # activation will repopulate _ds_ramp_t_start / _ds_ramp_p_start.
+        self._ds_ramp_t_start = None
+        self._ds_ramp_p_start = None
+        self._ds_ramp_p_end = None
 
         return (q_end, T_step, True)
 
@@ -1326,6 +1338,16 @@ class SimulationLoop:
                         self._activate_weld(swing_arm, target_idx)
                         mujoco.mj_forward(self.mj_model, self.mj_data)
                         self.nmpc.reset_warm_start()
+                        # Option A: capture the SS-exit torso position
+                        # and weld time for the post-dock DS blend. The
+                        # blend endpoint (_ds_ramp_p_end) is not stored
+                        # here — _step() recomputes the live mapping
+                        # output each tick and blends it against
+                        # _ds_ramp_p_start. See M7_T12_MEMO.md §5.
+                        self._ds_ramp_t_start = float(t)
+                        if self._ss_entry_p_torso is not None:
+                            self._ds_ramp_p_start = (
+                                self._ss_entry_p_torso.copy())
 
                         # Inelastic impact: project velocity onto new
                         # constraint manifold.
@@ -1716,6 +1738,25 @@ class SimulationLoop:
                 r_b_ref_m, v_b_ref_m, a_b_ff_m, _ = self.mapping.compute(
                     r_com_ref=rp_interp, v_com_ref=vp_interp,
                     a_com_ff=af_for_mapping, q_current=q_map, dq_current=dq_map)
+                # Option A: post-dock blend of the DS torso linear
+                # position reference from the SS-exit pose to the live
+                # mapping output over cfg.ds_ramp_duration_s. Quintic
+                # shape s(tau) = 10 tau^3 - 15 tau^4 + 6 tau^5.
+                # Orientation reference (tr.R below) is not blended.
+                if phase == 'DS':
+                    T_ramp = cfg.ds_ramp_duration_s
+                    if (T_ramp > 0.0
+                            and self._ds_ramp_t_start is not None
+                            and self._ds_ramp_p_start is not None):
+                        tau_blend = (tq - self._ds_ramp_t_start) / T_ramp
+                        if tau_blend <= 0.0:
+                            r_b_ref_m = self._ds_ramp_p_start.copy()
+                        elif tau_blend < 1.0:
+                            s_blend = (10.0 * tau_blend ** 3
+                                       - 15.0 * tau_blend ** 4
+                                       + 6.0 * tau_blend ** 5)
+                            r_b_ref_m = ((1.0 - s_blend) * self._ds_ramp_p_start
+                                         + s_blend * r_b_ref_m)
                 p_torso_ref_used = r_b_ref_m
                 v_torso_ref_used = np.concatenate([v_b_ref_m, tr.v[3:6]])
                 a_torso_ff_used = np.concatenate([a_b_ff_m, tr.a[3:6]])

@@ -233,3 +233,14 @@ class SimConfig:
     # for the linear components of the torso reference. Angular
     # reference still comes from TorsoPlanner (orientation tracking
     # unchanged). DS phase is unchanged (mapping still active there).
+
+    ds_ramp_duration_s: float = 2.0
+    # Option A (2026-04-22): duration over which the torso linear
+    # position reference is ramped from the SS-exit pose
+    # (_ss_entry_p_torso) to the live DS mapping output
+    # (mapping.compute(q_current)) after weld activation. Quintic
+    # shape function s(tau) = 10 tau^3 - 15 tau^4 + 6 tau^5, C^2
+    # continuous with s(0)=0, s(1)=1, s'(0)=s'(1)=s''(0)=s''(1)=0.
+    # Set to 0.0 to disable (reverts to the pre-Option-A step
+    # behavior). Introduced to close the T12 DS1 divergence;
+    # see docs/architecture/M7_T12_MEMO.md §5.
