@@ -1666,6 +1666,7 @@ class SimulationLoop:
         qp = self.qp_ss
         tau_last = np.zeros(12)
         tau_w_last = np.zeros(3)
+        transport_mag_last = 0.0
         _omega_s_last = np.zeros(3)
         qp_ok = True
         t_qp_start = time.perf_counter()
@@ -1947,6 +1948,15 @@ class SimulationLoop:
                 hw_phys = cfg.rwa_I_w * rw_vel
                 omega_s = self.mj_data.qvel[3:6]
 
+                # Diagnostic: |ω_s × H_{r/O}| — magnitude of the transport
+                # term missing from Mode B's feedforward. Computed but
+                # NOT applied to tau_w_cmd (see AOCS_CONCERN_MEMO.md §7).
+                H_rO_diag = (rs.L_com
+                             + np.cross(rs.r_com,
+                                        self.robot._total_mass * rs.v_com))
+                transport_mag_last = float(
+                    np.linalg.norm(np.cross(omega_s, H_rO_diag)))
+
                 if cfg.aocs_off_in_ds and phase == 'DS':
                     tau_w_cmd = np.zeros(3)
                 elif cfg.aocs_mode == 'H_est' or cfg.aocs_use_H_estimator:
@@ -2112,10 +2122,12 @@ class SimulationLoop:
             log.hw_physical.append((cfg.rwa_I_w * rw_vel_f).copy())
             log.tau_w.append(tau_w_last.copy())
             log.rw_speed.append(rw_vel_f.copy())
+            log.transport_term_mag.append(transport_mag_last)
         else:
             log.hw_physical.append(hw.copy())
             log.tau_w.append(np.zeros(3))
             log.rw_speed.append(np.zeros(3))
+            log.transport_term_mag.append(0.0)
 
         # H_{r/O} estimator diagnostics
         if self.has_rwa and cfg.aocs_use_H_estimator:
