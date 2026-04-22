@@ -76,6 +76,9 @@ class SimConfig:
     aocs_K_h: float = 0.5
     aocs_hw_target: np.ndarray = field(default_factory=lambda: np.zeros(3))
 
+    # Diagnostic: zero wheel torque during DS (Mode B still runs in SS).
+    aocs_off_in_ds: bool = False
+
     # ── M2: reworked QP task stack ──────────────────────────────
     use_m2_stack: bool = False    # Enable reworked QP (torso P1 + EE null-space P2 + soft CoM)
     alpha_com_soft: float = 0.0   # Soft CoM residual disabled — redundant with torso 6D position task; 5.0 was fighting torso tracking

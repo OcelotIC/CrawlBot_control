@@ -563,7 +563,7 @@ class NMPCSolver:
         if self.solver_name == 'ipopt':
             opts['ipopt.print_level'] = 0
             opts['print_time'] = 0
-            opts['ipopt.max_iter'] = 100
+            opts['ipopt.max_iter'] = 200
             opts['ipopt.tol'] = 1e-6
             opts['ipopt.acceptable_tol'] = 1e-4
             opts['ipopt.acceptable_iter'] = 5

@@ -1601,6 +1601,7 @@ class SimulationLoop:
                     'L_com_ref': L_com_ref_nmpc.copy(),
                     'norm': float(np.linalg.norm(L_com_ref_nmpc)),
                 })
+        info_n = None
         try:
             rp, vp, _, lr, info_n = self.nmpc.solve(
                 r_com=rs.r_com, v_com=rs.v_com, L_com=rs.L_com,
@@ -1946,7 +1947,9 @@ class SimulationLoop:
                 hw_phys = cfg.rwa_I_w * rw_vel
                 omega_s = self.mj_data.qvel[3:6]
 
-                if cfg.aocs_mode == 'H_est' or cfg.aocs_use_H_estimator:
+                if cfg.aocs_off_in_ds and phase == 'DS':
+                    tau_w_cmd = np.zeros(3)
+                elif cfg.aocs_mode == 'H_est' or cfg.aocs_use_H_estimator:
                     # H_{r/O} estimator: feedforward on full robot angular
                     # momentum about O (spin + orbital), with attitude
                     # damping and desaturation feedback.
@@ -2175,6 +2178,11 @@ class SimulationLoop:
         # NMPC solver diagnostics
         log.nmpc_status.append(nmpc_status_code)
         log.nmpc_cost.append(nmpc_cost_val)
+        log.nmpc_status_str.append(
+            info_n.status if info_n is not None else "no_info")
+        log.nmpc_iterations.append(
+            int(info_n.solver_stats.get('iter_count', -1))
+            if info_n is not None and info_n.solver_stats else -1)
 
         # Contact wrenches
         log.lambda_ref.append(lr.copy())

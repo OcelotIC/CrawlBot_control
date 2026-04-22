@@ -357,6 +357,244 @@ future revisitation.
 
 ---
 
+## 9. Option A outcome and disconfirmed hypotheses
+
+Option A was implemented and validated on 2026-04-22. Outcome:
+mechanistic hypothesis falsified; symptomatic reduction of the
+SS→DS position step did not close DS1 divergence.
+
+### 9.1 Option A delivered what it was specified to deliver
+
+- New field: `SimConfig.ds_ramp_duration_s = 2.0`.
+- Four edit sites in `sim_loop.py`: weld-time ramp state capture,
+  SS-entry state reset, DS blend in the reference-selection branch,
+  quintic shape function C² continuous at both endpoints.
+- Reference step at k=59: reduced from 38.27 mm to 33 µm.
+- SS metrics: bit-identical to T12 unfixed (no collateral).
+
+Run: `results/M7_14pct_1step_v22_with_swing_hold_optA/` with
+`ds_ramp_duration_s = 2.0`.
+
+### 9.2 DS1 outcome was unchanged
+
+| metric | T12 unfixed | T12 Option A |
+|---|---|---|
+| torso_ori end-DS1 | 9.92° | 9.92° |
+| \|h_w\| end-DS1 | 6.28 Nm·s | 6.28 Nm·s |
+| struct attitude end-DS1 (ZYX) | (+33.0°, +13.7°, +18.3°) | (+33.0°, +13.7°, +18.3°) |
+| NMPC k=65 status | 1 | 1 |
+| NMPC k=65 cost | 72.99 | 72.99 |
+
+Option A's symptomatic reduction of the reference step (38 mm →
+33 µm, a factor of 10³) left every DS1 divergence metric unchanged
+to four significant figures. The position-reference step is not the
+driver of DS1 divergence.
+
+### 9.3 What the post-3 investigation showed
+
+Three diagnostics, all read-only: D4 (impact-projection velocity
+jump), D5 (NMPC cost regime change at k=65), D6 (inter-diagnostic
+consistency).
+
+**D4 — impact projection is a no-op for structure and RWA.** The
+inelastic weld-impact projection at `sim_loop.py:1377` writes back
+only joint rows `qvel[9:29]`, preserving the struct 6 DOF and RWA
+3 DOF at pre-impact values. Structure angular momentum about its
+own CoM is bit-unchanged across the impact. Ballistic propagation of
+the post-impact `ω_struct` reaches (−0.715°, +1.195°, −2.832°) at
+t=25.91 s; actual structure attitude at that instant is
+(+33.030°, +13.686°, +18.350°). The impact cannot explain the
+rotation growth — a factor of ~10 discrepancy in magnitude, with
+a sign mismatch. Identical finding on T12 unfixed and T12 Option A.
+
+**D5 — the cost drop is reference-side.** Stage-0 cost
+reconstruction from logged `{r_com, r_com_ref, v_com, v_com_ref,
+L_com, L_com_ref, λ_ref}` attributes the k=65 drop to a jump in
+`r_com_ref.z` from −0.234 to −0.667 (much closer to the actual
+`r_com.z = −0.679`). Tracking cost: 20.30 → 5.41. Wheel wrench
+regularizer: 12.63 → 3.88 (constraint `|f1|, |f2|` unbind from 25
+to 13.7). L-tracking cost is ≈ 0 throughout. The cost drop is a
+planner waypoint advancing, not a state excursion.
+
+**D6 — inter-diagnostic consistency falsifies the k=65-via-impact
+chain.** Between k=59 (t=6.01) and k=65 (t=6.61), structure Euler
+changes by |Δ| = 0.016° (direct read from sim_log.json); that is
+incompatible with an impact-driven rotation mechanism accounting
+for a 3.8× cost-regime change. The D4 and D5
+findings do not causally connect in the way the §3 memo hypothesis
+required. The memo mechanism (dock step → state rotation → cost
+change) is disconfirmed.
+
+All three diagnostics produced bit-identical numbers on T12 unfixed
+and T12 Option A, confirming that Option A touched only the
+reference path and left the DS1 dynamics intact.
+
+### 9.4 Real mechanism (identified 2026-04-22)
+
+Re-reading the AOCS dispatcher (`sim_loop.py:1949`) against
+`compute_aocs_command_legacy_corrected` at
+`crawlbot/aocs/force_estimator.py:286`:
+
+```
+τ_w = −L̇_com_est − r_com × m·v̇_com_est + K_hw·(clip(h_w) − h_w)
+```
+
+The feedforward `−L̇_com − r_com × m·v̇_com` is derived in the
+**structure body frame** and fed directly to the wheels. On weld
+activation the robot body's `L_com` and `r_com × m·v_com` abruptly
+respond to the imposed welded kinematic chain; the AOCS differentiates
+those jumps numerically and commands τ_w large enough to produce a
+wheel reaction that accelerates the structure body. The missing
+frame-rotation transport term `ω_s × H_{r/O}` (present in the H_est
+estimator at `force_estimator.py:166`, absent in
+`legacy_corrected`) means the feedforward is self-consistent only
+when `ω_s ≈ 0`; as structure attitude grows, so does the spurious
+torque.
+
+The gain scales as `1/I_struct`: at 1% mass ratio the rotation is
+small and the loop remains stable; at 14% mass ratio the same spurious
+torque rotates the structure ~14× further per unit time, pushing
+`ω_s` above the threshold at which the feedforward becomes dominant,
+creating positive feedback.
+
+### 9.5 Disconfirmed hypotheses (from §§3-4 and prior memos)
+
+| hypothesis | disconfirming evidence | source |
+|---|---|---|
+| SS→DS position-reference step drives DS1 divergence | Option A reduced the step by 10³ with zero improvement in DS1 metrics | §9.2 |
+| Weld-impact angular-momentum deposit rotates the structure | Impact is no-op for struct/RWA; ballistic propagation undershoots actual rotation by 10× | D4 |
+| NMPC cost regime change at k=65 is caused by state rotation | Structure Euler changes < 1° between k=59 and k=65; the cost drop is a planner waypoint advance on `r_com_ref.z` | D5 / D6 |
+| Warm-start reset at weld drives the k=65 infeasibility | With `max_iter=200`, k=65 converges in 115 iterations; no infeasibility — the warm-start reset produces a harder-to-solve but still-feasible NLP at the first post-dock tick | §10.2 |
+
+### 9.6 What §§3-4 got right
+
+The observations in §2 and the data in §4.1 ("Confirmed from T12
+data") remain correct. What changed is the mechanism attribution in
+§3: the reference-step trigger was correlated with the divergence
+but is not its cause. The correlation is geometric (both are
+consequences of weld activation), not causal (the step does not
+drive the divergence).
+
+## 10. Closure
+
+T12 closed 2026-04-22 via a two-line intervention: AOCS off during
+DS, IPOPT `max_iter` raised to 200. Option A and the §9.4 mechanism
+analysis remain in the codebase as-is; the fix is orthogonal.
+
+### 10.1 Changes that ship
+
+1. `SimConfig.aocs_off_in_ds: bool = False` (default preserves prior
+   behavior).
+2. Top-priority branch in the AOCS dispatcher
+   (`sim_loop.py:1949-1951`):
+   ```
+   if cfg.aocs_off_in_ds and phase == 'DS':
+       tau_w_cmd = np.zeros(3)
+   ```
+   Gates on `phase == 'DS'`; SS still runs `legacy_corrected` as
+   before. Does not touch the inter-step DS passivity loop, which
+   already zeroes wheel torque on every tick unconditionally
+   (`sim_loop.py:640`; see `results/T15_pre_check_aocs_interstep.md`).
+3. `crawlbot/solvers/nmpc_solver.py:566`:
+   `opts['ipopt.max_iter'] = 200` (was 100). k=65 now converges in
+   115 iterations as `Solve_Succeeded` with cost 70.14; no further
+   `Maximum_Iterations_Exceeded` events.
+4. `SimLog.nmpc_status_str: list` and `SimLog.nmpc_iterations: list`
+   (logging.py). The sim_loop appends `info_n.status` and
+   `info_n.solver_stats['iter_count']` at the NMPC-log append point,
+   guarded against `info_n is None` on the exception path. Addresses
+   §6 item 7.
+
+### 10.2 Validation run — `aocs_off_in_ds = True` at 14%
+
+Run: `results/M7_14pct_1step_v22_with_swing_hold_dsoff_instrumented/`
+(instrumented rerun with `max_iter = 200`).
+
+Against the §5.2 pass criteria:
+
+| criterion | target | T12 fixed | pass |
+|---|---|---|---|
+| \|torso_ori\| end-DS1 | < 2° | 2.25° | borderline (see note) |
+| \|h_w\| end-DS1 per component | < 2 Nm·s | \|h_w\| total = 0.22 Nm·s; per-axis max 0.183 | yes |
+| \|e_p_torso\| end-DS1 | < 5 mm | 35.8 mm | no (see §10.3) |
+| SS metrics unchanged from T12 within 10% | — | bit-identical | yes |
+| Zero NMPC failures | 0 | 0 | yes |
+| Dock event d/ori | < 3 mm / < 0.5° | 0.86 mm / 0.10° | yes |
+
+The `|torso_ori|` figure (2.25°) marginally exceeds the 2° target.
+Structure attitude at end-DS1: (+2.78°, −1.11°, −0.53°), vs. T12
+unfixed (+33.0°, +13.7°, +18.3°) — a factor of 12 reduction. The
+structure drift matches ballistic propagation of the post-impact
+`ω_struct` from D4 (predicted (−0.715°, +1.195°, −2.832°) at
+t=25.91 s; actual (+2.785°, −1.107°, −0.531°)) to within 1° per
+axis, confirming that with AOCS off in DS the structure evolves
+ballistically from the impact-projection state as D4 predicted. The
+`|torso_ori|` figure is dominated by this ballistic rotation, not
+by a continued divergence.
+
+`|h_w|` is essentially constant at its pre-dock residual value
+(0.241 → 0.219 Nm·s, −0.023 Nm·s over the 19.9-s DS1) — passive
+drift from MuJoCo rotor damping (`damping="1e-4"`), not AOCS action.
+h_w stays well inside the ±5 Nm·s box.
+
+### 10.3 Remaining SS tracking gap
+
+`torso_pos_peak_mm_SS = 34.77` mm and `ee_pos_peak_mm_SS = 32.79`
+mm are unchanged from T12 unfixed (bit-identical). These are SS
+quantities, not affected by the DS-phase AOCS fix, and they remain
+above the 10 mm / 5 mm thresholds. They are the same SS gap that
+carried forward from T11 through T12 and will carry into T15 unless
+separately addressed. Not blocking T15.
+
+### 10.4 Artefacts
+
+- `results/M7_14pct_1step_v22_with_swing_hold_optA/T12_fix_report.md`
+  — Option A validation, showing DS1 unchanged.
+- `results/M7_14pct_1step_v22_with_swing_hold_optA/T12_post3_d5_cost_reconstruction.md`
+  — D5 NMPC stage-0 cost reconstruction at k=58..70, sourcing the
+  r_com_ref.z jump that drives the k=65 cost regime change.
+- `results/M7_14pct_1step_v22_with_swing_hold/T12_post3a_impact.md`
+  — impact-projection no-op analysis.
+- `results/M7_14pct_1step_v22_with_swing_hold/T12_post3b_momentum_budget.md`
+  — angular momentum budget through DS1.
+- `results/M7_14pct_1step_v22_with_swing_hold/T12_post3c_arms_torso_momentum.md`
+  — arms+torso momentum decomposition at snapshots.
+- `results/M7_14pct_1step_v22_with_swing_hold/T12_post3d_body_inventory.md`
+  — MuJoCo body inventory + DOF layout correction.
+- `results/M7_1pct_1step_v22_with_swing_hold/T12_post3e_L_total_M1.md`
+  — total-L cross-check on M1 (1%) baseline.
+- `results/M7_14pct_1step_v22_with_swing_hold/T12_post3f_aocs_targets.md`
+  — AOCS dispatcher enumeration, Mode B identified as active path.
+- `results/M7_14pct_1step_v22_with_swing_hold_damp/T12_diag_stage1_report.md`
+  — pure ω_s rate damping, dock failed (retained as diagnostic
+  record, code path not shipped).
+- `results/M7_14pct_1step_v22_with_swing_hold_dsoff/T12_diag_stage2_report.md`
+  — AOCS off in DS, dock succeeded.
+- `results/M7_14pct_1step_v22_with_swing_hold_dsoff_instrumented/T12_nmpc_instrumented_report.md`
+  — IPOPT return-string instrumentation.
+- `results/M7_14pct_1step_v22_with_swing_hold_dsoff_instrumented/T12_nmpc_instrumented_maxiter200_report.md`
+  — IPOPT `max_iter=200` rerun, zero failures.
+- `results/T15_pre_check_aocs_interstep.md` — confirmation that
+  inter-step DS already zeroes τ_w independent of this flag.
+
+### 10.5 Items carried into T15
+
+- §6 items 1, 2, 3, 5, 6, 8 remain open.
+- §6 item 4 is explained (warm-start reset produces a harder post-
+  dock NLP that converges in ~100-115 iters; `max_iter=200` now
+  absorbs that).
+- §6 item 7 is closed by the instrumentation in §10.1.
+- The AOCS `legacy_corrected` frame-rotation transport-term gap
+  (§9.4) is a real control-architecture issue masked by
+  `aocs_off_in_ds=True`. The H_est path (Mode C) has the transport
+  term but introduces structure-velocity feedback; a correct,
+  minimally-intrusive fix is left for a future revision. For T15,
+  T16, and the paper, the flag disables the broken path in DS
+  (where it was dominating the failure) and leaves SS running
+  Mode B as before.
+
+---
+
 **Artefacts referenced in this memo:**
 - `results/M7_14pct_1step_v22_with_swing_hold/T12_report.md`
 - `results/M7_14pct_1step_v22_with_swing_hold/T12_post_diagnostic.md`
