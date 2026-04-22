@@ -2186,6 +2186,24 @@ class SimulationLoop:
         log.q_ee_ref.append(np.array([q_ee_r.w, q_ee_r.x,
                                        q_ee_r.y, q_ee_r.z]))
 
+        # Joint, EE, and torso velocities (T15-post-2 instrumentation).
+        # Joint rates: Pinocchio-ordered v[arm_{a,b}_v_slice]; same convention
+        # as q_joints slicing. EE/torso velocities: J @ v in LOCAL_WORLD_ALIGNED
+        # (matches the frame of oMf_*.translation = p_ee / p_torso).
+        log.qvel_joints_a.append(
+            rs_f.v[self.robot.arm_a_v_slice].copy())
+        log.qvel_joints_b.append(
+            rs_f.v[self.robot.arm_b_v_slice].copy())
+        V_tool_a = rs_f.J_tool_a @ rs_f.v
+        V_tool_b = rs_f.J_tool_b @ rs_f.v
+        V_torso_body = rs_f.J_torso @ rs_f.v
+        log.v_ee_a.append(V_tool_a[:3].copy())
+        log.omega_ee_a.append(V_tool_a[3:].copy())
+        log.v_ee_b.append(V_tool_b[:3].copy())
+        log.omega_ee_b.append(V_tool_b[3:].copy())
+        log.v_torso.append(V_torso_body[:3].copy())
+        log.omega_torso.append(V_torso_body[3:].copy())
+
         # CoM velocity (actual from Pinocchio, ref from NMPC)
         log.v_com.append(rs_f.v_com.copy())
         log.v_com_ref.append(vp.copy())
