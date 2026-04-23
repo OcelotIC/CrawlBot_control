@@ -94,6 +94,16 @@ class SimLog:
     q_ee: list = field(default_factory=list)           # EE orientation actual quat (wxyz)
     q_ee_ref: list = field(default_factory=list)       # EE orientation ref quat (wxyz)
 
+    # Joint, EE, and torso velocities (T15-post-2 instrumentation).
+    qvel_joints_a: list = field(default_factory=list)  # arm A joint rates (7,), rad/s
+    qvel_joints_b: list = field(default_factory=list)  # arm B joint rates (7,), rad/s
+    v_ee_a: list = field(default_factory=list)         # arm A tool linear vel (3,), m/s, struct frame
+    v_ee_b: list = field(default_factory=list)         # arm B tool linear vel (3,), m/s, struct frame
+    omega_ee_a: list = field(default_factory=list)     # arm A tool angular vel (3,), rad/s
+    omega_ee_b: list = field(default_factory=list)     # arm B tool angular vel (3,), rad/s
+    v_torso: list = field(default_factory=list)        # torso linear vel (3,), m/s, struct frame
+    omega_torso: list = field(default_factory=list)    # torso angular vel (3,), rad/s
+
     # CoM
     r_com: list = field(default_factory=list)
     r_com_ref: list = field(default_factory=list)

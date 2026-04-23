@@ -911,6 +911,13 @@ class SimulationLoop:
         self.plan.set_step_duration(ss_phase_idx, T_step)
         self._current_T_step = T_step
 
+        # Option Z: reset plan-time offset at SS entry so that
+        # plan_query_t(t_ss_start) aligns with plan.t_start[ss_phase_idx].
+        # This absorbs both (a) unused SS runway from prior-step early
+        # dock and (b) any inter-step DS-settle slack vs nominal DS
+        # duration. Idempotent per SS entry.
+        self._t_plan_offset = t_ss_start - self.plan.t_start[ss_phase_idx]
+
         # 4. Torso planner over the SAME [t_ss_start, t_ss_start + T_step].
         #    No torso_delay, no EXT extension.
         #    M7 change (B): the torso trajectory completes in
@@ -1168,6 +1175,8 @@ class SimulationLoop:
                         t_ss_start, swing_arm,
                         stance_a, stance_b, swing_arm, target_idx,
                         ss_phase_idx=ss_phase_idx)
+                    # Mirror Option Z reset into the outer loop's offset.
+                    t_offset = self._t_plan_offset
                     if not step_feasible:
                         log.aborted_steps.append({
                             'step_idx': int(step_idx),
@@ -2176,6 +2185,24 @@ class SimulationLoop:
         q_ee_r = pin.Quaternion(sr_f.R_ee)
         log.q_ee_ref.append(np.array([q_ee_r.w, q_ee_r.x,
                                        q_ee_r.y, q_ee_r.z]))
+
+        # Joint, EE, and torso velocities (T15-post-2 instrumentation).
+        # Joint rates: Pinocchio-ordered v[arm_{a,b}_v_slice]; same convention
+        # as q_joints slicing. EE/torso velocities: J @ v in LOCAL_WORLD_ALIGNED
+        # (matches the frame of oMf_*.translation = p_ee / p_torso).
+        log.qvel_joints_a.append(
+            rs_f.v[self.robot.arm_a_v_slice].copy())
+        log.qvel_joints_b.append(
+            rs_f.v[self.robot.arm_b_v_slice].copy())
+        V_tool_a = rs_f.J_tool_a @ rs_f.v
+        V_tool_b = rs_f.J_tool_b @ rs_f.v
+        V_torso_body = rs_f.J_torso @ rs_f.v
+        log.v_ee_a.append(V_tool_a[:3].copy())
+        log.omega_ee_a.append(V_tool_a[3:].copy())
+        log.v_ee_b.append(V_tool_b[:3].copy())
+        log.omega_ee_b.append(V_tool_b[3:].copy())
+        log.v_torso.append(V_torso_body[:3].copy())
+        log.omega_torso.append(V_torso_body[3:].copy())
 
         # CoM velocity (actual from Pinocchio, ref from NMPC)
         log.v_com.append(rs_f.v_com.copy())
