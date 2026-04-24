@@ -40,7 +40,8 @@ from crawlbot.core.com_to_torso_mapping import CoMToTorsoMapping
 from crawlbot.core.ik import (
     dock_configuration, dock_configuration_fixed_rotation,
     solve_ik, solve_ik_waypoints,
-    manipulability_config, precompute_torso_map,
+    manipulability_config, manipulability_config_trajectory,
+    precompute_torso_map,
 )
 from crawlbot.planning.contact_scheduler import ContactScheduler, read_anchors_from_mujoco
 # LocomotionPlanner removed — CoM reference comes from TorsoPlanner
@@ -838,8 +839,37 @@ class SimulationLoop:
         q_end = None
         ik_mode = 'manipulability'  # default label for logging
         w_fixed = float('nan')
+        traj_drift = float('nan')
+        traj_w_worst = float('nan')
+        traj_w_end = float('nan')
+        traj_ik_elapsed_s = float('nan')
 
-        if cfg.ik_fixed_rotation:
+        # M7 Manipulability-IK-1 Phase 4 — on-demand trajectory-aware IK.
+        # Phase 3 (results/M7_1pct_3step_v22_t15_trajIK/T15_trajIK_report.md
+        # §5) showed that the chained-precompute cache's q_start_assumed
+        # diverged from live state by 30–60× the tolerance at every SS
+        # entry, so the cache was never consumed. Phase 4 bypasses the
+        # cache and calls manipulability_config_trajectory with the
+        # live pq_live so the optimiser sees the actual SS-entry state.
+        # The cache build in setup() is retained unchanged (dead code
+        # in this run) per the Phase-4 prompt — future work may
+        # repurpose it as a warm-start seed source.
+        if cfg.use_trajectory_aware_ik:
+            t0 = time.perf_counter()
+            try:
+                q_end, traj_w_worst, traj_w_end = manipulability_config_trajectory(
+                    model,
+                    se3_a.translation, se3_b.translation,
+                    q_start=pq_live,
+                    n_samples=cfg.trajectory_ik_n_samples,
+                )
+                ik_mode = 'trajectory_aware_on_demand'
+            except RuntimeError:
+                q_end = None
+                ik_mode = 'trajectory_aware_on_demand_failed'
+            traj_ik_elapsed_s = float(time.perf_counter() - t0)
+
+        if q_end is None and cfg.ik_fixed_rotation:
             try:
                 q_fixed, err_fixed, w_fixed = dock_configuration_fixed_rotation(
                     model, se3_a, se3_b,
@@ -869,6 +899,13 @@ class SimulationLoop:
         dR = R_t0.T @ R_t1
         theta_goal = float(np.linalg.norm(pin.log3(dR)))
         dp_torso = p_t1 - p_t0
+        traj_suffix = ""
+        if cfg.use_trajectory_aware_ik:
+            traj_suffix = (
+                f"  traj_ik_t = {traj_ik_elapsed_s:.2f} s"
+                f"  w_worst(traj) = {traj_w_worst:.2e}"
+                f"  w_end(traj) = {traj_w_end:.2e}"
+            )
         print(
             f"  [IK] mode={ik_mode}  "
             f"||log(R_start^T R_goal)|| = {np.degrees(theta_goal):.2f} deg  "
@@ -887,6 +924,10 @@ class SimulationLoop:
             'theta_deg': float(np.degrees(theta_goal)),
             'dp_mm': float(np.linalg.norm(dp_torso) * 1000),
             'w_fixed': w_fixed,
+            'traj_drift': traj_drift,
+            'traj_w_worst': traj_w_worst,
+            'traj_w_end': traj_w_end,
+            'traj_ik_elapsed_s': traj_ik_elapsed_s,
         })
 
         # 2. Run the coarse pre-planner. T_step is produced by the
