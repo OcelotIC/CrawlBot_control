@@ -4,6 +4,7 @@ Provides:
     solve_ik              — iterative 6D IK for multiple frame targets
     dock_configuration    — convenience: both tools at anchor poses
     manipulability_config — optimal-manipulability configuration for a dock pair
+    manipulability_config_trajectory — trajectory-aware variant (M7 / Candidate 1)
     precompute_torso_map  — offline map of optimal configs for all anchor pairs
     solve_ik_waypoints    — chain of IK solutions along a swing arc
 """
@@ -356,6 +357,12 @@ def manipulability_config(
             best_result = result
         _cache['q_prev'] = None  # reset cache between starts
 
+    if best_result is None:
+        raise RuntimeError(
+            "manipulability_config: all multi-starts produced IK failure "
+            "(infeasible anchor pair)."
+        )
+
     # Recover the optimal configuration
     q0 = pin.neutral(model)
     q0[:3] = best_result.x
@@ -382,35 +389,251 @@ def precompute_torso_map(
     model: pin.Model,
     anchors_a: np.ndarray,
     anchors_b: np.ndarray,
-) -> Dict[Tuple[int, int], np.ndarray]:
+    *,
+    anchor_pair_sequence: Optional[List[Tuple[int, int]]] = None,
+    q_initial: Optional[np.ndarray] = None,
+    n_samples: int = 5,
+    use_trajectory_aware: bool = False,
+) -> Dict[Tuple[int, int], object]:
     """Precompute optimal configurations for all anchor pairs.
 
-    Returns a lookup table mapping (anchor_a_idx, anchor_b_idx) to the
-    configuration that maximizes combined arm manipulability with both
-    tools at their respective anchors.
+    Two modes:
+
+    * use_trajectory_aware=False (default, backwards-compatible):
+        returns {(ai, bi): q_opt: ndarray} for the full grid product.
+        This is the endpoint-only behaviour and matches the legacy signature.
+
+    * use_trajectory_aware=True:
+        walks ``anchor_pair_sequence`` in order, chaining q_start from
+        the previous entry's q_end. Seeds from ``q_initial`` (required).
+        Returns {(ai, bi): {'q_end', 'q_start_assumed', 'w_worst', 'w_end'}}.
+        For repeated pairs, the last occurrence overwrites earlier ones
+        — earlier occurrences will hit the drift-tolerance fallback at
+        runtime (which is the intended graceful-degradation behaviour).
 
     Parameters
     ----------
     model : pin.Model
     anchors_a : (N, 3) array of anchor positions for tool A.
     anchors_b : (M, 3) array of anchor positions for tool B.
+    anchor_pair_sequence : ordered list of (ai, bi) pairs (trajectory mode only).
+    q_initial : (nq,) seed for the first chained pair (trajectory mode only).
+        Typically the endpoint-IK solution for the first pair.
+    n_samples : K — number of τ∈(0,1] samples (trajectory mode only).
+    use_trajectory_aware : enable chained trajectory-aware IK.
 
     Returns
     -------
     torso_map : dict
-        {(a_idx, b_idx): q_opt} for each feasible pair.
+        Endpoint mode: {(a_idx, b_idx): q_opt}.
+        Trajectory mode: {(a_idx, b_idx): {q_end, q_start_assumed, w_worst, w_end}}.
     """
-    torso_map = {}
-    for ai in range(len(anchors_a)):
-        for bi in range(len(anchors_b)):
-            se3_a = pin.SE3(np.eye(3), anchors_a[ai].copy())
-            se3_b = pin.SE3(np.eye(3), anchors_b[bi].copy())
-            try:
-                q_opt, w = manipulability_config(model, se3_a, se3_b)
-                torso_map[(ai, bi)] = q_opt
-            except RuntimeError:
-                pass  # infeasible pair — skip
-    return torso_map
+    if not use_trajectory_aware:
+        torso_map: Dict[Tuple[int, int], object] = {}
+        for ai in range(len(anchors_a)):
+            for bi in range(len(anchors_b)):
+                se3_a = pin.SE3(np.eye(3), anchors_a[ai].copy())
+                se3_b = pin.SE3(np.eye(3), anchors_b[bi].copy())
+                try:
+                    q_opt, w = manipulability_config(model, se3_a, se3_b)
+                    torso_map[(ai, bi)] = q_opt
+                except RuntimeError:
+                    pass  # infeasible pair — skip
+        return torso_map
+
+    # Trajectory-aware chained mode.
+    if anchor_pair_sequence is None or q_initial is None:
+        raise ValueError(
+            "precompute_torso_map(use_trajectory_aware=True) requires "
+            "both `anchor_pair_sequence` and `q_initial`."
+        )
+
+    traj_map: Dict[Tuple[int, int], object] = {}
+    q_start = np.asarray(q_initial, dtype=float).copy()
+    for (ai, bi) in anchor_pair_sequence:
+        a_pos = anchors_a[ai]
+        b_pos = anchors_b[bi]
+        try:
+            q_end, w_worst, w_end = manipulability_config_trajectory(
+                model, a_pos, b_pos, q_start, n_samples=n_samples,
+            )
+        except RuntimeError:
+            # Infeasible: skip this entry so runtime falls back to endpoint map.
+            continue
+        traj_map[(ai, bi)] = {
+            'q_end': q_end,
+            'q_start_assumed': q_start.copy(),
+            'w_worst': float(w_worst),
+            'w_end': float(w_end),
+        }
+        q_start = q_end  # chain
+    return traj_map
+
+
+def _interpolate_q_quintic(
+    model: pin.Model,
+    q_start: np.ndarray,
+    q_end: np.ndarray,
+    tau: float,
+) -> np.ndarray:
+    """Quintic time-scaling on the configuration manifold.
+
+    s(τ) = 10τ³ − 15τ⁴ + 6τ⁵  (C² with s(0)=0, s(1)=1, ṡ(0)=ṡ(1)=s̈(0)=s̈(1)=0)
+
+    The time-scaled parameter is then passed to ``pin.interpolate``, which
+    uses the Lie-group structure of the free-flyer base (SE(3) geodesic)
+    plus linear interpolation for revolute joints.
+
+    Matches the joint-space quintic used in
+    ``sim_loop._planned_arm_config`` for SS swing timing.
+    """
+    s = 10.0 * tau**3 - 15.0 * tau**4 + 6.0 * tau**5
+    return pin.interpolate(model, q_start, q_end, s)
+
+
+def _trajectory_worst_w(
+    model: pin.Model,
+    data,
+    q_start: np.ndarray,
+    q_end: np.ndarray,
+    n_samples: int,
+    fid_a: int,
+    fid_b: int,
+    sl_a: slice,
+    sl_b: slice,
+) -> Tuple[float, float]:
+    """Return (w_worst, w_end): worst-case and endpoint σ_min products.
+
+    Samples τ ∈ {1/K, 2/K, …, 1.0} (τ=0 is q_start, which is fixed input
+    and common to all candidates, so excluded from the optimised set).
+    """
+    w_worst = np.inf
+    w_end = 0.0
+    for k in range(1, n_samples + 1):
+        tau = k / n_samples
+        q_k = _interpolate_q_quintic(model, q_start, q_end, tau)
+        pin.forwardKinematics(model, data, q_k)
+        pin.updateFramePlacements(model, data)
+        pin.computeJointJacobians(model, data, q_k)
+        Ja = pin.getFrameJacobian(model, data, fid_a, pin.LOCAL)[:, sl_a]
+        Jb = pin.getFrameJacobian(model, data, fid_b, pin.LOCAL)[:, sl_b]
+        sigma_a = float(np.linalg.svd(Ja, compute_uv=False)[-1])
+        sigma_b = float(np.linalg.svd(Jb, compute_uv=False)[-1])
+        w_k = sigma_a * sigma_b
+        if w_k < w_worst:
+            w_worst = w_k
+        if k == n_samples:
+            w_end = w_k
+    return float(w_worst), float(w_end)
+
+
+def manipulability_config_trajectory(
+    model: pin.Model,
+    anchor_a: np.ndarray,
+    anchor_b: np.ndarray,
+    q_start: np.ndarray,
+    n_samples: int = 5,
+    q_guess: Optional[np.ndarray] = None,
+) -> Tuple[np.ndarray, float, float]:
+    """Trajectory-aware manipulability IK (M7 / Manipulability-IK-1).
+
+    Optimise torso xyz to maximise the **worst-case** σ_min(J_a)·σ_min(J_b)
+    across K interior samples of the planned quintic interpolation from
+    q_start to the docked end configuration. Trades a small amount of
+    endpoint optimality for guarantees on the interior trajectory —
+    addresses the near-singular interior configurations flagged in the
+    T15 post-5 audit §8.4 (Candidate 1).
+
+    Decision variables and multi-start strategy match ``manipulability_config``
+    (torso xyz, dz ∈ {0.0, −0.3, −0.6}, Nelder-Mead adaptive). The arm
+    joints are solved inside the cost via ``solve_ik``.
+
+    Parameters
+    ----------
+    model : pin.Model
+    anchor_a, anchor_b : (3,) world positions for tool A / tool B anchors.
+    q_start : (nq,) fixed τ=0 configuration (chained from the previous step).
+    n_samples : K — samples at τ ∈ {1/K, 2/K, …, 1.0}.
+    q_guess : optional (nq,) extra seed for the internal IK.
+
+    Returns
+    -------
+    q_end : (nq,) optimal end configuration.
+    w_worst : float — worst-case σ_min product across the K samples (maximised).
+    w_end : float — endpoint-only σ_min product at q_end (diagnostic).
+    """
+    se3_a = pin.SE3(np.eye(3), np.asarray(anchor_a, dtype=float).copy())
+    se3_b = pin.SE3(np.eye(3), np.asarray(anchor_b, dtype=float).copy())
+    data = model.createData()
+    fid_a, fid_b = _get_tool_frames(model)
+    targets = {fid_a: se3_a, fid_b: se3_b}
+    midpoint = 0.5 * (se3_a.translation + se3_b.translation)
+    q_start = np.asarray(q_start, dtype=float)
+
+    _cache = {'q_prev': q_guess.copy() if q_guess is not None else None}
+
+    def cost(torso_xyz):
+        q0 = pin.neutral(model)
+        q0[:3] = torso_xyz
+        candidates = [q0]
+        if _cache['q_prev'] is not None:
+            q_seed = _cache['q_prev'].copy()
+            q_seed[:3] = torso_xyz
+            candidates.insert(0, q_seed)
+
+        best_score = -1.0
+        best_q = None
+        for q_try in candidates:
+            q_end, err = solve_ik(model, q_try, targets, max_iter=500)
+            if err > 1e-3:
+                continue
+            sl_a = _arm_v_slice(model, fid_a)
+            sl_b = _arm_v_slice(model, fid_b)
+            w_worst, _ = _trajectory_worst_w(
+                model, data, q_start, q_end, n_samples, fid_a, fid_b, sl_a, sl_b,
+            )
+            if w_worst > best_score:
+                best_score = w_worst
+                best_q = q_end
+
+        if best_q is not None:
+            _cache['q_prev'] = best_q
+        return -best_score if best_score > 0 else 1e6
+
+    best_result = None
+    best_cost = 1e6
+    for dz in [0.0, -0.3, -0.6]:
+        x0 = midpoint.copy()
+        x0[2] += dz
+        result = scipy_minimize(
+            cost, x0, method='Nelder-Mead',
+            options={'xatol': 1e-3, 'fatol': 1e-8,
+                     'maxiter': 200, 'adaptive': True},
+        )
+        if result.fun < best_cost:
+            best_cost = result.fun
+            best_result = result
+        _cache['q_prev'] = None  # reset between multi-starts
+
+    if best_result is None:
+        raise RuntimeError(
+            "manipulability_config_trajectory: all multi-starts produced "
+            "IK failure (infeasible anchor pair)."
+        )
+
+    # Recover the optimal q_end.
+    q0 = pin.neutral(model)
+    q0[:3] = best_result.x
+    q_end, err = solve_ik(model, q0, targets, max_iter=2000)
+    if err > 1e-4:
+        q_end = dock_configuration(model, se3_a, se3_b)
+
+    sl_a = _arm_v_slice(model, fid_a)
+    sl_b = _arm_v_slice(model, fid_b)
+    w_worst, w_end = _trajectory_worst_w(
+        model, data, q_start, q_end, n_samples, fid_a, fid_b, sl_a, sl_b,
+    )
+    return q_end, float(w_worst), float(w_end)
 
 
 def solve_ik_waypoints(
