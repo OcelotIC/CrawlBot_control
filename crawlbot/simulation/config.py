@@ -169,6 +169,18 @@ class SimConfig:
     ik_fixed_rotation: bool = True
     ik_fixed_rotation_w_min: float = 1e-4
 
+    # ── M7 Manipulability-IK-1: trajectory-aware IK (Candidate 1) ──
+    # When True, sim_loop builds an additional torso_map_traj dict
+    # whose q_end is optimised for worst-case σ_min(J_a)·σ_min(J_b)
+    # across K interior samples of the planned SS swing, chained by
+    # q_start = q_end_prev. Falls back to the endpoint torso_map when
+    # the chain drift exceeds `trajectory_ik_qstart_tolerance`.
+    # Default False preserves existing behaviour (bit-for-bit ablation).
+    # See docs/architecture/T15_MANIPULABILITY_IK_DESIGN.md.
+    use_trajectory_aware_ik: bool = False
+    trajectory_ik_qstart_tolerance: float = 0.05  # [rad] chain-drift fallback
+    trajectory_ik_n_samples: int = 5              # K samples along τ∈(0,1]
+
     # ── Torso-vs-swing velocity profile ─────────────────────────
     # 1.0 = torso quintic runs over the full [0, T_step] alongside
     # the swing. The 0.7 stagger was a workaround for the folded-arm
