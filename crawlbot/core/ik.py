@@ -591,24 +591,56 @@ def manipulability_config_trajectory(
         )
         return -w_worst if w_worst > 0 else 1e6
 
+    # Multi-start seed set per IK_FORMULATION.md §9.2: 7 seeds spanning
+    # all three Cartesian axes plus two physically motivated alternatives.
+    # The pre-fix 3-seed dz-only set could not reach better basins of
+    # the cost landscape (IK_ANOMALY_REPORT §3.2 — grid max at xyz
+    # ~0.9 m from any current seed). Falls back to 6 seeds if the
+    # fixed-rotation hybrid seed itself fails to converge.
+    p_start_b = q_start[:3].copy()
+    seeds = [
+        ('q_start', p_start_b),
+        ('midpoint', midpoint.copy()),
+        ('mid+x', midpoint + np.array([+0.3, 0.0, 0.0])),
+        ('mid-x', midpoint + np.array([-0.3, 0.0, 0.0])),
+        ('mid+y', midpoint + np.array([0.0, +0.3, 0.0])),
+        ('mid-y', midpoint + np.array([0.0, -0.3, 0.0])),
+    ]
+    # 7th seed: fixed-rotation IK output (hybrid). If it fails to
+    # converge, omit the seed (see §9.2 "fall back to 6 seeds").
+    try:
+        qx, qy, qz, qw = q_start[3], q_start[4], q_start[5], q_start[6]
+        R_torso_start = pin.Quaternion(qw, qx, qy, qz).toRotationMatrix()
+        q_fixed, err_fixed, _ = dock_configuration_fixed_rotation(
+            model, se3_a, se3_b,
+            R_torso_fixed=R_torso_start,
+            torso_pos=midpoint.copy(),
+            q_init=q_start.copy(),
+            max_iter=500, tol=1e-6,
+        )
+        if err_fixed < 1e-3:
+            seeds.append(('p_fixed', q_fixed[:3].copy()))
+    except Exception:
+        pass  # silent: 6-seed fallback per §9.2
+
     best_result = None
     best_cost = 1e6
-    for dz in [0.0, -0.3, -0.6]:
-        x0 = midpoint.copy()
-        x0[2] += dz
+    best_seed_label = None
+    for label, x0 in seeds:
         result = scipy_minimize(
-            cost, x0, method='Nelder-Mead',
+            cost, x0.copy(), method='Nelder-Mead',
             options={'xatol': 1e-3, 'fatol': 1e-8,
                      'maxiter': 200, 'adaptive': True},
         )
         if result.fun < best_cost:
             best_cost = result.fun
             best_result = result
+            best_seed_label = label
 
     if best_result is None or best_cost >= 1e6:
         raise RuntimeError(
             "manipulability_config_trajectory: all multi-starts produced "
-            "IK failure (infeasible anchor pair)."
+            f"IK failure across {len(seeds)} seeds (infeasible anchor pair)."
         )
 
     # Recover the optimal q_end with the same deterministic seed used
