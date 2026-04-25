@@ -119,10 +119,167 @@ class SwingPlanner:
                 f"early_finish_fraction must be in (0, 1], "
                 f"got {early_finish_fraction}")
         self.early_finish_fraction = float(early_finish_fraction)
+        # Piecewise-quintic override store for mid-waypoint reshape
+        # (T15_step2_path_geometry.md §7.3 Option B). When non-empty,
+        # ``reference_at(t)`` consults this list first; if t falls in
+        # an override window, the piecewise reference is used instead
+        # of the scheduler-driven anchor interpolation. Empty list
+        # preserves the legacy single-quintic-from-anchors behaviour.
+        self._phase_overrides: list = []
 
     def set_swing_orientation(self, R_start: np.ndarray) -> None:
         """Set the tool rotation at swing release for SLERP interpolation."""
         self._R_start = R_start.copy()
+
+    def add_phase(
+        self,
+        t_start: float,
+        t_end: float,
+        p_ee_start: np.ndarray,
+        R_ee_start: np.ndarray,
+        p_ee_end: np.ndarray,
+        R_ee_end: np.ndarray,
+        swing_arm: str,
+        p_ee_mid: Optional[np.ndarray] = None,
+        R_ee_mid: Optional[np.ndarray] = None,
+        t_mid: Optional[float] = None,
+    ) -> None:
+        """Register an explicit EE-reference override for one phase.
+
+        The override is consulted by ``reference_at`` before the
+        scheduler-driven anchor interpolation. Used by sim_loop to
+        install a mid-waypoint between the swing start and end EE
+        poses (T15_step2_path_geometry.md §7.3 Option B).
+
+        Single-quintic mode (``p_ee_mid``/``R_ee_mid``/``t_mid`` all
+        omitted): position quintic + clearance bump + delayed-cosine
+        SLERP, identical shape to the scheduler-driven path. The
+        bump and rotation profiles use the same `early_finish_fraction`
+        and `bump_peak_tau` settings as the SwingPlanner instance.
+
+        Piecewise mode (all three mid-waypoint args provided): two
+        position-quintic segments through (start, mid, end) with
+        v=0 at each waypoint; two SLERP segments through the same
+        three rotations with ω=0 at each waypoint; one continuous
+        clearance bump that spans the full ``[t_start, t_end]``
+        window unchanged (the bump's shape is independent of the
+        manipulability-driven mid-waypoint).
+
+        Parameters
+        ----------
+        t_start, t_end : float — phase timing.
+        p_ee_start, p_ee_end : (3,) — EE positions at the endpoints.
+        R_ee_start, R_ee_end : (3,3) — EE orientations at the endpoints.
+        swing_arm : 'a' or 'b' — which arm the override applies to.
+        p_ee_mid, R_ee_mid : (3,)/(3,3), optional — mid-waypoint EE pose.
+        t_mid : float, optional — time at the mid-waypoint; must
+            satisfy ``t_start < t_mid < t_end``.
+        """
+        piecewise = (p_ee_mid is not None) and (R_ee_mid is not None)
+        if piecewise:
+            if t_mid is None:
+                raise ValueError(
+                    "t_mid is required when p_ee_mid/R_ee_mid given")
+            if not (t_start < t_mid < t_end):
+                raise ValueError(
+                    f"t_mid={t_mid} must satisfy {t_start} < t_mid < {t_end}")
+        elif (p_ee_mid is not None) ^ (R_ee_mid is not None):
+            raise ValueError(
+                "p_ee_mid and R_ee_mid must be provided together "
+                "(piecewise) or both omitted (single-quintic)")
+
+        self._phase_overrides.append({
+            't_start': float(t_start),
+            't_end': float(t_end),
+            'p_ee_start': np.asarray(p_ee_start, dtype=float).copy(),
+            'R_ee_start': np.asarray(R_ee_start, dtype=float).copy(),
+            'p_ee_end': np.asarray(p_ee_end, dtype=float).copy(),
+            'R_ee_end': np.asarray(R_ee_end, dtype=float).copy(),
+            'swing_arm': swing_arm,
+            'p_ee_mid': (np.asarray(p_ee_mid, dtype=float).copy()
+                         if piecewise else None),
+            'R_ee_mid': (np.asarray(R_ee_mid, dtype=float).copy()
+                         if piecewise else None),
+            't_mid': float(t_mid) if piecewise else None,
+            'piecewise': piecewise,
+        })
+
+    def clear_phase_overrides(self) -> None:
+        """Clear any registered phase overrides (return to scheduler-driven)."""
+        self._phase_overrides = []
+
+    def _override_reference_at(self, t: float, ov: dict) -> 'SwingReference':
+        """Compute the SwingReference from an override (single or piecewise)."""
+        T = ov['t_end'] - ov['t_start']
+        T_eff = T * self.early_finish_fraction
+        # Single-phase τ for the bump (continuous across full phase).
+        tau_phase = float(np.clip((t - ov['t_start']) / T_eff, 0.0, 1.0))
+        bump = self._bump(tau_phase)
+        bump_dot = self._bump_dot(tau_phase) / T_eff
+        bump_ddot = self._bump_ddot(tau_phase) / (T_eff * T_eff)
+        n = self.away_normal
+
+        if not ov['piecewise']:
+            dp = ov['p_ee_end'] - ov['p_ee_start']
+            s = self._quintic(tau_phase)
+            s_dot = self._quintic_dot(tau_phase) / T_eff
+            s_ddot = self._quintic_ddot(tau_phase) / (T_eff * T_eff)
+            p_ee = ov['p_ee_start'] + dp * s + self.clearance * n * bump
+            v_ee = dp * s_dot + self.clearance * n * bump_dot
+            a_ee = dp * s_ddot + self.clearance * n * bump_ddot
+            # SLERP in orientation
+            tau_d = self.rotation_delay_ratio
+            sigma_r = self._delayed_cosine(tau_phase, tau_d)
+            sigma_r_dot = self._delayed_cosine_dot(tau_phase, tau_d) / T_eff
+            sigma_r_ddot = self._delayed_cosine_ddot(tau_phase, tau_d) / (T_eff * T_eff)
+            dR = ov['R_ee_start'].T @ ov['R_ee_end']
+            omega_total = pin.log3(dR)
+            R_ee = ov['R_ee_start'] @ pin.exp3(sigma_r * omega_total)
+            omega_ee = R_ee @ (sigma_r_dot * omega_total)
+            alpha_ee = R_ee @ (sigma_r_ddot * omega_total)
+        else:
+            # Piecewise quintic in position; piecewise SLERP in rotation;
+            # bump uses single-phase tau (continuous).
+            t_mid = ov['t_mid']
+            if t <= t_mid:
+                seg_T = t_mid - ov['t_start']
+                seg_T_eff = seg_T  # ff applies only to seg-2 tail
+                seg_tau = float(np.clip((t - ov['t_start']) / seg_T, 0.0, 1.0))
+                p0 = ov['p_ee_start']; p1 = ov['p_ee_mid']
+                R0 = ov['R_ee_start']; R1 = ov['R_ee_mid']
+            else:
+                seg_T = ov['t_end'] - t_mid
+                seg_T_eff = seg_T * self.early_finish_fraction
+                seg_tau = float(np.clip((t - t_mid) / seg_T_eff, 0.0, 1.0))
+                p0 = ov['p_ee_mid']; p1 = ov['p_ee_end']
+                R0 = ov['R_ee_mid']; R1 = ov['R_ee_end']
+            dp = p1 - p0
+            s = self._quintic(seg_tau)
+            s_dot = self._quintic_dot(seg_tau) / seg_T_eff
+            s_ddot = self._quintic_ddot(seg_tau) / (seg_T_eff * seg_T_eff)
+            p_ee_pos = p0 + dp * s
+            v_ee_lin = dp * s_dot
+            a_ee_lin = dp * s_ddot
+            # Apply continuous bump on full-phase τ
+            p_ee = p_ee_pos + self.clearance * n * bump
+            v_ee = v_ee_lin + self.clearance * n * bump_dot
+            a_ee = a_ee_lin + self.clearance * n * bump_ddot
+            # Per-segment SLERP with v=0 at endpoints (quintic timing).
+            dR_seg = R0.T @ R1
+            omega_total_seg = pin.log3(dR_seg)
+            sigma_r = self._quintic(seg_tau)
+            sigma_r_dot = self._quintic_dot(seg_tau) / seg_T_eff
+            sigma_r_ddot = self._quintic_ddot(seg_tau) / (seg_T_eff * seg_T_eff)
+            R_ee = R0 @ pin.exp3(sigma_r * omega_total_seg)
+            omega_ee = R_ee @ (sigma_r_dot * omega_total_seg)
+            alpha_ee = R_ee @ (sigma_r_ddot * omega_total_seg)
+
+        return SwingReference(
+            p_ee=p_ee, v_ee=v_ee, a_ee=a_ee,
+            R_ee=R_ee, omega_ee=omega_ee, alpha_ee=alpha_ee,
+            swing_arm=ov['swing_arm'],
+            is_swinging=True,
+            phase_progress=tau_phase)
 
     @property
     def plan(self) -> GaitPlan:
@@ -230,6 +387,13 @@ class SwingPlanner:
         -------
         ref : SwingReference
         """
+        # Phase-override path (mid-waypoint reshape, T15_step2_path
+        # _geometry.md §7.3 Option B). Consulted before the
+        # scheduler-driven path.
+        for ov in self._phase_overrides:
+            if ov['t_start'] - 1e-6 <= t <= ov['t_end'] + 1e-6:
+                return self._override_reference_at(t, ov)
+
         plan = self.plan
         gp, idx = plan.phase_at(t)
 
