@@ -569,36 +569,27 @@ def manipulability_config_trajectory(
     targets = {fid_a: se3_a, fid_b: se3_b}
     midpoint = 0.5 * (se3_a.translation + se3_b.translation)
     q_start = np.asarray(q_start, dtype=float)
+    sl_a = _arm_v_slice(model, fid_a)
+    sl_b = _arm_v_slice(model, fid_b)
 
-    _cache = {'q_prev': q_guess.copy() if q_guess is not None else None}
-
+    # IK 3 inner-solve seed: q_start with torso xyz overwritten.
+    # The seed is deterministic in the decision variable (torso xyz)
+    # and identical across all cost evaluations within a single IK
+    # invocation. This makes cost(p_t) a deterministic function of
+    # p_t and eliminates pathology (C) from IK_ANOMALY_REPORT §3.1,
+    # §5.3 (warm-start `_cache['q_prev']` allowed cost(xyz) to vary
+    # by 7+ orders of magnitude depending on the prior Nelder-Mead
+    # path). Spec: docs/architecture/IK_FORMULATION.md §9.1.
     def cost(torso_xyz):
-        q0 = pin.neutral(model)
-        q0[:3] = torso_xyz
-        candidates = [q0]
-        if _cache['q_prev'] is not None:
-            q_seed = _cache['q_prev'].copy()
-            q_seed[:3] = torso_xyz
-            candidates.insert(0, q_seed)
-
-        best_score = -1.0
-        best_q = None
-        for q_try in candidates:
-            q_end, err = solve_ik(model, q_try, targets, max_iter=500)
-            if err > 1e-3:
-                continue
-            sl_a = _arm_v_slice(model, fid_a)
-            sl_b = _arm_v_slice(model, fid_b)
-            w_worst, _ = _trajectory_worst_w(
-                model, data, q_start, q_end, n_samples, fid_a, fid_b, sl_a, sl_b,
-            )
-            if w_worst > best_score:
-                best_score = w_worst
-                best_q = q_end
-
-        if best_q is not None:
-            _cache['q_prev'] = best_q
-        return -best_score if best_score > 0 else 1e6
+        q_seed = q_start.copy()
+        q_seed[:3] = torso_xyz
+        q_end, err = solve_ik(model, q_seed, targets, max_iter=500)
+        if err > 1e-3:
+            return 1e6
+        w_worst, _ = _trajectory_worst_w(
+            model, data, q_start, q_end, n_samples, fid_a, fid_b, sl_a, sl_b,
+        )
+        return -w_worst if w_worst > 0 else 1e6
 
     best_result = None
     best_cost = 1e6
@@ -613,23 +604,22 @@ def manipulability_config_trajectory(
         if result.fun < best_cost:
             best_cost = result.fun
             best_result = result
-        _cache['q_prev'] = None  # reset between multi-starts
 
-    if best_result is None:
+    if best_result is None or best_cost >= 1e6:
         raise RuntimeError(
             "manipulability_config_trajectory: all multi-starts produced "
             "IK failure (infeasible anchor pair)."
         )
 
-    # Recover the optimal q_end.
-    q0 = pin.neutral(model)
-    q0[:3] = best_result.x
-    q_end, err = solve_ik(model, q0, targets, max_iter=2000)
+    # Recover the optimal q_end with the same deterministic seed used
+    # in the cost (q_start with torso xyz overwritten); no fallback
+    # to dock_configuration which would change the kinematic branch.
+    q_seed = q_start.copy()
+    q_seed[:3] = best_result.x
+    q_end, err = solve_ik(model, q_seed, targets, max_iter=2000)
     if err > 1e-4:
         q_end = dock_configuration(model, se3_a, se3_b)
 
-    sl_a = _arm_v_slice(model, fid_a)
-    sl_b = _arm_v_slice(model, fid_b)
     w_worst, w_end = _trajectory_worst_w(
         model, data, q_start, q_end, n_samples, fid_a, fid_b, sl_a, sl_b,
     )
