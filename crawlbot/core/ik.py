@@ -868,6 +868,232 @@ def manipulability_config_mid_waypoint(
     return q_mid, float(w_worst), success
 
 
+def _ik_three_tasks(model, fid_torso, fid_swing, fid_stance,
+                    se3_torso, se3_swing, se3_stance,
+                    q_seed, max_iter=2000, tol=1e-6):
+    """Damped-LS Newton IK on three SE(3) frame tasks.
+
+    Used by ``check_path_feasibility`` to evaluate whether the
+    planner-style reference at a given τ admits a feasible
+    whole-body configuration. Returns ``(q, err_norm, converged)``.
+    """
+    nv = model.nv
+    data = model.createData()
+    q = q_seed.copy()
+    targets = [(fid_torso, se3_torso), (fid_swing, se3_swing),
+               (fid_stance, se3_stance)]
+
+    def _err_at(qq):
+        pin.forwardKinematics(model, data, qq)
+        pin.updateFramePlacements(model, data)
+        ev = []
+        for fid, tgt in targets:
+            ev.append(pin.log6(data.oMf[fid].actInv(tgt)).vector)
+        return np.concatenate(ev)
+
+    err_total = _err_at(q)
+    err_norm_prev = float(np.linalg.norm(err_total))
+    for _ in range(max_iter):
+        pin.computeJointJacobians(model, data, q)
+        J_stack = []
+        for fid, _tgt in targets:
+            J_stack.append(pin.getFrameJacobian(model, data, fid, pin.LOCAL))
+        J_total = np.vstack(J_stack)
+        lam = max(1e-6, min(1e-2, err_norm_prev * 1e-3))
+        H = J_total.T @ J_total + lam * np.eye(nv)
+        dq = np.linalg.solve(H, J_total.T @ err_total)
+        # Backtracking line search
+        step_size = 1.0
+        for _ in range(10):
+            q_try = pin.integrate(model, q, step_size * dq)
+            err_try = _err_at(q_try)
+            err_norm_try = float(np.linalg.norm(err_try))
+            if err_norm_try < err_norm_prev:
+                q = q_try
+                err_total = err_try
+                err_norm_prev = err_norm_try
+                break
+            step_size *= 0.5
+        else:
+            break
+        if err_norm_prev < tol:
+            return q, err_norm_prev, True
+    return q, err_norm_prev, err_norm_prev < 1e-3
+
+
+def check_path_feasibility(
+    model: pin.Model,
+    q_start: np.ndarray,
+    q_end: np.ndarray,
+    anchor_a_pose: pin.SE3,
+    anchor_b_pose: pin.SE3,
+    swing_arm: str,
+    fid_torso: int,
+    n_samples: int = 11,
+    w_min_threshold: float = 1e-3,
+    convergence_tol: float = 1e-3,
+    clearance: float = 0.08,
+    away_normal: np.ndarray = None,
+) -> dict:
+    """Evaluate whether the planner-style reference path is feasible.
+
+    At ``n_samples`` evenly-spaced τ values across [0, 1], constructs
+    the reference triple ``(torso_ref, swing_ref, stance_ref)`` that
+    the TorsoPlanner / SwingPlanner / stance constraint would
+    produce, and tries to find a whole-body q that satisfies all
+    three simultaneously via 3-task damped-LS IK. Reports the
+    minimum ``σ_min(J_a) · σ_min(J_b)`` across τ samples (at the
+    converged q where the IK converged; using the joint-space q
+    seeded from interpolation otherwise).
+
+    This is the same procedure as
+    ``scripts/diagnostic_step2_path_geometry.py`` §1, extracted into
+    a runtime-callable helper.
+
+    Reference construction (matches planner shapes):
+        - torso_ref(τ): quintic SLERP between (p_t_start, R_t_start)
+          and (p_t_end, R_t_end).
+        - swing_ref(τ): quintic between (p_swing_start, R_swing_start)
+          and (p_swing_end, R_swing_end) PLUS a sin²(πτ) clearance
+          bump in the +``away_normal`` direction with peak amplitude
+          ``clearance``. This matches SwingPlanner's symmetric default
+          (M5/M7 ``bump_peak_tau=0.5``). If the SwingPlanner
+          instance uses different bump parameters, pass them via the
+          function arguments. The bump matters: it pulls the swing
+          EE off the structure surface and contributes materially to
+          the path's σ_min profile.
+        - stance_ref(τ) = stance pose (held throughout).
+
+    Parameters
+    ----------
+    model : pin.Model
+    q_start, q_end : (nq,) endpoint configurations.
+    anchor_a_pose, anchor_b_pose : SE3 — EE targets at q_end.
+    swing_arm : 'a' or 'b' — which arm is swinging.
+    fid_torso : int — Pinocchio frame ID of the torso.
+    n_samples : K — total samples at τ ∈ linspace(0, 1, K).
+    w_min_threshold : float — samples with σ_min product strictly
+        below this are counted as infeasible.
+    convergence_tol : float — per-sample IK convergence tolerance
+        (residual task error norm). Defaults to 1e-3 m/rad mixed.
+
+    Returns
+    -------
+    dict with fields:
+        - all_samples_feasible : bool — every sample has IK
+          convergence and ``w >= w_min_threshold``.
+        - n_infeasible_w : int — count of samples with w below threshold.
+        - n_ik_failures : int — count of samples where 3-task IK did
+          not converge to ``convergence_tol``.
+        - w_min : float — minimum w across all samples.
+        - w_min_tau : float — τ at which w_min occurred.
+        - per_sample : list of dicts ``{tau, t_residual, w, converged}``.
+    """
+    fid_a, fid_b = _get_tool_frames(model)
+    sl_a = _arm_v_slice(model, fid_a)
+    sl_b = _arm_v_slice(model, fid_b)
+    data = model.createData()
+
+    q_start = np.asarray(q_start, dtype=float)
+    q_end = np.asarray(q_end, dtype=float)
+
+    if swing_arm.lower() == 'b':
+        fid_swing, fid_stance = fid_b, fid_a
+        stance_pose = anchor_a_pose
+    else:
+        fid_swing, fid_stance = fid_a, fid_b
+        stance_pose = anchor_b_pose
+
+    # Endpoint poses in Pinocchio world frame.
+    pin.forwardKinematics(model, data, q_start)
+    pin.updateFramePlacements(model, data)
+    p_t_start = data.oMf[fid_torso].translation.copy()
+    R_t_start = data.oMf[fid_torso].rotation.copy()
+    p_swing_start = data.oMf[fid_swing].translation.copy()
+    R_swing_start = data.oMf[fid_swing].rotation.copy()
+
+    pin.forwardKinematics(model, data, q_end)
+    pin.updateFramePlacements(model, data)
+    p_t_end = data.oMf[fid_torso].translation.copy()
+    R_t_end = data.oMf[fid_torso].rotation.copy()
+    # Swing-end pose is the IK's q_end for the swing arm.
+    p_swing_end = data.oMf[fid_swing].translation.copy()
+    R_swing_end = data.oMf[fid_swing].rotation.copy()
+
+    # Quintic time scaling.
+    def _s(tau):
+        return 10.0 * tau**3 - 15.0 * tau**4 + 6.0 * tau**5
+
+    if away_normal is None:
+        # Default matches DEFAULT_AWAY_NORMAL = [0, 0, 1] in swing_planner.
+        away_normal_n = np.array([0.0, 0.0, 1.0])
+    else:
+        an = np.asarray(away_normal, dtype=float)
+        away_normal_n = an / max(float(np.linalg.norm(an)), 1e-12)
+
+    taus = np.linspace(0.0, 1.0, n_samples)
+    per_sample = []
+    n_infeasible_w = 0
+    n_ik_failures = 0
+    w_min = float('inf')
+    w_min_tau = 0.0
+    for tau in taus:
+        s = _s(float(tau))
+        # Torso ref at τ
+        p_torso = (1 - s) * p_t_start + s * p_t_end
+        dR = R_t_start.T @ R_t_end
+        R_torso = R_t_start @ pin.exp3(s * pin.log3(dR))
+        # Swing ref at τ: linear quintic + sin²(πτ) clearance bump.
+        # The bump matches SwingPlanner's default (symmetric peak
+        # at τ=0.5). Asymmetric profiles (M7 bump_peak_tau≠0.5) and
+        # delayed-cosine SLERP are not modelled here — those would
+        # require coupling to a live SwingPlanner instance. The
+        # symmetric-bump approximation is sufficient for detecting
+        # the singular-interior failure mode (T15_step2_path
+        # _geometry.md §2 measured the same drop with the actual
+        # SwingPlanner-generated reference).
+        bump_amp = float(np.sin(np.pi * float(tau)) ** 2)
+        p_swing = ((1 - s) * p_swing_start + s * p_swing_end
+                   + clearance * away_normal_n * bump_amp)
+        dR_s = R_swing_start.T @ R_swing_end
+        R_swing = R_swing_start @ pin.exp3(s * pin.log3(dR_s))
+        # IK seed: joint-space interpolation
+        q_seed = _interpolate_q_quintic(model, q_start, q_end, float(tau))
+        q_ideal, err_norm, conv = _ik_three_tasks(
+            model, fid_torso, fid_swing, fid_stance,
+            pin.SE3(R_torso, p_torso),
+            pin.SE3(R_swing, p_swing),
+            stance_pose,
+            q_seed,
+            max_iter=400, tol=convergence_tol,
+        )
+        sa, sb = _sigma_min_pair(model, data, q_ideal,
+                                 fid_a, fid_b, sl_a, sl_b)
+        w = sa * sb
+        per_sample.append({
+            'tau': float(tau),
+            'task_residual': float(err_norm),
+            'w': float(w),
+            'converged': bool(conv),
+        })
+        if w < w_min:
+            w_min = w
+            w_min_tau = float(tau)
+        if w < w_min_threshold:
+            n_infeasible_w += 1
+        if not conv:
+            n_ik_failures += 1
+    return {
+        'all_samples_feasible': bool(
+            n_infeasible_w == 0 and n_ik_failures == 0),
+        'n_infeasible_w': int(n_infeasible_w),
+        'n_ik_failures': int(n_ik_failures),
+        'w_min': float(w_min),
+        'w_min_tau': float(w_min_tau),
+        'per_sample': per_sample,
+    }
+
+
 def solve_ik_waypoints(
     model: pin.Model,
     q_start: np.ndarray,
