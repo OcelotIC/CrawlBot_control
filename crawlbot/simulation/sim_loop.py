@@ -838,7 +838,8 @@ class SimulationLoop:
 
         q_end = None
         ik_mode = 'manipulability'  # default label for logging
-        w_fixed = float('nan')
+        w_fixed = float('nan')          # Yoshikawa, fixed_rotation
+        w_sigma_min_fixed = float('nan')  # σ_min product, fixed_rotation
         traj_drift = float('nan')
         traj_w_worst = float('nan')
         traj_w_end = float('nan')
@@ -871,11 +872,12 @@ class SimulationLoop:
 
         if q_end is None and cfg.ik_fixed_rotation:
             try:
-                q_fixed, err_fixed, w_fixed = dock_configuration_fixed_rotation(
-                    model, se3_a, se3_b,
-                    R_torso_fixed=R_t0,
-                    torso_pos=0.5 * (se3_a.translation + se3_b.translation),
-                    q_init=pq_live.copy())
+                q_fixed, err_fixed, w_fixed, w_sigma_min_fixed = (
+                    dock_configuration_fixed_rotation(
+                        model, se3_a, se3_b,
+                        R_torso_fixed=R_t0,
+                        torso_pos=0.5 * (se3_a.translation + se3_b.translation),
+                        q_init=pq_live.copy()))
                 if err_fixed < 1e-4 and w_fixed >= cfg.ik_fixed_rotation_w_min:
                     q_end = q_fixed
                     ik_mode = 'fixed_rotation'
@@ -923,7 +925,8 @@ class SimulationLoop:
             'R_goal': R_t1.copy(),
             'theta_deg': float(np.degrees(theta_goal)),
             'dp_mm': float(np.linalg.norm(dp_torso) * 1000),
-            'w_fixed': w_fixed,
+            'w_fixed': w_fixed,                    # Yoshikawa
+            'w_sigma_min_fixed': w_sigma_min_fixed,  # σ_min product
             'traj_drift': traj_drift,
             'traj_w_worst': traj_w_worst,
             'traj_w_end': traj_w_end,

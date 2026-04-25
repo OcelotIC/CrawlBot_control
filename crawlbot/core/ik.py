@@ -203,7 +203,17 @@ def dock_configuration_fixed_rotation(
     -------
     q : (nq,) converged configuration (torso rotation = R_torso_fixed)
     err : float — final residual norm
-    w_product : float — manipulability product w_a * w_b at q
+    w_product : float
+        Yoshikawa manipulability product per IK_FORMULATION.md §4.1:
+        ``√det(J_a J_aᵀ) · √det(J_b J_bᵀ)``, equal to the product
+        of all 12 task-direction singular values across both arms.
+        Primary diagnostic; backwards-compatible interface.
+    w_sigma_min : float
+        σ_min(J_a) · σ_min(J_b) per IK_FORMULATION.md §4.2 — the
+        worst-direction manipulability used by IK 3
+        (manipulability_config_trajectory). Secondary diagnostic
+        for cross-comparison; resolves the metric-mismatch
+        artefact identified in IK_ANOMALY_REPORT.md §4.3.
     """
     # Seed q0 with the fixed torso rotation. Pinocchio free-flyer uses
     # quaternion (x, y, z, w) at q[3:7].
@@ -259,7 +269,10 @@ def dock_configuration_fixed_rotation(
         if err_tot < tol:
             break
 
-    # Manipulability product (Yoshikawa, combined) at the solution.
+    # Manipulability metrics at the solution (IK_FORMULATION §4):
+    #   w_product   = Yoshikawa, √det(JJᵀ) per arm, product across arms.
+    #   w_sigma_min = σ_min(Ja) · σ_min(Jb) (worst-direction product).
+    # Both reported so downstream callers can cross-compare with IK 3.
     pin.forwardKinematics(model, data, q)
     pin.updateFramePlacements(model, data)
     pin.computeJointJacobians(model, data, q)
@@ -269,7 +282,9 @@ def dock_configuration_fixed_rotation(
     Jb = pin.getFrameJacobian(model, data, fid_b, pin.LOCAL)[:, sl_b]
     w_a = float(np.sqrt(max(np.linalg.det(Ja @ Ja.T), 0.0)))
     w_b = float(np.sqrt(max(np.linalg.det(Jb @ Jb.T), 0.0)))
-    return q, float(err_tot), w_a * w_b
+    sa = float(np.linalg.svd(Ja, compute_uv=False)[-1])
+    sb = float(np.linalg.svd(Jb, compute_uv=False)[-1])
+    return q, float(err_tot), w_a * w_b, sa * sb
 
 
 def manipulability_config(
@@ -611,7 +626,7 @@ def manipulability_config_trajectory(
     try:
         qx, qy, qz, qw = q_start[3], q_start[4], q_start[5], q_start[6]
         R_torso_start = pin.Quaternion(qw, qx, qy, qz).toRotationMatrix()
-        q_fixed, err_fixed, _ = dock_configuration_fixed_rotation(
+        q_fixed, err_fixed, _, _ = dock_configuration_fixed_rotation(
             model, se3_a, se3_b,
             R_torso_fixed=R_torso_start,
             torso_pos=midpoint.copy(),
