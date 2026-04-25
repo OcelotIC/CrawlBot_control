@@ -30,3 +30,12 @@ results/M7_1pct_1step_v21_mapping_off_hi_ori_gain/
 # preserved on-branch in results/M7_1pct_1step_v22_with_swing_hold/).
 results/M7_1pct_1step_v22_hold_070/
 scripts/_run_m7_v22_hold_070.py
+
+# T15 mid-waypoint validation run artifacts (Phase 7 of step2-path-diagnostic).
+# Per the prompt brief: report (T15_midwaypoint_report.md) is committed; the
+# heavy run outputs (sim_log, physics_trace, metrics, ik_trace, figs) are not.
+results/M7_1pct_3step_v22_t15_midwaypoint/sim_log.json
+results/M7_1pct_3step_v22_t15_midwaypoint/physics_trace.pkl
+results/M7_1pct_3step_v22_t15_midwaypoint/metrics.csv
+results/M7_1pct_3step_v22_t15_midwaypoint/ik_trace.json
+results/M7_1pct_3step_v22_t15_midwaypoint/fig*.png
