@@ -687,6 +687,187 @@ def manipulability_config_trajectory(
     return q_end, float(w_worst), float(w_end)
 
 
+def _sigma_min_pair(model, data, q, fid_a, fid_b, sl_a, sl_b):
+    """σ_min(J_a) and σ_min(J_b) at q. Helper for path-evaluation cost."""
+    pin.forwardKinematics(model, data, q)
+    pin.updateFramePlacements(model, data)
+    pin.computeJointJacobians(model, data, q)
+    Ja = pin.getFrameJacobian(model, data, fid_a, pin.LOCAL)[:, sl_a]
+    Jb = pin.getFrameJacobian(model, data, fid_b, pin.LOCAL)[:, sl_b]
+    sa = float(np.linalg.svd(Ja, compute_uv=False)[-1])
+    sb = float(np.linalg.svd(Jb, compute_uv=False)[-1])
+    return sa, sb
+
+
+def manipulability_config_mid_waypoint(
+    model: pin.Model,
+    anchor_a_pose: pin.SE3,
+    anchor_b_pose: pin.SE3,
+    q_start: np.ndarray,
+    q_end: np.ndarray,
+    swing_arm: str = 'b',
+    n_interior_samples: int = 5,
+    w_min_threshold: float = 1e-3,
+) -> Tuple[Optional[np.ndarray], float, bool]:
+    """Mid-waypoint IK for piecewise-quintic SS reference (Option B).
+
+    Implements T15_step2_path_geometry.md §7.3 Option B: insert a
+    manipulability-aware mid-waypoint between ``q_start`` and ``q_end``
+    so that the resulting two-segment quintic stays well-conditioned
+    throughout. Addresses the H2 finding that the single-quintic
+    reference for anchor pair (3,4) at T15 visits a near-singular
+    interior region.
+
+    The decision variable is the mid-waypoint torso xyz
+    ``p_t_mid ∈ R^3``. The torso orientation and arm joints at the
+    mid-waypoint are determined by the inner IK, which enforces only
+    the stance-arm target (the swing arm is mid-flight at ``q_mid``).
+    The cost samples the σ_min product across both sub-segments and
+    returns the worst case.
+
+    Parameters
+    ----------
+    model : pin.Model
+    anchor_a_pose, anchor_b_pose : SE3
+        EE targets at ``q_end``. The stance pose (the one held
+        throughout the SS) is selected by ``swing_arm``: if
+        ``swing_arm == 'b'`` the stance is ``anchor_a_pose``, else
+        the stance is ``anchor_b_pose``.
+    q_start, q_end : (nq,) endpoint configurations.
+    swing_arm : 'a' or 'b' — which arm is swinging during the SS.
+    n_interior_samples : K — number of interior τ samples per
+        sub-segment. Sample positions are τ ∈ {1/(K+1), 2/(K+1), …,
+        K/(K+1)}, i.e. interior of (0, 1) excluding the endpoints
+        (which are q_start, q_mid, q_end and evaluated separately).
+    w_min_threshold : safety threshold; if the converged worst-case
+        ``w_worst < w_min_threshold`` the function returns
+        ``(q_mid, w_worst, False)`` so the caller falls back to
+        single-quintic.
+
+    Returns
+    -------
+    q_mid : (nq,) or None — mid-waypoint configuration. ``None`` only
+        if the multi-start failed entirely (no seed converged).
+    w_worst : float — worst-case σ_min product across both sub-segments
+        and the mid-waypoint itself.
+    success : bool — True iff ``w_worst >= w_min_threshold``.
+    """
+    fid_a, fid_b = _get_tool_frames(model)
+    sl_a = _arm_v_slice(model, fid_a)
+    sl_b = _arm_v_slice(model, fid_b)
+    data = model.createData()
+
+    if swing_arm.lower() == 'b':
+        stance_fid = fid_a
+        stance_pose = anchor_a_pose
+    else:
+        stance_fid = fid_b
+        stance_pose = anchor_b_pose
+
+    q_start = np.asarray(q_start, dtype=float)
+    q_end = np.asarray(q_end, dtype=float)
+
+    # Joint-space midpoint as inner-IK seed. Deterministic in the
+    # decision variable (torso xyz). Same pattern as
+    # manipulability_config_trajectory's q_start seed (IK_FORMULATION
+    # §9.1) — avoids the path-dependency pathology that was fixed in
+    # IK_ANOMALY_REPORT §3.1.
+    q_jmid_base = pin.interpolate(model, q_start, q_end, 0.5)
+
+    # Interior τ samples for cost evaluation (per sub-segment).
+    # We sample (n_interior_samples) equally-spaced interior points in
+    # (0, 1), excluding the segment endpoints which are evaluated
+    # separately as q_start, q_mid, q_end.
+    K = max(1, int(n_interior_samples))
+    interior_taus = [(k + 1) / (K + 1) for k in range(K)]
+
+    def _solve_mid(p_t_mid):
+        """Inner IK at p_t_mid: enforce stance only."""
+        q_seed = q_jmid_base.copy()
+        q_seed[:3] = p_t_mid
+        targets = {stance_fid: stance_pose}
+        q_mid, err = solve_ik(model, q_seed, targets, max_iter=500)
+        return q_mid, err
+
+    def cost(p_t_mid):
+        q_mid, err = _solve_mid(p_t_mid)
+        if err > 1e-3:
+            return 1e6
+        # Sample both sub-segments + the mid-waypoint itself.
+        w_worst = np.inf
+        for tau in interior_taus:
+            # Segment 1: q_start → q_mid
+            q_k = _interpolate_q_quintic(model, q_start, q_mid, tau)
+            sa, sb = _sigma_min_pair(model, data, q_k,
+                                     fid_a, fid_b, sl_a, sl_b)
+            w_worst = min(w_worst, sa * sb)
+            # Segment 2: q_mid → q_end
+            q_k = _interpolate_q_quintic(model, q_mid, q_end, tau)
+            sa, sb = _sigma_min_pair(model, data, q_k,
+                                     fid_a, fid_b, sl_a, sl_b)
+            w_worst = min(w_worst, sa * sb)
+        # Mid-waypoint itself
+        sa, sb = _sigma_min_pair(model, data, q_mid,
+                                 fid_a, fid_b, sl_a, sl_b)
+        w_worst = min(w_worst, sa * sb)
+        return -w_worst if w_worst > 0 else 1e6
+
+    # Multi-start seed set per IK_FORMULATION.md §9.2 (7 seeds).
+    midpoint_anchors = 0.5 * (
+        anchor_a_pose.translation + anchor_b_pose.translation)
+    p_start_b = q_start[:3].copy()
+    seeds = [
+        ('q_start', p_start_b),
+        ('midpoint', midpoint_anchors.copy()),
+        ('mid+x', midpoint_anchors + np.array([+0.3, 0.0, 0.0])),
+        ('mid-x', midpoint_anchors + np.array([-0.3, 0.0, 0.0])),
+        ('mid+y', midpoint_anchors + np.array([0.0, +0.3, 0.0])),
+        ('mid-y', midpoint_anchors + np.array([0.0, -0.3, 0.0])),
+    ]
+    # 7th seed: fixed-rotation IK output (hybrid).
+    try:
+        qx, qy, qz, qw = q_start[3], q_start[4], q_start[5], q_start[6]
+        R_torso_start = pin.Quaternion(qw, qx, qy, qz).toRotationMatrix()
+        q_fixed, err_fixed, _, _ = dock_configuration_fixed_rotation(
+            model, anchor_a_pose, anchor_b_pose,
+            R_torso_fixed=R_torso_start,
+            torso_pos=midpoint_anchors.copy(),
+            q_init=q_start.copy(),
+            max_iter=500, tol=1e-6,
+        )
+        if err_fixed < 1e-3:
+            seeds.append(('p_fixed', q_fixed[:3].copy()))
+    except Exception:
+        pass
+
+    best_result = None
+    best_cost = 1e6
+    for label, x0 in seeds:
+        result = scipy_minimize(
+            cost, x0.copy(), method='Nelder-Mead',
+            options={'xatol': 1e-3, 'fatol': 1e-8,
+                     'maxiter': 200, 'adaptive': True},
+        )
+        if result.fun < best_cost:
+            best_cost = result.fun
+            best_result = result
+
+    if best_result is None or best_cost >= 1e6:
+        # No seed converged — caller falls back to single-quintic.
+        return None, 0.0, False
+
+    # Recover q_mid at the optimum.
+    q_mid, err = _solve_mid(best_result.x)
+    if err > 1e-3:
+        # Final inner solve failed despite cost minimum found —
+        # treat as unsuccessful. Caller falls back.
+        return None, 0.0, False
+
+    w_worst = -best_cost  # cost was negated
+    success = bool(w_worst >= w_min_threshold)
+    return q_mid, float(w_worst), success
+
+
 def solve_ik_waypoints(
     model: pin.Model,
     q_start: np.ndarray,
