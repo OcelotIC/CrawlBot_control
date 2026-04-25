@@ -157,7 +157,11 @@ class TorsoPlanner:
                   p_end: np.ndarray, R_end: np.ndarray,
                   delta_com_start: Optional[np.ndarray] = None,
                   delta_com_end: Optional[np.ndarray] = None,
-                  early_finish_fraction: float = 1.0):
+                  early_finish_fraction: float = 1.0,
+                  p_mid: Optional[np.ndarray] = None,
+                  R_mid: Optional[np.ndarray] = None,
+                  t_mid: Optional[float] = None,
+                  delta_com_mid: Optional[np.ndarray] = None):
         """Add a trajectory phase (all coordinates in structure frame).
 
         Parameters
@@ -182,22 +186,101 @@ class TorsoPlanner:
             The swing-arm's planner is unaffected, so this decouples
             the torso's completion time from the swing's — giving the
             swing a stable base during its precision-approach tail.
+        p_mid, R_mid : ndarray, optional
+            Mid-waypoint torso pose for piecewise quintic. If both are
+            provided (along with t_mid), generates two consecutive
+            quintic segments (t_start → t_mid, t_mid → t_end), each
+            with v=0 and a=0 at its endpoints. Per
+            T15_step2_path_geometry.md §7.3 Option B.
+        t_mid : float, optional
+            Time at the mid-waypoint. Must satisfy
+            t_start < t_mid < t_end. Required when p_mid/R_mid given.
+        delta_com_mid : ndarray (3,), optional
+            CoM offset at mid-waypoint (body frame). If None and
+            piecewise mode is active, ``delta_com_mid`` is linearly
+            interpolated from (delta_com_start, delta_com_end) at the
+            time fraction (t_mid - t_start) / (t_end - t_start).
         """
         ff = float(early_finish_fraction)
         if not (0.0 < ff <= 1.0):
             raise ValueError(
                 f"early_finish_fraction must be in (0, 1], got {ff}")
+        # Decide single- vs piecewise-quintic mode.
+        piecewise = (p_mid is not None) and (R_mid is not None)
+        if piecewise:
+            if t_mid is None:
+                raise ValueError(
+                    "t_mid is required when p_mid/R_mid are provided")
+            if not (t_start < t_mid < t_end):
+                raise ValueError(
+                    f"t_mid={t_mid} must satisfy {t_start} < t_mid < {t_end}")
+        elif (p_mid is not None) ^ (R_mid is not None):
+            raise ValueError(
+                "p_mid and R_mid must be provided together (piecewise) or "
+                "both omitted (single-quintic)")
+
         duration = t_end - t_start
         effective_duration = duration * ff
+
+        if not piecewise:
+            # Legacy single-quintic phase — byte-identical behavior.
+            self._phases.append({
+                't_start': t_start, 't_end': t_end,
+                'p_start': p_start.copy(), 'R_start': R_start.copy(),
+                'p_end':   p_end.copy(),   'R_end':   R_end.copy(),
+                'duration': duration,
+                'effective_duration': effective_duration,
+                'early_finish_fraction': ff,
+                'delta_com_start': delta_com_start.copy() if delta_com_start is not None else None,
+                'delta_com_end':   delta_com_end.copy()   if delta_com_end   is not None else None,
+            })
+            return
+
+        # Piecewise quintic: emit two phases through (start, mid, end).
+        # Each segment uses v=0, a=0 at its endpoints by construction
+        # of the quintic time scaling. Continuity at t_mid is C0 in (p, R)
+        # but velocity is zero on both sides (continuous, derivative
+        # discontinuous in the next derivative — same as the single-quintic
+        # at its endpoints).
+        # ``early_finish_fraction`` is applied to the FULL phase window
+        # only at the second segment: the second segment compresses by
+        # ff and then holds. The first segment uses ff=1.0 (fills its
+        # window completely). This matches the original semantics of
+        # "torso arrives early at p_end" while keeping the mid-waypoint
+        # exact at t_mid.
+
+        # Interpolate delta_com at the mid-waypoint if not provided.
+        if delta_com_mid is None and (
+                delta_com_start is not None and delta_com_end is not None):
+            f = (t_mid - t_start) / (t_end - t_start)
+            delta_com_mid_eff = (1 - f) * delta_com_start + f * delta_com_end
+        else:
+            delta_com_mid_eff = (
+                delta_com_mid.copy() if delta_com_mid is not None else None)
+
+        # Segment 1: t_start → t_mid, ff=1 (full segment quintic).
+        seg1_dur = t_mid - t_start
         self._phases.append({
-            't_start': t_start, 't_end': t_end,
+            't_start': t_start, 't_end': t_mid,
             'p_start': p_start.copy(), 'R_start': R_start.copy(),
-            'p_end':   p_end.copy(),   'R_end':   R_end.copy(),
-            'duration': duration,
-            'effective_duration': effective_duration,
-            'early_finish_fraction': ff,
+            'p_end':   p_mid.copy(),   'R_end':   R_mid.copy(),
+            'duration': seg1_dur,
+            'effective_duration': seg1_dur,
+            'early_finish_fraction': 1.0,
             'delta_com_start': delta_com_start.copy() if delta_com_start is not None else None,
-            'delta_com_end':   delta_com_end.copy()   if delta_com_end   is not None else None,
+            'delta_com_end':   delta_com_mid_eff.copy() if delta_com_mid_eff is not None else None,
+        })
+        # Segment 2: t_mid → t_end, ff applies (compress + hold tail).
+        seg2_dur = t_end - t_mid
+        self._phases.append({
+            't_start': t_mid, 't_end': t_end,
+            'p_start': p_mid.copy(), 'R_start': R_mid.copy(),
+            'p_end':   p_end.copy(), 'R_end':   R_end.copy(),
+            'duration': seg2_dur,
+            'effective_duration': seg2_dur * ff,
+            'early_finish_fraction': ff,
+            'delta_com_start': delta_com_mid_eff.copy() if delta_com_mid_eff is not None else None,
+            'delta_com_end':   delta_com_end.copy() if delta_com_end is not None else None,
         })
 
     def clear_phases(self):
