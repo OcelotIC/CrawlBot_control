@@ -186,6 +186,30 @@ class SimConfig:
     # fall back to fixed_rotation IK. Spec: IK_FORMULATION.md §9.3.
     trajectory_ik_w_min_threshold: float = 1e-3
 
+    # ── Mid-waypoint reshape (Option B per T15_step2_path_geometry §7.3) ──
+    # When True, after the SS-entry IK returns q_end, sample the implied
+    # planner-style reference path's whole-body Jacobian conditioning at
+    # 21 points (check_path_feasibility). If any sample's σ_min product
+    # falls below path_feasibility_w_threshold, attempt a mid-waypoint
+    # reshape via manipulability_config_mid_waypoint and pass the result
+    # to TorsoPlanner / SwingPlanner as a piecewise quintic. This
+    # addresses the H2 finding (T15_step2_path_geometry §6.2): the
+    # single-quintic reference for some anchor pairs visits a
+    # near-singular interior region that the QP cannot track.
+    use_path_feasibility_check: bool = False
+    use_mid_waypoint_reshape: bool = False
+    # When True (and use_mid_waypoint_reshape is also True), bypass the
+    # feasibility check and ALWAYS attempt mid-waypoint reshape. Useful
+    # for validation when the simplified planner-style references in
+    # check_path_feasibility underreport vs the actual mapped references
+    # (T15_step2_path_geometry §7 caveat: the M5 CoM-mapping layer is
+    # not modelled in the runtime check). Default False preserves the
+    # gated behaviour.
+    mid_waypoint_force_on: bool = False
+    # Threshold below which a sample's σ_min product is considered
+    # pathologically singular. Per IK_FORMULATION.md §9.3.
+    path_feasibility_w_threshold: float = 1e-3
+
     # ── Torso-vs-swing velocity profile ─────────────────────────
     # 1.0 = torso quintic runs over the full [0, T_step] alongside
     # the swing. The 0.7 stagger was a workaround for the folded-arm
