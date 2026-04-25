@@ -180,6 +180,11 @@ class SimConfig:
     use_trajectory_aware_ik: bool = False
     trajectory_ik_qstart_tolerance: float = 0.05  # [rad] chain-drift fallback
     trajectory_ik_n_samples: int = 5              # K samples along τ∈(0,1]
+    # Below this σ_min(J_a)·σ_min(J_b) at the converged trajectory-aware
+    # IK endpoint, the result is considered pathological (likely landed
+    # in a singular branch despite §9.1–9.2 fixes). The caller should
+    # fall back to fixed_rotation IK. Spec: IK_FORMULATION.md §9.3.
+    trajectory_ik_w_min_threshold: float = 1e-3
 
     # ── Torso-vs-swing velocity profile ─────────────────────────
     # 1.0 = torso quintic runs over the full [0, T_step] alongside

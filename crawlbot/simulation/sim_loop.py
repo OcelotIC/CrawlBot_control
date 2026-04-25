@@ -863,8 +863,21 @@ class SimulationLoop:
                     se3_a.translation, se3_b.translation,
                     q_start=pq_live,
                     n_samples=cfg.trajectory_ik_n_samples,
+                    w_min_threshold=cfg.trajectory_ik_w_min_threshold,
                 )
-                ik_mode = 'trajectory_aware_on_demand'
+                if q_end is None:
+                    # IK_FORMULATION.md §9.3 safety check rejected
+                    # the converged endpoint (w_end below threshold).
+                    # Fall through to the fixed_rotation IK below.
+                    ik_mode = 'trajectory_aware_rejected_singular'
+                    print(
+                        f"  [IK] trajectory-aware IK rejected: "
+                        f"w_end={traj_w_end:.2e} < threshold "
+                        f"{cfg.trajectory_ik_w_min_threshold:.2e}; "
+                        f"falling back to fixed_rotation"
+                    )
+                else:
+                    ik_mode = 'trajectory_aware_on_demand'
             except RuntimeError:
                 q_end = None
                 ik_mode = 'trajectory_aware_on_demand_failed'

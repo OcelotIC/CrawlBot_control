@@ -549,7 +549,8 @@ def manipulability_config_trajectory(
     q_start: np.ndarray,
     n_samples: int = 5,
     q_guess: Optional[np.ndarray] = None,
-) -> Tuple[np.ndarray, float, float]:
+    w_min_threshold: Optional[float] = None,
+) -> Tuple[Optional[np.ndarray], float, float]:
     """Trajectory-aware manipulability IK (M7 / Manipulability-IK-1).
 
     Optimise torso xyz to maximise the **worst-case** σ_min(J_a)·σ_min(J_b)
@@ -570,10 +571,16 @@ def manipulability_config_trajectory(
     q_start : (nq,) fixed τ=0 configuration (chained from the previous step).
     n_samples : K — samples at τ ∈ {1/K, 2/K, …, 1.0}.
     q_guess : optional (nq,) extra seed for the internal IK.
+    w_min_threshold : optional safety check per IK_FORMULATION.md §9.3.
+        If not None and the converged ``w_end < w_min_threshold``, the
+        result is rejected as pathological and the function returns
+        ``(None, w_worst, w_end)`` to let the caller fall back to
+        fixed_rotation. Default None disables the check.
 
     Returns
     -------
-    q_end : (nq,) optimal end configuration.
+    q_end : (nq,) or None — optimal end configuration, or None if the
+        post-convergence safety check rejected the result.
     w_worst : float — worst-case σ_min product across the K samples (maximised).
     w_end : float — endpoint-only σ_min product at q_end (diagnostic).
     """
@@ -670,6 +677,13 @@ def manipulability_config_trajectory(
     w_worst, w_end = _trajectory_worst_w(
         model, data, q_start, q_end, n_samples, fid_a, fid_b, sl_a, sl_b,
     )
+
+    # Post-convergence safety check (IK_FORMULATION.md §9.3): reject
+    # pathologically singular endpoints. The caller (sim_loop) falls
+    # back to fixed_rotation when q_end is None.
+    if w_min_threshold is not None and w_end < w_min_threshold:
+        return None, float(w_worst), float(w_end)
+
     return q_end, float(w_worst), float(w_end)
 
 
