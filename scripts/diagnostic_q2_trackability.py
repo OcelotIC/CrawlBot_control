@@ -44,10 +44,17 @@ _orig_fixed_rot_ik = ik_module.dock_configuration_fixed_rotation
 
 def _make_patched_ik(alpha: float, q_start_holder: dict):
     """Return a wrapper around dock_configuration_fixed_rotation
-    that intercepts the natural q_end and replaces it with
-    q_start + α·(q_end_natural − q_start) on arm joints only.
-    Torso pose (q[:7]) is left at the natural IK output to keep
-    the SS reference's torso quintic identical for all α.
+    that intercepts the natural q_end and replaces it with the
+    α-extrapolation of (q_start → q_end_natural) over the whole
+    21-dim Pinocchio configuration:
+
+      torso position (q[:3]):  q_start[:3] + α · (q_natural[:3] - q_start[:3])
+      torso quaternion (q[3:7]): R_start · exp3(α · log3(R_start^T R_natural))
+      arm joints   (q[7:]):    q_start[7:] + α · (q_natural[7:] - q_start[7:])
+
+    For α=1 this returns the natural q_end exactly (sanity).
+    For α∈(0,1) the perturbed q_end is "under-displaced". For α>1
+    it extrapolates beyond the natural q_end on each axis.
     """
     def _patched(model, anchor_a, anchor_b, R_torso_fixed,
                  torso_pos=None, q_init=None, max_iter=2000, tol=1e-8):
@@ -56,29 +63,47 @@ def _make_patched_ik(alpha: float, q_start_holder: dict):
             torso_pos=torso_pos, q_init=q_init,
             max_iter=max_iter, tol=tol,
         )
-        # The "q_start" for this perturbation is the live state at
-        # IK call time, available via q_init (sim_loop passes
-        # pq_live.copy()).
         if q_init is None:
             q_start_holder.setdefault('warning',
-                'q_init was None; using neutral as q_start')
+                'q_init was None; using q_natural unchanged')
             return q_natural, err, w_yosh, w_sigma_min
         q_start_local = np.asarray(q_init, dtype=float).copy()
         q_perturbed = q_natural.copy()
-        # Linearly interpolate arm joints (q[7:]); leave torso (q[:7])
-        # at the natural IK output.
+        # Torso position: linear extrap by α.
+        q_perturbed[:3] = (
+            q_start_local[:3]
+            + alpha * (q_natural[:3] - q_start_local[:3])
+        )
+        # Torso quaternion: SLERP-like extrapolation via SO(3) log/exp.
+        qS_xyzw = q_start_local[3:7]
+        qN_xyzw = q_natural[3:7]
+        R_S = pin.Quaternion(qS_xyzw[3], qS_xyzw[0],
+                             qS_xyzw[1], qS_xyzw[2]).toRotationMatrix()
+        R_N = pin.Quaternion(qN_xyzw[3], qN_xyzw[0],
+                             qN_xyzw[1], qN_xyzw[2]).toRotationMatrix()
+        omega = pin.log3(R_S.T @ R_N)
+        R_P = R_S @ pin.exp3(alpha * omega)
+        qP = pin.Quaternion(R_P)
+        q_perturbed[3] = qP.x; q_perturbed[4] = qP.y
+        q_perturbed[5] = qP.z; q_perturbed[6] = qP.w
+        # Arm joints: linear extrap by α.
         q_perturbed[7:] = (
             q_start_local[7:]
             + alpha * (q_natural[7:] - q_start_local[7:])
         )
-        # Save for later analysis.
-        q_start_holder['q_start_arm'] = q_start_local[7:].copy()
-        q_start_holder['q_end_natural_arm'] = q_natural[7:].copy()
-        q_start_holder['q_end_perturbed_arm'] = q_perturbed[7:].copy()
+        # Diagnostics.
         q_start_holder['arm_distance_natural'] = float(
             np.linalg.norm(q_natural[7:] - q_start_local[7:]))
         q_start_holder['arm_distance_perturbed'] = float(
             np.linalg.norm(q_perturbed[7:] - q_start_local[7:]))
+        q_start_holder['torso_pos_distance_natural_m'] = float(
+            np.linalg.norm(q_natural[:3] - q_start_local[:3]))
+        q_start_holder['torso_pos_distance_perturbed_m'] = float(
+            np.linalg.norm(q_perturbed[:3] - q_start_local[:3]))
+        q_start_holder['torso_rot_distance_natural_deg'] = float(
+            np.degrees(float(np.linalg.norm(omega))))
+        q_start_holder['torso_rot_distance_perturbed_deg'] = float(
+            np.degrees(alpha * float(np.linalg.norm(omega))))
         return q_perturbed, err, w_yosh, w_sigma_min
     return _patched
 
@@ -150,6 +175,10 @@ def _run_one_alpha(alpha: float, out_dir: str):
         'alpha': float(alpha),
         'arm_distance_natural_rad': holder.get('arm_distance_natural'),
         'arm_distance_perturbed_rad': holder.get('arm_distance_perturbed'),
+        'torso_pos_distance_natural_m': holder.get('torso_pos_distance_natural_m'),
+        'torso_pos_distance_perturbed_m': holder.get('torso_pos_distance_perturbed_m'),
+        'torso_rot_distance_natural_deg': holder.get('torso_rot_distance_natural_deg'),
+        'torso_rot_distance_perturbed_deg': holder.get('torso_rot_distance_perturbed_deg'),
         'e_torso_pos_peak_mm': e_torso_pos_peak,
         'e_swing_pos_peak_mm': e_swing_pos_peak,
         'e_swing_pos_at_dock_mm': e_swing_pos_at_dock,
