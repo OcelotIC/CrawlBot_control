@@ -107,9 +107,25 @@ torque envelope), not just kinematic manipulability.
 
 ## §2  Q2 — empirical trackability bound
 
-_To be populated when the sweep completes._
+### §2.0  Two-experiment design
 
-### §2.1  Method
+Q2 was conducted in two parts. Q2a (single-step) followed the
+brief literally and gave a misleading positive signal — the
+scenario it used was geometrically too easy. Q2b (T15 step 2) is
+the rigorous follow-up that reproduces the actual failure
+context and tests the perturbation directions the brief Q2.3
+notes called out as missing from Q2a.
+
+| Experiment | Scenario               | Sweeps                           | Result   |
+|:-----------|:-----------------------|:---------------------------------|:---------|
+| Q2a        | Single-step n=1, (2,2)→(2,3) | along-axis α ∈ {0.5..2.0}     | 7/7 DOCKED |
+| Q2b        | Full T15, intercept step 2 only | along-axis α ∈ {0.5..1.5} + orthogonal-y β ∈ {−0.45..+0.45} m | 0/12 DOCKED |
+
+The Q2a positive signal does **not** generalize. The single-step
+scenario at (2,2)→(2,3) has different kinematics from T15 step 2
+at (3,3)→(3,4) and the closed-loop is far more forgiving.
+
+### §2.1  Q2a method (single-step)
 
 Single-step T15-equivalent simulation (`scripts/run_m7_single_step.py`,
 n_steps=1, start_a=2, start_b=2). The closed-loop IK
@@ -123,7 +139,7 @@ an α-extrapolation of the natural ``q_end``:
 Sweep over α ∈ {0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0}. α=1.0 is
 the byte-identical baseline (sanity).
 
-### §2.2  Results
+### §2.2  Q2a results (single-step)
 
 | α    | d_arm [rad] | d_torso_pos [m] | e_torso_peak [mm] | e_swing_peak [mm] | e_swing_at_dock [mm] | outcome |
 |-----:|------------:|----------------:|------------------:|------------------:|---------------------:|:--------|
@@ -160,147 +176,252 @@ sweep does not exercise the rotation-tracking axis. A follow-up
 on a step that requires non-trivial reorient could close that
 gap; not in scope here.
 
-### §2.3  Mid-waypoint joint-space distance — comparison
+**The Q2a result is misleading in scope.** All 7 α docked — but
+this scenario doesn't have the (3,4) wrist-singular geometry,
+doesn't have the cascaded state contamination of T15, and
+requires zero torso reorient at q_end. It only tells us that
+*some* easy single-step scenario tolerates wide α. The brief's
+question — "how far can the IK place q_end from q_start before
+the closed-loop fails to track" — is properly answered only by
+Q2b.
 
-For step 1 of the mid-waypoint run (the catastrophic 177°-flip
-step), the mid-waypoint optimiser proposed:
+### §2.3  Q2b method (T15 step 2 specifically)
 
-| quantity                                  | mid-waypoint step-1 | Q2 α=2.00 (all-DOCKED) |
-|-------------------------------------------|--------------------:|-----------------------:|
-| `q_start[:3]`                             | [0.149, −0.014, −0.797] | (different scenario) |
-| `q_mid[:3]` proposed by IK                | [0.898, −0.444, −0.128] | n/a |
-| `\|\|q_mid_torso − q_start_torso\|\|`     | **1.093 m**         | **1.182 m**            |
+Script: `scripts/diagnostic_q2b_step2_trackability.py`. Runs the
+full 3-step T15 scenario (`run_m7_v22_1pct_3step_t15.py`) and
+monkey-patches `dock_configuration_fixed_rotation` to intercept
+ONLY the 3rd call (step 2). Steps 0 and 1 run with the natural
+IK, so the closed-loop state at step 2 entry matches the IK-fix
+baseline.
 
-**The mid-waypoint torso displacement (1.093 m) is *within* the
-empirically-validated trackable range** demonstrated by Q2 (1.18 m
-at α=2.0, all docked).
+Two sweeps:
 
-So the step-1 failure cannot be attributed to displacement
-magnitude — the controller has demonstrated it can track that far.
-Something else about the mid-waypoint shape must be the trigger.
+- **Sweep A (along-axis)**: q_perturbed = q_start + α(q_natural −
+  q_start) for α ∈ {0.5, 0.75, 1.0, 1.25, 1.5}. Tests whether
+  the Q2a along-axis finding holds at step 2.
 
-The structural difference between the Q2 and mid-waypoint cases:
+- **Sweep B (orthogonal lateral-y)**: q_perturbed = q_natural
+  with q_perturbed[1] += β for β ∈ {−0.45, −0.30, −0.15, 0.00,
+  +0.15, +0.30, +0.45} m. Tests the empirically-observed failure
+  direction — the Phase-7 mid-waypoint q_mid for step 1 was at
+  torso y = −0.44 m vs natural near 0. This is the perturbation
+  axis Q2a left out per the user's clarification.
 
-- **Q2**: the perturbed `q_end` lies on the line from `q_start`
-  through `q_end_natural`. The trajectory is a single quintic in
-  the same direction. Just longer.
-- **Mid-waypoint**: `q_mid` is geometrically *off* the
-  `q_start → q_end_natural` line. The piecewise quintic produces
-  a kinked trajectory — first segment goes in one direction,
-  second in another. Step-1's `q_mid` y-coordinate is −0.444 m
-  while the natural trajectory's y stays near zero (mass and
-  gait are nearly symmetric). The mid-waypoint forces a 0.44 m
-  lateral excursion that has no counterpart in any successful
-  step.
+### §2.4  Q2b results
 
-### §2.4  Q2 verdict — Q2-C with refinement
+**Sweep A (along-axis at T15 step 2):** see
+`diagnostic/q2b_along_axis.png`.
 
-| Verdict | Description                          | Status     |
-|:-------:|:-------------------------------------|:----------:|
-| Q2-A    | Sharp trackability threshold; mid-waypoint exceeded it | rejected |
-| Q2-B    | Smooth degradation; mid-waypoint moderately exceeded ideal | rejected |
-| **Q2-C**| Mid-waypoint within distance bounds; failure has different cause | **confirmed** |
+| α    | d_torso_pos [m] | step-2 e_swing_peak [mm] | docked? |
+|-----:|----------------:|-------------------------:|:-------:|
+| 0.50 | 0.379           | **439.8**                | ✘       |
+| 0.75 | 0.569           | 431.7                    | ✘       |
+| 1.00 | 0.759           | 432.8 (= IK-fix baseline)| ✘       |
+| 1.25 | 0.948           | 414.3                    | ✘       |
+| 1.50 | 1.138           | **397.2**                | ✘       |
 
-The cause is **path orthogonality / direction**, not displacement
-distance. A `||q_mid − q_start||² ≤ d_max²` constraint or
-penalty (Option B' as the brief framed it) would *not* fix the
-failure mode this report identifies — Q2 shows the controller is
-fine with that magnitude.
+**Sweep B (orthogonal y at T15 step 2):** see
+`diagnostic/q2b_orthogonal_y.png`.
 
-What *would* address it:
+| β [m] | torso_pos perturbed dist [m] | step-2 e_swing_peak [mm] | docked? |
+|------:|-----------------------------:|-------------------------:|:-------:|
+| −0.45 | 0.936                        | **423.5**                | ✘       |
+| −0.30 | 0.869                        | 427.7                    | ✘       |
+| −0.15 | 0.825                        | 431.4                    | ✘       |
+|  0.00 | 0.806                        | 432.8 (sanity vs α=1)    | ✘       |
+| +0.15 | 0.815                        | 431.9                    | ✘       |
+| +0.30 | 0.851                        | 430.4                    | ✘       |
+| +0.45 | 0.911                        | **423.0**                | ✘       |
 
-1. **Off-axis penalty**: `||q_mid − [(q_start + q_end)/2]||²` — penalises
-   q_mid's deviation from the midpoint of the natural geodesic.
-   This pushes the optimum toward `q_mid ≈ midpoint_of_natural_path`,
-   reducing the mid-waypoint to a no-op (which is what we want
-   on steps where the natural path is already feasible).
-2. **Path-length penalty**: ``∫₀¹ ‖q̇(τ)‖ dτ`` over the piecewise
-   quintic. Penalises the extra arc-length the kink introduces.
-3. **Trajectory optimisation (Option C)**: drop the "two quintic
-   segments through a single waypoint" structure and optimise the
-   full reference trajectory with explicit cost on tracking error
-   (e.g. direct collocation with NMPC bandwidth as a constraint).
+**0 of 12 perturbations docked.** The β=0 / α=1 cell of both
+tables matches at 432.8 mm, confirming the patch is byte-faithful
+when no perturbation is requested.
+
+Observations:
+
+1. **Along-axis α has minor effect**: monotonically improves
+   swing peak from 439.8 → 397.2 mm as α grows (range 43 mm),
+   but every sample is two orders of magnitude above the 5 mm
+   dock gate.
+2. **Orthogonal β is nearly flat**: total range only 10 mm
+   (423–433 mm), with a slight U-shape (best at the extreme |β|=0.45,
+   worst at β=0). The natural q_end is approximately the
+   y-optimum within ±0.45 m — but only by 10 mm of swing peak.
+3. **No perturbation in either sweep makes step 2 dock.**
+
+### §2.5  Q2b verdict
+
+| Verdict | Description                                                                | Status     |
+|:-------:|:---------------------------------------------------------------------------|:----------:|
+| Q2b-A   | Sharp trackability threshold along the natural axis                        | rejected: monotone trend, no knee |
+| Q2b-B   | Smooth degradation along axis OR orthogonal direction has a tractable dock | rejected: 0/12 dock |
+| **Q2b-C** | **Step 2 is infeasible from this q_start regardless of q_end choice** within the tested neighborhood | **confirmed** |
+
+The decisive finding: T15 step 2 cannot be made to dock by
+choosing a different q_end within ±50% along-axis OR ±0.45 m
+laterally. The failure is **not in the q_end target**; it is in
+the *trajectory* the planners generate from this q_start to any
+q_end within the tested neighborhood.
+
+This refines the Q2a finding correctly:
+
+- Q2a was right that **distance magnitude** is not the binding
+  constraint (single-step tolerated 2× distance).
+- Q2b shows that **q_end choice** is also not the binding
+  constraint — perturbing it in any direction in the tested
+  neighborhood doesn't change the outcome.
+
+The binding constraint is **the path between** q_start and q_end.
+This is the (3,4) singular interior the path-geometry diagnostic
+already identified (§3 of `T15_step2_path_geometry.md`).
+
+### §2.6  Mid-waypoint comparison — re-examined
+
+The Phase-7 mid-waypoint failure was a **regression on steps 0
+and 1**, not a step-2 fix. Step 2 always failed (Phase 7's
+abort at d=429 mm matches Q2b's α=1.0 abort at 433 mm — same
+failure regime). What the mid-waypoint did was destabilize the
+PRIOR steps' tracking, not improve step 2.
+
+Why prior steps regressed under mid-waypoint, but step 2 is
+robust to direct q_end perturbation:
+
+- The mid-waypoint inserts an OFF-AXIS waypoint *between*
+  q_start and q_end at a known time t_mid. The TorsoPlanner's
+  reference is then forced to pass through the off-axis pose
+  in mid-flight, with v=0 there. That requires a real velocity
+  reversal mid-trajectory. The closed-loop dynamics don't
+  comply.
+- Q2b sweep B perturbs the ENDPOINT q_end[1] — the trajectory
+  is still a single quintic from q_start to q_end_perturbed.
+  No velocity reversal. The trajectory shape is just shifted,
+  not kinked. This is much more tractable.
+
+So the mid-waypoint failure mechanism (kinked trajectory with
+mid-flight velocity reversal) is **fundamentally different**
+from what Q2b sweep B tests (smoothly-shifted endpoint).
+Sweep B confirms what Q2a hinted at: smooth perturbations of
+q_end, in any direction, are tracked. The mid-waypoint failure
+is specifically about kinks.
 
 ---
 
 ## §3  Combined disposition
 
-### §3.1  What the data says
+### §3.1  What the data says — corrected
 
 - **Q1**: 177° step-1 orientation is genuine open-loop
   divergence, not a representation bug. The reference is small
   (≤12° reorient, 0 sign flips); the controller cannot keep up
   with the dynamics induced by the mid-waypoint detour.
-- **Q2**: along-axis displacement up to 2.0× the natural one is
-  fully trackable on the single-step scenario. The mid-waypoint's
-  1.09 m torso displacement is *within* this range.
-- **Combined**: the trackability failure is not bounded by
-  displacement magnitude. It is bounded by *path shape* — the
-  kink the mid-waypoint introduces forces the controller through
-  a transient with high momentum loading the AOCS cannot recover
-  from in the SS time budget.
 
-### §3.2  Implication for Option B'
+- **Q2a (single-step)**: along-axis perturbations up to 2.0× the
+  natural displacement are fully trackable in this *easier*
+  scenario. The result does **not** generalize to T15 step 2.
 
-Option B' as the brief originally scoped it (add
-`||q_mid − q_start||²` to the cost) **will not work**. The Q2
-data directly rules it out: that distance is empirically tracked.
-Option B' needs to evolve to one of the §2.4 alternatives —
-ideally an off-axis or path-length penalty rather than a
-distance penalty.
+- **Q2b (T15 step 2)**: 0 of 12 perturbations dock. Sweep A
+  along-axis (α ∈ [0.5, 1.5]) all fail with swing peaks
+  397–440 mm. Sweep B orthogonal-y (β ∈ [−0.45, +0.45] m) all
+  fail with swing peaks 423–433 mm. **Step 2 from this q_start
+  is unreachable for any q_end in the tested neighborhood**.
 
-### §3.3  Implication for Option C
+- **Combined**: the trackability failure is *not* bounded by
+  q_end choice. The binding constraint is the **trajectory
+  between** q_start and q_end. This converges with the
+  path-geometry diagnostic's H2 finding: the (3,4) reference
+  path crosses a singular interior, and no endpoint adjustment
+  reshapes the interior enough to fix it.
 
-Option C (full trajectory optimisation with tracking-bandwidth
-constraints) remains the principled fix and is consistent with
-both Q1 and Q2 findings. It explicitly handles:
+### §3.2  Implication for Option B' / B''
 
-- Path shape via the optimisation variable (full trajectory
-  rather than a single mid-waypoint).
-- Tracking bandwidth via explicit constraints on
-  `||q̇_ref(t)|| ≤ v_max(state)` or equivalent.
-- AOCS / momentum loading via a constraint on
-  `||L_dot_ref(t)|| ≤ τ_w_max`.
+Both Option B variants are now ruled out:
 
-The cost is implementation effort (direct collocation /
-short-horizon NMPC over the SS, with the existing torso planner
-as a warm start). Whether this is worth the effort depends on
-the alternative paths:
+- **B' (`||q_mid − q_start||²` distance penalty)**: ruled out
+  by Q2a — the controller already tolerates that distance.
+- **B'' (off-axis penalty `||q_mid − midpoint_natural||²`)**:
+  ruled out by Q2b — neither along-axis nor orthogonal-y
+  perturbation of q_end recovers the dock. A penalty that
+  pushes q_mid back toward the natural geodesic would just
+  produce something close to the natural q_end, which Q2b shows
+  also fails.
 
-### §3.4  Cheaper alternative — gait-level fix
+The mid-waypoint approach is structurally limited: choosing a
+better single point along the trajectory cannot fix a singular
+reference interior that exists for any reasonable endpoint.
 
-A gait-level fix that avoids (3,4) altogether (multi-segment SS,
-virtual transit anchor) does **not** require any new cost
-function. It re-routes the geometric problem rather than solving
-it. Given that the Phase-7 mid-waypoint regressed steps that
-previously docked, a gait-level fix is also less risk of
-introducing new failure modes.
+### §3.3  Implication for Option C — strengthened
 
-Recommendation: scope **gait-level fix first** (cheap, low risk).
-If gait-level fix doesn't close T15 step 2, escalate to **off-axis
-penalty Option B''** (single-line cost-function tweak in
-`manipulability_config_mid_waypoint`). Reserve **full trajectory
-optimisation Option C** for the case where neither suffices, since
-its cost is significantly higher.
+Option C (full trajectory optimisation) is now the only
+candidate left from the original menu. Q2b directly supports
+it: the trajectory shape needs to be the optimisation variable,
+not a single waypoint. Specifically:
 
-### §3.5  Specific next-prompt scope (out of scope here)
+- The cost must include a *path-singularity* term integrated
+  over the trajectory, not just at endpoints/waypoints.
+- Constraints on tracking bandwidth (`‖q̇_ref‖`,
+  `‖L̇_ref‖ ≤ τ_w_max`) prevent the optimizer from selecting
+  technically-feasible-but-untrackable paths.
+- The natural q_end can serve as a terminal constraint or as a
+  warm start, not the optimisation variable.
 
-The next prompt should pick *one* of:
+Implementation cost: significant (direct collocation over SS,
+new module, 1+ day). But this is now the only on-axis fix.
 
-(a) **Gait-level**: scope a multi-segment SS or virtual transit
-    anchor for (3,4); read-only diagnostic first to confirm
-    feasibility.
-(b) **Off-axis B''**: ~10-line edit to
-    `manipulability_config_mid_waypoint`'s cost; re-run T15 with
-    `mid_waypoint_force_on=True` to validate.
-(c) **Trajectory optimisation C**: full short-horizon TO over
-    SS; significant new module; ~1 day of work.
+### §3.4  Gait-level fix — strengthened recommendation
 
-This diagnostic prompt deliberately does not implement any of
-them.
+A gait-level fix that avoids the (3,4) anchor pair entirely
+becomes the **dominant recommendation** given Q2b:
+
+- Q2b shows the (3,4) anchor pair is infeasible from any q_end
+  in a wide neighborhood. The geometric problem is intrinsic to
+  the pair, not the IK output.
+- Inserting a transit anchor (e.g., (3, 3.5) virtual or
+  re-routing to (3,3)→(2,4)→(3,4)) splits the singular
+  transition into two sub-transitions, each of which lives in a
+  smaller and likely well-conditioned region.
+- This requires **no new cost function** and **no new optimisation
+  module** — just a scheduler / planner-level change.
+- Lower regression risk: per-step references stay single-quintic
+  (the configuration the IK-fix run already validated for
+  steps 0 and 1).
+
+### §3.5  Updated recommendation
+
+1. **First (cheapest)**: gait-level fix — virtual transit anchor
+   or multi-segment SS for (3,4). Re-run T15 with the new gait;
+   verify dock outcome. ~0.5 day of work.
+2. **If (1) doesn't close T15**: full trajectory optimisation
+   (Option C). ~1+ day of work; new module; explicit dynamics
+   awareness in the cost.
+3. **Mid-waypoint reshape (any variant)**: do not pursue. Q2b
+   rules out B' and B''; the path-geometry diagnostic plus
+   Q2b's 0/12 dock count rule out the structure of "single
+   waypoint plus piecewise quintic" altogether.
+
+### §3.6  Specific next-prompt scope (out of scope here)
+
+The next prompt should pick:
+
+(a) **Gait-level fix scoping**: read-only diagnostic of
+    candidate transit anchors or multi-segment SS layouts for
+    (3,4) at 1% mass-ratio. Confirm feasibility kinematically
+    before implementing.
+(b) **If (a) is feasible**: implement the scheduler/planner
+    change and re-run T15.
+
+This diagnostic prompt deliberately does not implement either.
 
 ---
 
-**Status:** Q1 complete (Q1-C). Q2 complete (Q2-C with
-refinement: failure is path-shape, not distance). §3 disposition
-written. Diagnostic complete; stopping per the brief.
+**Status:** Q1 complete (Q1-C). Q2 complete in two stages:
+
+- Q2a single-step (7/7 docked, scoped wrong, misleading positive).
+- Q2b T15 step 2 (0/12 docked, definitive negative on q_end
+  perturbation as a fix).
+
+§3 disposition rewritten with Q2b: step 2 cannot be fixed by
+endpoint choice in any direction; the (3,4) path-singularity is
+intrinsic. Recommended next path is gait-level (transit
+anchor / multi-segment SS) rather than any IK-output reshape.
+
+Stopping per the brief.

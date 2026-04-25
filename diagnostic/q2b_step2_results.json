@@ -1,0 +1,396 @@
+[
+  {
+    "kind": "alpha",
+    "value": 0.5,
+    "label": "A_alpha_0.50",
+    "recorded": {
+      "alpha": 0.5,
+      "torso_pos_natural": [
+        0.748253241356367,
+        -0.025442749625199716,
+        -0.2989291724357723
+      ],
+      "torso_pos_perturbed": [
+        0.46612443390031655,
+        -0.02395885354857534,
+        -0.5525928115270337
+      ],
+      "torso_pos_dist_natural_m": 0.7587993351108343,
+      "torso_pos_dist_perturbed_m": 0.37939966755541715
+    },
+    "step2_docked": false,
+    "step2_dock_event": null,
+    "step2_abort_event": {
+      "step_idx": 2,
+      "t": 23.79000000000008,
+      "reason": "dock_timeout",
+      "d_mm": 421.5871702421264,
+      "ori_deg": 10.785743289431919
+    },
+    "ss2_e_torso_peak_mm": 49.48199526524984,
+    "ss2_e_swing_peak_mm": 439.7814124677391,
+    "nmpc_total": 412,
+    "nmpc_infeas": 43,
+    "elapsed_s": 95.09964481599991
+  },
+  {
+    "kind": "alpha",
+    "value": 0.75,
+    "label": "A_alpha_0.75",
+    "recorded": {
+      "alpha": 0.75,
+      "torso_pos_natural": [
+        0.748253241356367,
+        -0.025442749625199716,
+        -0.2989291724357723
+      ],
+      "torso_pos_perturbed": [
+        0.6071888376283417,
+        -0.02470080158688753,
+        -0.425760991981403
+      ],
+      "torso_pos_dist_natural_m": 0.7587993351108343,
+      "torso_pos_dist_perturbed_m": 0.5690995013331257
+    },
+    "step2_docked": false,
+    "step2_dock_event": null,
+    "step2_abort_event": {
+      "step_idx": 2,
+      "t": 26.190000000000115,
+      "reason": "dock_timeout",
+      "d_mm": 388.1096849492247,
+      "ori_deg": 10.223058804191623
+    },
+    "ss2_e_torso_peak_mm": 72.72358331375082,
+    "ss2_e_swing_peak_mm": 431.6738095722433,
+    "nmpc_total": 436,
+    "nmpc_infeas": 16,
+    "elapsed_s": 108.01381041900004
+  },
+  {
+    "kind": "alpha",
+    "value": 1.0,
+    "label": "A_alpha_1.00",
+    "recorded": {
+      "alpha": 1.0,
+      "torso_pos_natural": [
+        0.748253241356367,
+        -0.025442749625199716,
+        -0.2989291724357723
+      ],
+      "torso_pos_perturbed": [
+        0.748253241356367,
+        -0.025442749625199716,
+        -0.29892917243577233
+      ],
+      "torso_pos_dist_natural_m": 0.7587993351108343,
+      "torso_pos_dist_perturbed_m": 0.7587993351108343
+    },
+    "step2_docked": false,
+    "step2_dock_event": null,
+    "step2_abort_event": {
+      "step_idx": 2,
+      "t": 28.490000000000148,
+      "reason": "dock_timeout",
+      "d_mm": 374.351380918096,
+      "ori_deg": 9.841255185838795
+    },
+    "ss2_e_torso_peak_mm": 84.53604558521876,
+    "ss2_e_swing_peak_mm": 432.7649458586572,
+    "nmpc_total": 459,
+    "nmpc_infeas": 6,
+    "elapsed_s": 112.77406072299982
+  },
+  {
+    "kind": "alpha",
+    "value": 1.25,
+    "label": "A_alpha_1.25",
+    "recorded": {
+      "alpha": 1.25,
+      "torso_pos_natural": [
+        0.748253241356367,
+        -0.025442749625199716,
+        -0.2989291724357723
+      ],
+      "torso_pos_perturbed": [
+        0.8893176450843921,
+        -0.0261846976635119,
+        -0.17209735289014172
+      ],
+      "torso_pos_dist_natural_m": 0.7587993351108343,
+      "torso_pos_dist_perturbed_m": 0.9484991688885429
+    },
+    "step2_docked": false,
+    "step2_dock_event": null,
+    "step2_abort_event": {
+      "step_idx": 2,
+      "t": 30.79000000000018,
+      "reason": "dock_timeout",
+      "d_mm": 385.9258908746256,
+      "ori_deg": 10.299553564021966
+    },
+    "ss2_e_torso_peak_mm": 77.01300445165822,
+    "ss2_e_swing_peak_mm": 414.3140356840873,
+    "nmpc_total": 482,
+    "nmpc_infeas": 17,
+    "elapsed_s": 102.63192341399986
+  },
+  {
+    "kind": "alpha",
+    "value": 1.5,
+    "label": "A_alpha_1.50",
+    "recorded": {
+      "alpha": 1.5,
+      "torso_pos_natural": [
+        0.748253241356367,
+        -0.025442749625199716,
+        -0.2989291724357723
+      ],
+      "torso_pos_perturbed": [
+        1.0303820488124174,
+        -0.02692664570182409,
+        -0.045265533344511
+      ],
+      "torso_pos_dist_natural_m": 0.7587993351108343,
+      "torso_pos_dist_perturbed_m": 1.1381990026662514
+    },
+    "step2_docked": false,
+    "step2_dock_event": null,
+    "step2_abort_event": {
+      "step_idx": 2,
+      "t": 33.19000000000021,
+      "reason": "dock_timeout",
+      "d_mm": 391.50656219146623,
+      "ori_deg": 10.127236929444773
+    },
+    "ss2_e_torso_peak_mm": 81.80718313774638,
+    "ss2_e_swing_peak_mm": 397.18588361646437,
+    "nmpc_total": 506,
+    "nmpc_infeas": 30,
+    "elapsed_s": 110.64602966500001
+  },
+  {
+    "kind": "beta_y",
+    "value": -0.45,
+    "label": "B_betay_-0.45",
+    "recorded": {
+      "beta_y": -0.45,
+      "torso_pos_natural": [
+        0.748253241356367,
+        -0.025442749625199716,
+        -0.2989291724357723
+      ],
+      "torso_pos_perturbed": [
+        0.748253241356367,
+        -0.4754427496251997,
+        -0.2989291724357723
+      ]
+    },
+    "step2_docked": false,
+    "step2_dock_event": null,
+    "step2_abort_event": {
+      "step_idx": 2,
+      "t": 30.290000000000173,
+      "reason": "dock_timeout",
+      "d_mm": 383.33982120672596,
+      "ori_deg": 10.225864405611366
+    },
+    "ss2_e_torso_peak_mm": 76.57361419617912,
+    "ss2_e_swing_peak_mm": 423.45090681928707,
+    "nmpc_total": 477,
+    "nmpc_infeas": 89,
+    "elapsed_s": 101.63183237700014
+  },
+  {
+    "kind": "beta_y",
+    "value": -0.3,
+    "label": "B_betay_-0.30",
+    "recorded": {
+      "beta_y": -0.3,
+      "torso_pos_natural": [
+        0.748253241356367,
+        -0.025442749625199716,
+        -0.2989291724357723
+      ],
+      "torso_pos_perturbed": [
+        0.748253241356367,
+        -0.3254427496251997,
+        -0.2989291724357723
+      ]
+    },
+    "step2_docked": false,
+    "step2_dock_event": null,
+    "step2_abort_event": {
+      "step_idx": 2,
+      "t": 29.29000000000016,
+      "reason": "dock_timeout",
+      "d_mm": 376.8905775388571,
+      "ori_deg": 9.948833416314429
+    },
+    "ss2_e_torso_peak_mm": 83.2662733332995,
+    "ss2_e_swing_peak_mm": 427.6670919635268,
+    "nmpc_total": 467,
+    "nmpc_infeas": 57,
+    "elapsed_s": 107.50890272100014
+  },
+  {
+    "kind": "beta_y",
+    "value": -0.15,
+    "label": "B_betay_-0.15",
+    "recorded": {
+      "beta_y": -0.15,
+      "torso_pos_natural": [
+        0.748253241356367,
+        -0.025442749625199716,
+        -0.2989291724357723
+      ],
+      "torso_pos_perturbed": [
+        0.748253241356367,
+        -0.1754427496251997,
+        -0.2989291724357723
+      ]
+    },
+    "step2_docked": false,
+    "step2_dock_event": null,
+    "step2_abort_event": {
+      "step_idx": 2,
+      "t": 28.69000000000015,
+      "reason": "dock_timeout",
+      "d_mm": 373.3482355809399,
+      "ori_deg": 9.799627592895392
+    },
+    "ss2_e_torso_peak_mm": 87.20504384937743,
+    "ss2_e_swing_peak_mm": 431.3843272278422,
+    "nmpc_total": 461,
+    "nmpc_infeas": 26,
+    "elapsed_s": 102.20970924599987
+  },
+  {
+    "kind": "beta_y",
+    "value": 0.0,
+    "label": "B_betay_+0.00",
+    "recorded": {
+      "beta_y": 0.0,
+      "torso_pos_natural": [
+        0.748253241356367,
+        -0.025442749625199716,
+        -0.2989291724357723
+      ],
+      "torso_pos_perturbed": [
+        0.748253241356367,
+        -0.025442749625199716,
+        -0.2989291724357723
+      ]
+    },
+    "step2_docked": false,
+    "step2_dock_event": null,
+    "step2_abort_event": {
+      "step_idx": 2,
+      "t": 28.490000000000148,
+      "reason": "dock_timeout",
+      "d_mm": 374.351254401185,
+      "ori_deg": 9.84125186113526
+    },
+    "ss2_e_torso_peak_mm": 84.536254857848,
+    "ss2_e_swing_peak_mm": 432.76493986961617,
+    "nmpc_total": 459,
+    "nmpc_infeas": 9,
+    "elapsed_s": 96.63103635100015
+  },
+  {
+    "kind": "beta_y",
+    "value": 0.15,
+    "label": "B_betay_+0.15",
+    "recorded": {
+      "beta_y": 0.15,
+      "torso_pos_natural": [
+        0.748253241356367,
+        -0.025442749625199716,
+        -0.2989291724357723
+      ],
+      "torso_pos_perturbed": [
+        0.748253241356367,
+        0.12455725037480028,
+        -0.2989291724357723
+      ]
+    },
+    "step2_docked": false,
+    "step2_dock_event": null,
+    "step2_abort_event": {
+      "step_idx": 2,
+      "t": 28.790000000000152,
+      "reason": "dock_timeout",
+      "d_mm": 373.66927610926314,
+      "ori_deg": 9.845249173054977
+    },
+    "ss2_e_torso_peak_mm": 84.86401411408876,
+    "ss2_e_swing_peak_mm": 431.8519450001579,
+    "nmpc_total": 462,
+    "nmpc_infeas": 45,
+    "elapsed_s": 104.73259307200033
+  },
+  {
+    "kind": "beta_y",
+    "value": 0.3,
+    "label": "B_betay_+0.30",
+    "recorded": {
+      "beta_y": 0.3,
+      "torso_pos_natural": [
+        0.748253241356367,
+        -0.025442749625199716,
+        -0.2989291724357723
+      ],
+      "torso_pos_perturbed": [
+        0.748253241356367,
+        0.2745572503748003,
+        -0.2989291724357723
+      ]
+    },
+    "step2_docked": false,
+    "step2_dock_event": null,
+    "step2_abort_event": {
+      "step_idx": 2,
+      "t": 29.490000000000162,
+      "reason": "dock_timeout",
+      "d_mm": 374.05651040544404,
+      "ori_deg": 9.9484636389147
+    },
+    "ss2_e_torso_peak_mm": 83.92940491143642,
+    "ss2_e_swing_peak_mm": 430.36300485856407,
+    "nmpc_total": 469,
+    "nmpc_infeas": 130,
+    "elapsed_s": 101.05438454299974
+  },
+  {
+    "kind": "beta_y",
+    "value": 0.45,
+    "label": "B_betay_+0.45",
+    "recorded": {
+      "beta_y": 0.45,
+      "torso_pos_natural": [
+        0.748253241356367,
+        -0.025442749625199716,
+        -0.2989291724357723
+      ],
+      "torso_pos_perturbed": [
+        0.748253241356367,
+        0.4245572503748003,
+        -0.2989291724357723
+      ]
+    },
+    "step2_docked": false,
+    "step2_dock_event": null,
+    "step2_abort_event": {
+      "step_idx": 2,
+      "t": 30.590000000000177,
+      "reason": "dock_timeout",
+      "d_mm": 381.99144127045804,
+      "ori_deg": 10.181187274363351
+    },
+    "ss2_e_torso_peak_mm": 75.35157137393465,
+    "ss2_e_swing_peak_mm": 422.9575465095697,
+    "nmpc_total": 480,
+    "nmpc_infeas": 40,
+    "elapsed_s": 105.3565973929999
+  }
+]
