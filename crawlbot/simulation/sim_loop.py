@@ -691,15 +691,8 @@ class SimulationLoop:
             # torso was secondary; in the M2 stack the torso IS the
             # primary task, so there's no reason for angular gains to
             # be softer than linear.
-            #
-            # FK-mode follow-up: kpt/kdt may be passed in as 6-vectors
-            # (or anything `np.asarray` accepts as length-6) to enable
-            # per-axis tuning. Used by the bypass-aware FK runner to
-            # soften linear gains while keeping angular gains stiff.
-            Kp_torso=(np.asarray(kpt, dtype=float) if np.ndim(kpt) > 0
-                      else np.array([float(kpt)] * 6)),
-            Kd_torso=(np.asarray(kdt, dtype=float) if np.ndim(kdt) > 0
-                      else np.array([float(kdt)] * 6)),
+            Kp_torso=np.array([kpt]*6),
+            Kd_torso=np.array([kdt]*6),
             Kp_ee=kpe * np.ones(3), Kd_ee=kde * np.ones(3),
             Kp_ee_ang=kpe_ang * np.ones(3), Kd_ee_ang=kde_ang * np.ones(3),
             Kp_posture=1.0, Kd_posture=1.5,
@@ -2031,28 +2024,7 @@ class SimulationLoop:
             else:
                 tq_planner = tq
             tr = self.torso_planner.reference_at(tq_planner)
-            # Under reference_source='joint_space_fk', the TorsoPlanner
-            # already produces a kinematically-consistent torso reference
-            # via FK on the smoothed q-sequence. The legacy
-            # mapping_bypass_in_ss freezes the linear ref at p_t0, which
-            # is geometrically inconsistent with FK refs that prescribe
-            # body translation (e.g. (3,4) anchor pair needs +505 mm
-            # torso forward translation, see CLOSING_REPORT.md §4.7).
-            #
-            # Ablation v3: forward the FK position + ROTATION refs, and
-            # the angular twist + angular feedforward, but ZERO out the
-            # LINEAR velocity/accel feedforwards. The smoother produces
-            # a piecewise-constant v_full = dq_seg[k]/Δτ which has step
-            # discontinuities at every sample boundary (Δτ·T ≈ 0.64 s
-            # on step 2). Zeroing the feedforwards lets the QP do pure
-            # PD on a smoothly-interpolated linear position ref —
-            # avoiding the impulsive a_ff demands that destabilised
-            # tracking in v1/v2. Plan §2.5 risk R3.
-            if cfg.reference_source == 'joint_space_fk':
-                p_torso_ref_used = tr.p
-                v_torso_ref_used = np.concatenate([np.zeros(3), tr.v[3:6]])
-                a_torso_ff_used = np.concatenate([np.zeros(3), tr.a[3:6]])
-            elif (phase == 'SS' and cfg.mapping_bypass_in_ss
+            if (phase == 'SS' and cfg.mapping_bypass_in_ss
                     and self._ss_entry_p_torso is not None):
                 # Diagnostic bypass: freeze the linear torso reference at
                 # its SS-entry value; angular reference still from
