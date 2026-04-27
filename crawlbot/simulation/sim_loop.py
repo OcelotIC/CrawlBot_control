@@ -2024,7 +2024,17 @@ class SimulationLoop:
             else:
                 tq_planner = tq
             tr = self.torso_planner.reference_at(tq_planner)
-            if (phase == 'SS' and cfg.mapping_bypass_in_ss
+            # Under reference_source='joint_space_fk', the TorsoPlanner
+            # already produces a kinematically-consistent torso reference
+            # via FK on the smoothed q-sequence. Both the M5 mapping
+            # bypass (which freezes the linear ref at p_t0) and the M5
+            # mapping itself would override that consistency. Use tr.*
+            # directly when FK mode is active.
+            if cfg.reference_source == 'joint_space_fk':
+                p_torso_ref_used = tr.p
+                v_torso_ref_used = tr.v
+                a_torso_ff_used = tr.a
+            elif (phase == 'SS' and cfg.mapping_bypass_in_ss
                     and self._ss_entry_p_torso is not None):
                 # Diagnostic bypass: freeze the linear torso reference at
                 # its SS-entry value; angular reference still from
