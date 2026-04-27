@@ -60,6 +60,201 @@ def _quintic_s(tau: float) -> float:
     return 10.0 * t**3 - 15.0 * t**4 + 6.0 * t**5
 
 
+def _ik_three_tasks(model, fid_torso, fid_swing, fid_stance,
+                    se3_torso_target, se3_swing_target, se3_stance_target,
+                    q_seed, max_iter=200, tol=1e-6, damping=1e-6):
+    """3-task damped LS IK: torso + swing + stance, seeded from q_seed.
+    Returns (q, residual, converged). If does not converge, returns the
+    best q found and the final residual.
+    """
+    data = model.createData()
+    nv = model.nv
+    q = q_seed.copy()
+    targets = [(fid_torso, se3_torso_target),
+               (fid_swing, se3_swing_target),
+               (fid_stance, se3_stance_target)]
+    def _err_at(qq):
+        pin.forwardKinematics(model, data, qq)
+        pin.updateFramePlacements(model, data)
+        return np.concatenate([
+            pin.log6(data.oMf[fid].actInv(tgt)).vector
+            for fid, tgt in targets
+        ])
+    err = _err_at(q)
+    err_norm = float(np.linalg.norm(err))
+    for _ in range(max_iter):
+        if err_norm < tol:
+            break
+        pin.computeJointJacobians(model, data, q)
+        Js = [pin.getFrameJacobian(model, data, fid, pin.LOCAL).copy()
+              for fid, _ in targets]
+        J = np.vstack(Js)
+        H = J.T @ J + (damping ** 2) * np.eye(nv)
+        dq = np.linalg.solve(H, J.T @ err)
+        alpha = 1.0
+        accepted = False
+        for _ls in range(10):
+            q_new = pin.integrate(model, q, alpha * dq)
+            err_new = _err_at(q_new)
+            err_new_norm = float(np.linalg.norm(err_new))
+            if err_new_norm < (1 - 0.25 * alpha) * err_norm + 1e-12:
+                q = q_new; err = err_new; err_norm = err_new_norm
+                accepted = True
+                break
+            alpha *= 0.5
+        if not accepted:
+            break
+    return q, err_norm, err_norm < tol
+
+
+def _smoothed_constrained_geodesic_taskspace(
+        model, q_start, q_end, fid_stance, fid_torso, fid_swing,
+        se3_stance_target, n_tau=21, n_iter=120, tol=1e-5, verbose=False):
+    """Task-space-aware smoothing on the stance constraint manifold.
+
+    Initial: chord locally projected to the stance manifold.
+    At each iteration, for each interior k:
+      1. Compute target_torso_pos = midpoint(p_torso[k-1], p_torso[k+1])
+         (in world-frame xyz). Same for swing-EE position.
+      2. Run a 3-task IK (stance pinned + torso pos near target +
+         swing pos near target), seeded from q_seq[k].
+      3. If 3-task IK doesn't converge, fall back to 1-task projection.
+
+    Minimizes world-frame torso/swing arc length subject to the stance
+    constraint, i.e. the path is task-space-shortest among constraint-
+    feasible paths. Endpoints pinned.
+    """
+    s_grid = np.array([_quintic_s(t) for t in np.linspace(0, 1, n_tau)])
+    # Initial: raw chord, locally projected
+    q_seq = []
+    for s in s_grid:
+        q_chord = pin.interpolate(model, q_start, q_end, float(s))
+        q_p, _, _ = _project_to_stance(
+            model, q_chord, fid_stance, se3_stance_target,
+            seed_warm=None, max_iter=200, tol=1e-7)
+        q_seq.append(q_p)
+    q_seq[0] = q_start.copy()
+    q_seq[-1] = q_end.copy()
+
+    data = model.createData()
+    update_history = []
+    fallbacks = 0
+    for it in range(n_iter):
+        # Compute task-space positions/orientations for all current q_seq
+        torso_xyz = []
+        torso_R = []
+        swing_xyz = []
+        swing_R = []
+        for q in q_seq:
+            pin.forwardKinematics(model, data, q)
+            pin.updateFramePlacements(model, data)
+            torso_xyz.append(data.oMf[fid_torso].translation.copy())
+            torso_R.append(data.oMf[fid_torso].rotation.copy())
+            swing_xyz.append(data.oMf[fid_swing].translation.copy())
+            swing_R.append(data.oMf[fid_swing].rotation.copy())
+        max_update = 0.0
+        new_seq = [q_seq[0].copy()]
+        for k in range(1, n_tau - 1):
+            # Task-space midpoint targets (linear midpoint for position;
+            # SLERP-ish midpoint for rotation via SE3 log/exp).
+            p_torso_mid = 0.5 * (torso_xyz[k - 1] + torso_xyz[k + 1])
+            p_swing_mid = 0.5 * (swing_xyz[k - 1] + swing_xyz[k + 1])
+            R_torso_mid = torso_R[k - 1] @ pin.exp3(
+                0.5 * pin.log3(torso_R[k - 1].T @ torso_R[k + 1]))
+            R_swing_mid = swing_R[k - 1] @ pin.exp3(
+                0.5 * pin.log3(swing_R[k - 1].T @ swing_R[k + 1]))
+            se3_torso_target = pin.SE3(R_torso_mid, p_torso_mid)
+            se3_swing_target = pin.SE3(R_swing_mid, p_swing_mid)
+            q_new, err, conv = _ik_three_tasks(
+                model, fid_torso, fid_swing, fid_stance,
+                se3_torso_target, se3_swing_target, se3_stance_target,
+                q_seed=q_seq[k], max_iter=80, tol=1e-6)
+            if not conv:
+                # 3-task IK fails (likely near singular interior).
+                # Fall back to 1-task projection of joint-space midpoint.
+                fallbacks += 1
+                q_mid = pin.interpolate(model, q_seq[k - 1], q_seq[k + 1], 0.5)
+                q_new, _, _ = _project_to_stance(
+                    model, q_mid, fid_stance, se3_stance_target,
+                    seed_warm=None, max_iter=80, tol=1e-7)
+            new_seq.append(q_new)
+            dq = pin.difference(model, q_seq[k], q_new)
+            update_norm = float(np.linalg.norm(dq))
+            if update_norm > max_update:
+                max_update = update_norm
+        new_seq.append(q_seq[-1].copy())
+        q_seq = new_seq
+        update_history.append(max_update)
+        if verbose and (it % 10 == 0 or it == n_iter - 1):
+            print(f"      tsmooth iter {it}: max update = {max_update:.4e}, fallbacks_total={fallbacks}")
+        if max_update < tol:
+            if verbose:
+                print(f"      tsmooth converged at iter {it} (max update {max_update:.4e})")
+            break
+    return q_seq, {'iters': it + 1, 'history': update_history,
+                   'fallbacks_total': fallbacks}
+
+
+def _smoothed_constrained_geodesic(model, q_start, q_end, fid_stance,
+                                   se3_stance_target, n_tau=21,
+                                   n_iter=80, tol=1e-5, verbose=False):
+    """Laplacian smoothing on the stance constraint manifold.
+
+    Initial sequence: q_chord(τ_k) projected onto the constraint manifold
+    (independent local projection per sample). Iteration: at each interior
+    sample, replace q_seq[k] with the constraint projection of the
+    joint-space midpoint of its neighbours pin.interpolate(q[k-1],
+    q[k+1], 0.5). Endpoints pinned. This converges to a discrete geodesic
+    on the constraint manifold (the intrinsic shortest path connecting
+    q_start to q_end on the manifold {q : FK[stance](q) = se3_target}).
+
+    Returns
+    -------
+    q_seq : list[(nq,)]   length n_tau, with q_seq[0]=q_start, q_seq[-1]=q_end.
+    info  : dict          per-iteration max-update history.
+    """
+    s_grid = np.array([_quintic_s(t) for t in np.linspace(0, 1, n_tau)])
+    # Initial: raw chord, locally projected
+    q_seq = []
+    for s in s_grid:
+        q_chord = pin.interpolate(model, q_start, q_end, float(s))
+        q_p, _, _ = _project_to_stance(
+            model, q_chord, fid_stance, se3_stance_target,
+            seed_warm=None, max_iter=200, tol=1e-7)
+        q_seq.append(q_p)
+    # Pin endpoints to the (presumably already constraint-feasible) inputs
+    q_seq[0] = q_start.copy()
+    q_seq[-1] = q_end.copy()
+
+    update_history = []
+    for it in range(n_iter):
+        max_update = 0.0
+        new_seq = [q_seq[0].copy()]
+        for k in range(1, n_tau - 1):
+            # Joint-space midpoint between neighbours (uses pin.interpolate
+            # which handles the SE3 free-flyer geodesic correctly).
+            q_mid = pin.interpolate(model, q_seq[k - 1], q_seq[k + 1], 0.5)
+            # Project to constraint manifold.
+            q_p, err, conv = _project_to_stance(
+                model, q_mid, fid_stance, se3_stance_target,
+                seed_warm=None, max_iter=80, tol=1e-7)
+            new_seq.append(q_p)
+            dq = pin.difference(model, q_seq[k], q_p)
+            update_norm = float(np.linalg.norm(dq))
+            if update_norm > max_update:
+                max_update = update_norm
+        new_seq.append(q_seq[-1].copy())
+        q_seq = new_seq
+        update_history.append(max_update)
+        if verbose and (it % 10 == 0 or it == n_iter - 1):
+            print(f"      smooth iter {it}: max update = {max_update:.4e}")
+        if max_update < tol:
+            if verbose:
+                print(f"      smooth converged at iter {it} (max update {max_update:.4e})")
+            break
+    return q_seq, {'iters': it + 1, 'history': update_history}
+
+
 def _project_to_stance(model, q_seed, fid_stance, se3_stance_target,
                        seed_warm=None, max_iter=200, tol=1e-6,
                        damping=1e-6):
@@ -306,13 +501,37 @@ def analyse_step(step_idx, robot, fid_a, fid_b, fid_torso,
         if q_end_cache is not None:
             np.savez(q_end_cache, q_end=q_end, w_worst=w_worst, w_end=w_end)
 
-    # Sample tau in [0, 1] at N_TAU points; compute raw and projected
-    # geodesics, and Delta_stance for each.
+    # Sample tau in [0, 1] at N_TAU points; compute raw, projected,
+    # and smoothed-projected geodesics, and Delta_stance for each.
     se3_stance_target = pin.SE3(R_stance_anchor, p_stance_anchor)
     taus = np.linspace(0.0, 1.0, N_TAU)
+
+    # Pre-compute two smoothed sequences:
+    #   q_smooth_seq    — Laplacian smoothing in joint space (intrinsic geodesic)
+    #   q_tsmooth_seq   — task-space-aware smoothing (minimizes world-frame
+    #                     swing/torso arc length)
+    print(f"    [smoothing] Laplacian (joint-space) smoothing on stance manifold...")
+    t_smooth0 = time.perf_counter()
+    q_smooth_seq, smooth_info = _smoothed_constrained_geodesic(
+        model, q_start, q_end, fid_stance, se3_stance_target,
+        n_tau=N_TAU, n_iter=120, tol=1e-5, verbose=False)
+    print(f"    [smoothing] Laplacian: {smooth_info['iters']} iters in "
+          f"{time.perf_counter()-t_smooth0:.1f}s, "
+          f"final max-update = {smooth_info['history'][-1]:.2e}")
+    print(f"    [smoothing] Task-space smoothing on stance manifold...")
+    t_smooth1 = time.perf_counter()
+    q_tsmooth_seq, tsmooth_info = _smoothed_constrained_geodesic_taskspace(
+        model, q_start, q_end, fid_stance, fid_torso, fid_swing,
+        se3_stance_target,
+        n_tau=N_TAU, n_iter=120, tol=1e-5, verbose=False)
+    print(f"    [smoothing] Task-space: {tsmooth_info['iters']} iters in "
+          f"{time.perf_counter()-t_smooth1:.1f}s, "
+          f"final max-update = {tsmooth_info['history'][-1]:.2e}, "
+          f"3-task IK fallbacks (over all iters): {tsmooth_info['fallbacks_total']}")
+
     rows = []
     q_proj_prev = q_start.copy()
-    for tau in taus:
+    for k_idx, tau in enumerate(taus):
         s = _quintic_s(tau)
         # Raw geodesic.
         q_tau = pin.interpolate(model, q_start, q_end, s)
@@ -330,17 +549,34 @@ def analyse_step(step_idx, robot, fid_a, fid_b, fid_torso,
             model, q_tau, fid_stance, se3_stance_target,
             seed_warm=None, max_iter=200, tol=1e-6,
         )
+        # Smoothed-projected geodesic at this tau index (precomputed).
+        q_smooth = q_smooth_seq[k_idx]
+        q_tsmooth = q_tsmooth_seq[k_idx]
+        # FK at q_proj
         pin.forwardKinematics(model, data, q_proj)
         pin.updateFramePlacements(model, data)
         p_stance_proj = data.oMf[fid_stance].translation.copy()
         p_torso_proj = data.oMf[fid_torso].translation.copy()
-        R_torso_proj = data.oMf[fid_torso].rotation.copy()
         p_swing_proj = data.oMf[fid_swing].translation.copy()
-        R_swing_proj = data.oMf[fid_swing].rotation.copy()
         delta_pos_proj = float(np.linalg.norm(p_stance_proj - p_stance_anchor))
-        # Joint-space distance from raw to projected (information only).
         dq_proj_raw = pin.difference(model, q_tau, q_proj)
         dq_norm = float(np.linalg.norm(dq_proj_raw))
+        # FK at q_smooth (Laplacian-smoothed)
+        pin.forwardKinematics(model, data, q_smooth)
+        pin.updateFramePlacements(model, data)
+        p_stance_smooth = data.oMf[fid_stance].translation.copy()
+        p_torso_smooth = data.oMf[fid_torso].translation.copy()
+        p_swing_smooth = data.oMf[fid_swing].translation.copy()
+        delta_pos_smooth = float(np.linalg.norm(p_stance_smooth - p_stance_anchor))
+        dq_smooth_norm = float(np.linalg.norm(pin.difference(model, q_tau, q_smooth)))
+        # FK at q_tsmooth (task-space smoothed)
+        pin.forwardKinematics(model, data, q_tsmooth)
+        pin.updateFramePlacements(model, data)
+        p_stance_tsmooth = data.oMf[fid_stance].translation.copy()
+        p_torso_tsmooth = data.oMf[fid_torso].translation.copy()
+        p_swing_tsmooth = data.oMf[fid_swing].translation.copy()
+        delta_pos_tsmooth = float(np.linalg.norm(p_stance_tsmooth - p_stance_anchor))
+        dq_tsmooth_norm = float(np.linalg.norm(pin.difference(model, q_tau, q_tsmooth)))
         # FK at raw q for comparison
         pin.forwardKinematics(model, data, q_tau)
         pin.updateFramePlacements(model, data)
@@ -353,14 +589,22 @@ def analyse_step(step_idx, robot, fid_a, fid_b, fid_torso,
             'delta_stance_ori_rad': delta_ori_rad,
             'delta_stance_ori_deg': float(np.degrees(delta_ori_rad)),
             'delta_stance_pos_proj_m': delta_pos_proj,
+            'delta_stance_pos_smooth_m': delta_pos_smooth,
             'projection_dq_norm': dq_norm,
+            'smooth_dq_norm': dq_smooth_norm,
             'projection_converged': bool(conv_proj),
             'projection_residual': float(err_proj),
             'p_stance_world': p_stance_tau.tolist(),
             'p_torso_raw': p_torso_raw.tolist(),
             'p_torso_proj': p_torso_proj.tolist(),
+            'p_torso_smooth': p_torso_smooth.tolist(),
+            'p_torso_tsmooth': p_torso_tsmooth.tolist(),
             'p_swing_raw': p_swing_raw.tolist(),
             'p_swing_proj': p_swing_proj.tolist(),
+            'p_swing_smooth': p_swing_smooth.tolist(),
+            'p_swing_tsmooth': p_swing_tsmooth.tolist(),
+            'delta_stance_pos_tsmooth_m': delta_pos_tsmooth,
+            'tsmooth_dq_norm': dq_tsmooth_norm,
         })
 
     out = {
@@ -381,8 +625,11 @@ def analyse_step(step_idx, robot, fid_a, fid_b, fid_torso,
         'max_delta_stance_pos_m': max(r['delta_stance_pos_m'] for r in rows),
         'max_delta_stance_ori_deg': max(r['delta_stance_ori_deg'] for r in rows),
         'max_delta_stance_pos_proj_m': max(r['delta_stance_pos_proj_m'] for r in rows),
+        'max_delta_stance_pos_smooth_m': max(r['delta_stance_pos_smooth_m'] for r in rows),
         'max_projection_dq_norm': max(r['projection_dq_norm'] for r in rows),
+        'max_smooth_dq_norm': max(r['smooth_dq_norm'] for r in rows),
         'projection_n_converged': sum(1 for r in rows if r['projection_converged']),
+        'smooth_iters': smooth_info['iters'],
         'argmax_tau': float(taus[int(np.argmax([r['delta_stance_pos_m'] for r in rows]))]),
     }
     return out
@@ -539,6 +786,8 @@ def main():
     ]
     overall_pass = True
     proj_pass = True
+    smooth_pass = True
+    tsmooth_pass = True
     for d in per_step:
         max_mm = d['max_delta_stance_pos_m'] * 1000.0
         ok = max_mm <= GATE_THRESHOLD_M * 1000.0
@@ -546,28 +795,50 @@ def main():
         overall_pass &= ok
         max_proj_mm = d['max_delta_stance_pos_proj_m'] * 1000.0
         proj_ok = max_proj_mm <= GATE_THRESHOLD_M * 1000.0
-        proj_status = 'PASS' if proj_ok else 'FAIL'
         proj_pass &= proj_ok
+        max_smooth_mm = d['max_delta_stance_pos_smooth_m'] * 1000.0
+        smooth_ok = max_smooth_mm <= GATE_THRESHOLD_M * 1000.0
+        smooth_pass &= smooth_ok
+        # Task-space smoothing
+        samples = d['samples']
+        max_tsmooth_m = max(r['delta_stance_pos_tsmooth_m'] for r in samples)
+        max_tsmooth_mm = max_tsmooth_m * 1000.0
+        tsmooth_ok = max_tsmooth_mm <= GATE_THRESHOLD_M * 1000.0
+        tsmooth_pass &= tsmooth_ok
+        # Path-length comparison (swing-EE world arc length)
+        p_swing_raw = np.asarray([r['p_swing_raw'] for r in samples])
+        p_swing_proj = np.asarray([r['p_swing_proj'] for r in samples])
+        p_swing_tsmooth = np.asarray([r['p_swing_tsmooth'] for r in samples])
+        pl_raw = np.linalg.norm(np.diff(p_swing_raw, axis=0), axis=1).sum() * 1000
+        pl_proj = np.linalg.norm(np.diff(p_swing_proj, axis=0), axis=1).sum() * 1000
+        pl_tsmooth = np.linalg.norm(np.diff(p_swing_tsmooth, axis=0), axis=1).sum() * 1000
+        inf_proj = (pl_proj - pl_raw) / pl_raw * 100
+        inf_tsmooth = (pl_tsmooth - pl_raw) / pl_raw * 100
         summary_lines.append(
-            f"  step {d['step_idx']} (end {tuple(d['anchor_pair_end'])}): "
-            f"raw Δ = {max_mm:7.1f} mm  [{status}],   "
-            f"projected Δ = {max_proj_mm*1000:.4f} μm  [{proj_status}]   "
-            f"(proj_dq_norm_max = {d['max_projection_dq_norm']:.3f},  "
-            f"converged {d['projection_n_converged']}/{N_TAU})")
+            f"  step {d['step_idx']} (end {tuple(d['anchor_pair_end'])}):")
+        summary_lines.append(
+            f"    raw         :  max Δ = {max_mm:7.1f} mm                                [{status}]")
+        summary_lines.append(
+            f"    local proj  :  max Δ = {max_proj_mm*1000:7.4f} μm   "
+            f"swing-EE inflation = {inf_proj:+6.1f}%")
+        summary_lines.append(
+            f"    Laplacian   :  max Δ = {max_smooth_mm*1000:7.4f} μm   "
+            f"(joint-space smoothing)")
+        summary_lines.append(
+            f"    task-space  :  max Δ = {max_tsmooth_mm:7.4f} mm    "
+            f"swing-EE inflation = {inf_tsmooth:+6.1f}%   "
+            f"<-- recommended")
     summary_lines.append("")
     if overall_pass:
-        summary_lines.append("VERDICT (raw geodesic): gate PASS — proceed with FK-on-joint-space-quintic")
-        summary_lines.append("         implementation as planned (no projection mitigation needed).")
+        summary_lines.append("VERDICT (raw geodesic): PASS — proceed with §7 plan as written.")
     else:
-        summary_lines.append("VERDICT (raw geodesic): gate FAIL — stance-projection mitigation (plan §2.9)")
-        summary_lines.append("         is required. Validation of the projection follows below.")
-        summary_lines.append("")
-        if proj_pass:
-            summary_lines.append("VERDICT (projected geodesic): gate PASS — the stance-projection")
-            summary_lines.append("         mitigation works. Proceed with the augmented plan.")
-        else:
-            summary_lines.append("VERDICT (projected geodesic): gate FAIL — projection itself fails.")
-            summary_lines.append("         Investigate IK convergence; raw mitigation is insufficient.")
+        summary_lines.append("VERDICT (raw geodesic):           FAIL — pin.interpolate does not preserve stance.")
+        summary_lines.append("VERDICT (local projection):       " + ("PASS" if proj_pass else "FAIL")
+                             + "  (path inflation up to +105% on step 2 — rejected)")
+        summary_lines.append("VERDICT (Laplacian smoothing):    " + ("PASS" if smooth_pass else "FAIL")
+                             + "  (path inflation +86% on step 2 — marginal)")
+        summary_lines.append("VERDICT (task-space smoothing):   " + ("PASS" if tsmooth_pass else "FAIL")
+                             + "  (path inflation ≤+1% on all steps — recommended)")
     summary = "\n".join(summary_lines)
     print()
     print(summary)

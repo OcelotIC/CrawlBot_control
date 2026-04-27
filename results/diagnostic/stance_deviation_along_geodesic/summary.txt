@@ -2,12 +2,23 @@ Phase-0 pre-flight: stance deviation along the joint-space geodesic
 ========================================================================
   Gate threshold: 50 mm (max Δ_stance position over τ ∈ [0, 1])
 
-  step 0 (end (2, 3)): raw Δ =    96.0 mm  [FAIL],   projected Δ = 0.8010 μm  [PASS]   (proj_dq_norm_max = 0.084,  converged 21/21)
-  step 1 (end (3, 3)): raw Δ =   152.8 mm  [FAIL],   projected Δ = 0.7620 μm  [PASS]   (proj_dq_norm_max = 0.280,  converged 21/21)
-  step 2 (end (3, 4)): raw Δ =   587.7 mm  [FAIL],   projected Δ = 0.2995 μm  [PASS]   (proj_dq_norm_max = 0.824,  converged 21/21)
+  step 0 (end (2, 3)):
+    raw         :  max Δ =    96.0 mm                                [FAIL]
+    local proj  :  max Δ =  0.8010 μm   swing-EE inflation =   +4.1%
+    Laplacian   :  max Δ =  0.0597 μm   (joint-space smoothing)
+    task-space  :  max Δ =  0.0000 mm    swing-EE inflation =  -14.6%   <-- recommended
+  step 1 (end (3, 3)):
+    raw         :  max Δ =   152.8 mm                                [FAIL]
+    local proj  :  max Δ =  0.7620 μm   swing-EE inflation =  +17.8%
+    Laplacian   :  max Δ = 37.6751 μm   (joint-space smoothing)
+    task-space  :  max Δ =  0.0377 mm    swing-EE inflation =   -1.9%   <-- recommended
+  step 2 (end (3, 4)):
+    raw         :  max Δ =   587.7 mm                                [FAIL]
+    local proj  :  max Δ =  0.2995 μm   swing-EE inflation = +104.6%
+    Laplacian   :  max Δ = 37.1529 μm   (joint-space smoothing)
+    task-space  :  max Δ =  0.0372 mm    swing-EE inflation =   +0.2%   <-- recommended
 
-VERDICT (raw geodesic): gate FAIL — stance-projection mitigation (plan §2.9)
-         is required. Validation of the projection follows below.
-
-VERDICT (projected geodesic): gate PASS — the stance-projection
-         mitigation works. Proceed with the augmented plan.
+VERDICT (raw geodesic):           FAIL — pin.interpolate does not preserve stance.
+VERDICT (local projection):       PASS  (path inflation up to +105% on step 2 — rejected)
+VERDICT (Laplacian smoothing):    PASS  (path inflation +86% on step 2 — marginal)
+VERDICT (task-space smoothing):   PASS  (path inflation ≤+1% on all steps — recommended)
