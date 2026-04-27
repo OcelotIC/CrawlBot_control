@@ -84,6 +84,7 @@ class SwingPlanner:
         rotation_delay_ratio: float = 0.2,
         bump_peak_tau: float = 0.5,
         early_finish_fraction: float = 1.0,
+        model: Optional[pin.Model] = None,
     ):
         self.scheduler = scheduler
         self.clearance = clearance
@@ -126,9 +127,34 @@ class SwingPlanner:
         # of the scheduler-driven anchor interpolation. Empty list
         # preserves the legacy single-quintic-from-anchors behaviour.
         self._phase_overrides: list = []
+        # FK-mode wiring (used by reference_source='joint_space_fk').
+        # Each FK phase carries q_seq + dq_seg + frame_swing + n_away
+        # in its override dict.
+        self._model = model
+        self._data = pin.Data(model) if model is not None else None
+        # One-shot DeprecationWarning gate for set_swing_orientation
+        # under FK mode.
+        self._warned_set_swing_orientation_fk = False
 
     def set_swing_orientation(self, R_start: np.ndarray) -> None:
-        """Set the tool rotation at swing release for SLERP interpolation."""
+        """Set the tool rotation at swing release for SLERP interpolation.
+
+        Under FK mode (any phase override has ``use_fk=True``), this is
+        a no-op: rotation comes from FK on the smoothed q-sequence by
+        construction (plan §2.6 eq. 8d). A one-shot
+        ``DeprecationWarning`` is emitted on the first call after
+        entering FK mode.
+        """
+        if any(ov.get('use_fk', False) for ov in self._phase_overrides):
+            if not self._warned_set_swing_orientation_fk:
+                import warnings
+                warnings.warn(
+                    "set_swing_orientation is a no-op under FK mode "
+                    "(rotation comes from FK on the smoothed q-sequence).",
+                    DeprecationWarning, stacklevel=2,
+                )
+                self._warned_set_swing_orientation_fk = True
+            return
         self._R_start = R_start.copy()
 
     def add_phase(
@@ -143,6 +169,9 @@ class SwingPlanner:
         p_ee_mid: Optional[np.ndarray] = None,
         R_ee_mid: Optional[np.ndarray] = None,
         t_mid: Optional[float] = None,
+        q_seq: Optional[list] = None,
+        frame_swing: Optional[int] = None,
+        n_away: Optional[np.ndarray] = None,
     ) -> None:
         """Register an explicit EE-reference override for one phase.
 
@@ -174,7 +203,58 @@ class SwingPlanner:
         p_ee_mid, R_ee_mid : (3,)/(3,3), optional — mid-waypoint EE pose.
         t_mid : float, optional — time at the mid-waypoint; must
             satisfy ``t_start < t_mid < t_end``.
+        q_seq : list[(nq,) ndarray], optional
+            Smoothed q-sequence from
+            ``crawlbot.planning.constrained_geodesic.smoothed_constrained_geodesic``.
+            When provided (alongside ``frame_swing``), enables FK mode:
+            the swing-EE reference is derived by FK on the interpolated
+            q(τ) plus the additive clearance bump (plan §2.6, §2.7,
+            §2.9). Requires ``model`` at SwingPlanner construction.
+        frame_swing : int, optional
+            Pinocchio frame ID of the swing EE for the FK lookup.
+            Required when ``q_seq`` is given.
+        n_away : (3,) ndarray, optional
+            Override for the away-normal unit vector used by the
+            additive clearance bump. Defaults to the planner-level
+            ``self.away_normal``.
         """
+        # FK mode: short-circuit to a dedicated override entry.
+        if q_seq is not None:
+            if self._model is None:
+                raise RuntimeError(
+                    "SwingPlanner: q_seq passed to add_phase but the planner "
+                    "was not constructed with model — pass it to "
+                    "SwingPlanner.__init__ to enable FK mode.")
+            if frame_swing is None:
+                raise ValueError(
+                    "frame_swing is required when q_seq is provided")
+            from crawlbot.planning.constrained_geodesic import (
+                precompute_segment_tangents,
+            )
+            q_seq_copy = [np.asarray(q, dtype=float).copy() for q in q_seq]
+            dq_seg = precompute_segment_tangents(self._model, q_seq_copy)
+            n_away_use = (np.asarray(n_away, dtype=float).copy()
+                          if n_away is not None else self.away_normal.copy())
+            n_away_use = n_away_use / np.linalg.norm(n_away_use)
+            self._phase_overrides.append({
+                't_start': float(t_start),
+                't_end': float(t_end),
+                'p_ee_start': np.asarray(p_ee_start, dtype=float).copy(),
+                'R_ee_start': np.asarray(R_ee_start, dtype=float).copy(),
+                'p_ee_end': np.asarray(p_ee_end, dtype=float).copy(),
+                'R_ee_end': np.asarray(R_ee_end, dtype=float).copy(),
+                'swing_arm': swing_arm,
+                'piecewise': False,
+                'p_ee_mid': None, 'R_ee_mid': None, 't_mid': None,
+                'use_fk': True,
+                'q_seq': q_seq_copy,
+                'dq_seg': dq_seg,
+                'frame_swing': int(frame_swing),
+                'n_away': n_away_use,
+                'T': float(t_end - t_start),
+            })
+            return
+
         piecewise = (p_ee_mid is not None) and (R_ee_mid is not None)
         if piecewise:
             if t_mid is None:
@@ -209,7 +289,10 @@ class SwingPlanner:
         self._phase_overrides = []
 
     def _override_reference_at(self, t: float, ov: dict) -> 'SwingReference':
-        """Compute the SwingReference from an override (single or piecewise)."""
+        """Compute the SwingReference from an override (single, piecewise,
+        or FK)."""
+        if ov.get('use_fk', False):
+            return self._override_reference_at_fk(t, ov)
         T = ov['t_end'] - ov['t_start']
         T_eff = T * self.early_finish_fraction
         # Single-phase τ for the bump (continuous across full phase).
@@ -280,6 +363,45 @@ class SwingPlanner:
             swing_arm=ov['swing_arm'],
             is_swinging=True,
             phase_progress=tau_phase)
+
+    def _override_reference_at_fk(self, t: float, ov: dict) -> 'SwingReference':
+        """FK-mode swing reference (plan §2.6, §2.7, §2.9).
+
+        Position / rotation / linear+angular twist / linear+angular
+        acceleration of the swing EE at parameter τ along the smoothed
+        q-sequence, plus the additive clearance bump on the linear
+        component only (rotation untouched).
+        """
+        from crawlbot.planning.constrained_geodesic import (
+            frame_reference_at_tau,
+        )
+        T = ov['T']
+        tau = float(np.clip((t - ov['t_start']) / T, 0.0, 1.0))
+        # FK pose + LWA twist + LWA accel from the smoothed q-seq.
+        p_fk, R, v6_fk, a6_fk = frame_reference_at_tau(
+            self._model, self._data,
+            ov['q_seq'], ov['dq_seg'],
+            ov['frame_swing'],
+            tau=tau, T_phase=T,
+        )
+        # Additive bump on linear position (eq. 12).
+        n = ov['n_away']
+        c = self.clearance
+        b = self._bump(tau)
+        bd = self._bump_dot(tau)
+        bdd = self._bump_ddot(tau)
+        p_ee = p_fk + c * n * b
+        v_ee = v6_fk[0:3] + (c * n * bd) / T
+        a_ee = a6_fk[0:3] + (c * n * bdd) / (T * T)
+        omega_ee = v6_fk[3:6]
+        alpha_ee = a6_fk[3:6]
+        return SwingReference(
+            p_ee=p_ee, v_ee=v_ee, a_ee=a_ee,
+            R_ee=R, omega_ee=omega_ee, alpha_ee=alpha_ee,
+            swing_arm=ov['swing_arm'],
+            is_swinging=True,
+            phase_progress=tau,
+        )
 
     @property
     def plan(self) -> GaitPlan:

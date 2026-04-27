@@ -332,6 +332,153 @@ def test_E2_fk_velocity_finite_diff(robot, fids, smoothed):
 # --------------------------------------------------------------------
 
 
+def _build_swing_planner(robot, fids, q_start):
+    """Construct a SwingPlanner wired with the model, plus a minimal
+    ContactScheduler (needed for the legacy fallback API even though
+    the FK override path doesn't consult it).
+    """
+    import mujoco
+    from crawlbot.planning.contact_scheduler import (
+        ContactScheduler, read_anchors_from_mujoco,
+    )
+    from crawlbot.planning.swing_planner import SwingPlanner
+    mjcf = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        'models', 'VISPA_crawling_rwa3.xml',
+    )
+    mj = mujoco.MjModel.from_xml_path(mjcf)
+    md = mujoco.MjData(mj)
+    mujoco.mj_forward(mj, md)
+    a_w, b_w = read_anchors_from_mujoco(mj, md)
+    p_s0 = md.qpos[0:3].copy()
+    a_local = [a - p_s0 for a in a_w]
+    b_local = [b - p_s0 for b in b_w]
+    sched = ContactScheduler(
+        anchors_a=a_local, anchors_b=b_local, dt_ds=0.5, dt_ss=0.0)
+    sched.plan_traversal(start_a=2, start_b=2, n_steps=3)
+    planner = SwingPlanner(sched, model=robot.model, clearance=0.03)
+    return planner
+
+
+def test_E4_swing_fk_with_bump_endpoint_and_peak(robot, fids, smoothed):
+    """Plan eq. (12): the FK-mode swing-EE reference matches FK[fid_b]
+    at the endpoints (bump=0) and equals FK + clearance · n̂ at the
+    bump peak (bump=1, additive on linear position only).
+    """
+    import pinocchio as pin
+    q_seq = smoothed['q_seq']
+    q_start = smoothed['q_start']
+    q_end = smoothed['q_end']
+
+    planner = _build_swing_planner(robot, fids, q_start)
+    # Compute swing EE poses at endpoints for legacy bookkeeping.
+    data = robot.model.createData()
+    pin.forwardKinematics(robot.model, data, q_start)
+    pin.updateFramePlacements(robot.model, data)
+    p_e0 = data.oMf[fids['fid_b']].translation.copy()
+    R_e0 = data.oMf[fids['fid_b']].rotation.copy()
+    pin.forwardKinematics(robot.model, data, q_end)
+    pin.updateFramePlacements(robot.model, data)
+    p_e1 = data.oMf[fids['fid_b']].translation.copy()
+    R_e1 = data.oMf[fids['fid_b']].rotation.copy()
+
+    T_phase = 6.0
+    planner.add_phase(
+        0.0, T_phase, p_e0, R_e0, p_e1, R_e1,
+        swing_arm='b', q_seq=q_seq, frame_swing=fids['fid_b'],
+    )
+
+    # Endpoint identities (bump=0 at τ=0 and τ=1).
+    ref0 = planner.reference_at(0.0)
+    np.testing.assert_allclose(ref0.p_ee, p_e0, atol=1e-12,
+                               err_msg="τ=0 swing FK ≠ FK[swing](q_start)")
+    np.testing.assert_allclose(ref0.R_ee, R_e0, atol=1e-12,
+                               err_msg="τ=0 swing R ≠ R(q_start)")
+    ref1 = planner.reference_at(T_phase)
+    np.testing.assert_allclose(ref1.p_ee, p_e1, atol=1e-12,
+                               err_msg="τ=1 swing FK ≠ FK[swing](q_end)")
+
+    # Bump peak (default bump_peak_tau = 0.5): p_ee = FK + clearance·n̂.
+    # Reconstruct FK at τ=0.5 by walking q_seq.
+    n_tau = len(q_seq)
+    delta_tau = 1.0 / (n_tau - 1)
+    rt = 0.5 / delta_tau
+    k_lo = min(int(np.floor(rt)), n_tau - 2)
+    alpha = float(rt - k_lo)
+    q_mid = pin.interpolate(robot.model, q_seq[k_lo], q_seq[k_lo + 1], alpha)
+    pin.forwardKinematics(robot.model, data, q_mid)
+    pin.updateFramePlacements(robot.model, data)
+    p_fk_mid = data.oMf[fids['fid_b']].translation.copy()
+
+    ref_peak = planner.reference_at(T_phase / 2)
+    bump_vec = ref_peak.p_ee - p_fk_mid
+    expected_bump = 0.03 * planner.away_normal
+    np.testing.assert_allclose(
+        bump_vec, expected_bump, atol=1e-12,
+        err_msg=(
+            f"At τ=peak: bump deviation {bump_vec} ≠ expected "
+            f"{expected_bump} (clearance · n̂)"
+        ))
+
+
+def test_E5_set_swing_orientation_no_op_under_fk_mode(robot, fids, smoothed):
+    """plan §3.3: under FK mode, set_swing_orientation emits one
+    DeprecationWarning and is a no-op (R_ee from reference_at is
+    determined by FK on the smoothed q-sequence, not by set_swing_orientation).
+    """
+    import warnings
+    import pinocchio as pin
+    q_seq = smoothed['q_seq']
+    q_start = smoothed['q_start']
+    q_end = smoothed['q_end']
+
+    planner = _build_swing_planner(robot, fids, q_start)
+    data = robot.model.createData()
+    pin.forwardKinematics(robot.model, data, q_start)
+    pin.updateFramePlacements(robot.model, data)
+    p_e0 = data.oMf[fids['fid_b']].translation.copy()
+    R_e0 = data.oMf[fids['fid_b']].rotation.copy()
+    pin.forwardKinematics(robot.model, data, q_end)
+    pin.updateFramePlacements(robot.model, data)
+    p_e1 = data.oMf[fids['fid_b']].translation.copy()
+    R_e1 = data.oMf[fids['fid_b']].rotation.copy()
+
+    T_phase = 6.0
+    planner.add_phase(
+        0.0, T_phase, p_e0, R_e0, p_e1, R_e1,
+        swing_arm='b', q_seq=q_seq, frame_swing=fids['fid_b'],
+    )
+
+    # Capture R_ee at τ=0.5 BEFORE the no-op call.
+    R_ee_before = planner.reference_at(T_phase / 2).R_ee.copy()
+
+    # Call set_swing_orientation with a deliberately-different R.
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter('always')
+        planner.set_swing_orientation(
+            np.array([[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]]))
+        # First call: one DeprecationWarning.
+        deprecation_warnings = [
+            x for x in w if issubclass(x.category, DeprecationWarning)]
+        assert len(deprecation_warnings) == 1, (
+            f"Expected 1 DeprecationWarning, got {len(deprecation_warnings)}"
+        )
+        # Second call: no additional warning (one-shot gate).
+        planner.set_swing_orientation(np.eye(3))
+        deprecation_warnings = [
+            x for x in w if issubclass(x.category, DeprecationWarning)]
+        assert len(deprecation_warnings) == 1, (
+            "set_swing_orientation should warn only once under FK mode"
+        )
+
+    # R_ee unchanged after the no-op call.
+    R_ee_after = planner.reference_at(T_phase / 2).R_ee
+    np.testing.assert_allclose(
+        R_ee_after, R_ee_before, atol=1e-12,
+        err_msg="set_swing_orientation under FK mode mutated R_ee"
+    )
+
+
 def test_E3_l_com_full_body_vs_torso_only(robot, fids, smoothed):
     """Plan eq. (13): the FK-mode l_com_reference_at returns the
     full-body centroidal angular momentum
