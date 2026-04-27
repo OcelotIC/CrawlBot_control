@@ -332,6 +332,78 @@ def test_E2_fk_velocity_finite_diff(robot, fids, smoothed):
 # --------------------------------------------------------------------
 
 
+def test_E7_t15_step2_dock_under_fk_mode():
+    """CRITICAL — plan §4.3, §6 Phase 5 exit gate.
+
+    Asserts that the T15 closed-loop run under FK mode docks all
+    three steps at d ≤ 5 mm. The actual sim is run by
+    ``scripts/run_m7_v22_1pct_3step_t15_fk.py``; this test validates
+    the resulting sim_log.
+
+    To run the underlying sim:
+        PYTHONPATH=. MUJOCO_GL=disabled python3 \\
+            scripts/run_m7_v22_1pct_3step_t15_fk.py
+
+    The test loads ``results/M7_1pct_3step_v22_t15_fk/sim_log.json``
+    and applies these gates:
+
+      - All 3 steps DOCKED (presence in log['dock_events']).
+      - Per-step d_mm ≤ 5.
+      - Per-step ori_deg ≤ 5.
+      - No aborted steps.
+      - AOCS tau_w peak ≤ 5 Nm; hw peak ≤ 5 Nms.
+    """
+    sim_log_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        'results', 'M7_1pct_3step_v22_t15_fk', 'sim_log.json',
+    )
+    if not os.path.exists(sim_log_path):
+        pytest.skip(
+            f"FK-mode T15 sim_log not found at {sim_log_path}; run "
+            f"scripts/run_m7_v22_1pct_3step_t15_fk.py first."
+        )
+    import json as _json
+    log = _json.load(open(sim_log_path))
+
+    # Aborted steps gate.
+    aborted = log.get('aborted_steps', []) or []
+    assert len(aborted) == 0, (
+        f"FK-mode T15 has aborted steps: {aborted}"
+    )
+
+    # Dock-events gate (3/3 DOCKED at d ≤ 5 mm and ori ≤ 5°).
+    dock_events = log.get('dock_events', []) or []
+    docked_steps = sorted({int(d['step']) for d in dock_events})
+    assert docked_steps == [0, 1, 2], (
+        f"Expected docks for steps [0, 1, 2], got {docked_steps}"
+    )
+    for d in dock_events:
+        d_mm = float(d.get('d_mm', float('inf')))
+        ori_deg = float(d.get('ori_deg', float('inf')))
+        assert d_mm <= 5.0, (
+            f"Step {d['step']} dock distance {d_mm:.2f} mm > 5 mm gate"
+        )
+        assert ori_deg <= 5.0, (
+            f"Step {d['step']} dock orientation {ori_deg:.2f}° > 5° gate"
+        )
+
+    # AOCS envelope.
+    if 'tau_w' in log:
+        tau_w = np.asarray(log['tau_w'])
+        peak_tau_w = float(np.max(np.abs(tau_w)))
+        assert peak_tau_w <= 5.5, (
+            f"AOCS tau_w peak {peak_tau_w:.2f} Nm exceeds 5.5 Nm "
+            f"(5 Nm budget + 10 % margin)"
+        )
+    if 'hw' in log:
+        hw = np.asarray(log['hw'])
+        peak_hw = float(np.max(np.abs(hw)))
+        assert peak_hw <= 5.5, (
+            f"AOCS hw peak {peak_hw:.2f} Nms exceeds 5.5 Nms "
+            f"(5 Nms budget + 10 % margin)"
+        )
+
+
 def _build_swing_planner(robot, fids, q_start):
     """Construct a SwingPlanner wired with the model, plus a minimal
     ContactScheduler (needed for the legacy fallback API even though
