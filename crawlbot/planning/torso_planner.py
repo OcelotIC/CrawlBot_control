@@ -370,6 +370,11 @@ class TorsoPlanner:
             'dq_seg': dq_seg,
             'n_tau': len(q_seq_copy),
             'T': float(t_end - t_start),
+            # Legacy diagnostic keys read by the run-script's
+            # _print_phase_sync_report — preserve schema parity.
+            'duration': float(t_end - t_start),
+            'effective_duration': float(t_end - t_start),
+            'early_finish_fraction': 1.0,
         })
 
     def _reference_at_fk(self, phase, t: float) -> TorsoReference:
