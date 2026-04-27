@@ -1,0 +1,19 @@
+{
+  "label": "xlong_hold",
+  "t_ss_start": 0.11,
+  "t_ss_end": 15.809999999999961,
+  "T_phase_s": 15.699999999999962,
+  "d_grip_swing_min_mm": 4.763394798063573,
+  "d_grip_swing_final_mm": 4.763394798063573,
+  "e_torso_pos_peak_mm": 101.77145101186305,
+  "e_torso_ori_peak_deg": 7.940361458850784,
+  "e_ee_pos_peak_mm": 105.68188217428703,
+  "e_ee_ori_peak_deg": 2.01932553007173,
+  "tau_max_joint_peak_Nm": 4.19964604061092,
+  "tau_w_peak_Nm": 5.498199244735061,
+  "hw_peak_Nms": 2.9795183282134485,
+  "nmpc_infeas_count": 0,
+  "docked": true,
+  "dock_d_mm": 4.76,
+  "dock_ori_deg": 0.83
+}
