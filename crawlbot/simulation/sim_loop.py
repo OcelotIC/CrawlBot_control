@@ -2038,13 +2038,20 @@ class SimulationLoop:
             # is geometrically inconsistent with FK refs that prescribe
             # body translation (e.g. (3,4) anchor pair needs +505 mm
             # torso forward translation, see CLOSING_REPORT.md §4.7).
-            # Use tr.* directly when FK mode is active; the QP-gain
-            # softening (cfg.ss_Kp_torso / Kd_torso) is the companion
-            # tune that keeps tracking stable.
+            #
+            # Ablation v3: forward the FK position + ROTATION refs, and
+            # the angular twist + angular feedforward, but ZERO out the
+            # LINEAR velocity/accel feedforwards. The smoother produces
+            # a piecewise-constant v_full = dq_seg[k]/Δτ which has step
+            # discontinuities at every sample boundary (Δτ·T ≈ 0.64 s
+            # on step 2). Zeroing the feedforwards lets the QP do pure
+            # PD on a smoothly-interpolated linear position ref —
+            # avoiding the impulsive a_ff demands that destabilised
+            # tracking in v1/v2. Plan §2.5 risk R3.
             if cfg.reference_source == 'joint_space_fk':
                 p_torso_ref_used = tr.p
-                v_torso_ref_used = tr.v
-                a_torso_ff_used = tr.a
+                v_torso_ref_used = np.concatenate([np.zeros(3), tr.v[3:6]])
+                a_torso_ff_used = np.concatenate([np.zeros(3), tr.a[3:6]])
             elif (phase == 'SS' and cfg.mapping_bypass_in_ss
                     and self._ss_entry_p_torso is not None):
                 # Diagnostic bypass: freeze the linear torso reference at
