@@ -169,6 +169,65 @@ class SimConfig:
     ik_fixed_rotation: bool = True
     ik_fixed_rotation_w_min: float = 1e-4
 
+    # ── M7 Manipulability-IK-1: trajectory-aware IK (Candidate 1) ──
+    # When True, sim_loop builds an additional torso_map_traj dict
+    # whose q_end is optimised for worst-case σ_min(J_a)·σ_min(J_b)
+    # across K interior samples of the planned SS swing, chained by
+    # q_start = q_end_prev. Falls back to the endpoint torso_map when
+    # the chain drift exceeds `trajectory_ik_qstart_tolerance`.
+    # Default False preserves existing behaviour (bit-for-bit ablation).
+    # See docs/architecture/T15_MANIPULABILITY_IK_DESIGN.md.
+    use_trajectory_aware_ik: bool = False
+    trajectory_ik_qstart_tolerance: float = 0.05  # [rad] chain-drift fallback
+    trajectory_ik_n_samples: int = 5              # K samples along τ∈(0,1]
+    # Below this σ_min(J_a)·σ_min(J_b) at the converged trajectory-aware
+    # IK endpoint, the result is considered pathological (likely landed
+    # in a singular branch despite §9.1–9.2 fixes). The caller should
+    # fall back to fixed_rotation IK. Spec: IK_FORMULATION.md §9.3.
+    trajectory_ik_w_min_threshold: float = 1e-3
+
+    # ── Mid-waypoint reshape (Option B per T15_step2_path_geometry §7.3) ──
+    # When True, after the SS-entry IK returns q_end, sample the implied
+    # planner-style reference path's whole-body Jacobian conditioning at
+    # 21 points (check_path_feasibility). If any sample's σ_min product
+    # falls below path_feasibility_w_threshold, attempt a mid-waypoint
+    # reshape via manipulability_config_mid_waypoint and pass the result
+    # to TorsoPlanner / SwingPlanner as a piecewise quintic. This
+    # addresses the H2 finding (T15_step2_path_geometry §6.2): the
+    # single-quintic reference for some anchor pairs visits a
+    # near-singular interior region that the QP cannot track.
+    use_path_feasibility_check: bool = False
+    use_mid_waypoint_reshape: bool = False
+    # When True (and use_mid_waypoint_reshape is also True), bypass the
+    # feasibility check and ALWAYS attempt mid-waypoint reshape. Useful
+    # for validation when the simplified planner-style references in
+    # check_path_feasibility underreport vs the actual mapped references
+    # (T15_step2_path_geometry §7 caveat: the M5 CoM-mapping layer is
+    # not modelled in the runtime check). Default False preserves the
+    # gated behaviour.
+    mid_waypoint_force_on: bool = False
+    # Threshold below which a sample's σ_min product is considered
+    # pathologically singular. Per IK_FORMULATION.md §9.3.
+    path_feasibility_w_threshold: float = 1e-3
+
+    # ── Reference generation source (M7 / FK-on-smoothed-q) ─────
+    # 'task_space'      : legacy independent SLERP per planner. Default;
+    #                     keeps existing test/sim outputs byte-identical.
+    # 'joint_space_fk'  : derive task-space refs from FK on a single
+    #                     task-space-smoothed constrained geodesic.
+    #                     Eliminates the kinematically-uncoupled-refs
+    #                     failure mode at T15 step 2 (synthesis §6,
+    #                     plan §2.2). Adds ~0.3 s smoother overhead at
+    #                     each SS-entry; zero runtime cost in the QP loop.
+    # See docs/architecture/T15_step2_diagnosis_and_resolution.md and
+    # results/diagnostic/stance_deviation_along_geodesic/PHASE0_FINDINGS.md.
+    reference_source: str = 'task_space'
+    # Smoothed-geodesic discretisation parameters
+    # (used only when reference_source='joint_space_fk').
+    geodesic_n_tau: int = 21
+    geodesic_n_iter: int = 120
+    geodesic_tol: float = 1e-5
+
     # ── Torso-vs-swing velocity profile ─────────────────────────
     # 1.0 = torso quintic runs over the full [0, T_step] alongside
     # the swing. The 0.7 stagger was a workaround for the folded-arm

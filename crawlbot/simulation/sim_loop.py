@@ -40,7 +40,9 @@ from crawlbot.core.com_to_torso_mapping import CoMToTorsoMapping
 from crawlbot.core.ik import (
     dock_configuration, dock_configuration_fixed_rotation,
     solve_ik, solve_ik_waypoints,
-    manipulability_config, precompute_torso_map,
+    manipulability_config, manipulability_config_trajectory,
+    manipulability_config_mid_waypoint, check_path_feasibility,
+    precompute_torso_map,
 )
 from crawlbot.planning.contact_scheduler import ContactScheduler, read_anchors_from_mujoco
 # LocomotionPlanner removed — CoM reference comes from TorsoPlanner
@@ -97,6 +99,13 @@ class SimulationLoop:
         self._step_q_end: Optional[np.ndarray] = None
         self._step_t_ss_start: float = 0.0
         self._step_T_step: float = 0.0
+        # M7 / FK-on-smoothed-q: cached smoothed q-sequence + per-segment
+        # tangents for the active SS step. Populated by
+        # _setup_torso_for_step under cfg.reference_source='joint_space_fk';
+        # consumed by _planned_arm_config so the M5 mapping sees the same
+        # q(τ) the planners are tracking.
+        self._step_q_seq: Optional[list] = None
+        self._step_dq_seg: Optional[list] = None
         # M7 EE-bisection follow-up: torso linear position at SS entry
         # (set in _setup_torso_for_step). Read by _step() when
         # cfg.mapping_bypass_in_ss is True; otherwise unused.
@@ -195,10 +204,13 @@ class SimulationLoop:
             self.sched,
             clearance=cfg.swing_clearance,
             bump_peak_tau=cfg.swing_bump_peak_tau,
-            early_finish_fraction=cfg.swing_early_finish_fraction)
+            early_finish_fraction=cfg.swing_early_finish_fraction,
+            model=self.robot.model)
 
         # Torso planner (reconfigured per step)
-        self.torso_planner = TorsoPlanner()
+        self.torso_planner = TorsoPlanner(
+            model=self.robot.model,
+            frame_torso=self.robot.frame_torso)
         # M5: provide torso body inertia so l_com_reference_at() can
         # produce a meaningful feedforward for the NMPC cost.
         # Pinocchio joint index 1 == root_joint (torso); .inertia is
@@ -778,6 +790,17 @@ class SimulationLoop:
             return rs.q.copy(), rs.v.copy()
         T = max(self._step_T_step, 1e-6)
         tau = float(np.clip((t - self._step_t_ss_start) / T, 0.0, 1.0))
+        # M7 / FK-on-smoothed-q (cfg.reference_source='joint_space_fk'):
+        # use the same task-space-smoothed q-sequence the planners use,
+        # so the M5 mapping consumes the same q(τ) the QP is tracking.
+        if (self.cfg.reference_source == 'joint_space_fk'
+                and self._step_q_seq is not None):
+            from crawlbot.planning.constrained_geodesic import q_v_real_at_tau
+            q_plan, v_real = q_v_real_at_tau(
+                self.robot.model, self._step_q_seq, self._step_dq_seg,
+                tau=tau, T_phase=T,
+            )
+            return q_plan, v_real
         s = 10.0*tau**3 - 15.0*tau**4 + 6.0*tau**5
         sd = (30.0*tau**2 - 60.0*tau**3 + 30.0*tau**4) / T
         sl_q = self.robot.joints_q_slice
@@ -837,15 +860,59 @@ class SimulationLoop:
 
         q_end = None
         ik_mode = 'manipulability'  # default label for logging
-        w_fixed = float('nan')
+        w_fixed = float('nan')          # Yoshikawa, fixed_rotation
+        w_sigma_min_fixed = float('nan')  # σ_min product, fixed_rotation
+        traj_drift = float('nan')
+        traj_w_worst = float('nan')
+        traj_w_end = float('nan')
+        traj_ik_elapsed_s = float('nan')
 
-        if cfg.ik_fixed_rotation:
+        # M7 Manipulability-IK-1 Phase 4 — on-demand trajectory-aware IK.
+        # Phase 3 (results/M7_1pct_3step_v22_t15_trajIK/T15_trajIK_report.md
+        # §5) showed that the chained-precompute cache's q_start_assumed
+        # diverged from live state by 30–60× the tolerance at every SS
+        # entry, so the cache was never consumed. Phase 4 bypasses the
+        # cache and calls manipulability_config_trajectory with the
+        # live pq_live so the optimiser sees the actual SS-entry state.
+        # The cache build in setup() is retained unchanged (dead code
+        # in this run) per the Phase-4 prompt — future work may
+        # repurpose it as a warm-start seed source.
+        if cfg.use_trajectory_aware_ik:
+            t0 = time.perf_counter()
             try:
-                q_fixed, err_fixed, w_fixed = dock_configuration_fixed_rotation(
-                    model, se3_a, se3_b,
-                    R_torso_fixed=R_t0,
-                    torso_pos=0.5 * (se3_a.translation + se3_b.translation),
-                    q_init=pq_live.copy())
+                q_end, traj_w_worst, traj_w_end = manipulability_config_trajectory(
+                    model,
+                    se3_a.translation, se3_b.translation,
+                    q_start=pq_live,
+                    n_samples=cfg.trajectory_ik_n_samples,
+                    w_min_threshold=cfg.trajectory_ik_w_min_threshold,
+                )
+                if q_end is None:
+                    # IK_FORMULATION.md §9.3 safety check rejected
+                    # the converged endpoint (w_end below threshold).
+                    # Fall through to the fixed_rotation IK below.
+                    ik_mode = 'trajectory_aware_rejected_singular'
+                    print(
+                        f"  [IK] trajectory-aware IK rejected: "
+                        f"w_end={traj_w_end:.2e} < threshold "
+                        f"{cfg.trajectory_ik_w_min_threshold:.2e}; "
+                        f"falling back to fixed_rotation"
+                    )
+                else:
+                    ik_mode = 'trajectory_aware_on_demand'
+            except RuntimeError:
+                q_end = None
+                ik_mode = 'trajectory_aware_on_demand_failed'
+            traj_ik_elapsed_s = float(time.perf_counter() - t0)
+
+        if q_end is None and cfg.ik_fixed_rotation:
+            try:
+                q_fixed, err_fixed, w_fixed, w_sigma_min_fixed = (
+                    dock_configuration_fixed_rotation(
+                        model, se3_a, se3_b,
+                        R_torso_fixed=R_t0,
+                        torso_pos=0.5 * (se3_a.translation + se3_b.translation),
+                        q_init=pq_live.copy()))
                 if err_fixed < 1e-4 and w_fixed >= cfg.ik_fixed_rotation_w_min:
                     q_end = q_fixed
                     ik_mode = 'fixed_rotation'
@@ -869,6 +936,13 @@ class SimulationLoop:
         dR = R_t0.T @ R_t1
         theta_goal = float(np.linalg.norm(pin.log3(dR)))
         dp_torso = p_t1 - p_t0
+        traj_suffix = ""
+        if cfg.use_trajectory_aware_ik:
+            traj_suffix = (
+                f"  traj_ik_t = {traj_ik_elapsed_s:.2f} s"
+                f"  w_worst(traj) = {traj_w_worst:.2e}"
+                f"  w_end(traj) = {traj_w_end:.2e}"
+            )
         print(
             f"  [IK] mode={ik_mode}  "
             f"||log(R_start^T R_goal)|| = {np.degrees(theta_goal):.2f} deg  "
@@ -886,7 +960,111 @@ class SimulationLoop:
             'R_goal': R_t1.copy(),
             'theta_deg': float(np.degrees(theta_goal)),
             'dp_mm': float(np.linalg.norm(dp_torso) * 1000),
-            'w_fixed': w_fixed,
+            'w_fixed': w_fixed,                    # Yoshikawa
+            'w_sigma_min_fixed': w_sigma_min_fixed,  # σ_min product
+            'traj_drift': traj_drift,
+            'traj_w_worst': traj_w_worst,
+            'traj_w_end': traj_w_end,
+            'traj_ik_elapsed_s': traj_ik_elapsed_s,
+        })
+
+        # ── 1b. Mid-waypoint reshape (Option B per
+        #        T15_step2_path_geometry.md §7.3) ─────────────────────────
+        # When enabled, sample the planner-style reference path's
+        # whole-body Jacobian conditioning. If infeasible (or
+        # mid_waypoint_force_on=True), insert a manipulability-aware
+        # mid-waypoint into TorsoPlanner and SwingPlanner, generating a
+        # piecewise quintic that visits a known-feasible configuration
+        # at the midpoint. Default flags off → byte-identical to the
+        # IK-fix branch.
+        # Always clear any prior swing override so old steps' mid-waypoints
+        # don't leak into the next step.
+        self.swing_planner.clear_phase_overrides()
+        mid_wp_p_t = None
+        mid_wp_R_t = None
+        mid_wp_p_ee = None
+        mid_wp_R_ee = None
+        path_feasibility_result = None
+        mid_w_worst = float('nan')
+        mid_wp_used = False
+        if cfg.use_path_feasibility_check or cfg.use_mid_waypoint_reshape:
+            should_attempt_reshape = False
+            if cfg.use_path_feasibility_check:
+                t_pf0 = time.perf_counter()
+                path_feasibility_result = check_path_feasibility(
+                    model, pq_live, q_end, se3_a, se3_b,
+                    swing_arm=target_arm, fid_torso=self.robot.frame_torso,
+                    n_samples=21,
+                    w_min_threshold=cfg.path_feasibility_w_threshold,
+                )
+                t_pf = time.perf_counter() - t_pf0
+                print(
+                    f"  [path-feasibility] feasible="
+                    f"{path_feasibility_result['all_samples_feasible']} "
+                    f"w_min={path_feasibility_result['w_min']:.2e} "
+                    f"@τ={path_feasibility_result['w_min_tau']:.2f} "
+                    f"({t_pf:.2f} s)"
+                )
+                if not path_feasibility_result['all_samples_feasible']:
+                    should_attempt_reshape = True
+            if (cfg.use_mid_waypoint_reshape and
+                    (should_attempt_reshape or cfg.mid_waypoint_force_on)):
+                t_mid_ik0 = time.perf_counter()
+                try:
+                    q_mid, mid_w_worst, mid_success = (
+                        manipulability_config_mid_waypoint(
+                            model, se3_a, se3_b,
+                            q_start=pq_live, q_end=q_end,
+                            swing_arm=target_arm,
+                            n_interior_samples=5,
+                            w_min_threshold=cfg.path_feasibility_w_threshold,
+                        )
+                    )
+                except Exception as e:
+                    q_mid = None
+                    mid_success = False
+                    print(f"  [mid-waypoint] IK raised: {type(e).__name__}: {e}")
+                t_mid_ik = time.perf_counter() - t_mid_ik0
+                if mid_success and q_mid is not None:
+                    # Extract mid-waypoint poses via FK on q_mid.
+                    rs_m = self.robot.update(
+                        q_mid, np.zeros(self.robot.model.nv))
+                    mid_wp_p_t = rs_m.oMf_torso.translation.copy()
+                    mid_wp_R_t = rs_m.oMf_torso.rotation.copy()
+                    # Swing arm EE at q_mid (for SwingPlanner override).
+                    fid_swing = (FRAME_TOOL_B if target_arm == 'b'
+                                 else FRAME_TOOL_A)
+                    pin.forwardKinematics(self.robot.model,
+                                          self.robot.data, q_mid)
+                    pin.updateFramePlacements(self.robot.model,
+                                              self.robot.data)
+                    mid_wp_p_ee = self.robot.data.oMf[fid_swing].translation.copy()
+                    mid_wp_R_ee = self.robot.data.oMf[fid_swing].rotation.copy()
+                    mid_wp_used = True
+                    print(
+                        f"  [mid-waypoint] inserted: "
+                        f"w_worst_mid={mid_w_worst:.2e} "
+                        f"q_mid_torso={mid_wp_p_t.round(3).tolist()} "
+                        f"({t_mid_ik:.1f} s)"
+                    )
+                else:
+                    print(
+                        f"  [mid-waypoint] IK failed (w_worst="
+                        f"{mid_w_worst:.2e}); falling back to single-quintic "
+                        f"({t_mid_ik:.1f} s)"
+                    )
+        # Append mid-waypoint diagnostics to the IK trace entry.
+        self._debug_ik_trace[-1].update({
+            'mid_wp_used': bool(mid_wp_used),
+            'mid_w_worst': float(mid_w_worst),
+            'mid_wp_p_t': (mid_wp_p_t.tolist() if mid_wp_p_t is not None
+                           else None),
+            'path_feasibility_w_min': (
+                None if path_feasibility_result is None
+                else float(path_feasibility_result['w_min'])),
+            'path_feasibility_all_ok': (
+                None if path_feasibility_result is None
+                else bool(path_feasibility_result['all_samples_feasible'])),
         })
 
         # 2. Run the coarse pre-planner. T_step is produced by the
@@ -929,11 +1107,110 @@ class SimulationLoop:
         #    simultaneously tracking a moving target.
         self.torso_planner.clear_phases()
         self.torso_planner.set_hold(p_t0, R_t0, r_com=r_com0)
+        # Mid-waypoint args are passed only when the reshape
+        # succeeded — otherwise the call falls through to the legacy
+        # single-quintic add_phase signature (byte-identical to the
+        # pre-Phase-4 behaviour).
+        torso_phase_kwargs = dict(
+            delta_com_start=delta0, delta_com_end=delta1,
+            early_finish_fraction=cfg.torso_early_finish_fraction)
+        if mid_wp_used:
+            t_mid_phase = t_ss_start + 0.5 * T_step
+            torso_phase_kwargs.update(
+                p_mid=mid_wp_p_t, R_mid=mid_wp_R_t, t_mid=t_mid_phase)
+
+        # M7 / FK-on-smoothed-q reference path
+        # (cfg.reference_source='joint_space_fk').
+        # Compute the task-space-smoothed constrained geodesic ONCE per
+        # SS step. The same q_seq is shared by both planners, ensuring
+        # the torso and swing references at every τ derive from a
+        # single q satisfying the stance constraint by construction.
+        # Phase-0 measurement: ~0.3 s wall-clock for n_tau=21,
+        # n_iter=120; eliminates the kinematically-uncoupled-refs
+        # failure mode at T15 step 2 (synthesis §6, plan §2.2).
+        fk_torso_extra = {}
+        fk_swing_extra = {}
+        fk_q_seq = None
+        if cfg.reference_source == 'joint_space_fk':
+            from crawlbot.planning.constrained_geodesic import (
+                smoothed_constrained_geodesic,
+            )
+            fid_stance_fk = (self.robot.frame_tool_a
+                             if target_arm == 'b'
+                             else self.robot.frame_tool_b)
+            fid_swing_fk = (self.robot.frame_tool_b
+                            if target_arm == 'b'
+                            else self.robot.frame_tool_a)
+            t_smooth0 = time.perf_counter()
+            fk_q_seq, fk_info = smoothed_constrained_geodesic(
+                self.robot.model, pq_live, q_end,
+                fid_stance=fid_stance_fk,
+                fid_torso=self.robot.frame_torso,
+                fid_swing=fid_swing_fk,
+                n_tau=cfg.geodesic_n_tau,
+                n_iter=cfg.geodesic_n_iter,
+                tol=cfg.geodesic_tol,
+                verbose=False,
+            )
+            print(
+                f"  [smoother] {fk_info['iters']} iters in "
+                f"{time.perf_counter() - t_smooth0:.2f}s, "
+                f"converged={fk_info['converged']}, "
+                f"fallbacks={fk_info['fallbacks_total']}"
+            )
+            if fk_info['fallbacks_total'] > 0:
+                print(
+                    f"  [smoother] WARNING: {fk_info['fallbacks_total']} "
+                    f"3-task IK fallbacks during smoothing"
+                )
+            fk_torso_extra['q_seq'] = fk_q_seq
+            fk_swing_extra['q_seq'] = fk_q_seq
+            fk_swing_extra['frame_swing'] = fid_swing_fk
+
         self.torso_planner.add_phase(
             t_ss_start, t_ss_start + T_step,
             p_t0, R_t0, p_t1, R_t1,
-            delta_com_start=delta0, delta_com_end=delta1,
-            early_finish_fraction=cfg.torso_early_finish_fraction)
+            **torso_phase_kwargs, **fk_torso_extra)
+        # Install the swing-EE phase override when mid-waypoint
+        # reshape succeeded OR FK mode is on. Endpoints come from FK
+        # at pq_live (start) and FK at q_end (end). The legacy
+        # SwingPlanner path is taken when no override is registered.
+        if cfg.reference_source == 'joint_space_fk':
+            fid_swing_for_log = fk_swing_extra['frame_swing']
+            pin.forwardKinematics(self.robot.model, self.robot.data, pq_live)
+            pin.updateFramePlacements(self.robot.model, self.robot.data)
+            p_swing_start_pose = self.robot.data.oMf[fid_swing_for_log].translation.copy()
+            R_swing_start_pose = self.robot.data.oMf[fid_swing_for_log].rotation.copy()
+            pin.forwardKinematics(self.robot.model, self.robot.data, q_end)
+            pin.updateFramePlacements(self.robot.model, self.robot.data)
+            p_swing_end_pose = self.robot.data.oMf[fid_swing_for_log].translation.copy()
+            R_swing_end_pose = self.robot.data.oMf[fid_swing_for_log].rotation.copy()
+            self.swing_planner.add_phase(
+                t_start=t_ss_start, t_end=t_ss_start + T_step,
+                p_ee_start=p_swing_start_pose, R_ee_start=R_swing_start_pose,
+                p_ee_end=p_swing_end_pose, R_ee_end=R_swing_end_pose,
+                swing_arm=target_arm,
+                **fk_swing_extra,
+            )
+        elif mid_wp_used:
+            fid_swing_for_log = (FRAME_TOOL_B if target_arm == 'b'
+                                 else FRAME_TOOL_A)
+            pin.forwardKinematics(self.robot.model, self.robot.data, pq_live)
+            pin.updateFramePlacements(self.robot.model, self.robot.data)
+            p_swing_start_pose = self.robot.data.oMf[fid_swing_for_log].translation.copy()
+            R_swing_start_pose = self.robot.data.oMf[fid_swing_for_log].rotation.copy()
+            pin.forwardKinematics(self.robot.model, self.robot.data, q_end)
+            pin.updateFramePlacements(self.robot.model, self.robot.data)
+            p_swing_end_pose = self.robot.data.oMf[fid_swing_for_log].translation.copy()
+            R_swing_end_pose = self.robot.data.oMf[fid_swing_for_log].rotation.copy()
+            self.swing_planner.add_phase(
+                t_start=t_ss_start, t_end=t_ss_start + T_step,
+                p_ee_start=p_swing_start_pose, R_ee_start=R_swing_start_pose,
+                p_ee_end=p_swing_end_pose, R_ee_end=R_swing_end_pose,
+                swing_arm=target_arm,
+                p_ee_mid=mid_wp_p_ee, R_ee_mid=mid_wp_R_ee,
+                t_mid=t_mid_phase,
+            )
 
         # M7 v19: capture per-step planned joint trajectory endpoints so
         # the CoM->torso mapping can be fed q_planned (arm configuration
@@ -945,6 +1222,21 @@ class SimulationLoop:
         self._step_q_end = q_end.copy()
         self._step_t_ss_start = float(t_ss_start)
         self._step_T_step = float(T_step)
+        # M7 / FK-on-smoothed-q: cache the smoothed q-sequence + per-
+        # segment tangents for use by _planned_arm_config (so the M5
+        # mapping sees the same q(τ) the planners are tracking).
+        # Cleared (set to None) under legacy mode so the legacy quintic
+        # path is taken.
+        if fk_q_seq is not None:
+            from crawlbot.planning.constrained_geodesic import (
+                precompute_segment_tangents,
+            )
+            self._step_q_seq = fk_q_seq
+            self._step_dq_seg = precompute_segment_tangents(
+                self.robot.model, fk_q_seq)
+        else:
+            self._step_q_seq = None
+            self._step_dq_seg = None
         # Snapshot the torso linear position at SS entry — read by the
         # mapping_bypass_in_ss diagnostic in _step() to freeze the SS
         # linear torso reference. p_t0 is the torso pose computed from

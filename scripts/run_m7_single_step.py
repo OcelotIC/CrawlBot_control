@@ -210,7 +210,8 @@ def _print_phase_sync_report(sim, log):
               f"t={ab.get('t', float('nan')):.2f} s")
 
 
-def run_case(tag, output_dir, n_steps=1, config=None):
+def run_case(tag, output_dir, n_steps=1, config=None,
+             diag_disable_aocs=False):
     print("\n" + "=" * 70)
     print(f"  M7 closed-loop: {tag}, n_steps={n_steps}")
     print("=" * 70)
@@ -218,6 +219,12 @@ def run_case(tag, output_dir, n_steps=1, config=None):
     cfg = config if config is not None else _make_m7_config()
     sim = SimulationLoop(mjcf_path=MJCF, urdf_path=URDF, config=cfg)
     sim.setup(n_steps=n_steps, start_a=2, start_b=2)
+    # Optional diagnostic: force tau_w_cmd = 0 in every QP sub-step to
+    # isolate the controller from AOCS reaction-wheel torque limits.
+    if diag_disable_aocs:
+        sim._diag_disable_aocs = True
+        print(f"  [DIAG] AOCS disabled: tau_w_cmd will be forced to zero "
+              f"every QP tick.")
     # M7 debug: capture L_com_ref for the first 5 SS NMPC calls so we
     # can confirm the TorsoPlanner momentum feedforward is nonzero
     # during torso reorientation (M5 wiring check).

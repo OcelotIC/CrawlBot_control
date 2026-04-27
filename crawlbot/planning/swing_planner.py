@@ -84,6 +84,7 @@ class SwingPlanner:
         rotation_delay_ratio: float = 0.2,
         bump_peak_tau: float = 0.5,
         early_finish_fraction: float = 1.0,
+        model: Optional[pin.Model] = None,
     ):
         self.scheduler = scheduler
         self.clearance = clearance
@@ -119,10 +120,288 @@ class SwingPlanner:
                 f"early_finish_fraction must be in (0, 1], "
                 f"got {early_finish_fraction}")
         self.early_finish_fraction = float(early_finish_fraction)
+        # Piecewise-quintic override store for mid-waypoint reshape
+        # (T15_step2_path_geometry.md §7.3 Option B). When non-empty,
+        # ``reference_at(t)`` consults this list first; if t falls in
+        # an override window, the piecewise reference is used instead
+        # of the scheduler-driven anchor interpolation. Empty list
+        # preserves the legacy single-quintic-from-anchors behaviour.
+        self._phase_overrides: list = []
+        # FK-mode wiring (used by reference_source='joint_space_fk').
+        # Each FK phase carries q_seq + dq_seg + frame_swing + n_away
+        # in its override dict.
+        self._model = model
+        self._data = pin.Data(model) if model is not None else None
+        # One-shot DeprecationWarning gate for set_swing_orientation
+        # under FK mode.
+        self._warned_set_swing_orientation_fk = False
 
     def set_swing_orientation(self, R_start: np.ndarray) -> None:
-        """Set the tool rotation at swing release for SLERP interpolation."""
+        """Set the tool rotation at swing release for SLERP interpolation.
+
+        Under FK mode (any phase override has ``use_fk=True``), this is
+        a no-op: rotation comes from FK on the smoothed q-sequence by
+        construction (plan §2.6 eq. 8d). A one-shot
+        ``DeprecationWarning`` is emitted on the first call after
+        entering FK mode.
+        """
+        if any(ov.get('use_fk', False) for ov in self._phase_overrides):
+            if not self._warned_set_swing_orientation_fk:
+                import warnings
+                warnings.warn(
+                    "set_swing_orientation is a no-op under FK mode "
+                    "(rotation comes from FK on the smoothed q-sequence).",
+                    DeprecationWarning, stacklevel=2,
+                )
+                self._warned_set_swing_orientation_fk = True
+            return
         self._R_start = R_start.copy()
+
+    def add_phase(
+        self,
+        t_start: float,
+        t_end: float,
+        p_ee_start: np.ndarray,
+        R_ee_start: np.ndarray,
+        p_ee_end: np.ndarray,
+        R_ee_end: np.ndarray,
+        swing_arm: str,
+        p_ee_mid: Optional[np.ndarray] = None,
+        R_ee_mid: Optional[np.ndarray] = None,
+        t_mid: Optional[float] = None,
+        q_seq: Optional[list] = None,
+        frame_swing: Optional[int] = None,
+        n_away: Optional[np.ndarray] = None,
+    ) -> None:
+        """Register an explicit EE-reference override for one phase.
+
+        The override is consulted by ``reference_at`` before the
+        scheduler-driven anchor interpolation. Used by sim_loop to
+        install a mid-waypoint between the swing start and end EE
+        poses (T15_step2_path_geometry.md §7.3 Option B).
+
+        Single-quintic mode (``p_ee_mid``/``R_ee_mid``/``t_mid`` all
+        omitted): position quintic + clearance bump + delayed-cosine
+        SLERP, identical shape to the scheduler-driven path. The
+        bump and rotation profiles use the same `early_finish_fraction`
+        and `bump_peak_tau` settings as the SwingPlanner instance.
+
+        Piecewise mode (all three mid-waypoint args provided): two
+        position-quintic segments through (start, mid, end) with
+        v=0 at each waypoint; two SLERP segments through the same
+        three rotations with ω=0 at each waypoint; one continuous
+        clearance bump that spans the full ``[t_start, t_end]``
+        window unchanged (the bump's shape is independent of the
+        manipulability-driven mid-waypoint).
+
+        Parameters
+        ----------
+        t_start, t_end : float — phase timing.
+        p_ee_start, p_ee_end : (3,) — EE positions at the endpoints.
+        R_ee_start, R_ee_end : (3,3) — EE orientations at the endpoints.
+        swing_arm : 'a' or 'b' — which arm the override applies to.
+        p_ee_mid, R_ee_mid : (3,)/(3,3), optional — mid-waypoint EE pose.
+        t_mid : float, optional — time at the mid-waypoint; must
+            satisfy ``t_start < t_mid < t_end``.
+        q_seq : list[(nq,) ndarray], optional
+            Smoothed q-sequence from
+            ``crawlbot.planning.constrained_geodesic.smoothed_constrained_geodesic``.
+            When provided (alongside ``frame_swing``), enables FK mode:
+            the swing-EE reference is derived by FK on the interpolated
+            q(τ) plus the additive clearance bump (plan §2.6, §2.7,
+            §2.9). Requires ``model`` at SwingPlanner construction.
+        frame_swing : int, optional
+            Pinocchio frame ID of the swing EE for the FK lookup.
+            Required when ``q_seq`` is given.
+        n_away : (3,) ndarray, optional
+            Override for the away-normal unit vector used by the
+            additive clearance bump. Defaults to the planner-level
+            ``self.away_normal``.
+        """
+        # FK mode: short-circuit to a dedicated override entry.
+        if q_seq is not None:
+            if self._model is None:
+                raise RuntimeError(
+                    "SwingPlanner: q_seq passed to add_phase but the planner "
+                    "was not constructed with model — pass it to "
+                    "SwingPlanner.__init__ to enable FK mode.")
+            if frame_swing is None:
+                raise ValueError(
+                    "frame_swing is required when q_seq is provided")
+            from crawlbot.planning.constrained_geodesic import (
+                precompute_segment_tangents,
+            )
+            q_seq_copy = [np.asarray(q, dtype=float).copy() for q in q_seq]
+            dq_seg = precompute_segment_tangents(self._model, q_seq_copy)
+            n_away_use = (np.asarray(n_away, dtype=float).copy()
+                          if n_away is not None else self.away_normal.copy())
+            n_away_use = n_away_use / np.linalg.norm(n_away_use)
+            self._phase_overrides.append({
+                't_start': float(t_start),
+                't_end': float(t_end),
+                'p_ee_start': np.asarray(p_ee_start, dtype=float).copy(),
+                'R_ee_start': np.asarray(R_ee_start, dtype=float).copy(),
+                'p_ee_end': np.asarray(p_ee_end, dtype=float).copy(),
+                'R_ee_end': np.asarray(R_ee_end, dtype=float).copy(),
+                'swing_arm': swing_arm,
+                'piecewise': False,
+                'p_ee_mid': None, 'R_ee_mid': None, 't_mid': None,
+                'use_fk': True,
+                'q_seq': q_seq_copy,
+                'dq_seg': dq_seg,
+                'frame_swing': int(frame_swing),
+                'n_away': n_away_use,
+                'T': float(t_end - t_start),
+            })
+            return
+
+        piecewise = (p_ee_mid is not None) and (R_ee_mid is not None)
+        if piecewise:
+            if t_mid is None:
+                raise ValueError(
+                    "t_mid is required when p_ee_mid/R_ee_mid given")
+            if not (t_start < t_mid < t_end):
+                raise ValueError(
+                    f"t_mid={t_mid} must satisfy {t_start} < t_mid < {t_end}")
+        elif (p_ee_mid is not None) ^ (R_ee_mid is not None):
+            raise ValueError(
+                "p_ee_mid and R_ee_mid must be provided together "
+                "(piecewise) or both omitted (single-quintic)")
+
+        self._phase_overrides.append({
+            't_start': float(t_start),
+            't_end': float(t_end),
+            'p_ee_start': np.asarray(p_ee_start, dtype=float).copy(),
+            'R_ee_start': np.asarray(R_ee_start, dtype=float).copy(),
+            'p_ee_end': np.asarray(p_ee_end, dtype=float).copy(),
+            'R_ee_end': np.asarray(R_ee_end, dtype=float).copy(),
+            'swing_arm': swing_arm,
+            'p_ee_mid': (np.asarray(p_ee_mid, dtype=float).copy()
+                         if piecewise else None),
+            'R_ee_mid': (np.asarray(R_ee_mid, dtype=float).copy()
+                         if piecewise else None),
+            't_mid': float(t_mid) if piecewise else None,
+            'piecewise': piecewise,
+        })
+
+    def clear_phase_overrides(self) -> None:
+        """Clear any registered phase overrides (return to scheduler-driven)."""
+        self._phase_overrides = []
+
+    def _override_reference_at(self, t: float, ov: dict) -> 'SwingReference':
+        """Compute the SwingReference from an override (single, piecewise,
+        or FK)."""
+        if ov.get('use_fk', False):
+            return self._override_reference_at_fk(t, ov)
+        T = ov['t_end'] - ov['t_start']
+        T_eff = T * self.early_finish_fraction
+        # Single-phase τ for the bump (continuous across full phase).
+        tau_phase = float(np.clip((t - ov['t_start']) / T_eff, 0.0, 1.0))
+        bump = self._bump(tau_phase)
+        bump_dot = self._bump_dot(tau_phase) / T_eff
+        bump_ddot = self._bump_ddot(tau_phase) / (T_eff * T_eff)
+        n = self.away_normal
+
+        if not ov['piecewise']:
+            dp = ov['p_ee_end'] - ov['p_ee_start']
+            s = self._quintic(tau_phase)
+            s_dot = self._quintic_dot(tau_phase) / T_eff
+            s_ddot = self._quintic_ddot(tau_phase) / (T_eff * T_eff)
+            p_ee = ov['p_ee_start'] + dp * s + self.clearance * n * bump
+            v_ee = dp * s_dot + self.clearance * n * bump_dot
+            a_ee = dp * s_ddot + self.clearance * n * bump_ddot
+            # SLERP in orientation
+            tau_d = self.rotation_delay_ratio
+            sigma_r = self._delayed_cosine(tau_phase, tau_d)
+            sigma_r_dot = self._delayed_cosine_dot(tau_phase, tau_d) / T_eff
+            sigma_r_ddot = self._delayed_cosine_ddot(tau_phase, tau_d) / (T_eff * T_eff)
+            dR = ov['R_ee_start'].T @ ov['R_ee_end']
+            omega_total = pin.log3(dR)
+            R_ee = ov['R_ee_start'] @ pin.exp3(sigma_r * omega_total)
+            omega_ee = R_ee @ (sigma_r_dot * omega_total)
+            alpha_ee = R_ee @ (sigma_r_ddot * omega_total)
+        else:
+            # Piecewise quintic in position; piecewise SLERP in rotation;
+            # bump uses single-phase tau (continuous).
+            t_mid = ov['t_mid']
+            if t <= t_mid:
+                seg_T = t_mid - ov['t_start']
+                seg_T_eff = seg_T  # ff applies only to seg-2 tail
+                seg_tau = float(np.clip((t - ov['t_start']) / seg_T, 0.0, 1.0))
+                p0 = ov['p_ee_start']; p1 = ov['p_ee_mid']
+                R0 = ov['R_ee_start']; R1 = ov['R_ee_mid']
+            else:
+                seg_T = ov['t_end'] - t_mid
+                seg_T_eff = seg_T * self.early_finish_fraction
+                seg_tau = float(np.clip((t - t_mid) / seg_T_eff, 0.0, 1.0))
+                p0 = ov['p_ee_mid']; p1 = ov['p_ee_end']
+                R0 = ov['R_ee_mid']; R1 = ov['R_ee_end']
+            dp = p1 - p0
+            s = self._quintic(seg_tau)
+            s_dot = self._quintic_dot(seg_tau) / seg_T_eff
+            s_ddot = self._quintic_ddot(seg_tau) / (seg_T_eff * seg_T_eff)
+            p_ee_pos = p0 + dp * s
+            v_ee_lin = dp * s_dot
+            a_ee_lin = dp * s_ddot
+            # Apply continuous bump on full-phase τ
+            p_ee = p_ee_pos + self.clearance * n * bump
+            v_ee = v_ee_lin + self.clearance * n * bump_dot
+            a_ee = a_ee_lin + self.clearance * n * bump_ddot
+            # Per-segment SLERP with v=0 at endpoints (quintic timing).
+            dR_seg = R0.T @ R1
+            omega_total_seg = pin.log3(dR_seg)
+            sigma_r = self._quintic(seg_tau)
+            sigma_r_dot = self._quintic_dot(seg_tau) / seg_T_eff
+            sigma_r_ddot = self._quintic_ddot(seg_tau) / (seg_T_eff * seg_T_eff)
+            R_ee = R0 @ pin.exp3(sigma_r * omega_total_seg)
+            omega_ee = R_ee @ (sigma_r_dot * omega_total_seg)
+            alpha_ee = R_ee @ (sigma_r_ddot * omega_total_seg)
+
+        return SwingReference(
+            p_ee=p_ee, v_ee=v_ee, a_ee=a_ee,
+            R_ee=R_ee, omega_ee=omega_ee, alpha_ee=alpha_ee,
+            swing_arm=ov['swing_arm'],
+            is_swinging=True,
+            phase_progress=tau_phase)
+
+    def _override_reference_at_fk(self, t: float, ov: dict) -> 'SwingReference':
+        """FK-mode swing reference (plan §2.6, §2.7, §2.9).
+
+        Position / rotation / linear+angular twist / linear+angular
+        acceleration of the swing EE at parameter τ along the smoothed
+        q-sequence, plus the additive clearance bump on the linear
+        component only (rotation untouched).
+        """
+        from crawlbot.planning.constrained_geodesic import (
+            frame_reference_at_tau,
+        )
+        T = ov['T']
+        tau = float(np.clip((t - ov['t_start']) / T, 0.0, 1.0))
+        # FK pose + LWA twist + LWA accel from the smoothed q-seq.
+        p_fk, R, v6_fk, a6_fk = frame_reference_at_tau(
+            self._model, self._data,
+            ov['q_seq'], ov['dq_seg'],
+            ov['frame_swing'],
+            tau=tau, T_phase=T,
+        )
+        # Additive bump on linear position (eq. 12).
+        n = ov['n_away']
+        c = self.clearance
+        b = self._bump(tau)
+        bd = self._bump_dot(tau)
+        bdd = self._bump_ddot(tau)
+        p_ee = p_fk + c * n * b
+        v_ee = v6_fk[0:3] + (c * n * bd) / T
+        a_ee = a6_fk[0:3] + (c * n * bdd) / (T * T)
+        omega_ee = v6_fk[3:6]
+        alpha_ee = a6_fk[3:6]
+        return SwingReference(
+            p_ee=p_ee, v_ee=v_ee, a_ee=a_ee,
+            R_ee=R, omega_ee=omega_ee, alpha_ee=alpha_ee,
+            swing_arm=ov['swing_arm'],
+            is_swinging=True,
+            phase_progress=tau,
+        )
 
     @property
     def plan(self) -> GaitPlan:
@@ -230,6 +509,13 @@ class SwingPlanner:
         -------
         ref : SwingReference
         """
+        # Phase-override path (mid-waypoint reshape, T15_step2_path
+        # _geometry.md §7.3 Option B). Consulted before the
+        # scheduler-driven path.
+        for ov in self._phase_overrides:
+            if ov['t_start'] - 1e-6 <= t <= ov['t_end'] + 1e-6:
+                return self._override_reference_at(t, ov)
+
         plan = self.plan
         gp, idx = plan.phase_at(t)
 
