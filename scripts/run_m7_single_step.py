@@ -211,14 +211,15 @@ def _print_phase_sync_report(sim, log):
 
 
 def run_case(tag, output_dir, n_steps=1, config=None,
-             diag_disable_aocs=False):
+             diag_disable_aocs=False, start_a=2, start_b=2):
     print("\n" + "=" * 70)
-    print(f"  M7 closed-loop: {tag}, n_steps={n_steps}")
+    print(f"  M7 closed-loop: {tag}, n_steps={n_steps}, "
+          f"start=({start_a}, {start_b})")
     print("=" * 70)
 
     cfg = config if config is not None else _make_m7_config()
     sim = SimulationLoop(mjcf_path=MJCF, urdf_path=URDF, config=cfg)
-    sim.setup(n_steps=n_steps, start_a=2, start_b=2)
+    sim.setup(n_steps=n_steps, start_a=start_a, start_b=start_b)
     # Optional diagnostic: force tau_w_cmd = 0 in every QP sub-step to
     # isolate the controller from AOCS reaction-wheel torque limits.
     if diag_disable_aocs:
