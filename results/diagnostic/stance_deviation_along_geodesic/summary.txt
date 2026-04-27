@@ -1,0 +1,13 @@
+Phase-0 pre-flight: stance deviation along the joint-space geodesic
+========================================================================
+  Gate threshold: 50 mm (max Δ_stance position over τ ∈ [0, 1])
+
+  step 0 (end (2, 3)): raw Δ =    96.0 mm  [FAIL],   projected Δ = 0.8010 μm  [PASS]   (proj_dq_norm_max = 0.084,  converged 21/21)
+  step 1 (end (3, 3)): raw Δ =   152.8 mm  [FAIL],   projected Δ = 0.7620 μm  [PASS]   (proj_dq_norm_max = 0.280,  converged 21/21)
+  step 2 (end (3, 4)): raw Δ =   587.7 mm  [FAIL],   projected Δ = 0.2995 μm  [PASS]   (proj_dq_norm_max = 0.824,  converged 21/21)
+
+VERDICT (raw geodesic): gate FAIL — stance-projection mitigation (plan §2.9)
+         is required. Validation of the projection follows below.
+
+VERDICT (projected geodesic): gate PASS — the stance-projection
+         mitigation works. Proceed with the augmented plan.
