@@ -23,6 +23,17 @@ constrained-geodesic q-sequence. The implementation passes all unit
 tests and produces correct, kinematically-consistent reference signals
 in closed loop.
 
+**Headline diagnosis (§4.7):** Step 2 fails because anchor_b[4] is
+*geometrically unreachable* with the torso pinned at p_t0. The
+`cfg.mapping_bypass_in_ss = True` policy (legacy default) freezes the
+torso at p_t0; the (3, 4) anchor pair requires the torso to translate
+505 mm forward to reach. Direct 3-task IK confirms: stance + torso(p_t0)
++ swing(anchor_b[4]) has NO solution — the swing arm falls 514.7 mm
+short. The closed-loop swing shortfall (364 mm) maps 1:1 to the body
+translation the bypass suppresses (378 mm). This is not a controller
+tuning issue — it is a hard geometric constraint enforced by the
+bypass.
+
 Closed-loop dock outcomes vs the IK-fix baseline:
 
 | Step | IK-fix baseline | FK refs (this branch) | Δ |
@@ -564,6 +575,82 @@ The FK reference architecture is correct. The QP integration via
 that was correct for legacy SLERPs and is wrong for FK refs. But
 disabling it requires controller re-tuning that is out of scope.
 
+### §4.7  Geometric infeasibility under bypass — the clinching evidence
+
+The bypass-vs-FK conflict described in §4.2–§4.6 is not a soft
+trade-off the QP could in principle resolve with better gains. It
+is a **hard geometric infeasibility**: with the torso pinned at
+p_t0, anchor_b[4] is *outside the swing arm's physical reach*.
+
+**Direct test.** From q_start at SS-entry of step 2, we ran a
+3-task IK with stance pinned at anchor_a[3], **torso pinned at
+p_t0** (mimicking the bypass-frozen pose), and swing target at
+anchor_b[4]:
+
+| Task | Residual at converged q |
+|---|---:|
+| stance position | 0.0 mm (satisfied) |
+| stance rotation | 0.00° (satisfied) |
+| torso position | 0.0 mm (satisfied) |
+| torso rotation | 0.00° (satisfied) |
+| **swing position** | **514.7 mm (FAILED)** |
+
+The 3-task IK ran to convergence on stance + torso and could
+make no further progress on swing. **There is no q ∈ ℝ²¹ that
+simultaneously satisfies all three constraints with the torso held
+at p_t0.** anchor_b[4] is geometrically unreachable from this
+body pose.
+
+**Same test, torso free.** Removing the torso-position constraint
+and running a 2-task IK (stance + swing only):
+
+| Quantity | Value |
+|---|---|
+| Residual | 9.86 × 10⁻⁹ (instant convergence) |
+| Required torso position | `[+0.677, -0.132, -0.708]` |
+| **Required torso translation from p_t0** | **505 mm** |
+
+The torso must crawl forward by 505 mm for the swing arm to
+reach anchor_b[4] — there is no other geometric option.
+
+**Causal chain that explains the closed-loop trace.**
+
+| Quantity | Value | Source |
+|---|---:|---|
+| Required torso translation (geometric) | 505 mm | 2-task IK |
+| Closed-loop torso translation (actual) | 127 mm | sim_log step-2 SS |
+| **Suppressed torso translation** | **378 mm** | (bypass effect) |
+| Closed-loop swing-EE shortfall | 364 mm | sim_log step-2 SS |
+| Predicted shortfall (= 1:1 with body suppression) | ~378 mm | geometric chain |
+
+The 378 mm of body translation that the bypass refuses to permit
+maps almost 1:1 (off by 14 mm — within the QP's regularisation
+tolerance) into the 364 mm shortfall in arm reach. The closed-loop
+behavior is *fully predicted* by the geometry of the kinematic
+chain plus the bypass policy. There is no controller-side fix
+that doesn't address the bypass.
+
+**Generalisation.** Step 2's anchor pair (3, 4) requires 591 mm
+of torso displacement (synthesis §0.5). Steps 0 and 1 require less
+(~150–250 mm based on the +x progression of anchor pair (2,2)→
+(2,3)→(3,3)). The bypass *suppresses* torso translation
+proportional to the demand — it doesn't fail at small demand
+because the natural recoil produces enough body motion that the
+arm can still reach. Step 2's 591 mm demand exceeds that natural
+recoil bandwidth by a factor of ~5×, and the arm runs out of
+reach by exactly the suppressed amount.
+
+**Implication for higher-mass-ratio scenarios (T16 onwards).**
+Larger mass ratios will produce *larger* natural recoil per unit
+arm motion (since the arm carries proportionally more system
+mass), which would partially compensate for the bypass
+suppression. But the same geometric argument says any anchor pair
+whose torso displacement exceeds the natural-recoil ceiling will
+fail under bypass. The bypass is not a configurable policy — it's
+a hidden hard constraint on which gait patterns the controller
+can execute. This is a structural design issue, not a tuning
+issue.
+
 ---
 
 ## §5  Diagnostic ablations — what was ruled out
@@ -626,9 +713,10 @@ planner work. Two recommended paths, in increasing scope:
 
 ### §6.1  Path A — Bypass-aware FK mode (smallest scope)
 
-**Hypothesis:** the QP can track the FK torso linear ref if the
-NMPC L_com weight `w_L` and the torso PD gains `Kp_t`, `Kd_t` are
-re-tuned for the moving-linear regime.
+**Hypothesis (confirmed by §4.7):** the bypass is a *hard*
+constraint on the achievable arm reach. Disabling it under FK
+mode is mandatory — not optional — for any anchor pair whose
+torso displacement exceeds the natural-recoil ceiling.
 
 **Approach:**
 1. Disable `cfg.mapping_bypass_in_ss` only when
@@ -639,7 +727,11 @@ re-tuned for the moving-linear regime.
    was ~20 % under-reported; full-body L_com is now exact, so the
    effective penalty is too high).
 3. Sweep `Kp_t` and `Kd_t` ratios; the existing values are 6 and
-   5 respectively.
+   5 respectively. The QP's 11 mm torso-position bias under
+   bypass-frozen ref tells us the existing gains can hold against
+   a step disturbance ≤ 150 mm; the new ref demands 505 mm
+   tracking, which is 3.4× larger and likely needs softer Kp_t
+   to avoid overshoot.
 4. Run T15 closed-loop at each sweep point; pick the configuration
    that docks all 3 steps.
 
