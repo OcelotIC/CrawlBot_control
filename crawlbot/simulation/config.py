@@ -210,6 +210,24 @@ class SimConfig:
     # pathologically singular. Per IK_FORMULATION.md §9.3.
     path_feasibility_w_threshold: float = 1e-3
 
+    # ── Reference generation source (M7 / FK-on-smoothed-q) ─────
+    # 'task_space'      : legacy independent SLERP per planner. Default;
+    #                     keeps existing test/sim outputs byte-identical.
+    # 'joint_space_fk'  : derive task-space refs from FK on a single
+    #                     task-space-smoothed constrained geodesic.
+    #                     Eliminates the kinematically-uncoupled-refs
+    #                     failure mode at T15 step 2 (synthesis §6,
+    #                     plan §2.2). Adds ~0.3 s smoother overhead at
+    #                     each SS-entry; zero runtime cost in the QP loop.
+    # See docs/architecture/T15_step2_diagnosis_and_resolution.md and
+    # results/diagnostic/stance_deviation_along_geodesic/PHASE0_FINDINGS.md.
+    reference_source: str = 'task_space'
+    # Smoothed-geodesic discretisation parameters
+    # (used only when reference_source='joint_space_fk').
+    geodesic_n_tau: int = 21
+    geodesic_n_iter: int = 120
+    geodesic_tol: float = 1e-5
+
     # ── Torso-vs-swing velocity profile ─────────────────────────
     # 1.0 = torso quintic runs over the full [0, T_step] alongside
     # the swing. The 0.7 stagger was a workaround for the folded-arm

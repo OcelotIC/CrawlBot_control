@@ -99,6 +99,13 @@ class SimulationLoop:
         self._step_q_end: Optional[np.ndarray] = None
         self._step_t_ss_start: float = 0.0
         self._step_T_step: float = 0.0
+        # M7 / FK-on-smoothed-q: cached smoothed q-sequence + per-segment
+        # tangents for the active SS step. Populated by
+        # _setup_torso_for_step under cfg.reference_source='joint_space_fk';
+        # consumed by _planned_arm_config so the M5 mapping sees the same
+        # q(τ) the planners are tracking.
+        self._step_q_seq: Optional[list] = None
+        self._step_dq_seg: Optional[list] = None
         # M7 EE-bisection follow-up: torso linear position at SS entry
         # (set in _setup_torso_for_step). Read by _step() when
         # cfg.mapping_bypass_in_ss is True; otherwise unused.
@@ -197,10 +204,13 @@ class SimulationLoop:
             self.sched,
             clearance=cfg.swing_clearance,
             bump_peak_tau=cfg.swing_bump_peak_tau,
-            early_finish_fraction=cfg.swing_early_finish_fraction)
+            early_finish_fraction=cfg.swing_early_finish_fraction,
+            model=self.robot.model)
 
         # Torso planner (reconfigured per step)
-        self.torso_planner = TorsoPlanner()
+        self.torso_planner = TorsoPlanner(
+            model=self.robot.model,
+            frame_torso=self.robot.frame_torso)
         # M5: provide torso body inertia so l_com_reference_at() can
         # produce a meaningful feedforward for the NMPC cost.
         # Pinocchio joint index 1 == root_joint (torso); .inertia is
@@ -780,6 +790,17 @@ class SimulationLoop:
             return rs.q.copy(), rs.v.copy()
         T = max(self._step_T_step, 1e-6)
         tau = float(np.clip((t - self._step_t_ss_start) / T, 0.0, 1.0))
+        # M7 / FK-on-smoothed-q (cfg.reference_source='joint_space_fk'):
+        # use the same task-space-smoothed q-sequence the planners use,
+        # so the M5 mapping consumes the same q(τ) the QP is tracking.
+        if (self.cfg.reference_source == 'joint_space_fk'
+                and self._step_q_seq is not None):
+            from crawlbot.planning.constrained_geodesic import q_v_real_at_tau
+            q_plan, v_real = q_v_real_at_tau(
+                self.robot.model, self._step_q_seq, self._step_dq_seg,
+                tau=tau, T_phase=T,
+            )
+            return q_plan, v_real
         s = 10.0*tau**3 - 15.0*tau**4 + 6.0*tau**5
         sd = (30.0*tau**2 - 60.0*tau**3 + 30.0*tau**4) / T
         sl_q = self.robot.joints_q_slice
@@ -1097,15 +1118,81 @@ class SimulationLoop:
             t_mid_phase = t_ss_start + 0.5 * T_step
             torso_phase_kwargs.update(
                 p_mid=mid_wp_p_t, R_mid=mid_wp_R_t, t_mid=t_mid_phase)
+
+        # M7 / FK-on-smoothed-q reference path
+        # (cfg.reference_source='joint_space_fk').
+        # Compute the task-space-smoothed constrained geodesic ONCE per
+        # SS step. The same q_seq is shared by both planners, ensuring
+        # the torso and swing references at every τ derive from a
+        # single q satisfying the stance constraint by construction.
+        # Phase-0 measurement: ~0.3 s wall-clock for n_tau=21,
+        # n_iter=120; eliminates the kinematically-uncoupled-refs
+        # failure mode at T15 step 2 (synthesis §6, plan §2.2).
+        fk_torso_extra = {}
+        fk_swing_extra = {}
+        fk_q_seq = None
+        if cfg.reference_source == 'joint_space_fk':
+            from crawlbot.planning.constrained_geodesic import (
+                smoothed_constrained_geodesic,
+            )
+            fid_stance_fk = (self.robot.frame_tool_a
+                             if target_arm == 'b'
+                             else self.robot.frame_tool_b)
+            fid_swing_fk = (self.robot.frame_tool_b
+                            if target_arm == 'b'
+                            else self.robot.frame_tool_a)
+            t_smooth0 = time.perf_counter()
+            fk_q_seq, fk_info = smoothed_constrained_geodesic(
+                self.robot.model, pq_live, q_end,
+                fid_stance=fid_stance_fk,
+                fid_torso=self.robot.frame_torso,
+                fid_swing=fid_swing_fk,
+                n_tau=cfg.geodesic_n_tau,
+                n_iter=cfg.geodesic_n_iter,
+                tol=cfg.geodesic_tol,
+                verbose=False,
+            )
+            print(
+                f"  [smoother] {fk_info['iters']} iters in "
+                f"{time.perf_counter() - t_smooth0:.2f}s, "
+                f"converged={fk_info['converged']}, "
+                f"fallbacks={fk_info['fallbacks_total']}"
+            )
+            if fk_info['fallbacks_total'] > 0:
+                print(
+                    f"  [smoother] WARNING: {fk_info['fallbacks_total']} "
+                    f"3-task IK fallbacks during smoothing"
+                )
+            fk_torso_extra['q_seq'] = fk_q_seq
+            fk_swing_extra['q_seq'] = fk_q_seq
+            fk_swing_extra['frame_swing'] = fid_swing_fk
+
         self.torso_planner.add_phase(
             t_ss_start, t_ss_start + T_step,
             p_t0, R_t0, p_t1, R_t1,
-            **torso_phase_kwargs)
+            **torso_phase_kwargs, **fk_torso_extra)
         # Install the swing-EE phase override when mid-waypoint
-        # reshape succeeded. Endpoints come from FK at pq_live (start)
-        # and FK at q_end (end). The legacy SwingPlanner path is
-        # taken when no override is registered.
-        if mid_wp_used:
+        # reshape succeeded OR FK mode is on. Endpoints come from FK
+        # at pq_live (start) and FK at q_end (end). The legacy
+        # SwingPlanner path is taken when no override is registered.
+        if cfg.reference_source == 'joint_space_fk':
+            fid_swing_for_log = fk_swing_extra['frame_swing']
+            pin.forwardKinematics(self.robot.model, self.robot.data, pq_live)
+            pin.updateFramePlacements(self.robot.model, self.robot.data)
+            p_swing_start_pose = self.robot.data.oMf[fid_swing_for_log].translation.copy()
+            R_swing_start_pose = self.robot.data.oMf[fid_swing_for_log].rotation.copy()
+            pin.forwardKinematics(self.robot.model, self.robot.data, q_end)
+            pin.updateFramePlacements(self.robot.model, self.robot.data)
+            p_swing_end_pose = self.robot.data.oMf[fid_swing_for_log].translation.copy()
+            R_swing_end_pose = self.robot.data.oMf[fid_swing_for_log].rotation.copy()
+            self.swing_planner.add_phase(
+                t_start=t_ss_start, t_end=t_ss_start + T_step,
+                p_ee_start=p_swing_start_pose, R_ee_start=R_swing_start_pose,
+                p_ee_end=p_swing_end_pose, R_ee_end=R_swing_end_pose,
+                swing_arm=target_arm,
+                **fk_swing_extra,
+            )
+        elif mid_wp_used:
             fid_swing_for_log = (FRAME_TOOL_B if target_arm == 'b'
                                  else FRAME_TOOL_A)
             pin.forwardKinematics(self.robot.model, self.robot.data, pq_live)
@@ -1135,6 +1222,21 @@ class SimulationLoop:
         self._step_q_end = q_end.copy()
         self._step_t_ss_start = float(t_ss_start)
         self._step_T_step = float(T_step)
+        # M7 / FK-on-smoothed-q: cache the smoothed q-sequence + per-
+        # segment tangents for use by _planned_arm_config (so the M5
+        # mapping sees the same q(τ) the planners are tracking).
+        # Cleared (set to None) under legacy mode so the legacy quintic
+        # path is taken.
+        if fk_q_seq is not None:
+            from crawlbot.planning.constrained_geodesic import (
+                precompute_segment_tangents,
+            )
+            self._step_q_seq = fk_q_seq
+            self._step_dq_seg = precompute_segment_tangents(
+                self.robot.model, fk_q_seq)
+        else:
+            self._step_q_seq = None
+            self._step_dq_seg = None
         # Snapshot the torso linear position at SS entry — read by the
         # mapping_bypass_in_ss diagnostic in _step() to freeze the SS
         # linear torso reference. p_t0 is the torso pose computed from
