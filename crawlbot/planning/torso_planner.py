@@ -58,7 +58,23 @@ class TorsoPlanner:
     All quantities are in the structure body frame.
     """
 
-    def __init__(self):
+    def __init__(
+        self,
+        model: Optional[pin.Model] = None,
+        frame_torso: Optional[int] = None,
+    ):
+        """Construct a TorsoPlanner.
+
+        Parameters
+        ----------
+        model : pin.Model, optional
+            Pinocchio model. Required for ``reference_source =
+            'joint_space_fk'`` mode (FK-on-smoothed-q-sequence path).
+            Legacy task-space SLERP mode does not use it.
+        frame_torso : int, optional
+            Pinocchio frame ID of the torso body. Required alongside
+            ``model`` for FK mode.
+        """
         self._phases = []
         self._hold_p = None       # (3,) torso position in structure frame
         self._hold_R = None       # (3,3) torso rotation in structure frame
@@ -68,6 +84,13 @@ class TorsoPlanner:
         # reference L_com_ref(t) = R(t) * I_body * R(t)^T * omega_ref(t).
         # None → L_com_ref returns zero (backwards compatible).
         self._I_torso_body = None  # (3,3)
+        # FK-mode wiring (used by reference_source='joint_space_fk').
+        self._model = model
+        self._frame_torso = frame_torso
+        self._data = pin.Data(model) if model is not None else None
+        # One-shot DeprecationWarning gate for set_torso_inertia
+        # under FK mode.
+        self._warned_set_torso_inertia_fk = False
 
     # ── Public API ────────────────────────────────────────────────────────
 
@@ -79,7 +102,24 @@ class TorsoPlanner:
 
         This enables l_com_reference_at(t) to produce a meaningful
         momentum feedforward for the NMPC cost `w_L * ||L - L_ref||²`.
+
+        Under FK mode (any phase has ``use_fk=True``), this is a
+        no-op: ``l_com_reference_at`` uses the full-body centroidal
+        momentum from ``pin.computeCentroidalMomentum`` instead of
+        the torso-only formula. A one-shot ``DeprecationWarning`` is
+        emitted on the first call after entering FK mode.
         """
+        if any(p.get('use_fk', False) for p in self._phases):
+            if not self._warned_set_torso_inertia_fk:
+                import warnings
+                warnings.warn(
+                    "set_torso_inertia is a no-op under FK mode "
+                    "(l_com_reference_at uses pin.computeCentroidalMomentum "
+                    "instead of the torso-only inertia formula).",
+                    DeprecationWarning, stacklevel=2,
+                )
+                self._warned_set_torso_inertia_fk = True
+            return
         self._I_torso_body = np.asarray(I_body, dtype=float).reshape(3, 3)
 
     def set_hold(self, p: np.ndarray, R: np.ndarray,
@@ -161,7 +201,8 @@ class TorsoPlanner:
                   p_mid: Optional[np.ndarray] = None,
                   R_mid: Optional[np.ndarray] = None,
                   t_mid: Optional[float] = None,
-                  delta_com_mid: Optional[np.ndarray] = None):
+                  delta_com_mid: Optional[np.ndarray] = None,
+                  q_seq: Optional[list] = None):
         """Add a trajectory phase (all coordinates in structure frame).
 
         Parameters
@@ -200,7 +241,22 @@ class TorsoPlanner:
             piecewise mode is active, ``delta_com_mid`` is linearly
             interpolated from (delta_com_start, delta_com_end) at the
             time fraction (t_mid - t_start) / (t_end - t_start).
+        q_seq : list[(nq,) ndarray], optional
+            Smoothed q-sequence from
+            ``crawlbot.planning.constrained_geodesic.smoothed_constrained_geodesic``.
+            When provided, the phase becomes an FK-from-smoothed-q
+            phase: torso (and CoM) references are derived by FK on
+            the interpolated q(τ), with v/a from per-segment
+            finite-differences (plan §2.3, §2.4). The legacy
+            (p_start, R_start, p_end, R_end, *_mid) arguments are
+            recorded for diagnostic / hold-fallback use but not
+            consulted in this path. Requires ``model`` and
+            ``frame_torso`` to have been passed at construction.
         """
+        if q_seq is not None:
+            return self._add_phase_fk(
+                t_start, t_end, p_start, R_start, p_end, R_end, q_seq)
+
         ff = float(early_finish_fraction)
         if not (0.0 < ff <= 1.0):
             raise ValueError(
@@ -286,10 +342,101 @@ class TorsoPlanner:
     def clear_phases(self):
         self._phases = []
 
+    # ── FK-mode helpers ───────────────────────────────────────────────────
+
+    def _add_phase_fk(self, t_start, t_end, p_start, R_start,
+                      p_end, R_end, q_seq):
+        """FK-mode add_phase: cache the smoothed q-sequence and per-
+        segment tangents. The legacy task-space args are kept for
+        the hold-fallback in case t falls outside any phase, but
+        are otherwise unused.
+        """
+        if self._model is None or self._frame_torso is None:
+            raise RuntimeError(
+                "TorsoPlanner: q_seq passed to add_phase but the planner "
+                "was not constructed with model/frame_torso — pass these "
+                "to TorsoPlanner.__init__ to enable FK mode.")
+        from crawlbot.planning.constrained_geodesic import (
+            precompute_segment_tangents,
+        )
+        q_seq_copy = [np.asarray(q, dtype=float).copy() for q in q_seq]
+        dq_seg = precompute_segment_tangents(self._model, q_seq_copy)
+        self._phases.append({
+            't_start': t_start, 't_end': t_end,
+            'p_start': p_start.copy(), 'R_start': R_start.copy(),
+            'p_end': p_end.copy(), 'R_end': R_end.copy(),
+            'use_fk': True,
+            'q_seq': q_seq_copy,
+            'dq_seg': dq_seg,
+            'n_tau': len(q_seq_copy),
+            'T': float(t_end - t_start),
+        })
+
+    def _reference_at_fk(self, phase, t: float) -> TorsoReference:
+        """FK-mode reference: extract pose, twist, accel via FK on
+        the smoothed q-sequence at τ = (t - t_start) / T_phase.
+        """
+        from crawlbot.planning.constrained_geodesic import (
+            frame_reference_at_tau,
+        )
+        T = phase['T']
+        tau = float(np.clip((t - phase['t_start']) / T, 0.0, 1.0))
+        p, R, v6, a6 = frame_reference_at_tau(
+            self._model, self._data,
+            phase['q_seq'], phase['dq_seg'],
+            self._frame_torso,
+            tau=tau, T_phase=T,
+        )
+        return TorsoReference(p=p, R=R, v=v6, a=a6)
+
+    def _com_reference_at_fk(self, phase, t: float) -> ComReference:
+        """FK-mode CoM reference: full-body CoM from q(τ).
+
+        Computes r_com via ``pin.centerOfMass`` and v_com via
+        ``pin.computeCentroidalMomentum`` (data.vcom[0] after the
+        call) — both consistent with the same q(τ), v_real(τ) used
+        by ``_reference_at_fk`` and ``_l_com_reference_at_fk``.
+        """
+        from crawlbot.planning.constrained_geodesic import q_v_real_at_tau
+        T = phase['T']
+        tau = float(np.clip((t - phase['t_start']) / T, 0.0, 1.0))
+        q_tau, v_real = q_v_real_at_tau(
+            self._model, phase['q_seq'], phase['dq_seg'],
+            tau=tau, T_phase=T,
+        )
+        pin.centerOfMass(self._model, self._data, q_tau, v_real)
+        r_com = self._data.com[0].copy()
+        v_com = self._data.vcom[0].copy()
+        return ComReference(r_com=r_com, v_com=v_com)
+
+    def _l_com_reference_at_fk(self, phase, t: float) -> np.ndarray:
+        """FK-mode L_com reference: full-body centroidal angular
+        momentum from q(τ), v_real(τ).
+
+        Replaces the legacy torso-only ``L = R·I_torso·R^T·ω``
+        formula (which had a documented ~20% limb-contribution
+        error) with ``pin.computeCentroidalMomentum(q, v).vector[3:6]``,
+        the exact full-body angular momentum about the CoM in the
+        Pinocchio world frame (= structure-local frame).
+        """
+        from crawlbot.planning.constrained_geodesic import q_v_real_at_tau
+        T = phase['T']
+        tau = float(np.clip((t - phase['t_start']) / T, 0.0, 1.0))
+        q_tau, v_real = q_v_real_at_tau(
+            self._model, phase['q_seq'], phase['dq_seg'],
+            tau=tau, T_phase=T,
+        )
+        pin.computeCentroidalMomentum(self._model, self._data, q_tau, v_real)
+        return self._data.hg.vector[3:6].copy()
+
+    # ── Reference query API ──────────────────────────────────────────────
+
     def reference_at(self, t: float) -> TorsoReference:
         """Compute 6D torso reference at time t in structure frame."""
         for phase in self._phases:
             if phase['t_start'] - 1e-6 <= t <= phase['t_end'] + 1e-6:
+                if phase.get('use_fk', False):
+                    return self._reference_at_fk(phase, t)
                 return self._interpolate_phase(t, phase)
 
         # Outside all phases: hold
@@ -298,11 +445,18 @@ class TorsoPlanner:
     def com_reference_at(self, t: float) -> ComReference:
         """Compute CoM reference derived from torso trajectory (structure frame).
 
-        r_com(t) = p_torso(t) + R_torso(t) · δ_com(s(t))
-        v_com = v_torso_lin + ω_torso × (R·δ) + R·δ̇
+        Legacy mode (delta_com_start/end on the phase):
+            r_com(t) = p_torso(t) + R_torso(t) · δ_com(s(t))
+            v_com = v_torso_lin + ω_torso × (R·δ) + R·δ̇
+
+        FK mode (q_seq on the phase):
+            r_com(t) = pin.centerOfMass(model, data, q(τ))
+            v_com   = data.vcom[0]  (after computeCentroidalMomentum)
         """
         for phase in self._phases:
             if phase['t_start'] - 1e-6 <= t <= phase['t_end'] + 1e-6:
+                if phase.get('use_fk', False):
+                    return self._com_reference_at_fk(phase, t)
                 return self._interpolate_com(t, phase)
 
         # Outside phases: hold
@@ -314,9 +468,14 @@ class TorsoPlanner:
         return ComReference(r_com=tref.p.copy(), v_com=tref.v[:3].copy())
 
     def l_com_reference_at(self, t: float) -> np.ndarray:
-        """M5: angular-momentum reference for the NMPC cost.
+        """M5 / M7: angular-momentum reference for the NMPC cost.
 
-        Approximation (spec §5.3):
+        FK mode (q_seq on the active phase): full-body centroidal
+        angular momentum from ``pin.computeCentroidalMomentum(q, v)``,
+        exact for the smoothed-geodesic reference (no limb-contribution
+        approximation).
+
+        Legacy mode (no q_seq): torso-only approximation per spec §5.3:
 
             L_com_ref(t) = I_torso^com(t) · omega_ref(t)
 
@@ -327,7 +486,7 @@ class TorsoPlanner:
             I_world(t) = R(t) · I_body · R(t)^T
             L_com_ref(t) = I_world(t) · omega_ref(t)
 
-        Limitations:
+        Limitations of the legacy mode:
           - Ignores the limb contribution to centroidal angular momentum
             (~20 % error) — absorbed by the NMPC's feedback term
             `w_L ||L_com - L_com_ref||²`.
@@ -344,6 +503,14 @@ class TorsoPlanner:
         L_com_ref : (3,) ndarray
             Angular momentum reference in the structure frame.
         """
+        # FK mode: full-body centroidal momentum if the active phase
+        # carries a smoothed q-sequence.
+        for phase in self._phases:
+            if phase['t_start'] - 1e-6 <= t <= phase['t_end'] + 1e-6:
+                if phase.get('use_fk', False):
+                    return self._l_com_reference_at_fk(phase, t)
+                break
+        # Legacy mode (no q_seq): torso-only formula.
         if self._I_torso_body is None:
             return np.zeros(3)
         tref = self.reference_at(t)
