@@ -125,12 +125,17 @@ def main():
         cfg.geodesic_n_tau = 21
         cfg.geodesic_n_iter = 120
         cfg.geodesic_tol = 1e-5
-        # Bypass-aware FK + softened torso PD gains. The default Kp_t=6,
-        # Kd_t=5 was tuned against a frozen linear ref (mapping_bypass=True);
-        # under FK mode the linear ref MOVES (~505 mm for the (3,4) pair
-        # in step 2), so Kp_t=6 produces overshoot. Halve Kp_t, keep Kd_t.
-        cfg.ss_Kp_torso = 3.0
-        cfg.ss_Kd_torso = 5.0
+        # Bypass-aware FK + per-axis torso PD gains. Linear gains
+        # softened (Kp_lin=4) to track the moving FK ref's 505 mm ramp
+        # on step 2 without overshoot. Angular gains kept at the
+        # working baseline (Kp_ang=6) — angular tracking was clean in
+        # the bypass=on FK run (step 2 ori err 2.28°), no need to
+        # soften. First ablation (Kp uniform 3.0) regressed all 3
+        # steps because angular gain was insufficient to hold posture.
+        # Layout per WholeBodyQPConfig.Kp_torso: [Kp_lin(3), Kp_ang(3)].
+        import numpy as np
+        cfg.ss_Kp_torso = np.array([4.0, 4.0, 4.0, 6.0, 6.0, 6.0])
+        cfg.ss_Kd_torso = np.array([5.0, 5.0, 5.0, 5.0, 5.0, 5.0])
 
         print(f'[T15-FK-BPAWARE] reference_source                = '
               f'{cfg.reference_source!r}')

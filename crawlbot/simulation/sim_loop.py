@@ -691,8 +691,15 @@ class SimulationLoop:
             # torso was secondary; in the M2 stack the torso IS the
             # primary task, so there's no reason for angular gains to
             # be softer than linear.
-            Kp_torso=np.array([kpt]*6),
-            Kd_torso=np.array([kdt]*6),
+            #
+            # FK-mode follow-up: kpt/kdt may be passed in as 6-vectors
+            # (or anything `np.asarray` accepts as length-6) to enable
+            # per-axis tuning. Used by the bypass-aware FK runner to
+            # soften linear gains while keeping angular gains stiff.
+            Kp_torso=(np.asarray(kpt, dtype=float) if np.ndim(kpt) > 0
+                      else np.array([float(kpt)] * 6)),
+            Kd_torso=(np.asarray(kdt, dtype=float) if np.ndim(kdt) > 0
+                      else np.array([float(kdt)] * 6)),
             Kp_ee=kpe * np.ones(3), Kd_ee=kde * np.ones(3),
             Kp_ee_ang=kpe_ang * np.ones(3), Kd_ee_ang=kde_ang * np.ones(3),
             Kp_posture=1.0, Kd_posture=1.5,
