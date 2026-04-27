@@ -2024,7 +2024,21 @@ class SimulationLoop:
             else:
                 tq_planner = tq
             tr = self.torso_planner.reference_at(tq_planner)
-            if (phase == 'SS' and cfg.mapping_bypass_in_ss
+            # Under reference_source='joint_space_fk', the TorsoPlanner
+            # already produces a kinematically-consistent torso reference
+            # via FK on the smoothed q-sequence. The legacy
+            # mapping_bypass_in_ss freezes the linear ref at p_t0, which
+            # is geometrically inconsistent with FK refs that prescribe
+            # body translation (e.g. (3,4) anchor pair needs +505 mm
+            # torso forward translation, see CLOSING_REPORT.md §4.7).
+            # Use tr.* directly when FK mode is active; the QP-gain
+            # softening (cfg.ss_Kp_torso / Kd_torso) is the companion
+            # tune that keeps tracking stable.
+            if cfg.reference_source == 'joint_space_fk':
+                p_torso_ref_used = tr.p
+                v_torso_ref_used = tr.v
+                a_torso_ff_used = tr.a
+            elif (phase == 'SS' and cfg.mapping_bypass_in_ss
                     and self._ss_entry_p_torso is not None):
                 # Diagnostic bypass: freeze the linear torso reference at
                 # its SS-entry value; angular reference still from
