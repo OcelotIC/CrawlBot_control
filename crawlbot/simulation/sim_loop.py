@@ -45,6 +45,11 @@ from crawlbot.core.ik import (
     precompute_torso_map,
 )
 from crawlbot.planning.contact_scheduler import ContactScheduler, read_anchors_from_mujoco
+from crawlbot.planning.double_stance_planner import (
+    compute_q_target_DS,
+    reachability_gate,
+    smoothed_constrained_geodesic_double_stance,
+)
 # LocomotionPlanner removed — CoM reference comes from TorsoPlanner
 from crawlbot.planning.swing_planner import SwingPlanner
 from crawlbot.planning.torso_planner import TorsoPlanner
@@ -666,6 +671,278 @@ class SimulationLoop:
             'T_settle': T_settle,
             'lambda_min': lambda_min,
             'exit_reason': exit_reason,
+        }
+
+    # ── Active-DS phase classification ─────────────────────────────────
+    # Per docs/architecture/active_ds_torso_advance.md §2.5.
+
+    def _ds_class(self, i_phase: int, n_phases: int) -> str:
+        """Classify a DS phase as 'initial', 'inter_step', or 'terminal'.
+
+        Initial DS (phase index 0) → passive settle from setup
+        transients.
+        Terminal DS (last phase) → passive settle to rest at the
+        destination.
+        Inter-step DS → active torso advance under both-arms-welded
+        constraint (only if cfg.ds_active_enabled).
+        """
+        if i_phase == 0:
+            return 'initial'
+        if i_phase == n_phases - 1:
+            return 'terminal'
+        return 'inter_step'
+
+    # ── Active-DS torso advance (inter-step DS only) ──────────────────
+
+    def _run_ds_active_advance(
+        self,
+        *,
+        contact_config,
+        swing_arm: str,
+        stance_a: int,
+        stance_b: int,
+        target_idx: int,
+        t_ds_start_wall: float,
+        verbose: bool = False,
+    ) -> dict:
+        """Run the inter-step DS active-advance loop.
+
+        Per active_ds_torso_advance.md §2.1:
+          - §2.1.1: brief residual settle (cap cfg.ds_active_residual_settle_max_ms).
+          - §2.1.2: plan q_target_DS_proj + q_DS_seq on M_double; wire
+            the torso planner with add_phase_double_stance.
+          - §2.1.3: QP loop tracking the DS torso reference (settle_mode
+            False, both arms in stance contact). Evaluate reachability
+            gate every cfg.ds_reach_check_every_ticks; exit on PASS or
+            cfg.t_ds_active_max cap.
+
+        Returns dict with diagnostic keys mirroring _run_ds_passivity_loop's
+        plus active-DS-specific fields.
+        """
+        cfg = self.cfg
+        n_j = self.robot.n_joints
+        dt = cfg.dt_qp
+        qp = self.qp_ss
+        model = self.robot.model
+        fid_a = self.robot.frame_tool_a
+        fid_b = self.robot.frame_tool_b
+        fid_torso = self.robot.frame_torso
+        fid_swing = fid_a if swing_arm == 'a' else fid_b
+
+        # Step 2.1.1: residual settle (brief).
+        residual_max_steps = max(
+            1, int(round(cfg.ds_active_residual_settle_max_ms
+                         / 1000.0 / dt)))
+        residual_result = self._run_ds_passivity_loop(
+            contact_config=contact_config,
+            max_steps=residual_max_steps,
+            epsilon_v=cfg.settle_inter_epsilon_v,
+            plateau_window=50,
+            plateau_ratio=cfg.settle_plateau_ratio,
+            min_steps=0,
+            fallback_Kd=cfg.Kd_settle_damping,
+        )
+        residual_steps = residual_result['n_steps']
+        residual_dt = residual_steps * dt
+
+        if verbose:
+            print(f"  DS active §2.1.1 residual settle: {residual_steps} "
+                  f"steps ({residual_dt*1000:.1f} ms), "
+                  f"T: {residual_result['T_start']:.2e} → "
+                  f"{residual_result['T_end']:.2e} J")
+
+        # Step 2.1.2: planning.
+        pq_live, pv_live = mujoco_to_pinocchio(
+            self.mj_data.qpos, self.mj_data.qvel)
+
+        # Endpoints used by IK + smoother (in Pinocchio frame).
+        se3_anchor_a_now = self.sched.anchor_se3('a', stance_a)
+        se3_anchor_b_now = self.sched.anchor_se3('b', stance_b)
+
+        # SS-end IK to know "where the body should end up".
+        if swing_arm == 'b':
+            end_a, end_b = stance_a, target_idx
+        else:
+            end_a, end_b = target_idx, stance_b
+        try:
+            q_SS_end, _, w_e = manipulability_config_trajectory(
+                model,
+                self.sched.anchor_se3('a', end_a).translation,
+                self.sched.anchor_se3('b', end_b).translation,
+                q_start=pq_live, n_samples=5,
+            )
+        except Exception:
+            q_SS_end = None
+        if q_SS_end is None:
+            if verbose:
+                print(f"  DS active: SS-endpoint IK rejected; "
+                      f"falling back to passive settle.")
+            return {
+                **residual_result,
+                'mode': 'fallback_passive',
+                'reason': 'ss_ik_rejected',
+                't_active_s': 0.0,
+                'reachability_passed': False,
+            }
+
+        # q_target_DS_proj (β-fraction projected onto M_double).
+        q_target_DS, target_residual, target_conv = compute_q_target_DS(
+            model, pq_live, q_SS_end,
+            beta=cfg.ds_active_beta,
+            fid_a=fid_a, fid_b=fid_b,
+            anchor_a_now=se3_anchor_a_now.translation,
+            anchor_b_now=se3_anchor_b_now.translation,
+        )
+        if not target_conv:
+            if verbose:
+                print(f"  DS active: compute_q_target_DS failed "
+                      f"(residual {target_residual:.2e}); "
+                      f"falling back to passive settle.")
+            return {
+                **residual_result,
+                'mode': 'fallback_passive',
+                'reason': 'q_target_DS_proj_failed',
+                't_active_s': 0.0,
+                'reachability_passed': False,
+            }
+
+        # Smoothed q_DS_seq.
+        q_DS_seq, smoother_info = smoothed_constrained_geodesic_double_stance(
+            model, pq_live, q_target_DS,
+            fid_a=fid_a, fid_b=fid_b, fid_torso=fid_torso,
+            n_tau=cfg.ds_active_n_tau,
+            n_iter=cfg.ds_active_n_iter,
+            tol=cfg.ds_active_tol,
+            verbose=False,
+        )
+        if verbose:
+            print(f"  DS active §2.1.2 smoother: {smoother_info['iters']} "
+                  f"iters, fallbacks={smoother_info['fallbacks_total']}, "
+                  f"max-update={smoother_info['final_max_update']:.2e}")
+
+        # Wire torso planner over [t_phase_start, t_phase_start + t_ds_active_max].
+        # The phase end matches the worst-case cap; reachability gate may
+        # terminate earlier.
+        t_phase_start = t_ds_start_wall + residual_dt
+        t_phase_end = t_phase_start + cfg.t_ds_active_max
+        # Use planner-time (offset from the planner's own reference, not
+        # global wall-clock). The torso_planner's reference_at queries
+        # happen via t_planner = t_phase_start + k * dt.
+        self.torso_planner.add_phase_double_stance(
+            t_phase_start, t_phase_end, q_DS_seq)
+
+        # Step 2.1.3: QP loop tracking torso ref + reachability gate.
+        anchor_swing_target = (
+            self.sched.anchor_se3(swing_arm, target_idx).translation.copy())
+        # The "other stance" arm stays welded across SS too; pin it during
+        # reachability IK.
+        if swing_arm == 'b':
+            fid_other_stance = fid_a
+            se3_other_stance_target = se3_anchor_a_now
+        else:
+            fid_other_stance = fid_b
+            se3_other_stance_target = se3_anchor_b_now
+
+        n_max = max(1, int(round(cfg.t_ds_active_max / dt)))
+        gate_passed = False
+        active_steps = 0
+        gate_info_last = {}
+        for k in range(n_max):
+            active_steps = k + 1
+            t_planner = t_phase_start + k * dt
+
+            # State + dynamics.
+            pq, pv = mujoco_to_pinocchio(self.mj_data.qpos, self.mj_data.qvel)
+            rs = self.robot.update(pq, pv)
+            Jc, Jdc = self.robot.get_contact_jacobians(True, True)
+            hw_current = (np.zeros(3) if not self.has_rwa
+                          else self.mj_data.qvel[
+                              self.robot.n_joints + 6:
+                              self.robot.n_joints + 9].copy())
+
+            # Torso ref (FK on the smoothed q_DS_seq).
+            tref = self.torso_planner.reference_at(t_planner)
+
+            try:
+                _, _, _, tau, _ = qp.solve(
+                    q_t=rs.q_torso, dq_t=rs.dq_torso,
+                    q=rs.q_joints, dq=rs.dq_joints,
+                    r_com_ref=rs.r_com, v_com_ref=np.zeros(3),
+                    lambda_ref=np.zeros(12), a_com_ff=np.zeros(3),
+                    H_robot=rs.H, C_robot=rs.C,
+                    J_com=rs.J_com, Jdot_dq_com=rs.Jdot_dq_com,
+                    contact_config=contact_config,
+                    J_contacts=Jc, Jdot_dq_contacts=Jdc,
+                    hw_current=hw_current,
+                    hw_min=cfg.hw_min, hw_max=cfg.hw_max,
+                    r_com=rs.r_com, L_com_current=rs.L_com,
+                    J_torso=rs.J_torso,
+                    Jdot_dq_torso=rs.Jdot_dq_torso,
+                    p_torso=rs.oMf_torso.translation.copy(),
+                    R_torso=rs.oMf_torso.rotation.copy(),
+                    p_torso_ref=tref.p, R_torso_ref=tref.R,
+                    v_torso_ref=tref.v, a_torso_ff=tref.a,
+                    settle_mode=False,    # active tracking
+                    passivity_active=False,
+                )
+                tau = np.clip(tau, -cfg.tau_max, cfg.tau_max)
+            except Exception:
+                tau = -cfg.Kd_settle_damping * rs.dq_joints
+                tau = np.clip(tau, -cfg.tau_max, cfg.tau_max)
+            self.mj_data.ctrl[:n_j] = tau
+            if self.has_rwa:
+                self.mj_data.ctrl[n_j:n_j + 3] = 0.0
+            mujoco.mj_step(self.mj_model, self.mj_data)
+
+            # Reachability gate every N ticks.
+            if k % max(1, cfg.ds_reach_check_every_ticks) == 0:
+                pq_now, _ = mujoco_to_pinocchio(
+                    self.mj_data.qpos, self.mj_data.qvel)
+                gate_passed, gate_info_last = reachability_gate(
+                    model, pq_now,
+                    fid_swing=fid_swing,
+                    anchor_swing_target=anchor_swing_target,
+                    arm_max_reach=cfg.ds_reach_arm_max_reach,
+                    safety_margin=cfg.ds_reach_safety_margin,
+                    w_min_threshold=cfg.ds_reach_w_min_threshold,
+                    fid_torso=fid_torso,
+                    fid_stance_a=fid_other_stance,
+                    se3_stance_a_target=se3_other_stance_target,
+                )
+                if gate_passed:
+                    if verbose:
+                        print(f"  DS active §2.1.3 gate PASS at k={k} "
+                              f"(t_local={k*dt:.2f}s); "
+                              f"d_reach={gate_info_last['d_reach_m']*1000:.1f} mm, "
+                              f"w_swing={gate_info_last['w_swing']:.3e}")
+                    break
+
+        active_dt = active_steps * dt
+        total_dt = residual_dt + active_dt
+
+        return {
+            'n_steps': residual_steps + active_steps,
+            'T_start': float(residual_result['T_start']),
+            'T_end': float(residual_result['T_end']),  # post-residual
+            'T_settle': float(residual_result['T_settle']),
+            'lambda_min': float(residual_result['lambda_min']),
+            'exit_reason': ('reachability_passed' if gate_passed
+                            else 'active_max_steps'),
+            'mode': 'active_advance',
+            'residual_steps': residual_steps,
+            'active_steps': active_steps,
+            'residual_dt_s': residual_dt,
+            'active_dt_s': active_dt,
+            't_active_s': active_dt,
+            'reachability_passed': gate_passed,
+            'reachability_info': gate_info_last,
+            'smoother_info': {
+                'iters': smoother_info['iters'],
+                'fallbacks_total': smoother_info['fallbacks_total'],
+                'final_max_update': smoother_info['final_max_update'],
+            },
+            'q_target_DS_residual': float(target_residual),
+            'beta': float(cfg.ds_active_beta),
         }
 
     def _build_qp(self, ac, at, ae, ap, aw, ar_react,
@@ -1412,26 +1689,41 @@ class SimulationLoop:
                     if step_idx == 0 and len(log.snapshots) == 0:
                         self._capture_snapshot(log, t, 'initial')
 
-                    # ── 1. DS — energy-based exit (spec §7.1.1) ──────────
-                    # Uses _run_ds_passivity_loop which drives T_kin <
-                    # T_settle via the passivity-constrained QP. NMPC is
-                    # bypassed during DS (no reference motion to track).
-                    # n_ds_max_steps is the safety cap only — there is no
-                    # time-based exit.
-                    if verbose:
-                        print(f"  DS: t={t:.2f}s (energy-based exit)")
+                    # ── 1. DS — three-class dispatch (active_ds_torso_advance.md §2.5)
+                    # Initial (i=0) and terminal (i=last) DS phases run
+                    # the legacy passive settle (energy-based exit).
+                    # Inter-step DS, when cfg.ds_active_enabled, runs
+                    # the active torso-advance (§2.1) with reachability-
+                    # triggered SS undock. When the flag is off, falls
+                    # back to passive settle (regression-safe default).
+                    ds_class = self._ds_class(i, len(phases))
                     t_ds_start_wall = t
                     min_steps_ds = max(
                         0, int(round(cfg.t_settle_inter_min / cfg.dt_qp)))
-                    ds_result = self._run_ds_passivity_loop(
-                        contact_config=cc_ds,
-                        max_steps=cfg.n_ds_max_steps,
-                        epsilon_v=cfg.settle_inter_epsilon_v,
-                        plateau_window=50,
-                        plateau_ratio=cfg.settle_plateau_ratio,
-                        min_steps=min_steps_ds,
-                        fallback_Kd=cfg.Kd_settle_damping,
-                    )
+                    if (ds_class == 'inter_step' and cfg.ds_active_enabled):
+                        if verbose:
+                            print(f"  DS: t={t:.2f}s (active torso-advance)")
+                        ds_result = self._run_ds_active_advance(
+                            contact_config=cc_ds,
+                            swing_arm=swing_arm,
+                            stance_a=stance_a, stance_b=stance_b,
+                            target_idx=target_idx,
+                            t_ds_start_wall=t_ds_start_wall,
+                            verbose=verbose,
+                        )
+                    else:
+                        if verbose:
+                            print(f"  DS: t={t:.2f}s (energy-based exit, "
+                                  f"class={ds_class})")
+                        ds_result = self._run_ds_passivity_loop(
+                            contact_config=cc_ds,
+                            max_steps=cfg.n_ds_max_steps,
+                            epsilon_v=cfg.settle_inter_epsilon_v,
+                            plateau_window=50,
+                            plateau_ratio=cfg.settle_plateau_ratio,
+                            min_steps=min_steps_ds,
+                            fallback_Kd=cfg.Kd_settle_damping,
+                        )
                     dt_ds_elapsed = ds_result['n_steps'] * cfg.dt_qp
                     t += dt_ds_elapsed
                     t_offset += dt_ds_elapsed
