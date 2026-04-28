@@ -302,6 +302,109 @@ def test_D4_gate_passes_at_DS_end(robot, fids, anchors, step2_DS_smoothed):
         f"w_swing {info_gate['w_swing']:.3e} suspiciously low at DS-end")
 
 
+# --------------------------------------------------------------------
+# D.2-PLANNER — TorsoPlanner.add_phase_double_stance integration
+# --------------------------------------------------------------------
+
+
+def test_D2_torso_planner_DS_active_endpoints(robot, fids, step2_DS_smoothed):
+    """add_phase_double_stance + reference_at(t) should return
+    FK[torso] at q_DS_seq[0] at t_start and FK[torso] at
+    q_DS_seq[-1] at t_end. Acceleration zero on boundary segments.
+    """
+    from crawlbot.planning.torso_planner import TorsoPlanner
+    tp = TorsoPlanner(model=robot.model, frame_torso=fids['fid_torso'])
+    t_start = 5.0
+    t_end = 10.0
+    tp.add_phase_double_stance(t_start, t_end,
+                               step2_DS_smoothed['q_seq'])
+    # Phase carries the right tag.
+    assert tp._phases[-1]['kind'] == 'DS_active'
+    assert tp._phases[-1]['use_fk'] is True
+
+    # Reference at t_start should match FK[torso] at q_DS_start.
+    data = robot.model.createData()
+    pin.forwardKinematics(robot.model, data,
+                          step2_DS_smoothed['q_seq'][0])
+    pin.updateFramePlacements(robot.model, data)
+    p_expected = data.oMf[fids['fid_torso']].translation.copy()
+    R_expected = data.oMf[fids['fid_torso']].rotation.copy()
+    ref = tp.reference_at(t_start)
+    np.testing.assert_allclose(ref.p, p_expected, atol=1e-12)
+    np.testing.assert_allclose(ref.R, R_expected, atol=1e-12)
+    np.testing.assert_allclose(ref.a, np.zeros(6), atol=1e-12,
+                               err_msg="boundary segment acceleration "
+                                       "must be zero")
+
+    # Reference at t_end should match FK[torso] at q_DS_target.
+    pin.forwardKinematics(robot.model, data,
+                          step2_DS_smoothed['q_seq'][-1])
+    pin.updateFramePlacements(robot.model, data)
+    p_expected = data.oMf[fids['fid_torso']].translation.copy()
+    R_expected = data.oMf[fids['fid_torso']].rotation.copy()
+    ref = tp.reference_at(t_end)
+    np.testing.assert_allclose(ref.p, p_expected, atol=1e-12)
+    np.testing.assert_allclose(ref.R, R_expected, atol=1e-12)
+    np.testing.assert_allclose(ref.a, np.zeros(6), atol=1e-12)
+
+
+def test_D2_torso_planner_DS_active_interior(robot, fids, step2_DS_smoothed):
+    """At an interior τ ∈ (0, 1) the DS_active reference should give
+    a torso pose between the endpoint poses (monotone advance) and
+    a non-zero linear velocity reference."""
+    from crawlbot.planning.torso_planner import TorsoPlanner
+    tp = TorsoPlanner(model=robot.model, frame_torso=fids['fid_torso'])
+    t_start = 5.0
+    t_end = 10.0
+    tp.add_phase_double_stance(t_start, t_end,
+                               step2_DS_smoothed['q_seq'])
+    # Endpoints
+    ref_0 = tp.reference_at(t_start)
+    ref_1 = tp.reference_at(t_end)
+    # Interior
+    ref_mid = tp.reference_at(t_start + 0.5 * (t_end - t_start))
+    # Mid torso position should be in the convex hull along the path.
+    chord = np.linalg.norm(ref_1.p - ref_0.p)
+    if chord > 1e-6:
+        # Project mid onto the chord direction.
+        u = (ref_1.p - ref_0.p) / chord
+        proj = np.dot(ref_mid.p - ref_0.p, u)
+        assert -1e-3 < proj < chord + 1e-3, (
+            f"mid torso projection {proj:.4f} outside chord [0, {chord:.4f}]")
+    # Non-zero linear velocity at interior τ (the planner's tangent
+    # vector / Δτ / T_phase).
+    assert np.linalg.norm(ref_mid.v[:3]) > 1e-6, (
+        f"interior torso linear velocity is zero — "
+        f"ref_mid.v = {ref_mid.v}")
+
+
+def test_D2_torso_planner_legacy_path_byte_identical(robot, fids):
+    """Phase-2 must NOT touch the legacy SLERP code path. Construct
+    a plain task-space TorsoPlanner (no model/frame_torso); call
+    add_phase with legacy task-space args; assert reference_at
+    produces consistent legacy refs (the two endpoint poses match).
+    Smoke test against accidental regression of the non-FK path.
+    """
+    from crawlbot.planning.torso_planner import TorsoPlanner
+    tp = TorsoPlanner()  # no model — legacy SLERP mode
+    p0 = np.array([0.1, -0.05, -0.85])
+    p1 = np.array([0.4, 0.15, -0.75])
+    R0 = np.eye(3)
+    R1 = np.eye(3)
+    tp.add_phase(5.0, 10.0, p0, R0, p1, R1)
+    ref_start = tp.reference_at(5.0)
+    ref_end = tp.reference_at(10.0)
+    np.testing.assert_allclose(ref_start.p, p0, atol=1e-12)
+    np.testing.assert_allclose(ref_end.p, p1, atol=1e-12)
+    # Legacy phase has no 'kind' or 'use_fk' tag.
+    assert tp._phases[-1].get('use_fk', False) is False
+
+
+# --------------------------------------------------------------------
+# D.4 — reachability_gate behaviour
+# --------------------------------------------------------------------
+
+
 def test_D4_gate_fails_at_DS_start(robot, fids, anchors, step2_setup):
     """At q_DS_start (body at original pose), the gate should FAIL —
     the body is too far from anchor_b[4] for the swing arm to reach

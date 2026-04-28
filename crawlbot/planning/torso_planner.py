@@ -345,11 +345,20 @@ class TorsoPlanner:
     # ── FK-mode helpers ───────────────────────────────────────────────────
 
     def _add_phase_fk(self, t_start, t_end, p_start, R_start,
-                      p_end, R_end, q_seq):
+                      p_end, R_end, q_seq, kind: str = 'SS_FK'):
         """FK-mode add_phase: cache the smoothed q-sequence and per-
         segment tangents. The legacy task-space args are kept for
         the hold-fallback in case t falls outside any phase, but
         are otherwise unused.
+
+        Parameters
+        ----------
+        kind : {'SS_FK', 'DS_active'}
+            Diagnostic tag identifying the phase semantics. The
+            runtime FK reference extraction is identical for both
+            kinds (FK on q(τ)); the tag is for tooling clarity, for
+            the sim_loop's per-phase dispatch, and for future
+            differentiation if needed.
         """
         if self._model is None or self._frame_torso is None:
             raise RuntimeError(
@@ -366,6 +375,7 @@ class TorsoPlanner:
             'p_start': p_start.copy(), 'R_start': R_start.copy(),
             'p_end': p_end.copy(), 'R_end': R_end.copy(),
             'use_fk': True,
+            'kind': kind,
             'q_seq': q_seq_copy,
             'dq_seg': dq_seg,
             'n_tau': len(q_seq_copy),
@@ -376,6 +386,65 @@ class TorsoPlanner:
             'effective_duration': float(t_end - t_start),
             'early_finish_fraction': 1.0,
         })
+
+    def add_phase_double_stance(
+        self,
+        t_start: float,
+        t_end: float,
+        q_DS_seq: list,
+    ):
+        """Register a DS_active phase whose torso reference is FK on
+        the double-stance smoothed q-sequence.
+
+        See ``docs/architecture/active_ds_torso_advance.md`` §4.2.
+
+        The q_DS_seq is produced by
+        ``crawlbot.planning.double_stance_planner.smoothed_constrained_geodesic_double_stance``
+        before SS-undock; both arms remain welded at their CURRENT
+        anchors throughout the DS phase. The torso reference is
+        ``FK[fid_torso](q_DS_seq[k])`` at each segment, just like
+        the SS FK refs from the existing ``add_phase`` (q_seq=...).
+
+        Parameters
+        ----------
+        t_start, t_end : float
+            DS phase wall-clock window in seconds.
+        q_DS_seq : list of (nq,) ndarray, length n_tau
+            Smoothed sequence on the double-stance manifold.
+
+        Raises
+        ------
+        RuntimeError
+            If the planner was not constructed with model + frame_torso.
+        """
+        # The legacy task-space p_start/R_start/p_end/R_end are
+        # derived from FK at the sequence endpoints, for the
+        # hold-fallback path in reference_at.
+        from crawlbot.planning.constrained_geodesic import (
+            precompute_segment_tangents,
+        )
+        if self._model is None or self._frame_torso is None:
+            raise RuntimeError(
+                "TorsoPlanner.add_phase_double_stance requires the planner "
+                "to have been constructed with model/frame_torso.")
+        if len(q_DS_seq) < 2:
+            raise ValueError(
+                f"q_DS_seq must have at least 2 samples, got {len(q_DS_seq)}")
+        # Compute FK[torso] at endpoints for the legacy task-space
+        # sentinel fields.
+        data = self._data
+        q_first = np.asarray(q_DS_seq[0], dtype=float)
+        q_last = np.asarray(q_DS_seq[-1], dtype=float)
+        pin.forwardKinematics(self._model, data, q_first)
+        pin.updateFramePlacements(self._model, data)
+        p_start = data.oMf[self._frame_torso].translation.copy()
+        R_start = data.oMf[self._frame_torso].rotation.copy()
+        pin.forwardKinematics(self._model, data, q_last)
+        pin.updateFramePlacements(self._model, data)
+        p_end = data.oMf[self._frame_torso].translation.copy()
+        R_end = data.oMf[self._frame_torso].rotation.copy()
+        self._add_phase_fk(t_start, t_end, p_start, R_start, p_end, R_end,
+                           q_DS_seq, kind='DS_active')
 
     def _reference_at_fk(self, phase, t: float) -> TorsoReference:
         """FK-mode reference: extract pose, twist, accel via FK on
