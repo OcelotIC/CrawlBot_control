@@ -1,0 +1,18 @@
+{
+  "label": "B_bypass_off",
+  "t_ss_start": 0.11,
+  "t_ss_end": 10.209999999999981,
+  "T_phase_s": 10.099999999999982,
+  "d_grip_swing_min_mm": 20.14449402194264,
+  "d_grip_swing_final_mm": 20.29675588855958,
+  "e_torso_pos_peak_mm": 101.77145101186305,
+  "e_torso_ori_peak_deg": 7.940361458850784,
+  "e_ee_pos_peak_mm": 105.68188217428703,
+  "e_ee_ori_peak_deg": 2.01932553007173,
+  "tau_max_joint_peak_Nm": 4.19964604061092,
+  "tau_w_peak_Nm": 5.498199244735061,
+  "hw_peak_Nms": 2.9795183282134485,
+  "nmpc_infeas_count": 0,
+  "docked": false,
+  "abort_reason": "dock_timeout"
+}
