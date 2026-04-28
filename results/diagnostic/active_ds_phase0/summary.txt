@@ -1,0 +1,10 @@
+Phase-0 pre-flight: q_target_DS feasibility on M_double
+========================================================================
+  Gate: β = 0.7, both stance residuals ≤ 50 μm
+
+  step 0 (DS pair (2, 2), SS target (2, 3)): stance_a =    0.0 μm, stance_b =    0.0 μm, torso advance =  703.3 mm [PASS]
+  step 1 (DS pair (2, 3), SS target (3, 3)): stance_a =    0.0 μm, stance_b =    0.0 μm, torso advance =  456.7 mm [PASS]
+  step 2 (DS pair (3, 3), SS target (3, 4)): stance_a =    0.0 μm, stance_b =    0.0 μm, torso advance =  699.8 mm [PASS]
+
+VERDICT: gate PASS at β = 0.7.
+         Proceed with Phase 1 implementation.
