@@ -140,11 +140,20 @@ class SimConfig:
     ds_active_tol: float = 1e-5                      # smoother tol
     ds_active_residual_settle_max_ms: int = 200      # §2.1.1 cap
     t_ds_active_max: float = 5.0                     # §2.5 active cap [s]
+    # §2.1.4: post-advance settle (added after Phase-4 v2 found the
+    # body had non-zero velocity at gate-pass, breaking SS tracking).
+    # Bleeds T_kin back to ~zero before SS-undock so SS starts from rest.
+    ds_active_post_settle_max_ms: int = 5000
     # Reachability gate (§3.6).
     ds_reach_arm_max_reach: float = 1.7
     ds_reach_safety_margin: float = 0.1
     ds_reach_w_min_threshold: float = 0.02
     ds_reach_check_every_ticks: int = 5              # eval gate every N QP ticks
+    # Body-advance gate (§3.6 v2). Require torso to advance this
+    # fraction of the planned DS path before the kinematic-reachability
+    # check can fire. Otherwise the gate trivially passes at k=0
+    # (arm reachable from un-advanced body), bypassing the active loop.
+    ds_advance_fraction_threshold: float = 0.85
 
     # ── QP weights — Single-support ─────────────────────────────
     ss_alpha_com: float = 2e2

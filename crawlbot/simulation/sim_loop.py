@@ -831,6 +831,21 @@ class SimulationLoop:
         self.torso_planner.add_phase_double_stance(
             t_phase_start, t_phase_end, q_DS_seq)
 
+        # Body-advance check inputs for the reachability gate (§3.6 v2).
+        # Compute torso pose at the DS-start (current state) and the
+        # planned DS-end (q_target_DS). The gate requires the body has
+        # advanced at least cfg.ds_advance_fraction of the way before
+        # the kinematic-reachability check fires. Without this, the
+        # gate trivially passes at k=0 because the swing-target is
+        # already kinematically reachable from the un-advanced body.
+        data_advance = model.createData()
+        pin.forwardKinematics(model, data_advance, pq_live)
+        pin.updateFramePlacements(model, data_advance)
+        p_torso_DS_start_for_gate = data_advance.oMf[fid_torso].translation.copy()
+        pin.forwardKinematics(model, data_advance, q_target_DS)
+        pin.updateFramePlacements(model, data_advance)
+        p_torso_target_DS_for_gate = data_advance.oMf[fid_torso].translation.copy()
+
         # Step 2.1.3: QP loop tracking torso ref + reachability gate.
         anchor_swing_target = (
             self.sched.anchor_se3(swing_arm, target_idx).translation.copy())
@@ -908,6 +923,9 @@ class SimulationLoop:
                     fid_torso=fid_torso,
                     fid_stance_a=fid_other_stance,
                     se3_stance_a_target=se3_other_stance_target,
+                    p_torso_target_DS=p_torso_target_DS_for_gate,
+                    p_torso_DS_start=p_torso_DS_start_for_gate,
+                    advance_fraction_threshold=cfg.ds_advance_fraction_threshold,
                 )
                 if gate_passed:
                     if verbose:
@@ -918,12 +936,44 @@ class SimulationLoop:
                     break
 
         active_dt = active_steps * dt
-        total_dt = residual_dt + active_dt
+
+        # § 2.1.4: post-advance settle (NEW — added after Phase-4 v2
+        # found the gate-pass left the body in mid-motion, with
+        # residual kinetic energy that broke SS tracking on the next
+        # step). Bleed the velocity back to ~zero before undocking,
+        # so SS starts from rest with the body in the advanced pose.
+        if gate_passed:
+            post_settle_max_steps = max(
+                1, int(round(cfg.ds_active_post_settle_max_ms
+                             / 1000.0 / dt)))
+            post_settle_result = self._run_ds_passivity_loop(
+                contact_config=contact_config,
+                max_steps=post_settle_max_steps,
+                epsilon_v=cfg.settle_inter_epsilon_v,
+                plateau_window=50,
+                plateau_ratio=cfg.settle_plateau_ratio,
+                min_steps=0,
+                fallback_Kd=cfg.Kd_settle_damping,
+            )
+            post_settle_steps = post_settle_result['n_steps']
+            post_settle_dt = post_settle_steps * dt
+            if verbose:
+                print(f"  DS active §2.1.4 post-advance settle: "
+                      f"{post_settle_steps} steps "
+                      f"({post_settle_dt*1000:.1f} ms), "
+                      f"T: {post_settle_result['T_start']:.2e} → "
+                      f"{post_settle_result['T_end']:.2e} J")
+        else:
+            post_settle_steps = 0
+            post_settle_dt = 0.0
+            post_settle_result = {'T_start': 0.0, 'T_end': 0.0}
+
+        total_dt = residual_dt + active_dt + post_settle_dt
 
         return {
-            'n_steps': residual_steps + active_steps,
+            'n_steps': residual_steps + active_steps + post_settle_steps,
             'T_start': float(residual_result['T_start']),
-            'T_end': float(residual_result['T_end']),  # post-residual
+            'T_end': float(post_settle_result['T_end']),  # post-everything
             'T_settle': float(residual_result['T_settle']),
             'lambda_min': float(residual_result['lambda_min']),
             'exit_reason': ('reachability_passed' if gate_passed
@@ -931,8 +981,10 @@ class SimulationLoop:
             'mode': 'active_advance',
             'residual_steps': residual_steps,
             'active_steps': active_steps,
+            'post_settle_steps': post_settle_steps,
             'residual_dt_s': residual_dt,
             'active_dt_s': active_dt,
+            'post_settle_dt_s': post_settle_dt,
             't_active_s': active_dt,
             'reachability_passed': gate_passed,
             'reachability_info': gate_info_last,

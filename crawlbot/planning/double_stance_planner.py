@@ -303,18 +303,36 @@ def reachability_gate(
     fid_torso: Optional[int] = None,
     ik_max_iter: int = 200,
     ik_tol: float = 1e-4,
+    # Body-advance gate (§3.6 v2 — added after Phase 4 found the
+    # kinematic gate fires too early when the body hasn't moved).
+    p_torso_target_DS: Optional[np.ndarray] = None,
+    p_torso_DS_start: Optional[np.ndarray] = None,
+    advance_fraction_threshold: float = 0.85,
 ) -> tuple[bool, dict]:
     """Determine whether the upcoming SS's swing arm can reach
-    ``anchor_swing_target`` from the current body pose ``q_now``.
+    ``anchor_swing_target`` from the current body pose ``q_now``,
+    AND whether the body has advanced enough during DS for the SS
+    phase to be dynamically tractable.
 
-    Two-stage check (§3.6):
+    Three-stage check (§3.6 v2):
 
       1. **Cheap workspace sphere.** Compute
          ``d_reach = ‖FK[fid_torso](q_now) − anchor_swing_target‖``.
          If ``d_reach ≥ arm_max_reach − safety_margin``, the body
          is geometrically too far; gate FAILS.
 
-      2. **Expensive 1-task IK feasibility.** Run a 1-task IK
+      2. **Body advance progress** (NEW). If
+         ``p_torso_target_DS`` and ``p_torso_DS_start`` are
+         supplied, require
+         ``‖FK[fid_torso](q_now) − p_torso_DS_start‖ ≥
+           advance_fraction_threshold · ‖p_torso_target_DS − p_torso_DS_start‖``.
+         The body must have travelled at least
+         ``advance_fraction_threshold`` of the planned DS advance.
+         Without this check the kinematic reachability fires at k=0
+         (the body is "in principle" reachable from the un-advanced
+         pose), bypassing the active-advance entirely.
+
+      3. **Expensive 1-task IK feasibility.** Run a 1-task IK
          pinning the swing arm at anchor_swing_target (stance arms
          left free during the IK — we only test "can the swing
          REACH"). If the IK converges and σ_min(J_swing) ≥
@@ -360,10 +378,29 @@ def reachability_gate(
             'd_reach_m': d_reach,
             'w_swing': 0.0,
             'ik_residual': float('inf'),
+            'advance_fraction': 0.0,
             'stage_failed': 'workspace',
         }
 
-    # Stage 2: feasibility IK.
+    # Stage 2: body-advance progress (only when supplied).
+    advance_fraction = 1.0    # default to "no constraint" if not supplied
+    if (p_torso_target_DS is not None and p_torso_DS_start is not None):
+        p_target = np.asarray(p_torso_target_DS, dtype=float)
+        p_start = np.asarray(p_torso_DS_start, dtype=float)
+        full_advance = float(np.linalg.norm(p_target - p_start))
+        if full_advance > 1e-6:
+            done_advance = float(np.linalg.norm(p_torso - p_start))
+            advance_fraction = done_advance / full_advance
+            if advance_fraction < advance_fraction_threshold:
+                return False, {
+                    'd_reach_m': d_reach,
+                    'w_swing': 0.0,
+                    'ik_residual': float('inf'),
+                    'advance_fraction': advance_fraction,
+                    'stage_failed': 'body_advance',
+                }
+
+    # Stage 3: feasibility IK.
     targets = {
         fid_swing: pin.SE3(np.eye(3),
                            np.asarray(anchor_swing_target, dtype=float)),
@@ -393,6 +430,7 @@ def reachability_gate(
             'd_reach_m': d_reach,
             'w_swing': w_swing,
             'ik_residual': float(err),
+            'advance_fraction': advance_fraction,
             'stage_failed': 'ik',
         }
 
@@ -400,5 +438,6 @@ def reachability_gate(
         'd_reach_m': d_reach,
         'w_swing': w_swing,
         'ik_residual': float(err),
+        'advance_fraction': advance_fraction,
         'stage_failed': None,
     }
