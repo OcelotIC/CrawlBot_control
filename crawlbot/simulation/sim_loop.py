@@ -169,6 +169,21 @@ class SimulationLoop:
         # (which uses q_planned during SS) for the planned-vs-current
         # mass-distribution diagnostic. Not used in control.
         self._last_mapping_delta_current: Optional[np.ndarray] = None
+        # F-RATE: cache for mapping outputs at NMPC rate (10 Hz). The
+        # mapping (δ(q), δ̇(q,q̇)) is recomputed once per NMPC tick and
+        # reused across the WBC sub-steps. Avoids the q_current → δ → r_b
+        # → q feedback loop running at 100 Hz.
+        # F-SAT: previous-cycle r_b_ref kept so per-WBC-tick increment
+        # can be saturated against the physical body-acceleration bound.
+        self._mapping_nmpc_tick: int = -1
+        self._mapping_cache_delta: Optional[np.ndarray] = None
+        self._mapping_cache_delta_dot: Optional[np.ndarray] = None
+        self._last_r_b_ref_out: Optional[np.ndarray] = None
+        # F-SAT telemetry: counts of cycles where the increment was
+        # clipped, max clip magnitude, per-step bookkeeping.
+        self._sat_total_calls: int = 0
+        self._sat_clipped_calls: int = 0
+        self._sat_max_clip_mm: float = 0.0
 
     # ── Setup ────────────────────────────────────────────────────────────
 
@@ -2059,20 +2074,52 @@ class SimulationLoop:
                 a_torso_ff_used = np.concatenate([np.zeros(3), tr.a[3:6]])
             elif phase in ('SS', 'DS') and self.mapping is not None and cfg.use_m2_stack:
                 af_for_mapping = np.zeros(3) if self._diag_pure_pd else af
-                # Planned-vs-current diag (commit 64479ab) showed
-                # δ(q_planned) − δ(q_current) up to 143.7 mm during step 0,
-                # dominating the r_b_ref error and causing the bypass-off
-                # step 0 dock miss. Use the live arm state in both SS and
-                # DS so the mapping references the real configuration.
-                q_map, dq_map = rs.q, rs.v
-                r_b_ref_m, v_b_ref_m, a_b_ff_m, _delta_q = self.mapping.compute(
-                    r_com_ref=rp_interp, v_com_ref=vp_interp,
-                    a_com_ff=af_for_mapping, q_current=q_map, dq_current=dq_map)
-                # Stash δ(q) used by the live mapping (q_planned in SS).
-                self._last_mapping_delta = np.asarray(_delta_q, dtype=float).copy()
-                # Diagnostic: compute δ(q_current) for comparison without
-                # affecting control. Used to test whether the planned-vs-
-                # actual arm-config mismatch is what makes r_b_ref aggressive.
+                # Planned-vs-current diag (commit 64479ab) confirmed
+                # q_current is the right q-source for the δ term. But
+                # q_current at the WBC rate (100 Hz) closes a mapping
+                # feedback loop that oscillates r_b_ref by up to
+                # 237 mm/tick on large swings (commit 1b5b841).
+                # F-RATE: recompute δ(q) and δ̇(q,q̇) ONCE per NMPC tick
+                # (10 Hz). The (m_total/m_b)·rp_interp term still varies
+                # smoothly at WBC rate via the existing interpolation.
+                ratio = self.mapping.ratio
+                m_b = self.mapping.m_b
+                if qs == 0 or self._mapping_cache_delta is None:
+                    self._mapping_cache_delta = np.asarray(
+                        self.mapping.compute_delta(rs.q),
+                        dtype=float).copy()
+                    self._mapping_cache_delta_dot = np.asarray(
+                        self.mapping.compute_delta_dot(rs.q, rs.v),
+                        dtype=float).copy()
+                _delta_q = self._mapping_cache_delta
+                _delta_dot = self._mapping_cache_delta_dot
+                r_b_ref_m = ratio * rp_interp - _delta_q / m_b
+                v_b_ref_m = ratio * vp_interp - _delta_dot / m_b
+                a_b_ff_m = ratio * af_for_mapping
+                # F-SAT: cap the per-WBC-tick r_b_ref increment by the
+                # physical body motion under one anchor's friction-cone
+                # limit, scaled with a safety margin. Prevents reference
+                # jitter when the mapping output transitions across NMPC
+                # ticks or when the actual q drifts.
+                if self._last_r_b_ref_out is not None and phase == 'SS':
+                    f_max_grip = float(cfg.preplanner_f_max)
+                    v_max = (f_max_grip / m_b) * cfg.dt_qp * 2.0
+                    threshold = v_max * cfg.dt_qp
+                    delta_rb = r_b_ref_m - self._last_r_b_ref_out
+                    nrm = float(np.linalg.norm(delta_rb))
+                    self._sat_total_calls += 1
+                    if nrm > threshold and nrm > 0.0:
+                        r_b_ref_m = (self._last_r_b_ref_out
+                                     + threshold * delta_rb / nrm)
+                        self._sat_clipped_calls += 1
+                        self._sat_max_clip_mm = max(
+                            self._sat_max_clip_mm,
+                            (nrm - threshold) * 1000.0)
+                self._last_r_b_ref_out = r_b_ref_m.copy()
+                # Telemetry (still records δ used by the WBC; q_current
+                # comparison still computed for the planned-vs-current
+                # diagnostic, unchanged).
+                self._last_mapping_delta = self._mapping_cache_delta.copy()
                 try:
                     self._last_mapping_delta_current = np.asarray(
                         self.mapping.compute_delta(rs.q),

@@ -33,7 +33,7 @@ import scripts.run_m7_single_step as r_single  # noqa: E402
 
 
 MJCF = os.path.join(_root, 'models', 'VISPA_crawling_rwa3.xml')
-OUT = os.path.join(_root, 'results', 'diag_qcurrent_fix')
+OUT = os.path.join(_root, 'results', 'diag_frate_fsat')
 
 ROBOT_JOINT_RE = re.compile(
     r'(<default class="robot_joint">\s*\n\s*<joint damping=")[^"]+'
@@ -218,6 +218,20 @@ def main():
         json.dump(step_log, f, indent=2)
     _nmpc_table(step_log, os.path.join(OUT, 'nmpc_per_step.txt'))
 
+    # F-SAT telemetry
+    tot = int(sim._sat_total_calls)
+    clip = int(sim._sat_clipped_calls)
+    ratio = (clip / tot * 100.0) if tot > 0 else 0.0
+    sat_text = (
+        f"F-SAT telemetry\n"
+        f"  total saturator calls: {tot}\n"
+        f"  cycles clipped:        {clip}  ({ratio:.2f}%)\n"
+        f"  max clip magnitude:    {sim._sat_max_clip_mm:.3f} mm "
+        f"(per-cycle excess over the threshold)\n"
+    )
+    print('\n' + sat_text)
+    with open(os.path.join(OUT, 'sat_stats.txt'), 'w') as f:
+        f.write(sat_text)
     print(f'  Outputs: {OUT}')
 
 
@@ -225,13 +239,18 @@ if __name__ == '__main__':
     with open(MJCF, 'r') as f:
         original = f.read()
     pre_hash = _mjcf_md5(MJCF)
-    print(f'[QCURRENT-FIX] MJCF md5 pre:  {pre_hash}')
+    print(f'[FRATE-FSAT] MJCF md5 pre:  {pre_hash}')
     try:
         _mutate_mjcf(damping=0.0, armature=0.05)
         main()
+        # F-SAT telemetry summary
+        try:
+            from crawlbot.simulation.sim_loop import SimulationLoop  # noqa
+        except Exception:
+            pass
     finally:
         with open(MJCF, 'w') as f:
             f.write(original)
         post_hash = _mjcf_md5(MJCF)
-        print(f'[QCURRENT-FIX] MJCF md5 post: {post_hash}')
+        print(f'[FRATE-FSAT] MJCF md5 post: {post_hash}')
         assert post_hash == pre_hash, 'MJCF restoration failed'
