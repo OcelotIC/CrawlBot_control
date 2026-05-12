@@ -155,6 +155,13 @@ class SimulationLoop:
         # times when they are set up per-step, so they use `t` directly.
         self._t_plan_offset: float = 0.0
 
+        # Step 2 diagnostics B+C (QP realization + mapping layer). Set
+        # _step2_diag_enabled=True externally before run() to populate.
+        # Each entry: dict(t, qs, c_ref, r_b_ref, p_torso, a_torso_des,
+        # a_torso_qp). Captured only during step 2 SS to limit size.
+        self._step2_diag_enabled: bool = False
+        self._step2_diag_log: list = []
+
     # ── Setup ────────────────────────────────────────────────────────────
 
     def setup(self, n_steps: int = 3, start_a: int = 2, start_b: int = 2):
@@ -2172,6 +2179,36 @@ class SimulationLoop:
                 qdd_t_qp = np.zeros(6)
                 qdd_qp = np.zeros(self.robot.model.nv)
                 qp_ok = False
+
+            # ── Diagnostic B + C: per-cycle log of (c_ref, r_b_ref,
+            # p_torso_actual, a_torso_des, a_torso_qp) during step 2 SS.
+            # Gated on a runtime attribute so the log is only populated
+            # when an external runner opts in (avoids unbounded growth
+            # in normal runs). Reads qp.last_torso_debug populated by
+            # WholeBodyQP.solve(); also captures the mapped/bypass torso
+            # reference and the live actual torso position.
+            if getattr(self, '_step2_diag_enabled', False) \
+                    and phase == 'SS' and int(step_idx) == 2:
+                td = getattr(qp, 'last_torso_debug', None)
+                entry = {
+                    't': float(tq), 'qs': int(qs),
+                    'c_ref': np.asarray(rp_interp, dtype=float).tolist(),
+                    'r_b_ref': np.asarray(p_torso_ref_used,
+                                          dtype=float).tolist(),
+                    'p_torso': np.asarray(
+                        rs.oMf_torso.translation, dtype=float).tolist(),
+                }
+                if td is not None:
+                    entry['a_torso_des'] = (
+                        np.asarray(td['a_torso_des_pre'],
+                                   dtype=float).tolist())
+                    entry['a_torso_qp'] = (
+                        np.asarray(td['x_dd_torso_post'],
+                                   dtype=float).tolist())
+                else:
+                    entry['a_torso_des'] = None
+                    entry['a_torso_qp'] = None
+                self._step2_diag_log.append(entry)
 
             # M7 physics-trace capture (SS only, first-QP-substep, 1 Hz).
             # No control change — reads QP outputs + kinematic conditioning
