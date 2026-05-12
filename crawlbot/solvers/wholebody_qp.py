@@ -89,6 +89,15 @@ class WholeBodyQPConfig:
     alpha_com_soft: float = 5.0   # Soft CoM residual weight (1-10 per spec)
     ee_null_space: bool = False   # Null-space project EE task against torso task
 
+    # ── Option D: torso linear soft tube ────────────────────────
+    # See SimConfig docstring for the full rationale. r_tube > 0 enables
+    # the split. Angular torso stays at α_torso; linear torso is gated by
+    # ||p_torso - p_ref|| > r_tube with cost weight
+    # w_tube_lin * (|e|^2 - r_tube^2). Inside the tube the EE / posture
+    # null-space projections only need to avoid the 3D angular Jacobian.
+    r_tube: float = 0.0           # [m] tube radius; 0 = legacy 6D equality
+    w_tube_lin: float = 50.0      # cost scale on (|e|² - r²) when violated
+
     # ── Passivity constraint (DS only) ──
     alpha_passivity: float = 1.0  # Energy decay rate α [1/s] (α < 50 at 100 Hz)
 
@@ -181,6 +190,16 @@ class WholeBodyQP:
 
         # Nominal posture (set by user, default: zero)
         self._q_nominal = np.zeros(nq)
+
+        # Option D tube telemetry (populated by solve() when r_tube > 0).
+        # _tube_total_calls    : total QP solves with torso task active
+        # _tube_violations     : solves where ||e_lin|| > r_tube (linear active)
+        # _tube_max_e_lin_m    : max ||e_lin|| observed [m]
+        # _tube_last_violated  : last solve outcome (True if violated)
+        self._tube_total_calls: int = 0
+        self._tube_violations: int = 0
+        self._tube_max_e_lin_m: float = 0.0
+        self._tube_last_violated: bool = False
 
     def set_nominal_posture(self, q_nom: np.ndarray) -> None:
         """Set the nominal joint posture for regularization.
@@ -555,15 +574,71 @@ class WholeBodyQP:
             a_torso_des = a_ff_t + Kp_t @ e_6d + Kd_t @ (v_ref_t - v_torso_actual)
 
             jdq = Jdot_dq_torso if Jdot_dq_torso is not None else np.zeros(6)
-            A_torso = np.zeros((6, n))
-            A_torso[:, idx['qdd_t'][0]: idx['qdd_t'][1]] = J_torso[:, :6]
-            A_torso[:, idx['qdd'][0]: idx['qdd'][1]] = J_torso[:, 6:]
-            b_torso = a_torso_des - jdq
+            A_torso_full = np.zeros((6, n))
+            A_torso_full[:, idx['qdd_t'][0]: idx['qdd_t'][1]] = J_torso[:, :6]
+            A_torso_full[:, idx['qdd'][0]: idx['qdd'][1]] = J_torso[:, 6:]
+            b_torso_full = a_torso_des - jdq
 
             # Effective weight in M2 stack (sim_loop sets alpha_torso via config;
             # in pure M2 testing, fall back to 1e3 if user left alpha_torso=0).
             w_torso = cfg.alpha_torso if cfg.alpha_torso > 0 else 1e3
-            qp.add_task(A_torso, b_torso, w_torso, priority=1)
+
+            # ── Option D: torso linear soft tube ──────────────────────
+            # r_tube > 0 splits the 6D task: angular stays at full weight,
+            # linear is gated by ||p_torso - p_ref|| > r_tube with the
+            # violation-magnitude weight. Inside the tube the linear task
+            # is skipped entirely, and the effective A_torso (used for
+            # null-space projections and EE feedforward downstream)
+            # collapses to the 3 angular rows — freeing the linear-base
+            # DOFs for EE tracking.
+            r_tube = float(getattr(cfg, 'r_tube', 0.0))
+            if r_tube > 0.0:
+                e_lin_norm = float(np.linalg.norm(e_pos))
+                linear_active = (e_lin_norm > r_tube)
+
+                A_torso_ang = A_torso_full[3:, :]   # (3, n)
+                b_torso_ang = b_torso_full[3:]      # (3,)
+                A_torso_lin = A_torso_full[:3, :]   # (3, n)
+                b_torso_lin = b_torso_full[:3]      # (3,)
+
+                # Angular task is always enforced at the full weight.
+                qp.add_task(A_torso_ang, b_torso_ang, w_torso, priority=1)
+
+                if linear_active:
+                    # Outside the tube: add linear task with weight that
+                    # scales linearly with the squared-violation; this is
+                    # the QP-friendly surrogate for the user-specified
+                    # quartic cost w_tube * (|e|² - r²)² in position space.
+                    violation_sq = max(0.0, e_lin_norm ** 2 - r_tube ** 2)
+                    w_lin = float(cfg.w_tube_lin) * violation_sq
+                    if w_lin > 0.0:
+                        qp.add_task(
+                            A_torso_lin, b_torso_lin, w_lin, priority=1)
+                    # Effective task (for null-space / FF) stays 6D.
+                    A_torso = A_torso_full
+                    b_torso = b_torso_full
+                    J_torso_eff = J_torso
+                    a_torso_des_eff = a_torso_des
+                else:
+                    # Inside the tube: angular-only for projections / FF.
+                    A_torso = A_torso_ang
+                    b_torso = b_torso_ang
+                    J_torso_eff = J_torso[3:, :]
+                    a_torso_des_eff = a_torso_des[3:]
+
+                self._tube_total_calls += 1
+                if linear_active:
+                    self._tube_violations += 1
+                self._tube_max_e_lin_m = max(
+                    self._tube_max_e_lin_m, e_lin_norm)
+                self._tube_last_violated = bool(linear_active)
+            else:
+                # Legacy: full 6D equality task.
+                qp.add_task(A_torso_full, b_torso_full, w_torso, priority=1)
+                A_torso = A_torso_full
+                b_torso = b_torso_full
+                J_torso_eff = J_torso
+                a_torso_des_eff = a_torso_des
 
         # ──────────────────────────────────────────────────────────── #
         # Null-space projectors used by the rest of the M2 stack
@@ -617,8 +692,11 @@ class WholeBodyQP:
             # (rcond=1e-8), matching the one used for the null-space
             # projector above.
             if torso_task_active and J_torso is not None:
-                J_torso_pinv = np.linalg.pinv(J_torso, rcond=1e-8)
-                a_ff_ee = a_ff_ee + J_ee @ J_torso_pinv @ a_torso_des
+                # Use the effective torso Jacobian / desired-acceleration
+                # (3D angular only when the Option D tube is satisfied;
+                # full 6D otherwise — matches the null-space projection).
+                J_torso_pinv = np.linalg.pinv(J_torso_eff, rcond=1e-8)
+                a_ff_ee = a_ff_ee + J_ee @ J_torso_pinv @ a_torso_des_eff
 
             a_ee_des = a_ff_ee + Kp_ee_full @ e_6d_ee + Kd_ee_full @ (v_ref_ee - v_ee_actual)
 

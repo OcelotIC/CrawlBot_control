@@ -84,6 +84,20 @@ class SimConfig:
     alpha_com_soft: float = 0.0   # Soft CoM residual disabled — redundant with torso 6D position task; 5.0 was fighting torso tracking
     alpha_passivity: float = 1.0  # DS passivity decay rate [1/s]
 
+    # ── Option D: torso linear soft tube ────────────────────────
+    # When r_tube > 0, the WBC torso P1 task is split:
+    #   (a) angular 3D — always enforced at the full α_torso weight
+    #       (hard-equality-strength task)
+    #   (b) linear 3D — gated. Skipped while ||p_torso - p_ref|| ≤ r_tube;
+    #       outside the tube, added with weight w_tube_lin · (|e|² - r²)
+    #       so the cost grows with the violation magnitude.
+    # When the linear task is skipped, the null-space projection for
+    # the EE / posture / soft-CoM tasks is computed against the 3D
+    # angular Jacobian only, freeing the linear-base DOFs for EE
+    # tracking. Default 0 disables the tube (legacy 6D equality task).
+    r_tube: float = 0.0           # [m] tube radius for torso linear position
+    w_tube_lin: float = 50.0      # cost scale on (|e|² - r²) when violated
+
     # ── M3: NMPC conservation-law box constraint ────────────────
     enforce_hw_conservation: bool = False  # Enable B2 Option B hw box
     h_max_tight: np.ndarray = field(default_factory=lambda: np.full(3, 5.0))  # Tightened [Nms]
