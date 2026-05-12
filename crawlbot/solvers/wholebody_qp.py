@@ -201,6 +201,16 @@ class WholeBodyQP:
         self._tube_max_e_lin_m: float = 0.0
         self._tube_last_violated: bool = False
 
+        # hw-slack telemetry (always populated). After each QP solve we
+        # record the norms of the upper/lower slack variables; non-zero
+        # values mean the momentum-box safety constraint was active and
+        # the w_hw_slack=1e4 cost was consuming QP budget. Each entry:
+        # dict(label, slack_up_max, slack_lo_max, slack_norm). Set
+        # diag_label externally per QP solve to tag entries with
+        # sim context (e.g. "step02/SS").
+        self.hw_slack_log: list = []
+        self.diag_label: str = ''
+
     def set_nominal_posture(self, q_nom: np.ndarray) -> None:
         """Set the nominal joint posture for regularization.
 
@@ -872,6 +882,22 @@ class WholeBodyQP:
         qdd_opt = z_opt[idx['qdd'][0]: idx['qdd'][1]]
         lambda_opt = z_opt[idx['lambda'][0]: idx['lambda'][1]]
         tau_q_opt = z_opt[idx['tau'][0]: idx['tau'][1]]
+
+        # --- hw_slack telemetry ---
+        # Capture the 3-vector slacks on the upper/lower momentum-box
+        # constraint. Non-zero values indicate the soft-slack cost
+        # (w_hw_slack, default 1e4) was active and consuming QP budget.
+        try:
+            s_up = z_opt[idx['slack_hw_up'][0]: idx['slack_hw_up'][1]]
+            s_lo = z_opt[idx['slack_hw_lo'][0]: idx['slack_hw_lo'][1]]
+            self.hw_slack_log.append({
+                'label': self.diag_label,
+                's_up_max': float(np.max(np.abs(s_up))),
+                's_lo_max': float(np.max(np.abs(s_lo))),
+                's_norm': float(np.linalg.norm(np.concatenate([s_up, s_lo]))),
+            })
+        except (KeyError, IndexError, ValueError):
+            pass
 
         # --- Debug capture: torso task pre- vs post-solve (M7 diagnosis) ---
         if torso_task_active and A_torso is not None:

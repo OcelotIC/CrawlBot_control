@@ -2142,6 +2142,14 @@ class SimulationLoop:
             if passivity_override is not None:
                 passivity_active = bool(passivity_override)
 
+            # WBC slack/tube diagnosis: tag each QP solve with locomotion
+            # step + phase + sub-step. Read by WholeBodyQP.solve when
+            # populating hw_slack_log. Does not affect control logic.
+            try:
+                qp.diag_label = (
+                    f"step{int(step_idx):02d}/{phase}/qs={int(qs):02d}")
+            except Exception:
+                pass
             try:
                 qdd_t_qp, qdd_qp, lambda_qp_sol, tau, _ = qp.solve(
                     q_t=rs.q_torso, dq_t=rs.dq_torso,
