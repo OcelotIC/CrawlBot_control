@@ -165,6 +165,10 @@ class SimulationLoop:
         # only on cycles where the live mapping was invoked (i.e. NOT
         # under mapping_bypass_in_ss). None otherwise.
         self._last_mapping_delta: Optional[np.ndarray] = None
+        # Auxiliary: δ(q_current) computed alongside the live mapping
+        # (which uses q_planned during SS) for the planned-vs-current
+        # mass-distribution diagnostic. Not used in control.
+        self._last_mapping_delta_current: Optional[np.ndarray] = None
 
     # ── Setup ────────────────────────────────────────────────────────────
 
@@ -2062,8 +2066,17 @@ class SimulationLoop:
                 r_b_ref_m, v_b_ref_m, a_b_ff_m, _delta_q = self.mapping.compute(
                     r_com_ref=rp_interp, v_com_ref=vp_interp,
                     a_com_ff=af_for_mapping, q_current=q_map, dq_current=dq_map)
-                # Stash δ(q) so the step 2 diag log can pick it up below.
+                # Stash δ(q) used by the live mapping (q_planned in SS).
                 self._last_mapping_delta = np.asarray(_delta_q, dtype=float).copy()
+                # Diagnostic: compute δ(q_current) for comparison without
+                # affecting control. Used to test whether the planned-vs-
+                # actual arm-config mismatch is what makes r_b_ref aggressive.
+                try:
+                    self._last_mapping_delta_current = np.asarray(
+                        self.mapping.compute_delta(rs.q),
+                        dtype=float).copy()
+                except Exception:
+                    self._last_mapping_delta_current = None
                 # Option A: post-dock blend of the DS torso linear
                 # position reference from the SS-exit pose to the live
                 # mapping output over cfg.ds_ramp_duration_s. Quintic
@@ -2187,14 +2200,13 @@ class SimulationLoop:
                 qp_ok = False
 
             # ── Diagnostic B + C: per-cycle log of (c_ref, r_b_ref,
-            # p_torso_actual, a_torso_des, a_torso_qp) during step 2 SS.
-            # Gated on a runtime attribute so the log is only populated
-            # when an external runner opts in (avoids unbounded growth
-            # in normal runs). Reads qp.last_torso_debug populated by
-            # WholeBodyQP.solve(); also captures the mapped/bypass torso
-            # reference and the live actual torso position.
+            # p_torso_actual, a_torso_des, a_torso_qp, δ(q_planned),
+            # δ(q_current)) during step 0 OR step 2 SS. Gated on a
+            # runtime attribute. Reads qp.last_torso_debug populated by
+            # WholeBodyQP.solve(); also captures both δ-variants for
+            # the planned-vs-current mass-distribution diagnostic.
             if getattr(self, '_step2_diag_enabled', False) \
-                    and phase == 'SS' and int(step_idx) == 2:
+                    and phase == 'SS' and int(step_idx) in (0, 2):
                 td = getattr(qp, 'last_torso_debug', None)
                 entry = {
                     't': float(tq), 'qs': int(qs),
@@ -2218,6 +2230,12 @@ class SimulationLoop:
                     entry['delta_q'] = self._last_mapping_delta.tolist()
                 else:
                     entry['delta_q'] = None
+                if self._last_mapping_delta_current is not None:
+                    entry['delta_q_current'] = (
+                        self._last_mapping_delta_current.tolist())
+                else:
+                    entry['delta_q_current'] = None
+                entry['step_idx'] = int(step_idx)
                 self._step2_diag_log.append(entry)
 
             # M7 physics-trace capture (SS only, first-QP-substep, 1 Hz).
