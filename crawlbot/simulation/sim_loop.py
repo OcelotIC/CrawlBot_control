@@ -2059,10 +2059,12 @@ class SimulationLoop:
                 a_torso_ff_used = np.concatenate([np.zeros(3), tr.a[3:6]])
             elif phase in ('SS', 'DS') and self.mapping is not None and cfg.use_m2_stack:
                 af_for_mapping = np.zeros(3) if self._diag_pure_pd else af
-                if phase == 'SS':
-                    q_map, dq_map = self._planned_arm_config(tq, rs)
-                else:
-                    q_map, dq_map = rs.q, rs.v
+                # Planned-vs-current diag (commit 64479ab) showed
+                # δ(q_planned) − δ(q_current) up to 143.7 mm during step 0,
+                # dominating the r_b_ref error and causing the bypass-off
+                # step 0 dock miss. Use the live arm state in both SS and
+                # DS so the mapping references the real configuration.
+                q_map, dq_map = rs.q, rs.v
                 r_b_ref_m, v_b_ref_m, a_b_ff_m, _delta_q = self.mapping.compute(
                     r_com_ref=rp_interp, v_com_ref=vp_interp,
                     a_com_ff=af_for_mapping, q_current=q_map, dq_current=dq_map)
@@ -2206,7 +2208,7 @@ class SimulationLoop:
             # WholeBodyQP.solve(); also captures both δ-variants for
             # the planned-vs-current mass-distribution diagnostic.
             if getattr(self, '_step2_diag_enabled', False) \
-                    and phase == 'SS' and int(step_idx) in (0, 2):
+                    and phase == 'SS':
                 td = getattr(qp, 'last_torso_debug', None)
                 entry = {
                     't': float(tq), 'qs': int(qs),
