@@ -124,6 +124,14 @@ class NMPCSolver:
         self._lam_g0_prev: Optional[np.ndarray] = None
         self._lam_x0_prev: Optional[np.ndarray] = None
 
+        # Per-cycle diagnostic log (populated by solve()).
+        # Each entry: dict(label, iter, status, time_ms, warm_x, warm_duals).
+        # Set diag_verbose=True to also print one line per solve.
+        # Set diag_label externally to tag entries with current sim context.
+        self.step_log: list = []
+        self.diag_label: str = ''
+        self.diag_verbose: bool = False
+
     # ------------------------------------------------------------------ #
     #  System definition                                                   #
     # ------------------------------------------------------------------ #
@@ -448,6 +456,11 @@ class NMPCSolver:
             solve_args['lam_g0'] = ca.DM(self._lam_g0_prev)
             solve_args['lam_x0'] = ca.DM(self._lam_x0_prev)
 
+        # Capture warm-start state for diagnostics BEFORE the solve
+        # (the self._w0_prev / lam*_prev fields are overwritten below).
+        _diag_warm_x = bool(warm_start and self._w0_prev is not None)
+        _diag_warm_duals = bool('lam_g0' in solve_args)
+
         sol = self._solver(**solve_args)
 
         # --- Extract solution ---
@@ -469,6 +482,23 @@ class NMPCSolver:
             solve_time_ms=(time.perf_counter() - t_start) * 1000.0,
             solver_stats=stats,
         )
+
+        # --- Per-cycle diagnostic log ---
+        # Captures iter/status/time and warm-start state per solve. Used by
+        # NMPC warm-start diagnosis. Does not affect control logic.
+        entry = {
+            'label': self.diag_label,
+            'iter': int(info.iterations),
+            'status': str(info.status),
+            'time_ms': float(info.solve_time_ms),
+            'warm_x': _diag_warm_x,
+            'warm_duals': _diag_warm_duals,
+        }
+        self.step_log.append(entry)
+        if self.diag_verbose:
+            print(f"[NMPC] {entry['label']:>24s} | iter={entry['iter']:>3d} "
+                  f"| {entry['status']:<28s} | t={entry['time_ms']:6.1f} ms "
+                  f"| warm_x={entry['warm_x']} duals={entry['warm_duals']}")
 
         return x_opt, u_opt, info
 

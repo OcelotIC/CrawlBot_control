@@ -1903,6 +1903,14 @@ class SimulationLoop:
                     'norm': float(np.linalg.norm(L_com_ref_nmpc)),
                 })
         info_n = None
+        # NMPC warm-start diagnosis: tag each solve with locomotion-step
+        # index and phase. Read by NMPCSolver.solve when populating
+        # step_log. Does not affect control logic.
+        try:
+            self.nmpc._nmpc.diag_label = (
+                f"step{int(step_idx):02d}/{phase}/t={float(t):.2f}")
+        except Exception:
+            pass
         try:
             rp, vp, _, lr, info_n = self.nmpc.solve(
                 r_com=rs.r_com, v_com=rs.v_com, L_com=rs.L_com,
