@@ -1,0 +1,3698 @@
+[
+  {
+    "label": "step00/SS/t=0.11",
+    "iter": 8,
+    "status": "Solve_Succeeded",
+    "time_ms": 11.595144999773765,
+    "warm_x": false,
+    "warm_duals": false
+  },
+  {
+    "label": "step00/SS/t=0.21",
+    "iter": 9,
+    "status": "Solve_Succeeded",
+    "time_ms": 12.90200499988714,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=0.31",
+    "iter": 10,
+    "status": "Solve_Succeeded",
+    "time_ms": 15.939970000090398,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=0.41",
+    "iter": 8,
+    "status": "Solve_Succeeded",
+    "time_ms": 12.550956000268343,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=0.51",
+    "iter": 9,
+    "status": "Solve_Succeeded",
+    "time_ms": 12.936798000282579,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=0.61",
+    "iter": 9,
+    "status": "Solve_Succeeded",
+    "time_ms": 13.002470000174071,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=0.71",
+    "iter": 9,
+    "status": "Solve_Succeeded",
+    "time_ms": 12.904481000077794,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=0.81",
+    "iter": 10,
+    "status": "Solve_Succeeded",
+    "time_ms": 14.077338999868516,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=0.91",
+    "iter": 9,
+    "status": "Solve_Succeeded",
+    "time_ms": 14.698895000037737,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=1.01",
+    "iter": 8,
+    "status": "Solve_Succeeded",
+    "time_ms": 12.06467399970279,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=1.11",
+    "iter": 7,
+    "status": "Solve_Succeeded",
+    "time_ms": 10.782127999846125,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=1.21",
+    "iter": 7,
+    "status": "Solve_Succeeded",
+    "time_ms": 10.405804000129137,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=1.31",
+    "iter": 7,
+    "status": "Solve_Succeeded",
+    "time_ms": 10.265833000175917,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=1.41",
+    "iter": 7,
+    "status": "Solve_Succeeded",
+    "time_ms": 10.880404000090493,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=1.51",
+    "iter": 8,
+    "status": "Solve_Succeeded",
+    "time_ms": 11.581335999835574,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=1.61",
+    "iter": 7,
+    "status": "Solve_Succeeded",
+    "time_ms": 11.475103000066156,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=1.71",
+    "iter": 7,
+    "status": "Solve_Succeeded",
+    "time_ms": 10.695952000332909,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=1.81",
+    "iter": 7,
+    "status": "Solve_Succeeded",
+    "time_ms": 11.098072000095272,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=1.91",
+    "iter": 7,
+    "status": "Solve_Succeeded",
+    "time_ms": 10.995251999702305,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=2.01",
+    "iter": 7,
+    "status": "Solve_Succeeded",
+    "time_ms": 10.976182999911543,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=2.11",
+    "iter": 7,
+    "status": "Solve_Succeeded",
+    "time_ms": 10.419652000109636,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=2.21",
+    "iter": 8,
+    "status": "Solve_Succeeded",
+    "time_ms": 11.382711999885942,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=2.31",
+    "iter": 8,
+    "status": "Solve_Succeeded",
+    "time_ms": 11.695840999891516,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=2.41",
+    "iter": 8,
+    "status": "Solve_Succeeded",
+    "time_ms": 11.408398999719793,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=2.51",
+    "iter": 8,
+    "status": "Solve_Succeeded",
+    "time_ms": 11.397476999718492,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=2.61",
+    "iter": 8,
+    "status": "Solve_Succeeded",
+    "time_ms": 11.48087100000339,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=2.71",
+    "iter": 8,
+    "status": "Solve_Succeeded",
+    "time_ms": 11.748904999876686,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=2.81",
+    "iter": 8,
+    "status": "Solve_Succeeded",
+    "time_ms": 11.30043700004535,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=2.91",
+    "iter": 8,
+    "status": "Solve_Succeeded",
+    "time_ms": 11.517618000198127,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=3.01",
+    "iter": 8,
+    "status": "Solve_Succeeded",
+    "time_ms": 11.459629999990284,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=3.11",
+    "iter": 7,
+    "status": "Solve_Succeeded",
+    "time_ms": 10.855941000045277,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=3.21",
+    "iter": 7,
+    "status": "Solve_Succeeded",
+    "time_ms": 10.316186000181915,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=3.31",
+    "iter": 7,
+    "status": "Solve_Succeeded",
+    "time_ms": 10.2310980000766,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=3.41",
+    "iter": 7,
+    "status": "Solve_Succeeded",
+    "time_ms": 10.68619400030002,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=3.51",
+    "iter": 7,
+    "status": "Solve_Succeeded",
+    "time_ms": 10.303775000011228,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=3.61",
+    "iter": 7,
+    "status": "Solve_Succeeded",
+    "time_ms": 10.195356000167521,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=3.71",
+    "iter": 7,
+    "status": "Solve_Succeeded",
+    "time_ms": 10.341214000163745,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=3.81",
+    "iter": 7,
+    "status": "Solve_Succeeded",
+    "time_ms": 10.311144999832322,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=3.91",
+    "iter": 7,
+    "status": "Solve_Succeeded",
+    "time_ms": 10.444038000059663,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=4.01",
+    "iter": 7,
+    "status": "Solve_Succeeded",
+    "time_ms": 10.35007400014365,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=4.11",
+    "iter": 7,
+    "status": "Solve_Succeeded",
+    "time_ms": 10.215684999820951,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=4.21",
+    "iter": 7,
+    "status": "Solve_Succeeded",
+    "time_ms": 10.18830600014553,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=4.31",
+    "iter": 7,
+    "status": "Solve_Succeeded",
+    "time_ms": 11.917727999843919,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=4.41",
+    "iter": 7,
+    "status": "Solve_Succeeded",
+    "time_ms": 10.244067000257928,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=4.51",
+    "iter": 8,
+    "status": "Solve_Succeeded",
+    "time_ms": 11.247785000250587,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=4.61",
+    "iter": 8,
+    "status": "Solve_Succeeded",
+    "time_ms": 11.161541000092257,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=4.71",
+    "iter": 8,
+    "status": "Solve_Succeeded",
+    "time_ms": 11.19548999986364,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=4.81",
+    "iter": 8,
+    "status": "Solve_Succeeded",
+    "time_ms": 11.098462000063591,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=4.91",
+    "iter": 8,
+    "status": "Solve_Succeeded",
+    "time_ms": 11.991745000159426,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=5.01",
+    "iter": 8,
+    "status": "Solve_Succeeded",
+    "time_ms": 11.149399999794696,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=5.11",
+    "iter": 8,
+    "status": "Solve_Succeeded",
+    "time_ms": 11.43115900003977,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=5.21",
+    "iter": 8,
+    "status": "Solve_Succeeded",
+    "time_ms": 10.972505000154342,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=5.31",
+    "iter": 8,
+    "status": "Solve_Succeeded",
+    "time_ms": 11.139473000184807,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=5.41",
+    "iter": 8,
+    "status": "Solve_Succeeded",
+    "time_ms": 11.257714000294072,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=5.51",
+    "iter": 8,
+    "status": "Solve_Succeeded",
+    "time_ms": 11.134603000300558,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=5.61",
+    "iter": 8,
+    "status": "Solve_Succeeded",
+    "time_ms": 11.221608000141714,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=5.71",
+    "iter": 8,
+    "status": "Solve_Succeeded",
+    "time_ms": 11.174006000146619,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=5.81",
+    "iter": 9,
+    "status": "Solve_Succeeded",
+    "time_ms": 12.109799999961979,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=5.91",
+    "iter": 9,
+    "status": "Solve_Succeeded",
+    "time_ms": 12.50893900032679,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=6.01",
+    "iter": 9,
+    "status": "Solve_Succeeded",
+    "time_ms": 11.848942000142415,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=6.11",
+    "iter": 8,
+    "status": "Solve_Succeeded",
+    "time_ms": 10.962930999994569,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=6.21",
+    "iter": 8,
+    "status": "Solve_Succeeded",
+    "time_ms": 10.79748100028155,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=6.31",
+    "iter": 7,
+    "status": "Solve_Succeeded",
+    "time_ms": 10.06893699968714,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=6.41",
+    "iter": 7,
+    "status": "Solve_Succeeded",
+    "time_ms": 9.911479000038526,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=6.51",
+    "iter": 7,
+    "status": "Solve_Succeeded",
+    "time_ms": 10.121244999936607,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=6.61",
+    "iter": 7,
+    "status": "Solve_Succeeded",
+    "time_ms": 10.378916000263416,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=6.71",
+    "iter": 6,
+    "status": "Solve_Succeeded",
+    "time_ms": 8.863815000040631,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=6.81",
+    "iter": 6,
+    "status": "Solve_Succeeded",
+    "time_ms": 8.899330999611266,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=6.91",
+    "iter": 6,
+    "status": "Solve_Succeeded",
+    "time_ms": 9.081738000077166,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=7.01",
+    "iter": 6,
+    "status": "Solve_Succeeded",
+    "time_ms": 9.160710000287509,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=7.11",
+    "iter": 6,
+    "status": "Solve_Succeeded",
+    "time_ms": 9.127253999849927,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=7.21",
+    "iter": 6,
+    "status": "Solve_Succeeded",
+    "time_ms": 9.266114999718411,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=7.31",
+    "iter": 8,
+    "status": "Solve_Succeeded",
+    "time_ms": 11.519934999796533,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=7.41",
+    "iter": 6,
+    "status": "Solve_Succeeded",
+    "time_ms": 9.90407699964635,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=7.51",
+    "iter": 6,
+    "status": "Solve_Succeeded",
+    "time_ms": 9.641138999995746,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=7.61",
+    "iter": 5,
+    "status": "Solve_Succeeded",
+    "time_ms": 8.694917999946483,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=7.71",
+    "iter": 5,
+    "status": "Solve_Succeeded",
+    "time_ms": 8.366273999854457,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=7.81",
+    "iter": 6,
+    "status": "Solve_Succeeded",
+    "time_ms": 9.505159999662283,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=7.91",
+    "iter": 6,
+    "status": "Solve_Succeeded",
+    "time_ms": 9.620486000130768,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=8.01",
+    "iter": 6,
+    "status": "Solve_Succeeded",
+    "time_ms": 9.390012999574537,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=8.11",
+    "iter": 6,
+    "status": "Solve_Succeeded",
+    "time_ms": 9.220028000072489,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=8.21",
+    "iter": 6,
+    "status": "Solve_Succeeded",
+    "time_ms": 9.204028999647562,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=8.31",
+    "iter": 6,
+    "status": "Solve_Succeeded",
+    "time_ms": 9.112245999858715,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=8.41",
+    "iter": 6,
+    "status": "Solve_Succeeded",
+    "time_ms": 9.115854000356194,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=8.51",
+    "iter": 6,
+    "status": "Solve_Succeeded",
+    "time_ms": 9.123512999849481,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=8.61",
+    "iter": 6,
+    "status": "Solve_Succeeded",
+    "time_ms": 9.316575999946508,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=8.71",
+    "iter": 6,
+    "status": "Solve_Succeeded",
+    "time_ms": 9.33538299977954,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=8.81",
+    "iter": 6,
+    "status": "Solve_Succeeded",
+    "time_ms": 9.26311600005647,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=8.91",
+    "iter": 6,
+    "status": "Solve_Succeeded",
+    "time_ms": 9.281384999667353,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=9.01",
+    "iter": 6,
+    "status": "Solve_Succeeded",
+    "time_ms": 9.236609000254248,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=9.11",
+    "iter": 6,
+    "status": "Solve_Succeeded",
+    "time_ms": 9.535841999877448,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=9.21",
+    "iter": 6,
+    "status": "Solve_Succeeded",
+    "time_ms": 9.278667999751633,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=9.31",
+    "iter": 6,
+    "status": "Solve_Succeeded",
+    "time_ms": 9.346365999590489,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=9.41",
+    "iter": 6,
+    "status": "Solve_Succeeded",
+    "time_ms": 9.310643000389973,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=9.51",
+    "iter": 6,
+    "status": "Solve_Succeeded",
+    "time_ms": 9.327396999651683,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=9.61",
+    "iter": 6,
+    "status": "Solve_Succeeded",
+    "time_ms": 9.173404000193841,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=9.71",
+    "iter": 6,
+    "status": "Solve_Succeeded",
+    "time_ms": 9.251309000319452,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=9.81",
+    "iter": 6,
+    "status": "Solve_Succeeded",
+    "time_ms": 9.242061999884754,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=9.91",
+    "iter": 6,
+    "status": "Solve_Succeeded",
+    "time_ms": 9.194833000037761,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=10.01",
+    "iter": 6,
+    "status": "Solve_Succeeded",
+    "time_ms": 9.215082000082475,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step00/SS/t=10.11",
+    "iter": 6,
+    "status": "Solve_Succeeded",
+    "time_ms": 9.70286900019346,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=12.39",
+    "iter": 11,
+    "status": "Solve_Succeeded",
+    "time_ms": 15.315562000068894,
+    "warm_x": false,
+    "warm_duals": false
+  },
+  {
+    "label": "step01/SS/t=12.49",
+    "iter": 8,
+    "status": "Solve_Succeeded",
+    "time_ms": 12.129699000070104,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=12.59",
+    "iter": 7,
+    "status": "Solve_Succeeded",
+    "time_ms": 10.77688900022622,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=12.69",
+    "iter": 7,
+    "status": "Solve_Succeeded",
+    "time_ms": 10.781080000015208,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=12.79",
+    "iter": 7,
+    "status": "Solve_Succeeded",
+    "time_ms": 10.76229600039369,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=12.89",
+    "iter": 7,
+    "status": "Solve_Succeeded",
+    "time_ms": 16.94648500006224,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=12.99",
+    "iter": 7,
+    "status": "Solve_Succeeded",
+    "time_ms": 10.967168999741261,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=13.09",
+    "iter": 6,
+    "status": "Solve_Succeeded",
+    "time_ms": 9.74516299993411,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=13.19",
+    "iter": 6,
+    "status": "Solve_Succeeded",
+    "time_ms": 9.204801000123553,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=13.29",
+    "iter": 6,
+    "status": "Solve_Succeeded",
+    "time_ms": 9.152158000233612,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=13.39",
+    "iter": 6,
+    "status": "Solve_Succeeded",
+    "time_ms": 9.171365999918635,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=13.49",
+    "iter": 6,
+    "status": "Solve_Succeeded",
+    "time_ms": 9.275486999740679,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=13.59",
+    "iter": 6,
+    "status": "Solve_Succeeded",
+    "time_ms": 9.081153999886737,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=13.69",
+    "iter": 7,
+    "status": "Solve_Succeeded",
+    "time_ms": 10.22737999983292,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=13.79",
+    "iter": 7,
+    "status": "Solve_Succeeded",
+    "time_ms": 10.626040999795805,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=13.89",
+    "iter": 7,
+    "status": "Solve_Succeeded",
+    "time_ms": 10.377575999882538,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=13.99",
+    "iter": 9,
+    "status": "Solve_Succeeded",
+    "time_ms": 12.469540999973105,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=14.09",
+    "iter": 9,
+    "status": "Solve_Succeeded",
+    "time_ms": 12.367954999717767,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=14.19",
+    "iter": 9,
+    "status": "Solve_Succeeded",
+    "time_ms": 12.44465499985381,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=14.29",
+    "iter": 9,
+    "status": "Solve_Succeeded",
+    "time_ms": 12.423279999893566,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=14.39",
+    "iter": 9,
+    "status": "Solve_Succeeded",
+    "time_ms": 12.39177799971003,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=14.49",
+    "iter": 10,
+    "status": "Solve_Succeeded",
+    "time_ms": 13.525018000109412,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=14.59",
+    "iter": 10,
+    "status": "Solve_Succeeded",
+    "time_ms": 14.186911999786389,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=14.69",
+    "iter": 10,
+    "status": "Solve_Succeeded",
+    "time_ms": 13.906944000154908,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=14.79",
+    "iter": 11,
+    "status": "Solve_Succeeded",
+    "time_ms": 15.153610999732336,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=14.89",
+    "iter": 11,
+    "status": "Solve_Succeeded",
+    "time_ms": 14.918630000011035,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=14.99",
+    "iter": 11,
+    "status": "Solve_Succeeded",
+    "time_ms": 15.738138999950024,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=15.09",
+    "iter": 11,
+    "status": "Solve_Succeeded",
+    "time_ms": 14.600888999666495,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=15.19",
+    "iter": 10,
+    "status": "Solve_Succeeded",
+    "time_ms": 13.73954699965907,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=15.29",
+    "iter": 10,
+    "status": "Solve_Succeeded",
+    "time_ms": 15.097893000074691,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=15.39",
+    "iter": 10,
+    "status": "Solve_Succeeded",
+    "time_ms": 13.436294999792153,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=15.49",
+    "iter": 9,
+    "status": "Solve_Succeeded",
+    "time_ms": 12.920076999762387,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=15.59",
+    "iter": 9,
+    "status": "Solve_Succeeded",
+    "time_ms": 12.75407000002815,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=15.69",
+    "iter": 9,
+    "status": "Solve_Succeeded",
+    "time_ms": 12.719178999759606,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=15.79",
+    "iter": 10,
+    "status": "Solve_Succeeded",
+    "time_ms": 13.601452000330028,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=15.89",
+    "iter": 9,
+    "status": "Solve_Succeeded",
+    "time_ms": 12.441429000318749,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=15.99",
+    "iter": 8,
+    "status": "Solve_Succeeded",
+    "time_ms": 11.428174999764451,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=16.09",
+    "iter": 8,
+    "status": "Solve_Succeeded",
+    "time_ms": 11.370941999757633,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=16.19",
+    "iter": 8,
+    "status": "Solve_Succeeded",
+    "time_ms": 12.137652000092203,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=16.29",
+    "iter": 9,
+    "status": "Solve_Succeeded",
+    "time_ms": 12.733333999676688,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=16.39",
+    "iter": 16,
+    "status": "Solve_Succeeded",
+    "time_ms": 20.514627000011387,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=16.49",
+    "iter": 17,
+    "status": "Solve_Succeeded",
+    "time_ms": 23.623787999895285,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=16.59",
+    "iter": 12,
+    "status": "Solve_Succeeded",
+    "time_ms": 17.05400999981066,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=16.69",
+    "iter": 12,
+    "status": "Solve_Succeeded",
+    "time_ms": 17.692555999929027,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=16.79",
+    "iter": 14,
+    "status": "Solve_Succeeded",
+    "time_ms": 20.131536000008055,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=16.89",
+    "iter": 14,
+    "status": "Solve_Succeeded",
+    "time_ms": 20.171209999716666,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=16.99",
+    "iter": 14,
+    "status": "Solve_Succeeded",
+    "time_ms": 19.941567000387295,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=17.09",
+    "iter": 15,
+    "status": "Solve_Succeeded",
+    "time_ms": 20.687381999778154,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=17.19",
+    "iter": 14,
+    "status": "Solve_Succeeded",
+    "time_ms": 19.593247000102565,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=17.29",
+    "iter": 13,
+    "status": "Solve_Succeeded",
+    "time_ms": 18.409246999908646,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=17.39",
+    "iter": 16,
+    "status": "Solve_Succeeded",
+    "time_ms": 21.881239999856916,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=17.49",
+    "iter": 14,
+    "status": "Solve_Succeeded",
+    "time_ms": 20.295297999837203,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=17.59",
+    "iter": 15,
+    "status": "Solve_Succeeded",
+    "time_ms": 19.47031899999274,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=17.69",
+    "iter": 16,
+    "status": "Solve_Succeeded",
+    "time_ms": 20.56511499995395,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=17.79",
+    "iter": 16,
+    "status": "Solve_Succeeded",
+    "time_ms": 21.273207999911392,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=17.89",
+    "iter": 16,
+    "status": "Solve_Succeeded",
+    "time_ms": 21.244507000119484,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=17.99",
+    "iter": 16,
+    "status": "Solve_Succeeded",
+    "time_ms": 22.21857800032012,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=18.09",
+    "iter": 16,
+    "status": "Solve_Succeeded",
+    "time_ms": 20.868202000201563,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=18.19",
+    "iter": 18,
+    "status": "Solved_To_Acceptable_Level",
+    "time_ms": 23.574831999667367,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=18.29",
+    "iter": 19,
+    "status": "Solve_Succeeded",
+    "time_ms": 23.567362999983743,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=18.39",
+    "iter": 19,
+    "status": "Solve_Succeeded",
+    "time_ms": 24.16079200020249,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=18.49",
+    "iter": 18,
+    "status": "Solve_Succeeded",
+    "time_ms": 22.129576999759593,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=18.59",
+    "iter": 16,
+    "status": "Solve_Succeeded",
+    "time_ms": 20.165763000022707,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=18.69",
+    "iter": 17,
+    "status": "Solve_Succeeded",
+    "time_ms": 22.014809000211244,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=18.79",
+    "iter": 16,
+    "status": "Solve_Succeeded",
+    "time_ms": 21.892132999710157,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=18.89",
+    "iter": 16,
+    "status": "Solve_Succeeded",
+    "time_ms": 21.22980300009658,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=18.99",
+    "iter": 15,
+    "status": "Solve_Succeeded",
+    "time_ms": 20.389751000038814,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=19.09",
+    "iter": 19,
+    "status": "Solve_Succeeded",
+    "time_ms": 26.925140999992436,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=19.19",
+    "iter": 41,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 60.59062299982543,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=19.29",
+    "iter": 108,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 193.1415190001644,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=19.39",
+    "iter": 67,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 103.10603600009927,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=19.49",
+    "iter": 29,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 45.86842399976376,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=19.59",
+    "iter": 56,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 83.54660700024397,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=19.69",
+    "iter": 36,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 52.70305899966843,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=19.79",
+    "iter": 49,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 70.59527199999138,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=19.89",
+    "iter": 50,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 72.59368399991217,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=19.99",
+    "iter": 52,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 78.07984200007922,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=20.09",
+    "iter": 129,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 200.71674800010442,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=20.19",
+    "iter": 40,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 61.46886699980314,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=20.29",
+    "iter": 39,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 58.79395100009788,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=20.39",
+    "iter": 40,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 61.25801300004241,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=20.49",
+    "iter": 36,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 54.128140000102576,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=20.59",
+    "iter": 44,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 66.47518199997648,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=20.69",
+    "iter": 115,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 177.1352470000238,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=20.79",
+    "iter": 49,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 74.02772100022048,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=20.89",
+    "iter": 32,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 48.42475499981447,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=20.99",
+    "iter": 42,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 64.7527330002049,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=21.09",
+    "iter": 46,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 67.46891200009486,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=21.19",
+    "iter": 46,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 69.63765399996191,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=21.29",
+    "iter": 44,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 67.72324500025206,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=21.39",
+    "iter": 48,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 70.94987100026628,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=21.49",
+    "iter": 51,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 74.84861500006446,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=21.59",
+    "iter": 62,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 90.85811400018429,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=21.69",
+    "iter": 183,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 267.34148399964397,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=21.79",
+    "iter": 60,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 88.82259900019562,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=21.89",
+    "iter": 55,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 82.39608900021267,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=21.99",
+    "iter": 54,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 81.17842300043776,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=22.09",
+    "iter": 74,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 117.45270099982008,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=22.19",
+    "iter": 53,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 79.14687199991022,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=22.29",
+    "iter": 49,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 83.42874200025108,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=22.39",
+    "iter": 47,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 71.2634659998912,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=22.49",
+    "iter": 43,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 72.42384399978619,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=22.59",
+    "iter": 45,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 69.14195999979711,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=22.69",
+    "iter": 34,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 55.66054000018994,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=22.79",
+    "iter": 161,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 243.50369900002988,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=22.89",
+    "iter": 49,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 75.04457100003492,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=22.99",
+    "iter": 36,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 54.30058199999621,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=23.09",
+    "iter": 94,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 140.90469399980066,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=23.19",
+    "iter": 38,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 59.45150100023966,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=23.29",
+    "iter": 50,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 75.10904499986282,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=23.39",
+    "iter": 71,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 124.76294099997176,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=23.49",
+    "iter": 48,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 72.39210100033233,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=23.59",
+    "iter": 47,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 89.14128199967308,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=23.69",
+    "iter": 43,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 65.89704999987589,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=23.79",
+    "iter": 43,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 64.87462700033575,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=23.89",
+    "iter": 46,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 67.43342999970992,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=23.99",
+    "iter": 54,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 78.77924000013081,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=24.09",
+    "iter": 58,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 84.29519199989954,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=24.19",
+    "iter": 43,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 63.40210100006516,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=24.29",
+    "iter": 53,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 77.15511099968353,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=24.39",
+    "iter": 42,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 59.56916100012677,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=24.49",
+    "iter": 40,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 57.920254999771714,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=24.59",
+    "iter": 30,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 46.63161000007676,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=24.69",
+    "iter": 32,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 50.241647000348166,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=24.79",
+    "iter": 26,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 40.721416999986104,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=24.89",
+    "iter": 22,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 36.79595199992036,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=24.99",
+    "iter": 29,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 47.1496219997789,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=25.09",
+    "iter": 47,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 77.14102499994624,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=25.19",
+    "iter": 37,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 54.29820199969981,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=25.29",
+    "iter": 43,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 62.68614600003275,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=25.39",
+    "iter": 43,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 69.61793799973748,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=25.49",
+    "iter": 30,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 69.40418000021964,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=25.59",
+    "iter": 45,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 67.53690599998663,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=25.69",
+    "iter": 85,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 130.84634300003017,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=25.79",
+    "iter": 42,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 66.1648459999924,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=25.89",
+    "iter": 55,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 80.5963820002944,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=25.99",
+    "iter": 58,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 84.99055099991892,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=26.09",
+    "iter": 53,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 78.33247600001414,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=26.19",
+    "iter": 41,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 64.04744100018434,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=26.29",
+    "iter": 40,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 59.6078739999939,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=26.39",
+    "iter": 61,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 91.2628969999787,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=26.49",
+    "iter": 35,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 54.56618400012303,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=26.59",
+    "iter": 200,
+    "status": "Maximum_Iterations_Exceeded",
+    "time_ms": 301.19197100020756,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=26.69",
+    "iter": 31,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 49.3474050003897,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=26.79",
+    "iter": 28,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 44.380038999861426,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=26.89",
+    "iter": 30,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 59.92404200014789,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=26.99",
+    "iter": 28,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 42.34354800018991,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=27.09",
+    "iter": 42,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 63.53750400012359,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=27.19",
+    "iter": 85,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 122.9895020001095,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=27.29",
+    "iter": 57,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 83.6985989999448,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=27.39",
+    "iter": 50,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 75.28470300030676,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=27.49",
+    "iter": 38,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 56.497487999877194,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=27.59",
+    "iter": 49,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 72.38525200000367,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=27.69",
+    "iter": 53,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 78.081296000164,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=27.79",
+    "iter": 51,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 77.63507600020603,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=27.89",
+    "iter": 51,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 105.81235600011496,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=27.99",
+    "iter": 60,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 94.81806599978881,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=28.09",
+    "iter": 59,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 93.1981700000506,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=28.19",
+    "iter": 31,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 47.63841699968907,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=28.29",
+    "iter": 21,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 33.13588699984393,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step01/SS/t=28.39",
+    "iter": 22,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 34.781558999839035,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=30.59",
+    "iter": 82,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 140.6832630000281,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=30.69",
+    "iter": 28,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 47.893158000078984,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=30.79",
+    "iter": 63,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 105.61200600022858,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=30.89",
+    "iter": 36,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 58.92078199985917,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=30.99",
+    "iter": 32,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 53.51537199976519,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=31.09",
+    "iter": 34,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 54.93333200001871,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=31.19",
+    "iter": 31,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 51.261620999866864,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=31.29",
+    "iter": 33,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 53.843899999719724,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=31.39",
+    "iter": 27,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 44.658485999661934,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=31.49",
+    "iter": 24,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 40.18919000009191,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=31.59",
+    "iter": 22,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 37.27254599971275,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=31.69",
+    "iter": 26,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 43.533990000014455,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=31.79",
+    "iter": 30,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 49.35482599967145,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=31.89",
+    "iter": 23,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 38.71110999989469,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=31.99",
+    "iter": 25,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 42.97865499984255,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=32.09",
+    "iter": 23,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 39.34129099980055,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=32.19",
+    "iter": 26,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 46.50658399987151,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=32.29",
+    "iter": 29,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 49.50469499999599,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=32.39",
+    "iter": 32,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 53.384132999781286,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=32.49",
+    "iter": 31,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 51.90623600037725,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=32.59",
+    "iter": 33,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 56.625467000230856,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=32.69",
+    "iter": 28,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 47.75808900012635,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=32.79",
+    "iter": 28,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 46.36638500005574,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=32.89",
+    "iter": 34,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 56.21995399997104,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=32.99",
+    "iter": 29,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 48.3934720000434,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=33.09",
+    "iter": 30,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 48.41373099998236,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=33.19",
+    "iter": 34,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 54.89199799967537,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=33.29",
+    "iter": 29,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 47.717871999793715,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=33.39",
+    "iter": 45,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 74.16161400033161,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=33.49",
+    "iter": 64,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 114.1146239997397,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=33.59",
+    "iter": 61,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 105.02081999993607,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=33.69",
+    "iter": 42,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 71.73947799992675,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=33.79",
+    "iter": 42,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 68.8868709999042,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=33.89",
+    "iter": 37,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 59.81940999981816,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=33.99",
+    "iter": 37,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 60.08667400010381,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=34.09",
+    "iter": 39,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 62.423049000244646,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=34.19",
+    "iter": 40,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 65.81025900004533,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=34.29",
+    "iter": 37,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 63.061823999760236,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=34.39",
+    "iter": 38,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 62.936854000327,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=34.49",
+    "iter": 31,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 51.72827700016569,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=34.59",
+    "iter": 40,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 65.85444799975448,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=34.69",
+    "iter": 54,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 88.40545000020938,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=34.79",
+    "iter": 35,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 59.480447999703756,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=34.89",
+    "iter": 29,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 51.03504899989275,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=34.99",
+    "iter": 31,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 56.836603000192554,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=35.09",
+    "iter": 32,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 52.119381000011344,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=35.19",
+    "iter": 19,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 33.33618399983607,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=35.29",
+    "iter": 34,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 55.91651499980799,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=35.39",
+    "iter": 22,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 37.8560680001101,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=35.49",
+    "iter": 19,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 34.10858100005498,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=35.59",
+    "iter": 20,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 35.23663299984037,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=35.69",
+    "iter": 27,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 45.79092500034676,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=35.79",
+    "iter": 27,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 45.6997199999023,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=35.89",
+    "iter": 35,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 55.64477200005058,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=35.99",
+    "iter": 34,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 56.12333799990665,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=36.09",
+    "iter": 34,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 58.961207999800536,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=36.19",
+    "iter": 33,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 52.95242400006828,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=36.29",
+    "iter": 29,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 50.100975999612274,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=36.39",
+    "iter": 32,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 61.13340699994296,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=36.49",
+    "iter": 28,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 47.960540000076435,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=36.59",
+    "iter": 36,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 61.982933999843226,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=36.69",
+    "iter": 38,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 62.269371999718715,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=36.79",
+    "iter": 52,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 84.78859100023328,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=36.89",
+    "iter": 38,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 62.95306600031836,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=36.99",
+    "iter": 25,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 45.153726000080496,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=37.09",
+    "iter": 20,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 35.195978000047035,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=37.19",
+    "iter": 22,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 38.40691599998536,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=37.29",
+    "iter": 24,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 41.215649000150734,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=37.39",
+    "iter": 21,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 36.75811299990528,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=37.49",
+    "iter": 22,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 38.10014600003342,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=37.59",
+    "iter": 27,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 45.432849999997416,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=37.69",
+    "iter": 34,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 60.45025399998849,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=37.79",
+    "iter": 32,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 53.21936600012123,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=37.89",
+    "iter": 27,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 48.46628499990402,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=37.99",
+    "iter": 26,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 43.98677100016357,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=38.09",
+    "iter": 27,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 45.19710899967322,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=38.19",
+    "iter": 26,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 42.97669599964138,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=38.29",
+    "iter": 23,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 40.137606999905984,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=38.39",
+    "iter": 22,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 37.916424999821174,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=38.49",
+    "iter": 26,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 43.666762999691855,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=38.59",
+    "iter": 25,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 42.323101999954815,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=38.69",
+    "iter": 22,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 39.222972999596095,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=38.79",
+    "iter": 26,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 43.65826499997638,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=38.89",
+    "iter": 24,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 41.12026899974808,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=38.99",
+    "iter": 23,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 39.66073000037795,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=39.09",
+    "iter": 24,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 41.72215700009474,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=39.19",
+    "iter": 24,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 41.4187389997096,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=39.29",
+    "iter": 24,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 41.40995899979316,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=39.39",
+    "iter": 25,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 43.448640999940835,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=39.49",
+    "iter": 24,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 42.24785199994585,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=39.59",
+    "iter": 25,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 43.414973999915674,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=39.69",
+    "iter": 24,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 41.627971999787405,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=39.79",
+    "iter": 24,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 41.690378000112105,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=39.89",
+    "iter": 23,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 39.535498000077496,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=39.99",
+    "iter": 26,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 44.08738199981599,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=40.09",
+    "iter": 25,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 42.322929999954795,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=40.19",
+    "iter": 24,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 41.193992999978946,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=40.29",
+    "iter": 21,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 36.40178899968305,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=40.39",
+    "iter": 27,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 46.715314999801194,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=40.49",
+    "iter": 29,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 48.328564999792434,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=40.59",
+    "iter": 31,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 53.00529699979961,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=40.69",
+    "iter": 33,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 57.60886300004131,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=40.79",
+    "iter": 32,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 55.466794000039954,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=40.89",
+    "iter": 38,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 63.33604800011017,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=40.99",
+    "iter": 27,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 45.79385999977603,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=41.09",
+    "iter": 23,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 39.447650000056456,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=41.19",
+    "iter": 30,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 52.360018999934255,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=41.29",
+    "iter": 47,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 76.0763670000415,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=41.39",
+    "iter": 44,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 71.47180600031788,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=41.49",
+    "iter": 41,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 75.4285479997634,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=41.59",
+    "iter": 41,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 70.76217700023335,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=41.69",
+    "iter": 37,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 65.45341200035182,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=41.79",
+    "iter": 40,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 79.25701400017715,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=41.89",
+    "iter": 45,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 79.3853529999069,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=41.99",
+    "iter": 45,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 84.41291300005105,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=42.09",
+    "iter": 42,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 71.21104799989553,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=42.19",
+    "iter": 45,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 77.3604570003954,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=42.29",
+    "iter": 53,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 92.8304629997001,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=42.39",
+    "iter": 45,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 74.63781999967978,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=42.49",
+    "iter": 52,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 86.52280299975246,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=42.59",
+    "iter": 39,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 65.68646100004116,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=42.69",
+    "iter": 43,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 71.600338999815,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=42.79",
+    "iter": 27,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 46.74989800014373,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=42.89",
+    "iter": 24,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 40.96992600034355,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=42.99",
+    "iter": 24,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 41.24529699993218,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=43.09",
+    "iter": 16,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 29.10022099968046,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=43.19",
+    "iter": 23,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 39.717913000004046,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=43.29",
+    "iter": 22,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 38.07415199980824,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=43.39",
+    "iter": 48,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 77.87084600022354,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=43.49",
+    "iter": 46,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 74.74730100011584,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=43.59",
+    "iter": 52,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 83.98957999997947,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=43.69",
+    "iter": 48,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 78.03870999987339,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=43.79",
+    "iter": 53,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 85.83355700011452,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=43.89",
+    "iter": 46,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 71.64347800016913,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=43.99",
+    "iter": 42,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 66.44999000036478,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=44.09",
+    "iter": 31,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 50.44240699999136,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=44.19",
+    "iter": 27,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 44.86637099989821,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=44.29",
+    "iter": 31,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 50.47973399996408,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=44.39",
+    "iter": 31,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 51.64946900003997,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=44.49",
+    "iter": 26,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 42.97712600009618,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=44.59",
+    "iter": 20,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 33.860215000004246,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=44.69",
+    "iter": 23,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 38.94275600032415,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=44.79",
+    "iter": 24,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 39.479224999922735,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=44.89",
+    "iter": 24,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 39.54612999996243,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=44.99",
+    "iter": 25,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 41.451734000020224,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=45.09",
+    "iter": 21,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 35.94898599976659,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=45.19",
+    "iter": 26,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 42.174305000116874,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=45.29",
+    "iter": 25,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 39.674963999914326,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=45.39",
+    "iter": 23,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 36.742894999861164,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=45.49",
+    "iter": 23,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 36.651141999755055,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=45.59",
+    "iter": 28,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 43.97458200037363,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=45.69",
+    "iter": 30,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 47.06153999995877,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=45.79",
+    "iter": 24,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 38.86787800001912,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=45.89",
+    "iter": 25,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 40.33723299971825,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=45.99",
+    "iter": 24,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 39.58845899978769,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=46.09",
+    "iter": 22,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 37.156295999920985,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=46.19",
+    "iter": 22,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 36.6925230000561,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=46.29",
+    "iter": 24,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 39.93932799994582,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=46.39",
+    "iter": 31,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 51.311186000020825,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=46.49",
+    "iter": 50,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 79.01370399986263,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=46.59",
+    "iter": 41,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 68.1311610001103,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=46.69",
+    "iter": 41,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 66.71826000001602,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=46.79",
+    "iter": 52,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 81.7862540002352,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=46.89",
+    "iter": 40,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 64.59023499974137,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=46.99",
+    "iter": 40,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 65.03543999997419,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=47.09",
+    "iter": 35,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 57.31798900023932,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=47.19",
+    "iter": 28,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 46.18452200020329,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=47.29",
+    "iter": 46,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 72.6377109999703,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=47.39",
+    "iter": 48,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 77.71000799993999,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=47.49",
+    "iter": 42,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 67.32654500001445,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=47.59",
+    "iter": 47,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 77.76692700008425,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=47.69",
+    "iter": 45,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 70.85144199982096,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=47.79",
+    "iter": 45,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 68.49285500038604,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=47.89",
+    "iter": 43,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 68.59980099989116,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=47.99",
+    "iter": 35,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 56.18740499994601,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=48.09",
+    "iter": 34,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 54.9704009999914,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=48.19",
+    "iter": 47,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 75.4467100000511,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=48.29",
+    "iter": 60,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 95.42902500015771,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=48.39",
+    "iter": 52,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 84.67826200012496,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=48.49",
+    "iter": 46,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 73.28113699986716,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=48.59",
+    "iter": 39,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 61.42960400029551,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=48.69",
+    "iter": 25,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 41.5830389997609,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=48.79",
+    "iter": 52,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 83.51437900000747,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=48.89",
+    "iter": 31,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 60.81862500013813,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=48.99",
+    "iter": 45,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 71.58443499974965,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=49.09",
+    "iter": 49,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 78.31427800010715,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=49.19",
+    "iter": 38,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 60.851512999761326,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=49.29",
+    "iter": 36,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 57.52544899996792,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=49.39",
+    "iter": 52,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 78.4201149999717,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=49.49",
+    "iter": 39,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 61.73427800013087,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=49.59",
+    "iter": 36,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 57.04624199961472,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=49.69",
+    "iter": 40,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 63.509093999982724,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=49.79",
+    "iter": 28,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 49.42895500016675,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=49.89",
+    "iter": 32,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 60.55730700018103,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=49.99",
+    "iter": 45,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 73.0597880001369,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=50.09",
+    "iter": 47,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 74.62962099998549,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=50.19",
+    "iter": 31,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 54.15640599994731,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=50.29",
+    "iter": 41,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 67.90251899974464,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=50.39",
+    "iter": 38,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 63.15802199969767,
+    "warm_x": true,
+    "warm_duals": true
+  },
+  {
+    "label": "step04/DS/t=50.49",
+    "iter": 37,
+    "status": "Infeasible_Problem_Detected",
+    "time_ms": 61.7485390002912,
+    "warm_x": true,
+    "warm_duals": true
+  }
+]
