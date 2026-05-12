@@ -1,0 +1,28 @@
+====================================================================================
+  Step 2 SS diagnostics (B + C) — α=500 baseline
+====================================================================================
+  n_cycles: 2080 (100% with torso task active)
+  t range: 19.900 ... 40.690 s (20.790 s)
+
+--- B: QP realization (a_torso_des vs a_torso_qp) ---
+  ||δa|| linear  mean=8.8129e-01 max=1.5930e+00  [m/s²]
+  ||δa|| angular mean=5.5858e-01 max=1.7662e+00  [rad/s²]
+  ||a_des|| max  linear=1.2303e+00 angular=1.4722e+00
+  ||a_qp||  max  linear=1.3952e+00 angular=1.6193e+00
+
+--- C: mapping layer (c_ref, r_b_ref, p_torso) ---
+  c_ref displacement   (planner)        = 66.2 mm
+  r_b_ref displacement (WBC torso ref)  = 0.0 mm
+  p_torso displacement (actual)         = 128.5 mm
+  r_b_ref ≡ const (frozen)? True
+  ||δ_map||    = r_b_ref - c_ref   mean=251.6mm max=281.6mm
+  ||δ_track||  = p_torso - r_b_ref mean=108.9mm max=142.8mm
+  ||δ_total||  = p_torso - c_ref   mean=166.9mm max=205.2mm
+
+--- Quintile time profile ---
+   q    t_lo    t_hi     n δa_lin_max δa_ang_max  δ_map_max δ_track_max δ_total_max
+   1   19.90   24.06   416     0.7722     0.2609      256.5       113.1       205.2
+   2   24.06   28.22   416     0.9359     0.7067      274.2       119.4       182.4
+   3   28.22   32.37   416     1.2340     1.3098      251.9       123.1       168.7
+   4   32.37   36.53   416     1.4951     1.5891      281.6       142.8       163.3
+   5   36.53   40.69   416     1.5930     1.7662      271.3       129.5       167.1
