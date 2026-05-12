@@ -158,9 +158,13 @@ class SimulationLoop:
         # Step 2 diagnostics B+C (QP realization + mapping layer). Set
         # _step2_diag_enabled=True externally before run() to populate.
         # Each entry: dict(t, qs, c_ref, r_b_ref, p_torso, a_torso_des,
-        # a_torso_qp). Captured only during step 2 SS to limit size.
+        # a_torso_qp, delta_q). Captured only during step 2 SS to limit size.
         self._step2_diag_enabled: bool = False
         self._step2_diag_log: list = []
+        # Most recent CoMToTorsoMapping δ(q) output; populated by _step()
+        # only on cycles where the live mapping was invoked (i.e. NOT
+        # under mapping_bypass_in_ss). None otherwise.
+        self._last_mapping_delta: Optional[np.ndarray] = None
 
     # ── Setup ────────────────────────────────────────────────────────────
 
@@ -2055,9 +2059,11 @@ class SimulationLoop:
                     q_map, dq_map = self._planned_arm_config(tq, rs)
                 else:
                     q_map, dq_map = rs.q, rs.v
-                r_b_ref_m, v_b_ref_m, a_b_ff_m, _ = self.mapping.compute(
+                r_b_ref_m, v_b_ref_m, a_b_ff_m, _delta_q = self.mapping.compute(
                     r_com_ref=rp_interp, v_com_ref=vp_interp,
                     a_com_ff=af_for_mapping, q_current=q_map, dq_current=dq_map)
+                # Stash δ(q) so the step 2 diag log can pick it up below.
+                self._last_mapping_delta = np.asarray(_delta_q, dtype=float).copy()
                 # Option A: post-dock blend of the DS torso linear
                 # position reference from the SS-exit pose to the live
                 # mapping output over cfg.ds_ramp_duration_s. Quintic
@@ -2208,6 +2214,10 @@ class SimulationLoop:
                 else:
                     entry['a_torso_des'] = None
                     entry['a_torso_qp'] = None
+                if self._last_mapping_delta is not None:
+                    entry['delta_q'] = self._last_mapping_delta.tolist()
+                else:
+                    entry['delta_q'] = None
                 self._step2_diag_log.append(entry)
 
             # M7 physics-trace capture (SS only, first-QP-substep, 1 Hz).
