@@ -1,0 +1,5 @@
+r_tube         = 0.0500 m  (50.0 mm)
+w_tube_lin     = 50.000
+QP solves      = 3420
+linear-active  = 3264  (95.44% of solves)
+max |e_lin|    = 1.2196 m  (1219.6 mm)
