@@ -136,7 +136,7 @@ class SimConfig:
     # ── NMPC solver ─────────────────────────────────────────────
     nmpc_N: int = 8
     nmpc_dt: float = 0.1
-    nmpc_f_max: float = 100.0
+    nmpc_f_max: float = 300.0
     nmpc_tau_max: float = 8.0
     nmpc_Wv: float = 10.0
     nmpc_p_max: float = 50.0      # Linear momentum bound [kg·m/s]
