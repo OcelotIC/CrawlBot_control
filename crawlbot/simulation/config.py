@@ -116,7 +116,7 @@ class SimConfig:
     # CoarsePlanResult.from_heuristic() directly.
     preplanner_M: int = 15                  # collocation intervals
     preplanner_kappa: float = 0.7           # terminal margin multiplier (< 1)
-    preplanner_f_max: float = 25.0          # [N] per active contact
+    preplanner_f_max: float = 25.0          # [N] per active contact (also used by F-SAT clamp)
     preplanner_tau_max: float = 8.0         # [Nm] per active contact
     preplanner_w_L: float = 1.0             # cost weight on ||L_com||²
     preplanner_w_u: float = 1e-2            # cost weight on ||[f; τ]||²
@@ -127,7 +127,7 @@ class SimConfig:
     # ── NMPC solver ─────────────────────────────────────────────
     nmpc_N: int = 8
     nmpc_dt: float = 0.1
-    nmpc_f_max: float = 25.0
+    nmpc_f_max: float = 100.0
     nmpc_tau_max: float = 8.0
     nmpc_Wv: float = 10.0
     nmpc_p_max: float = 50.0      # Linear momentum bound [kg·m/s]
