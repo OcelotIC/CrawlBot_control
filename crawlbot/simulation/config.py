@@ -79,6 +79,15 @@ class SimConfig:
     # Diagnostic: zero wheel torque during DS (Mode B still runs in SS).
     aocs_off_in_ds: bool = False
 
+    # When True, the gait-phase loop breaks out of the multi-step
+    # traversal as soon as a step ABORTs (dock_timeout or
+    # preplanner_infeasible). Subsequent steps would only observe
+    # post-failure cascade dynamics, not the controller in normal
+    # operation, so running them is wasted compute. Default True
+    # (fail-fast diagnostics); set False to reproduce the legacy
+    # full-cascade runs.
+    stop_on_failed_step: bool = True
+
     # ── M2: reworked QP task stack ──────────────────────────────
     use_m2_stack: bool = False    # Enable reworked QP (torso P1 + EE null-space P2 + soft CoM)
     alpha_com_soft: float = 0.0   # Soft CoM residual disabled — redundant with torso 6D position task; 5.0 was fighting torso tracking

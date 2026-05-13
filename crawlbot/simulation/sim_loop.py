@@ -1519,6 +1519,12 @@ class SimulationLoop:
                                   f"pre-planner infeasible — holding position")
                         step_idx += 1
                         i += 2
+                        if cfg.stop_on_failed_step:
+                            if verbose:
+                                print(f"  [stop_on_failed_step] aborting "
+                                      f"traversal after step "
+                                      f"{step_idx - 1} SKIP")
+                            break
                         continue
 
                     self.qp_ss.set_nominal_posture(
@@ -1723,6 +1729,12 @@ class SimulationLoop:
 
                     step_idx += 1
                     i += 2  # skip SS phase (already processed)
+                    if cfg.stop_on_failed_step and not docked:
+                        if verbose:
+                            print(f"  [stop_on_failed_step] aborting "
+                                  f"traversal after step "
+                                  f"{step_idx - 1} TIMEOUT")
+                        break
                 else:
                     # Trailing DS (end of gait): run settling phase
                     t_ds_start = plan.t_start[i] + t_offset
