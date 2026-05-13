@@ -153,6 +153,10 @@ class SimLog:
     nmpc_ok: list = field(default_factory=list)
     qp_ok: list = field(default_factory=list)
     lambda_ref_norm: list = field(default_factory=list)
+    # Q1: actual contact wrench the QP delivered (full 12-vec
+    # [f1, τ1, f2, τ2]) and its Euclidean norm. Logged per WBC tick.
+    lambda_qp: list = field(default_factory=list)
+    lambda_qp_norm: list = field(default_factory=list)
     nmpc_time_ms: list = field(default_factory=list)
     qp_time_ms: list = field(default_factory=list)
     nmpc_status: list = field(default_factory=list)     # 0=ok, 1=max_iter, 2=infeasible

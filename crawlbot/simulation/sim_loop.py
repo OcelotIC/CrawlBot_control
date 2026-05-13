@@ -727,6 +727,14 @@ class SimulationLoop:
             Kp_ee_ang=kpe_ang * np.ones(3), Kd_ee_ang=kde_ang * np.ones(3),
             Kp_posture=1.0, Kd_posture=1.5,
             L_max=cfg.L_max, tau_w_max=cfg.tau_w_max,
+            # NB: QP-side contact wrench bound is intentionally NOT
+            # piped from cfg.nmpc_f_max. Data shows the WBC needs
+            # ~460 N transiently to track a 49 N NMPC plan (step 2,
+            # commit-pending diag); capping the QP at 100 N regresses
+            # step 2 from 164 mm → 545 mm. The NMPC f_max bounds what
+            # the planner BUDGETS for; the QP delivers what the
+            # CoM/torso/EE tracking needs. The WB QP default 3000 N
+            # is effectively unbounded and stays as a sanity backstop.
             use_m2_stack=cfg.use_m2_stack,
             ee_null_space=cfg.use_m2_stack,
             alpha_com_soft=cfg.alpha_com_soft,
@@ -2649,8 +2657,10 @@ class SimulationLoop:
 
         # Contact wrenches
         log.lambda_ref.append(lr.copy())
-        log.lambda_qp.append(lambda_qp_sol.copy() if hasattr(lambda_qp_sol, 'copy')
-                              else np.zeros(12))
+        _lqp = (lambda_qp_sol.copy() if hasattr(lambda_qp_sol, 'copy')
+                else np.zeros(12))
+        log.lambda_qp.append(_lqp)
+        log.lambda_qp_norm.append(float(np.linalg.norm(_lqp)))
 
         # Kinetic energy: 0.5 * v^T H v (relative to structure)
         v_rel = rs_f.v[:rs_f.H.shape[0]]
