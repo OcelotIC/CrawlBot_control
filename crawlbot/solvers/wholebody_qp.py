@@ -98,6 +98,19 @@ class WholeBodyQPConfig:
     r_tube: float = 0.0           # [m] tube radius; 0 = legacy 6D equality
     w_tube_lin: float = 50.0      # cost scale on (|e|² - r²) when violated
 
+    # ── Cooperative-arms task stack (deviation from spec §4.3) ──
+    # See SimConfig.cooperative_arms_mode for the full rationale.
+    # When True, torso angular is P1 (alpha_torso_ang); torso linear +
+    # EE 6D are co-equal P2 weighted-LS (alpha_torso_lin, alpha_ee).
+    # Posture P3 is projected against the combined P1+P2 stack with
+    # rcond=1e-4 on the combined 12×n pinv (looser than the 1e-8 used
+    # on individual task pinvs) to handle the wider conditioning of
+    # the stacked Jacobian. r_tube is ignored when cooperative_arms_mode
+    # is True (split is structural, not violation-gated).
+    cooperative_arms_mode: bool = False
+    alpha_torso_ang: float = 5e2
+    alpha_torso_lin: float = 5e2
+
     # ── Passivity constraint (DS only) ──
     alpha_passivity: float = 1.0  # Energy decay rate α [1/s] (α < 50 at 100 Hz)
 
@@ -593,6 +606,35 @@ class WholeBodyQP:
             # in pure M2 testing, fall back to 1e3 if user left alpha_torso=0).
             w_torso = cfg.alpha_torso if cfg.alpha_torso > 0 else 1e3
 
+            # ── Cooperative-arms mode: split angular/linear ───────────
+            # Angular goes to P1 at alpha_torso_ang (strict equality
+            # strength). Linear is stashed and added later as a P2
+            # weighted-LS co-contributor with EE (same null-space
+            # projection N_torso_ang). The "effective" A_torso /
+            # b_torso / J_torso_eff used downstream collapse to the
+            # angular 3D subset — matching the inside-tube branch.
+            # Stance-arm thrust still flows passively via the dynamics
+            # equality (no explicit cost on stance thrust).
+            _coop_A_lin = None
+            _coop_b_lin = None
+            if cfg.cooperative_arms_mode:
+                A_torso_ang = A_torso_full[3:, :]
+                b_torso_ang = b_torso_full[3:]
+                _coop_A_lin = A_torso_full[:3, :]
+                _coop_b_lin = b_torso_full[:3]
+                # P1 — angular only, strict-equality strength
+                qp.add_task(A_torso_ang, b_torso_ang,
+                            cfg.alpha_torso_ang, priority=1)
+                # Effective torso (used for N_torso, EE FF, residuals)
+                A_torso = A_torso_ang
+                b_torso = b_torso_ang
+                J_torso_eff = J_torso[3:, :]
+                a_torso_des_eff = a_torso_des[3:]
+                # Skip Option D and legacy paths.
+                continue_torso_block = False
+            else:
+                continue_torso_block = True
+
             # ── Option D: torso linear soft tube ──────────────────────
             # r_tube > 0 splits the 6D task: angular stays at full weight,
             # linear is gated by ||p_torso - p_ref|| > r_tube with the
@@ -602,7 +644,7 @@ class WholeBodyQP:
             # collapses to the 3 angular rows — freeing the linear-base
             # DOFs for EE tracking.
             r_tube = float(getattr(cfg, 'r_tube', 0.0))
-            if r_tube > 0.0:
+            if continue_torso_block and r_tube > 0.0:
                 e_lin_norm = float(np.linalg.norm(e_pos))
                 linear_active = (e_lin_norm > r_tube)
 
@@ -642,8 +684,8 @@ class WholeBodyQP:
                 self._tube_max_e_lin_m = max(
                     self._tube_max_e_lin_m, e_lin_norm)
                 self._tube_last_violated = bool(linear_active)
-            else:
-                # Legacy: full 6D equality task.
+            elif continue_torso_block:
+                # Legacy: full 6D equality task at P1.
                 qp.add_task(A_torso_full, b_torso_full, w_torso, priority=1)
                 A_torso = A_torso_full
                 b_torso = b_torso_full
@@ -735,6 +777,21 @@ class WholeBodyQP:
             A_ee_proj = None
             b_ee_res = None
 
+        # --- Cooperative-arms P2: torso LINEAR (co-equal with EE) ---
+        # Projected through the SAME N_torso (= N_torso_ang) used for EE
+        # so the two P2 tasks share a null-space frame. The QP arbitrates
+        # between them via alpha_torso_lin vs alpha_ee — at the defaults
+        # (500 vs 3000) EE dominates 6:1 on body-linear motion, letting
+        # the swing arm pull the body forward when reach margin demands.
+        A_coop_lin_proj = None
+        b_coop_lin_res = None
+        if (cfg.cooperative_arms_mode and _coop_A_lin is not None
+                and N_torso is not None and A_torso_pinv is not None):
+            A_coop_lin_proj = _coop_A_lin @ N_torso
+            b_coop_lin_res = _coop_b_lin - _coop_A_lin @ A_torso_pinv @ b_torso
+            qp.add_task(A_coop_lin_proj, b_coop_lin_res,
+                        cfg.alpha_torso_lin, priority=2)
+
         # --- Task 2b: Soft CoM residual (M2 stack only) ---
         # Quadratic cost α_com_soft * ||J_com @ qdd - a_com_des||² with
         # desired acceleration from NMPC ff + PD (NOT from the mapping).
@@ -791,13 +848,24 @@ class WholeBodyQP:
             # targets:
             #   b_posture_res = b_posture − A_posture · A_combo^+ · b_combo
             if cfg.use_m2_stack and A_torso is not None:
+                # Cooperative-arms: include A_torso_lin (the P2 linear task)
+                # in the combined null-space basis so posture doesn't fight
+                # either component of the split torso task. rcond=1e-4 on
+                # the combined 12×n pinv handles the wider conditioning of
+                # the stacked Jacobian (individual task pinvs above stay at
+                # the tighter rcond=1e-8).
+                rows = [A_torso]
+                rhs = [b_torso]
+                if (cfg.cooperative_arms_mode and _coop_A_lin is not None):
+                    rows.append(_coop_A_lin)
+                    rhs.append(_coop_b_lin)
                 if A_ee is not None:
-                    A_combo = np.vstack([A_torso, A_ee])
-                    b_combo = np.concatenate([b_torso, b_ee])
-                else:
-                    A_combo = A_torso
-                    b_combo = b_torso
-                A_combo_pinv = np.linalg.pinv(A_combo, rcond=1e-8)
+                    rows.append(A_ee)
+                    rhs.append(b_ee)
+                A_combo = np.vstack(rows)
+                b_combo = np.concatenate(rhs)
+                _rcond = 1e-4 if cfg.cooperative_arms_mode else 1e-8
+                A_combo_pinv = np.linalg.pinv(A_combo, rcond=_rcond)
                 N_combo = np.eye(n) - A_combo_pinv @ A_combo
                 A_posture_proj = A_posture @ N_combo
                 b_posture_res = b_posture - A_posture @ A_combo_pinv @ b_combo

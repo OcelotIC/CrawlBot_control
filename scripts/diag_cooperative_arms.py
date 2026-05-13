@@ -1,0 +1,305 @@
+"""Cooperative-arms WBC validation — 5-step fail-fast traversal.
+
+Tests cfg.cooperative_arms_mode=True (default in _make_m7_config) against
+the sweet-spot baseline (results/diag_nmpc_f300/, cooperative_arms_mode=False).
+
+Sweet-spot config carried over:
+  nmpc_f_max=300, preplanner_f_max=25 (= F-SAT clamp source),
+  mapping_bypass_in_ss=False, q_current, F-RATE+F-SAT enabled,
+  stop_on_failed_step=True.
+
+Rework deltas vs sweet-spot:
+  - cooperative_arms_mode=True (split torso 6D into P1 angular +
+    P2 linear; EE 6D co-equal at P2; posture P3 projected against
+    combined P1+P2 with rcond=1e-4)
+  - ss_alpha_torso_ang=500, ss_alpha_torso_lin=500 (defaults)
+
+Outputs:
+    results/diag_cooperative_arms/
+        sim_log.json, step_log.json
+        step_metrics.txt, nmpc_per_step.txt
+        sat_stats.txt, comparison.txt
+
+Run:
+    MUJOCO_GL=disabled PYTHONPATH=. python3 \\
+        scripts/diag_cooperative_arms.py
+    # Regression guard (legacy strict M2 stack):
+    MUJOCO_GL=disabled PYTHONPATH=. python3 \\
+        scripts/diag_cooperative_arms.py --legacy
+"""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import re
+import sys
+from collections import Counter, defaultdict
+
+import numpy as np
+
+_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, _root)
+os.environ.setdefault('MUJOCO_GL', 'disabled')
+
+import scripts.run_m7_single_step as r_single  # noqa: E402
+
+
+MJCF = os.path.join(_root, 'models', 'VISPA_crawling_rwa3.xml')
+
+ROBOT_JOINT_RE = re.compile(
+    r'(<default class="robot_joint">\s*\n\s*<joint damping=")[^"]+'
+    r'(" armature=")[^"]+(")')
+
+
+def _mjcf_md5(path: str) -> str:
+    with open(path, 'rb') as f:
+        return hashlib.md5(f.read()).hexdigest()
+
+
+def _mutate_mjcf(damping: float, armature: float):
+    with open(MJCF, 'r') as f:
+        text = f.read()
+    new, n = ROBOT_JOINT_RE.subn(
+        rf'\g<1>{damping}\g<2>{armature}\g<3>', text, count=1)
+    if n != 1:
+        raise RuntimeError('robot_joint default not found')
+    with open(MJCF, 'w') as f:
+        f.write(new)
+
+
+def _parse_label(label: str):
+    if not label:
+        return -1, '?'
+    parts = label.split('/')
+    try:
+        step = int(parts[0].replace('step', ''))
+    except Exception:
+        step = -1
+    phase = parts[1] if len(parts) >= 2 else '?'
+    return step, phase
+
+
+def _step_metrics_table(log, diag_log, n_steps, out_path):
+    t = np.array(log.t)
+    phase = np.array(log.phase, dtype=object)
+    sidx = np.array(log.step_idx)
+    p_torso = np.array(log.p_torso) if log.p_torso else None
+    e_ee_raw = log.e_ee_pos
+    e_ee_pos = np.array(e_ee_raw) if e_ee_raw else None
+    lqp = np.array(log.lambda_qp) if log.lambda_qp else None
+
+    dock_by_step = {ev.get('step', None): ev for ev in log.dock_events}
+    abort_by_step = {ab['step_idx']: ab for ab in log.aborted_steps}
+
+    by_step = defaultdict(list)
+    for e in diag_log:
+        by_step[e.get('step_idx', -1)].append(e)
+
+    lines = []
+    header = (f"{'Step':>4s} {'Outcome':>22s} {'d [mm]':>8s} {'ori [°]':>8s} "
+              f"{'recoil [mm]':>12s} {'EE err [mm]':>12s} "
+              f"{'|f|max [N]':>11s} {'rb_osc_max':>11s}")
+    lines += [header, '-' * len(header)]
+    for s in range(n_steps):
+        m = (sidx == s) & (phase == 'SS')
+        if not m.any():
+            lines.append(f"{s:>4d} {'NO_DATA':>22s}")
+            continue
+        recoil_mm = None
+        if p_torso is not None and p_torso.size:
+            p0 = p_torso[m][0]
+            recoil_mm = float(np.linalg.norm(
+                p_torso[m] - p0, axis=1).max() * 1000.0)
+        peak_ee_mm = None
+        if e_ee_pos is not None and e_ee_pos.size:
+            ee = e_ee_pos[m]
+            peak_ee_mm = float(
+                (np.linalg.norm(ee, axis=1) if ee.ndim == 2
+                 else np.abs(ee)).max() * 1000.0)
+        fmax_n = None
+        if lqp is not None and lqp.size:
+            l = lqp[m]
+            f1n = np.linalg.norm(l[:, 0:3], axis=1)
+            f2n = np.linalg.norm(l[:, 6:9], axis=1)
+            fmax_n = float(max(f1n.max(), f2n.max()))
+        # outcome
+        if s in abort_by_step:
+            ab = abort_by_step[s]
+            outcome = ab['reason'].upper()
+            d_mm = ab.get('d_mm', None)
+            ori_deg = ab.get('ori_deg', None)
+        elif s in dock_by_step:
+            ev = dock_by_step[s]
+            outcome = 'DOCK'
+            d_mm = ev.get('d_mm', None)
+            ori_deg = ev.get('ori_deg', None)
+        else:
+            outcome = 'UNKNOWN'
+            d_mm = ori_deg = None
+        # rb_osc
+        entries = by_step.get(s, [])
+        if len(entries) >= 2:
+            r_b = np.array([e['r_b_ref'] for e in entries])
+            step_diffs = np.linalg.norm(np.diff(r_b, axis=0), axis=1)
+            osc_max_mm = float(step_diffs.max() * 1000.0)
+        else:
+            osc_max_mm = None
+        d = f"{d_mm:.2f}" if d_mm is not None else '--'
+        o = f"{ori_deg:.2f}" if ori_deg is not None else '--'
+        r = f"{recoil_mm:.1f}" if recoil_mm is not None else '--'
+        ee = f"{peak_ee_mm:.1f}" if peak_ee_mm is not None else '--'
+        fm = f"{fmax_n:.1f}" if fmax_n is not None else '--'
+        om = f"{osc_max_mm:.3f}" if osc_max_mm is not None else '--'
+        lines.append(f"{s:>4d} {outcome:>22s} {d:>8s} {o:>8s} "
+                     f"{r:>12s} {ee:>12s} {fm:>11s} {om:>11s}")
+    text = '\n'.join(lines) + '\n'
+    with open(out_path, 'w') as f:
+        f.write(text)
+    return text
+
+
+def _nmpc_table(step_log, out_path):
+    groups = defaultdict(list)
+    for e in step_log:
+        groups[_parse_label(e.get('label', ''))].append(e)
+    lines = []
+    header = (f"{'Step':>4s} {'Phase':>5s} {'N':>4s} "
+              f"{'iter_min':>8s} {'iter_max':>8s} {'iter_p95':>8s} "
+              f"{'t_max':>7s} {'t_mean':>7s} {'fail':>4s}  status_dist")
+    lines += [header, '-' * len(header)]
+    for key in sorted(groups.keys()):
+        step, ph = key
+        entries = groups[key]
+        iters = np.array([e['iter'] for e in entries])
+        times = np.array([e['time_ms'] for e in entries])
+        failed = sum(1 for e in entries
+                     if 'Succeeded' not in e['status']
+                     and 'Acceptable' not in e['status'])
+        statuses = Counter(e['status'] for e in entries)
+        sd = ', '.join(f"{s}:{c}" for s, c in statuses.most_common())
+        lines.append(
+            f"{step:>4d} {ph:>5s} {len(entries):>4d} "
+            f"{iters.min():>8d} {iters.max():>8d} "
+            f"{int(np.percentile(iters, 95)):>8d} "
+            f"{times.max():>7.1f} {times.mean():>7.1f} {failed:>4d}  {sd}")
+    text = '\n'.join(lines) + '\n'
+    with open(out_path, 'w') as f:
+        f.write(text)
+    return text
+
+
+def main(legacy: bool, alpha_torso_lin: float):
+    cfg = r_single._make_m7_config()
+    # Sweet-spot config carry-over (these are also already the defaults
+    # via _make_m7_config + SimConfig at this point).
+    cfg.mapping_bypass_in_ss = False
+    cfg.t_ss_margin = 5.0
+    cfg.r_tube = 0.0
+    cfg.preplanner_f_max = 25.0  # F-SAT clamp source
+    # Rework knob.
+    cfg.cooperative_arms_mode = (not legacy)
+    cfg.ss_alpha_torso_lin = float(alpha_torso_lin)
+    # alpha_torso_ang stays at default 500 (set by _make_m7_config).
+
+    if legacy:
+        out_dir = os.path.join(_root, 'results',
+                               'diag_cooperative_arms_legacy')
+    elif abs(alpha_torso_lin - 500.0) > 1e-6:
+        out_dir = os.path.join(_root, 'results',
+                               'diag_cooperative_arms',
+                               f'alpha_lin_{int(alpha_torso_lin)}')
+    else:
+        out_dir = os.path.join(_root, 'results', 'diag_cooperative_arms')
+
+    from crawlbot.simulation.sim_loop import SimulationLoop
+    URDF = os.path.join(_root, 'models', 'VISPA_crawling_fixed.urdf')
+
+    sim = SimulationLoop(mjcf_path=MJCF, urdf_path=URDF, config=cfg)
+    sim.setup(n_steps=5, start_a=2, start_b=2)
+    sim._debug_l_com_ref_trace_limit = 5
+    sim._debug_physics_trace_limit = 400
+    sim._debug_physics_sample_every = 2
+    sim.nmpc._nmpc.diag_verbose = False
+    sim.nmpc._nmpc.step_log.clear()
+    sim.qp_ss.hw_slack_log.clear()
+    sim._step2_diag_enabled = True
+    sim._step2_diag_log.clear()
+
+    print('\n' + '=' * 70)
+    print(f"  Cooperative-arms 5-step (cooperative={not legacy}, "
+          f"alpha_torso_lin={alpha_torso_lin})")
+    print(f"  Output: {out_dir}")
+    print('=' * 70)
+    log = sim.run(verbose=True)
+
+    os.makedirs(out_dir, exist_ok=True)
+    log.save(os.path.join(out_dir, 'sim_log.json'))
+    with open(os.path.join(out_dir, 'step_log.json'), 'w') as f:
+        json.dump(sim._step2_diag_log, f, indent=2)
+
+    text_metrics = _step_metrics_table(
+        log, sim._step2_diag_log, 5,
+        os.path.join(out_dir, 'step_metrics.txt'))
+    print('\n=== Per-step outcomes ===\n' + text_metrics)
+
+    step_log = list(sim.nmpc._nmpc.step_log)
+    with open(os.path.join(out_dir, 'nmpc_step_log.json'), 'w') as f:
+        json.dump(step_log, f, indent=2)
+    _nmpc_table(step_log, os.path.join(out_dir, 'nmpc_per_step.txt'))
+
+    tot = int(sim._sat_total_calls)
+    clip = int(sim._sat_clipped_calls)
+    ratio = (clip / tot * 100.0) if tot > 0 else 0.0
+    sat_text = (
+        f"F-SAT telemetry\n"
+        f"  total saturator calls: {tot}\n"
+        f"  cycles clipped:        {clip}  ({ratio:.2f}%)\n"
+        f"  max clip magnitude:    {sim._sat_max_clip_mm:.3f} mm\n"
+    )
+    with open(os.path.join(out_dir, 'sat_stats.txt'), 'w') as f:
+        f.write(sat_text)
+    print('\n' + sat_text)
+
+    # Structure drift summary
+    sp = np.array(log.struct_pos) if log.struct_pos else None
+    om = np.array(log.omega_s) if log.omega_s else None
+    drift_max = float(np.linalg.norm(
+        sp - sp[0], axis=1).max() * 1000.0) if sp is not None else float('nan')
+    om_max = float(np.linalg.norm(
+        om, axis=1).max() * 1e3) if om is not None else float('nan')
+    drift_text = (
+        f"Structure drift over run\n"
+        f"  max ||struct_pos − struct_pos[0]||: {drift_max:6.2f} mm\n"
+        f"  max ||omega_s||:                    {om_max:6.2f} mrad/s\n"
+    )
+    with open(os.path.join(out_dir, 'struct_drift.txt'), 'w') as f:
+        f.write(drift_text)
+    print(drift_text)
+
+    return out_dir
+
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--legacy', action='store_true',
+                        help='Disable cooperative_arms_mode (regression guard)')
+    parser.add_argument('--alpha_torso_lin', type=float, default=500.0,
+                        help='Sensitivity sweep value (default 500)')
+    args = parser.parse_args()
+
+    with open(MJCF, 'r') as f:
+        original = f.read()
+    pre_hash = _mjcf_md5(MJCF)
+    tag = 'LEGACY' if args.legacy else 'COOP'
+    print(f'[COOP-ARMS {tag}] MJCF md5 pre:  {pre_hash}')
+    try:
+        _mutate_mjcf(damping=0.0, armature=0.05)
+        main(args.legacy, args.alpha_torso_lin)
+    finally:
+        with open(MJCF, 'w') as f:
+            f.write(original)
+        post_hash = _mjcf_md5(MJCF)
+        print(f'[COOP-ARMS {tag}] MJCF md5 post: {post_hash}')
+        assert post_hash == pre_hash, 'MJCF restoration failed'

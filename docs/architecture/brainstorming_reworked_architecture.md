@@ -741,6 +741,25 @@ The soft cost is preferred for simplicity and because the torso position referen
 ---
 
 
+### Deviation: Cooperative-Arms Task Stack (post-spec)
+
+Empirical observations during step 1 of multi-step traversals (this branch, May 2026) showed the strict-priority hierarchy of §4.3 producing a kinematic deadlock: the body lagged ~240 mm behind the torso reference, the swing EE flat-lined ~197 mm short of the dock target, and the null-space projection $\mathbf{N}_\text{torso}\mathbf{J}_\text{ee}$ geometrically prevented the EE task from pulling the body forward. No actuator was near saturation (joint torque 8%, RWA 18%, contact wrench 0.3%).
+
+The implementation deviates from §4.3 in **cooperative-arms mode** (`cfg.cooperative_arms_mode = True`, default in `_make_m7_config`):
+
+- **P1 (strict equality)** — torso *angular* 3D only, weight $\alpha_\text{torso}^\text{ang}$. Protects the AOCS angular-momentum budget.
+- **P2 (weighted LS, co-equal)** — torso *linear* 3D (weight $\alpha_\text{torso}^\text{lin}$) and EE 6D (weight $\alpha_\text{ee}$). Both projected through $\mathbf{N}_\text{torso}^\text{ang}$, no projection between them. The QP arbitrates via the relative $\alpha$: at the defaults $\alpha_\text{torso}^\text{lin} = 500$ vs $\alpha_\text{ee} = 3000$, the EE task dominates 6:1 on body-linear motion, allowing the swing arm to pull the body toward its dock target when reach margin demands.
+- **P3 (posture)** — projected through $\mathbf{N}_\text{combo}$ over the stacked P1 + P2 Jacobians ($\mathbb{R}^{12 \times n}$), with `rcond = 1e-4` on the combined pseudo-inverse to handle the wider conditioning of the stacked block (individual task pinvs stay at `1e-8`).
+
+The DOF accounting still holds: angular 3 + linear 3 + EE 6 = 12 consumed (from 14 free SS DOFs), leaving 2 DOFs for posture.
+
+**Limitation — stance arm thrust flows passively via the dynamics constraint only.** This deviation introduces no explicit QP cost on stance-arm reaction. The cooperative behaviour relies on the LS arbitration at P2: when the EE task wants the body to advance, the QP finds a $(\boldsymbol{\tau}_q, \boldsymbol{\lambda}, \ddot{\mathbf{q}})$ tuple satisfying the dynamics equality that produces both EE acceleration toward the dock and net body acceleration in the same direction — the stance arm's contact wrench is whatever the hard dynamics constraint demands for consistency. There is no task explicitly rewarding "use the stance arm to push the body forward", and there is no explicit penalty against it either. This is a known gap; future work may add an explicit stance-thrust task or replace the body-objective formulation with a "body progression toward swing target" cost.
+
+The legacy strict-priority stack of §4.3 remains available via `cfg.cooperative_arms_mode = False` and is exercised by the regression guard in `scripts/diag_cooperative_arms.py --legacy`.
+
+---
+
+
 ### AOCS Controller (Corrected)
 
 The wheels must reject the full disturbance torque about $O_p$, not just the centroidal rate:

@@ -93,6 +93,22 @@ class SimConfig:
     alpha_com_soft: float = 0.0   # Soft CoM residual disabled — redundant with torso 6D position task; 5.0 was fighting torso tracking
     alpha_passivity: float = 1.0  # DS passivity decay rate [1/s]
 
+    # ── Cooperative-arms mode (deviation from spec §4.3) ────────
+    # When True, the WBC task stack splits the torso 6D task into:
+    #   P1 — torso ANGULAR 3D (strict-equality strength, alpha_torso_ang)
+    #   P2 — torso LINEAR 3D + EE 6D as weighted-LS co-contributors,
+    #        BOTH projected through N_torso_ang (no projection between them)
+    #   P3 — posture, projected through N(combined P1+P2)
+    # This drops the strict EE→torso null-space hierarchy: the EE task can
+    # now pull the body forward in the linear DOFs when its reach margin
+    # demands it. The torso angular DOF stays strict (protects AOCS
+    # budget). Stance-arm thrust still flows passively through the
+    # dynamics constraint (no explicit QP cost on stance thrust —
+    # documented limitation; cooperative reaction is structurally
+    # rewarded by the LS arbitration, not by a dedicated task).
+    # Default False preserves the legacy M2 strict-priority stack.
+    cooperative_arms_mode: bool = False
+
     # ── Option D: torso linear soft tube ────────────────────────
     # When r_tube > 0, the WBC torso P1 task is split:
     #   (a) angular 3D — always enforced at the full α_torso weight
@@ -156,6 +172,8 @@ class SimConfig:
     # ── QP weights — Single-support ─────────────────────────────
     ss_alpha_com: float = 2e2
     ss_alpha_torso: float = 5e2
+    ss_alpha_torso_ang: float = 5e2  # Cooperative-arms P1 torso angular weight
+    ss_alpha_torso_lin: float = 5e2  # Cooperative-arms P2 torso linear weight (co-equal w/ EE)
     ss_alpha_ee: float = 3e3
     ss_alpha_posture: float = 2e1
     ss_alpha_wrench: float = 1e-2  # pure regularisation; 1e2 was penalising contact forces (the only actuation path through the stance weld) and attenuating the torso task 7x (see scripts/test_qp_tracking.py)

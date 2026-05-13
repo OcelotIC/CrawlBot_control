@@ -40,6 +40,11 @@ def _make_m7_config():
         use_m2_stack=True,
         alpha_com_soft=0.0,
         alpha_passivity=1.0,
+        # Cooperative-arms mode left OFF in this helper to preserve
+        # legacy behaviour for every script and test that consumes it.
+        # Diagnostic runners that exercise the deviation (e.g.
+        # scripts/diag_cooperative_arms.py) flip the flag explicitly.
+        cooperative_arms_mode=False,
         # M3: NMPC conservation-law box
         enforce_hw_conservation=True,
         h_max_tight=np.full(3, 5.0),
