@@ -111,6 +111,16 @@ class WholeBodyQPConfig:
     alpha_torso_ang: float = 5e2
     alpha_torso_lin: float = 5e2
 
+    # ── Stance-thrust inertial-coupling correction (experimental) ───
+    # Adds (J_c_stance[:,:6])^{-T} · M_fj · ddq_j_prev to the stance
+    # slot of the wrench reference, intending to feed-forward the
+    # floating-base/joint inertial coupling. Empirically REGRESSES
+    # step 0 (TIMEOUT 12.1 mm vs cooperative-baseline DOCK 4.55 mm) —
+    # see results/diag_cooperative_arms_thrust/. Kept off by default
+    # and isolated behind its own flag so the cooperative-arms
+    # baseline isn't degraded.
+    stance_thrust_correction: bool = False
+
     # ── Passivity constraint (DS only) ──
     alpha_passivity: float = 1.0  # Energy decay rate α [1/s] (α < 50 at 100 Hz)
 
@@ -213,6 +223,15 @@ class WholeBodyQP:
         self._tube_violations: int = 0
         self._tube_max_e_lin_m: float = 0.0
         self._tube_last_violated: bool = False
+
+        # Stance-thrust correction state (cooperative-arms mode).
+        # ddq_j from the previous WBC solve, used to feed-forward the
+        # inertial floating-base/joint coupling M_fj @ ddq_j into the
+        # stance contact wrench reference. One WBC tick (~10 ms) of
+        # delay; acceptable at 100 Hz. Zero on first solve.
+        self._ddq_j_prev: np.ndarray = np.zeros(nq)
+        self._stance_thrust_corr_calls: int = 0
+        self._stance_thrust_corr_max_norm: float = 0.0
 
         # hw-slack telemetry (always populated). After each QP solve we
         # record the norms of the upper/lower slack variables; non-zero
@@ -890,7 +909,44 @@ class WholeBodyQP:
         # --- Task 3: Contact wrench tracking ---
         A_wrench = np.zeros((self._dim_lambda, n))
         A_wrench[:, idx['lambda'][0]: idx['lambda'][1]] = np.eye(self._dim_lambda)
-        b_wrench = lambda_ref
+        b_wrench = lambda_ref.copy()
+
+        # Stance-thrust inertial-coupling correction (cooperative-arms mode).
+        # The NMPC reference f_stance_nmpc captures momentum-shaping intent
+        # at the slow rate. At the WBC rate it doesn't see the
+        # joint-acceleration coupling M_fj @ ddq_j that the floating base
+        # generates from arm motion. Add
+        #     Δλ_stance = (J_c_stance[:, :6])^{-T} · M_fj · ddq_j_prev
+        # to the stance slot of b_wrench so the QP biases the contact
+        # toward producing the wrench the floating base actually needs to
+        # absorb the joint reaction. Gated on:
+        #   • cooperative_arms_mode (opt-in)
+        #   • not settle_mode (SS only, where exactly one EE is welded)
+        #   • exactly one active contact (the stance)
+        # ddq_j_prev introduces ~10 ms of delay; acceptable at 100 Hz.
+        if (cfg.stance_thrust_correction and not settle_mode
+                and J_contacts is not None and J_contacts.size > 0):
+            nc_active = J_contacts.shape[0] // 6
+            if nc_active == 1:
+                # Find the active contact slot j.
+                j_stance = next(
+                    (j for j in range(cfg.nc_max)
+                     if contact_config.active_contacts[j]),
+                    None)
+                if j_stance is not None:
+                    M_fj = H_robot[:6, 6:]                    # (6, nq)
+                    rhs_ff = M_fj @ self._ddq_j_prev          # (6,)
+                    J_c_ff = J_contacts[0:6, :6]              # (6, 6)
+                    try:
+                        delta_lambda = np.linalg.solve(J_c_ff.T, rhs_ff)
+                    except np.linalg.LinAlgError:
+                        delta_lambda = np.linalg.lstsq(
+                            J_c_ff.T, rhs_ff, rcond=1e-6)[0]
+                    b_wrench[j_stance * 6: (j_stance + 1) * 6] += delta_lambda
+                    self._stance_thrust_corr_calls += 1
+                    self._stance_thrust_corr_max_norm = max(
+                        self._stance_thrust_corr_max_norm,
+                        float(np.linalg.norm(delta_lambda)))
 
         qp.add_task(A_wrench, b_wrench, cfg.alpha_wrench, priority=4)
 
@@ -984,6 +1040,11 @@ class WholeBodyQP:
             }
         else:
             self.last_torso_debug = None
+
+        # Cache joint qdd for next-cycle stance-thrust correction.
+        # Updated unconditionally (cheap); the read site is gated by
+        # cooperative_arms_mode + not settle_mode + nc_active == 1.
+        self._ddq_j_prev = qdd_opt.copy()
 
         return qdd_t_opt, qdd_opt, lambda_opt, tau_q_opt, info
 

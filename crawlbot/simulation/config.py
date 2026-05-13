@@ -109,6 +109,16 @@ class SimConfig:
     # Default False preserves the legacy M2 strict-priority stack.
     cooperative_arms_mode: bool = False
 
+    # ── Stance-thrust inertial-coupling correction (experimental, OFF) ─
+    # Negative-result experiment: see WholeBodyQPConfig docstring and
+    # results/diag_cooperative_arms_thrust/. Adds an explicit
+    # M_fj · ddq_j feedforward to the stance wrench reference. Was
+    # hypothesized to close the 2.4 mm step-2 gap by absorbing the
+    # joint-acceleration coupling at the contact; in practice it
+    # regressed step 0 to TIMEOUT 12.1 mm. Kept available behind this
+    # flag for future investigation.
+    stance_thrust_correction: bool = False
+
     # ── Option D: torso linear soft tube ────────────────────────
     # When r_tube > 0, the WBC torso P1 task is split:
     #   (a) angular 3D — always enforced at the full α_torso weight

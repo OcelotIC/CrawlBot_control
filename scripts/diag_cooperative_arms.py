@@ -262,6 +262,19 @@ def main(legacy: bool, alpha_torso_lin: float):
         f.write(sat_text)
     print('\n' + sat_text)
 
+    # Stance-thrust correction telemetry
+    corr_calls = int(getattr(sim.qp_ss, '_stance_thrust_corr_calls', 0))
+    corr_max = float(
+        getattr(sim.qp_ss, '_stance_thrust_corr_max_norm', 0.0))
+    corr_text = (
+        f"Stance-thrust correction telemetry\n"
+        f"  total correction applications: {corr_calls}\n"
+        f"  max ||Δλ_stance|| (6D wrench): {corr_max:.4f}\n"
+    )
+    with open(os.path.join(out_dir, 'stance_thrust.txt'), 'w') as f:
+        f.write(corr_text)
+    print(corr_text)
+
     # Structure drift summary
     sp = np.array(log.struct_pos) if log.struct_pos else None
     om = np.array(log.omega_s) if log.omega_s else None

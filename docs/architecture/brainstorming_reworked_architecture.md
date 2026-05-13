@@ -753,7 +753,17 @@ The implementation deviates from §4.3 in **cooperative-arms mode** (`cfg.cooper
 
 The DOF accounting still holds: angular 3 + linear 3 + EE 6 = 12 consumed (from 14 free SS DOFs), leaving 2 DOFs for posture.
 
-**Limitation — stance arm thrust flows passively via the dynamics constraint only.** This deviation introduces no explicit QP cost on stance-arm reaction. The cooperative behaviour relies on the LS arbitration at P2: when the EE task wants the body to advance, the QP finds a $(\boldsymbol{\tau}_q, \boldsymbol{\lambda}, \ddot{\mathbf{q}})$ tuple satisfying the dynamics equality that produces both EE acceleration toward the dock and net body acceleration in the same direction — the stance arm's contact wrench is whatever the hard dynamics constraint demands for consistency. There is no task explicitly rewarding "use the stance arm to push the body forward", and there is no explicit penalty against it either. This is a known gap; future work may add an explicit stance-thrust task or replace the body-objective formulation with a "body progression toward swing target" cost.
+**Stance-arm thrust — explicit inertial-coupling correction (negative-result experiment).** An attempt was made to close the residual 2.4 mm step-2 gap by adding an explicit feedforward to the stance wrench reference:
+
+$$
+\boldsymbol{\lambda}_\text{stance}^\text{des} \;=\; \mathbf{f}_\text{stance}^\text{nmpc} \;+\; \bigl(\mathbf{J}_\text{c}^\text{stance}[:,\,:6]\bigr)^{-\top} \mathbf{M}_{fj}\, \ddot{\mathbf{q}}_j^\text{prev}
+$$
+
+with $\mathbf{M}_{fj} = \mathbf{H}[:6,\,6:]$ (Pinocchio CRBA off-diagonal block) and $\ddot{\mathbf{q}}_j^\text{prev}$ from the previous WBC solution. The hypothesis was that the slow-rate NMPC reference does not see this coupling, so adding it explicitly at the WBC rate would improve cooperative motion.
+
+Empirically the correction regresses step 0 from DOCK 4.55 mm to TIMEOUT 12.1 mm (results/diag_cooperative_arms_thrust/). Structure drift and angular velocity do improve (the floating base becomes stiffer against joint reaction), but body progression — which depends on EE pull translating into base motion — is suppressed. The likely cause is double-counting: the dynamics equality $\mathbf{M}\ddot{\mathbf{q}} + \mathbf{h} = \mathbf{J}_\text{c}^{\top}\boldsymbol{\lambda} + \mathbf{S}^{\top}\boldsymbol{\tau}$ already ties $\boldsymbol{\lambda}$ to the same inertial reaction; a wrench-reference bias for that reaction propagates through the Lagrangian multiplier of the equality and ends up opposing body motion.
+
+The flag (`stance_thrust_correction`, default `False`) and the code path are preserved for future investigation, but the operating configuration leaves the correction off. Possible alternative formulations — joint-torque feedforward, angular-only correction, or reducing $\alpha_\text{wrench}$ during the correction — are not pursued on this branch.
 
 The legacy strict-priority stack of §4.3 remains available via `cfg.cooperative_arms_mode = False` and is exercised by the regression guard in `scripts/diag_cooperative_arms.py --legacy`.
 
