@@ -202,7 +202,9 @@ def main(legacy: bool, alpha_torso_lin: float):
     cfg.cooperative_arms_mode = (not legacy)
     cfg.ss_alpha_torso_lin = float(alpha_torso_lin)
     # alpha_torso_ang stays at default 500 (set by _make_m7_config).
-    cfg.frames_per_step = int(os.environ.get('FRAMES_PER_STEP', '0'))
+    # 5 evenly-spaced snapshots per SS for the offline renderer.
+    # FRAMES_PER_STEP=0 disables capture entirely (e.g. for tests).
+    cfg.frames_per_step = int(os.environ.get('FRAMES_PER_STEP', '5'))
 
     if legacy:
         out_dir = os.path.join(_root, 'results',
@@ -291,6 +293,31 @@ def main(legacy: bool, alpha_torso_lin: float):
     with open(os.path.join(out_dir, 'struct_drift.txt'), 'w') as f:
         f.write(drift_text)
     print(drift_text)
+
+    # ── Auto-render isometric frame sequence ────────────────────
+    # Only fires for the canonical default (cooperative + α_lin=500);
+    # subprocess so mujoco.Renderer can pick up MUJOCO_GL=osmesa
+    # without conflicting with the sim's MUJOCO_GL=disabled.
+    canonical = (not legacy) and abs(alpha_torso_lin - 500.0) < 1e-6
+    if canonical and cfg.frames_per_step > 0:
+        import subprocess
+        env = os.environ.copy()
+        env['MUJOCO_GL'] = 'osmesa'
+        env['PYTHONPATH'] = _root
+        print('[render] invoking scripts/render_traversal.py ...')
+        r = subprocess.run(
+            ['python3', os.path.join(_root, 'scripts',
+                                     'render_traversal.py')],
+            env=env, capture_output=True, text=True)
+        # Print only the final line + any error so the parent log
+        # stays compact (the renderer logs every frame on its own).
+        if r.returncode != 0:
+            print('[render] FAILED rc=', r.returncode)
+            print(r.stderr[-2000:])
+        else:
+            tail = r.stdout.strip().splitlines()[-3:]
+            for line in tail:
+                print('[render]', line)
 
     return out_dir
 
