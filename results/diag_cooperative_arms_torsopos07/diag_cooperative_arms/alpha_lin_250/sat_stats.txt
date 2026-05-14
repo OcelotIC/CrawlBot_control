@@ -1,0 +1,4 @@
+F-SAT telemetry
+  total saturator calls: 4009
+  cycles clipped:        3990  (99.53%)
+  max clip magnitude:    647.421 mm
