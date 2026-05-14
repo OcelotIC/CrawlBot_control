@@ -1571,7 +1571,33 @@ class SimulationLoop:
                               f"released {swing_arm}@{old_anchor}")
 
                     docked = False
+                    # Periodic snapshot capture for offline rendering.
+                    # When cfg.frames_per_step > 0, schedule
+                    # frames_per_step evenly-spaced captures across
+                    # [t_ss_start, t_ss_start + T_step].
+                    if int(getattr(cfg, 'frames_per_step', 0)) > 0:
+                        n_frames = int(cfg.frames_per_step)
+                        if n_frames == 1:
+                            self._frame_capture_times = [t_ss_start]
+                        else:
+                            self._frame_capture_times = [
+                                t_ss_start + (k / (n_frames - 1)) * T_step
+                                for k in range(n_frames)]
+                        self._frame_capture_step_idx = int(step_idx)
+                        self._frame_capture_kidx = 0
+                    else:
+                        self._frame_capture_times = []
                     while t < t_ss_deadline and not docked:
+                        # Periodic frame capture (cfg.frames_per_step > 0).
+                        # Triggered when t crosses the next scheduled time.
+                        if self._frame_capture_times and t >= self._frame_capture_times[0]:
+                            mujoco.mj_forward(self.mj_model, self.mj_data)
+                            label = (
+                                f'frame_step{self._frame_capture_step_idx}_'
+                                f'{self._frame_capture_kidx}')
+                            self._capture_snapshot(log, t, label)
+                            self._frame_capture_times.pop(0)
+                            self._frame_capture_kidx += 1
                         hw, L_com_prev = self._step(
                             t, 'SS', step_idx, swing_arm, stance_arm,
                             cc_ss, target_idx, stance_a, stance_b,

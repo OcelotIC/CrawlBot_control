@@ -88,6 +88,12 @@ class SimConfig:
     # full-cascade runs.
     stop_on_failed_step: bool = True
 
+    # ── Frame capture for offline rendering ─────────────────────
+    # When > 0, capture this many evenly-spaced snapshots across
+    # the SS swing of every step (labelled frame_step{idx}_{k}).
+    # Default 0 = off. Used by scripts/render_traversal.py.
+    frames_per_step: int = 0
+
     # ── M2: reworked QP task stack ──────────────────────────────
     use_m2_stack: bool = False    # Enable reworked QP (torso P1 + EE null-space P2 + soft CoM)
     alpha_com_soft: float = 0.0   # Soft CoM residual disabled — redundant with torso 6D position task; 5.0 was fighting torso tracking

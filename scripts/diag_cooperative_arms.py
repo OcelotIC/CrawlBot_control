@@ -202,6 +202,7 @@ def main(legacy: bool, alpha_torso_lin: float):
     cfg.cooperative_arms_mode = (not legacy)
     cfg.ss_alpha_torso_lin = float(alpha_torso_lin)
     # alpha_torso_ang stays at default 500 (set by _make_m7_config).
+    cfg.frames_per_step = int(os.environ.get('FRAMES_PER_STEP', '0'))
 
     if legacy:
         out_dir = os.path.join(_root, 'results',
