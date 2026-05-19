@@ -253,13 +253,31 @@ class SimulationLoop:
         needed_pairs = set()
         for gp in self.plan.phases:
             needed_pairs.add((gp.anchor_a_idx, gp.anchor_b_idx))
+        # Startup-IK regularizers (default None/0 ⇒ legacy behaviour):
+        # pitch/roll-level the torso to the structure (yaw free) and
+        # bias arm joints toward a natural pose via whole-system
+        # null-space posture. Scoped to ONLY the (start_a, start_b)
+        # pair: the leveled+posture solve is ~11× slower (the outer
+        # Nelder-Mead runs many inner IKs), and only (start_a,
+        # start_b) becomes q_dock_init (the actual initial state +
+        # QP nominal posture). The other torso_map entries are just
+        # manipulability references / IK seeds / rare fallbacks, and a
+        # leveled start propagates forward through the live R_t0 of
+        # the fixed-rotation per-step IK — so they stay on the fast
+        # legacy path. Bounds the added setup cost to one extra solve.
+        _ik_kw = dict(
+            level_axis=getattr(cfg, 'ik_level_axis', None),
+            q_nominal=getattr(cfg, 'ik_q_nominal', None),
+            w_posture=float(getattr(cfg, 'ik_w_posture', 0.0)),
+        )
         self.torso_map = {}
         for (ai, bi) in needed_pairs:
             se3_a = self.sched.anchor_se3('a', ai)
             se3_b = self.sched.anchor_se3('b', bi)
+            pair_kw = _ik_kw if (ai, bi) == (start_a, start_b) else {}
             try:
                 q_opt, w = manipulability_config(
-                    self.robot.model, se3_a, se3_b)
+                    self.robot.model, se3_a, se3_b, **pair_kw)
                 self.torso_map[(ai, bi)] = q_opt
             except RuntimeError:
                 pass
@@ -279,7 +297,8 @@ class SimulationLoop:
             self.q_dock_init = dock_configuration(
                 self.robot.model,
                 self.sched.anchor_se3('a', start_a),
-                self.sched.anchor_se3('b', start_b))
+                self.sched.anchor_se3('b', start_b),
+                **_ik_kw)
 
         sp = self.mj_data.qpos[0:3].copy()
         sq = self.mj_data.qpos[3:7].copy()

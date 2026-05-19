@@ -206,6 +206,36 @@ def main(legacy: bool, alpha_torso_lin: float):
     # FRAMES_PER_STEP=0 disables capture entirely (e.g. for tests).
     cfg.frames_per_step = int(os.environ.get('FRAMES_PER_STEP', '5'))
 
+    # Startup-IK regularizers (canonical defaults applied at runner
+    # level so other scripts/tests keep the legacy free-rotation IK):
+    #  - level torso pitch/roll to the T15-FK rail surface normal
+    #    (structure +z), yaw free
+    #  - whole-system null-space posture biasing the 14 arm joints
+    #    (2×7-DOF) toward a mirror-symmetric template
+    #
+    # ik_q_nominal is the mirror-symmetric template from the
+    # start-pair (2,2) leveled-only solution: solve leveled IK once,
+    # take the *less-contorted* arm's joint vector and mirror it onto
+    # the other arm via the y-symmetry sign pattern
+    # S=[-1,-1,-1,-1,-1,-1,+1]. Reproduced by
+    # scripts/diag_qnominal_sweep.py. Sweep result (vs leveled-only
+    # ‖q_arm‖=4.05 / max|q|=147° / σ_min·prod=2.43e-2):
+    #   zeros  → ‖q‖3.07 max89° prod1.6e-3  (de-contorts but one arm
+    #            driven near-singular — rejected)
+    #   sym    → ‖q‖3.67 max113° prod2.24e-2 (de-contorts AND keeps
+    #            both arms well-conditioned — selected)
+    # w_posture is a secondary-task gain; the constrained null-space
+    # posture converges to the same fixed point for any w>0, 0.2 is
+    # fast enough for the Nelder-Mead inner solves (max_iter=500)
+    # while err stays ~1e-6 ≪ the 1e-3 IK-accept threshold.
+    cfg.ik_level_axis = np.array([0.0, 0.0, 1.0])
+    cfg.ik_q_nominal = np.array([
+        0.297781,  1.526727,  0.842257,  1.147432,
+        0.751390,  0.251893,  1.332349,
+        -0.297781, -1.526727, -0.842257, -1.147432,
+        -0.751390, -0.251893,  1.332349])
+    cfg.ik_w_posture = 0.2
+
     if legacy:
         out_dir = os.path.join(_root, 'results',
                                'diag_cooperative_arms_legacy')

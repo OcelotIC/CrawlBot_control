@@ -5,6 +5,7 @@ All tunable parameters for the NMPC+QP+AOCS pipeline in one place.
 
 import numpy as np
 from dataclasses import dataclass, field
+from typing import Optional
 
 
 @dataclass
@@ -225,6 +226,23 @@ class SimConfig:
     # well above near-singularity (w < ~1e-6).
     ik_fixed_rotation: bool = True
     ik_fixed_rotation_w_min: float = 1e-4
+
+    # ── Startup-IK posture/leveling regularizers ────────────────
+    # Forwarded by sim_loop.setup() into manipulability_config (and
+    # the rare dock_configuration fallback). All default off ⇒
+    # bit-identical legacy startup IK. See crawlbot/core/ik.py
+    # solve_ik docstring.
+    #   ik_level_axis : (3,) unit vector in the structure
+    #     (Pinocchio-world) frame. The startup IK keeps the torso
+    #     body-z parallel to ±this axis (pitch/roll leveled, yaw
+    #     free). For the T15-FK rail the surface normal is +z, so
+    #     np.array([0., 0., 1.]). None ⇒ legacy free rotation.
+    #   ik_q_nominal : (nq-7,) arm-joint reference; soft bias away
+    #     from contorted/entangled branches. None ⇒ no posture term.
+    #   ik_w_posture : weight on the posture regularizer. 0 ⇒ off.
+    ik_level_axis: Optional[np.ndarray] = None
+    ik_q_nominal: Optional[np.ndarray] = None
+    ik_w_posture: float = 0.0
 
     # ── M7 Manipulability-IK-1: trajectory-aware IK (Candidate 1) ──
     # When True, sim_loop builds an additional torso_map_traj dict

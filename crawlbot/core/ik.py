@@ -52,6 +52,55 @@ def _arm_v_slice(model: pin.Model, frame_id: int) -> slice:
         raise ValueError(f"Frame {frame_id} parent joint {pj} not in arm A or B")
 
 
+def _level_torso(q: np.ndarray, level_axis: np.ndarray) -> np.ndarray:
+    """Project the free-flyer torso rotation to zero pitch/roll about
+    ``level_axis`` (a unit vector in the structure/Pinocchio-world
+    frame) while preserving yaw about it.
+
+    Forces the torso body z-axis parallel to ±``level_axis`` (whichever
+    side it is currently closest to, so a torso that naturally hangs
+    "below" the structure is not flipped 180°). The minimal rotation
+    that maps the current torso-z onto the target is left-multiplied
+    onto the torso rotation, which removes tilt without touching the
+    yaw component about ``level_axis``.
+
+    q[3:7] is the Pinocchio free-flyer quaternion in (x, y, z, w) order.
+    """
+    qx, qy, qz, qw = q[3], q[4], q[5], q[6]
+    R = pin.Quaternion(qw, qx, qy, qz).toRotationMatrix()
+    u = R[:, 2]                                  # torso body-z in struct
+    n = np.asarray(level_axis, dtype=float)
+    n = n / max(np.linalg.norm(n), 1e-12)
+    if float(u @ n) < 0.0:
+        n = -n                                   # align to nearest side
+    c = float(np.clip(u @ n, -1.0, 1.0))
+    if c > 1.0 - 1e-12:
+        return q                                 # already leveled
+    axis = np.cross(u, n)
+    s = np.linalg.norm(axis)
+    if s < 1e-12:
+        # u antiparallel to n after sign pick — should not happen, but
+        # rotate 180° about any axis ⟂ u.
+        axis = np.array([1.0, 0.0, 0.0])
+        if abs(u[0]) > 0.9:
+            axis = np.array([0.0, 1.0, 0.0])
+        axis = axis - (axis @ u) * u
+        axis /= np.linalg.norm(axis)
+        angle = np.pi
+    else:
+        axis = axis / s
+        angle = np.arccos(c)
+    R_corr = pin.AngleAxis(angle, axis).toRotationMatrix()
+    R_new = R_corr @ R
+    quat = pin.Quaternion(R_new)
+    q = q.copy()
+    q[3] = quat.x
+    q[4] = quat.y
+    q[5] = quat.z
+    q[6] = quat.w
+    return q
+
+
 def solve_ik(
     model: pin.Model,
     q0: np.ndarray,
@@ -59,6 +108,9 @@ def solve_ik(
     max_iter: int = 500,
     tol: float = 1e-8,
     base_gain: float = 0.3,
+    q_nominal: Optional[np.ndarray] = None,
+    w_posture: float = 0.0,
+    level_axis: Optional[np.ndarray] = None,
 ) -> Tuple[np.ndarray, float]:
     """
     Iterative IK placing tool frames at target SE3 poses.
@@ -77,6 +129,21 @@ def solve_ik(
     max_iter : int
     tol : float
         Convergence on sum of ||log6(err)||.
+    q_nominal : (nq-7,), optional
+        Arm-joint reference pose. When given together with
+        ``w_posture > 0`` the posture gradient ``q_nominal − q_arms``
+        is projected into the WHOLE-SYSTEM task null space (both tool
+        Jacobians stacked) and added to the velocity step each
+        iteration, so the base repositions to let the arms extend
+        toward ``q_nominal`` without disturbing either tool target.
+        Default None ⇒ behaviour bit-identical to the legacy solver.
+    w_posture : float
+        Weight on the posture regularizer. 0 disables.
+    level_axis : (3,), optional
+        Unit vector in the structure (Pinocchio-world) frame. When
+        given, the torso rotation is projected after every iteration
+        so its body-z stays parallel to ±``level_axis`` (pitch/roll
+        leveled, yaw free). Default None ⇒ legacy free rotation.
 
     Returns
     -------
@@ -84,6 +151,8 @@ def solve_ik(
     err : float, final error norm
     """
     q = q0.copy()
+    if level_axis is not None:
+        q = _level_torso(q, level_axis)
     data = model.createData()
     nv = model.nv
 
@@ -91,13 +160,27 @@ def solve_ik(
         pin.forwardKinematics(model, data, q)
         pin.updateFramePlacements(model, data)
         pin.computeJointJacobians(model, data, q)
+        posture_active = q_nominal is not None and w_posture > 0.0
         dq = np.zeros(nv)
         err_tot = 0.0
+        J_list = []
+        err_list = []
 
         for fid, tgt in targets.items():
             err = pin.log6(data.oMf[fid].actInv(tgt)).vector
             J = pin.getFrameJacobian(model, data, fid, pin.LOCAL)
+            err_tot += np.linalg.norm(err)
 
+            if posture_active:
+                # Defer to the stacked resolved-rate solve below — the
+                # whole-system null-space projector is only consistent
+                # with a stacked primary step, not the decoupled one.
+                J_list.append(J)
+                err_list.append(err)
+                continue
+
+            # ── Legacy decoupled path (flags off OR leveling-only) ──
+            # Bit-identical to the original solver.
             # Arm-specific joint slice (DOF-generic)
             idx = _arm_v_slice(model, fid)
             n_arm = idx.stop - idx.start
@@ -115,15 +198,112 @@ def solve_ik(
             dq[:6] += np.linalg.solve(
                 Jb.T @ Jb + 1e-3 * np.eye(6), Jb.T @ err) * base_gain
 
-            err_tot += np.linalg.norm(err)
+        if posture_active:
+            # ── Stacked resolved-rate primary + whole-system
+            #    null-space posture (consistent projector) ──
+            # The per-arm posture form (project into one arm's 6-DOF
+            # task null space) has only 1 redundant DOF/arm and
+            # empirically drives that arm to a near-singularity (σ_min
+            # collapses 100–1000×) without reducing ‖q_arm‖. Bolting a
+            # whole-system projector onto the *decoupled* primary step
+            # is mathematically inconsistent (the projector assumes the
+            # primary step is J⁺·err) and breaks task convergence
+            # (err ~0.1–2). So when posture is requested the primary
+            # step itself becomes the stacked damped least-squares
+            # dq = J⁺·err over BOTH tool tasks (12×nv), and the posture
+            # gradient is projected into its true null space
+            # N = I − J⁺J (≈8 DOF: base xyz + yaw + arm self-motion).
+            # A pull toward q_nominal then recruits BASE motion to let
+            # the arms extend — the redundancy the per-arm form cannot
+            # reach — while keeping both tools on target. Damped pinv
+            # J⁺=Jᵀ(JJᵀ+λ²I)⁻¹ avoids amplifying near-singular task
+            # directions. q_nominal[k] ↔ q[7+k] ↔ v-index 6+k, so an
+            # arm v-slice s maps to q_nominal[s.start-6:s.stop-6] and
+            # q[s.start+1:s.stop+1]. Reached only when q_nominal is
+            # not None and w_posture > 0 ⇒ legacy/leveling-only paths
+            # are untouched.
+            J_full = np.vstack(J_list)               # (m_t, nv)
+            err_stack = np.concatenate(err_list)
+            lam = 1e-3
+            m_t = J_full.shape[0]
+
+            # Constraint-manifold reduction. When leveling, the base
+            # angular velocity is restricted to pure yaw about
+            # ``n_body``. Doing that *post hoc* (zeroing dq[3:6]'s
+            # off-yaw part after a full-space minimum-norm J⁺ solve)
+            # makes J⁺ keep spending task correction on the forbidden
+            # base-tilt DOFs every iteration → limit cycle, err never
+            # drops below ~0.1–1 (verified: err 0.4 leveled vs 1e-7
+            # unleveled). Folding the constraint into the column space
+            # — solve the stacked task in reduced coordinates
+            # [base_lin(3); yaw(1); arm] that *cannot express* base
+            # tilt — removes the conflict so both the task converges
+            # and the null space is consistent.
+            if level_axis is not None:
+                qx, qy, qz, qw = q[3], q[4], q[5], q[6]
+                R_b = pin.Quaternion(qw, qx, qy, qz).toRotationMatrix()
+                n = np.asarray(level_axis, dtype=float)
+                n = n / max(np.linalg.norm(n), 1e-12)
+                n_body = R_b.T @ n
+                n_body = n_body / max(np.linalg.norm(n_body), 1e-12)
+                E = np.zeros((nv, nv - 2))           # reduced → full
+                E[0:3, 0:3] = np.eye(3)              # base linear
+                E[3:6, 3] = n_body                   # base yaw only
+                E[6:nv, 4:nv - 2] = np.eye(nv - 6)   # arm joints
+            else:
+                E = np.eye(nv)
+
+            J_r = J_full @ E                          # (m_t, nr)
+            nr = E.shape[1]
+            J_r_pinv = J_r.T @ np.linalg.solve(
+                J_r @ J_r.T + lam ** 2 * np.eye(m_t), np.eye(m_t))
+            dq_r = J_r_pinv @ err_stack               # primary task
+            N_r = np.eye(nr) - J_r_pinv @ J_r
+            qn = np.asarray(q_nominal)
+            dq_post = np.zeros(nv)
+            slices = _get_arm_slices(model)
+            for s in (slices['arm_a_v'], slices['arm_b_v']):
+                dq_post[s] = (qn[s.start - 6: s.stop - 6]
+                              - q[s.start + 1: s.stop + 1])
+            # E has orthonormal columns ⇒ Eᵀ maps the arm posture
+            # gradient into reduced coords (base-lin & yaw entries
+            # become 0: no base posture target).
+            dq_r = dq_r + w_posture * (N_r @ (E.T @ dq_post))
+            dq = E @ dq_r
+
+        # Pitch/roll leveling — constraint-manifold descent. Restrict
+        # the base angular velocity to pure yaw about ``level_axis``
+        # (structure frame) so the solver only ever moves along the
+        # leveled manifold, instead of fighting a post-hoc projection
+        # (which causes a limit cycle and false "infeasible"). Mirrors
+        # dock_configuration_fixed_rotation, but keeps 1 rotational DOF
+        # (yaw) free instead of zeroing all 3. Pinocchio free-flyer nv
+        # layout is [linear(3); angular(3)] in the body frame, so the
+        # leveled yaw axis must be expressed in the body frame.
+        if level_axis is not None:
+            qx, qy, qz, qw = q[3], q[4], q[5], q[6]
+            R_b = pin.Quaternion(qw, qx, qy, qz).toRotationMatrix()
+            n = np.asarray(level_axis, dtype=float)
+            n = n / max(np.linalg.norm(n), 1e-12)
+            n_body = R_b.T @ n
+            n_body = n_body / max(np.linalg.norm(n_body), 1e-12)
+            omega = dq[3:6]
+            dq[3:6] = (omega @ n_body) * n_body   # keep yaw only
 
         alpha = min(1.0, 0.5 / max(np.max(np.abs(dq)), 1e-10))
         q = pin.integrate(model, q, alpha * dq)
+
+        # Numerical-drift cleanup: re-project the torso to exactly
+        # leveled (the dq restriction keeps it on the manifold to
+        # first order; this removes accumulated integration error).
+        if level_axis is not None:
+            q = _level_torso(q, level_axis)
 
         if err_tot < tol:
             break
 
     return q, err_tot
+
 
 
 def dock_configuration(
@@ -132,6 +312,10 @@ def dock_configuration(
     anchor_b: pin.SE3,
     torso_pos: np.ndarray = None,
     q_init: np.ndarray = None,
+    *,
+    level_axis: Optional[np.ndarray] = None,
+    q_nominal: Optional[np.ndarray] = None,
+    w_posture: float = 0.0,
 ) -> np.ndarray:
     """
     Convenience: compute a valid configuration with both tools at anchors.
@@ -144,6 +328,8 @@ def dock_configuration(
     q_init : (nq,) full configuration to use as seed. If provided, used
              instead of neutral + torso_pos. This ensures the IK converges
              to the same branch as the current robot configuration.
+    level_axis, q_nominal, w_posture : forwarded to ``solve_ik``
+        (see that docstring). All default off ⇒ legacy behaviour.
 
     Returns
     -------
@@ -160,7 +346,9 @@ def dock_configuration(
 
     fid_a, fid_b = _get_tool_frames(model)
     targets = {fid_a: anchor_a, fid_b: anchor_b}
-    q, err = solve_ik(model, q0, targets, max_iter=2000)
+    q, err = solve_ik(model, q0, targets, max_iter=2000,
+                       q_nominal=q_nominal, w_posture=w_posture,
+                       level_axis=level_axis)
     if err > 1e-4:
         raise RuntimeError(f"IK failed to converge: err={err:.2e}")
     return q
@@ -291,12 +479,26 @@ def manipulability_config(
     model: pin.Model,
     anchor_a: pin.SE3,
     anchor_b: pin.SE3,
+    *,
+    level_axis: Optional[np.ndarray] = None,
+    q_nominal: Optional[np.ndarray] = None,
+    w_posture: float = 0.0,
 ) -> Tuple[np.ndarray, float]:
     """Find the configuration maximizing combined arm manipulability.
 
     Optimizes the torso (base) position to maximize the product of
     Yoshikawa manipulability indices for both arms, subject to both
     tools reaching their respective anchors via IK.
+
+    Optional ``level_axis`` / ``q_nominal`` / ``w_posture`` are passed
+    straight through to the inner ``solve_ik`` calls (see that
+    function's docstring). When ``level_axis`` is given the inner IK
+    keeps the torso pitch/roll leveled to the structure (yaw free);
+    when ``q_nominal`` + ``w_posture`` are given the inner IK is biased
+    away from contorted/entangled branches. All default off ⇒
+    behaviour bit-identical to the legacy call. The outer Nelder-Mead
+    still optimises only torso xyz and the σ_min objective is
+    unchanged.
 
     Parameters
     ----------
@@ -333,7 +535,9 @@ def manipulability_config(
         best_score = -1.0
         best_q = None
         for q_try in candidates:
-            q, err = solve_ik(model, q_try, targets, max_iter=500)
+            q, err = solve_ik(model, q_try, targets, max_iter=500,
+                               q_nominal=q_nominal, w_posture=w_posture,
+                               level_axis=level_axis)
             if err > 1e-3:
                 continue
             pin.forwardKinematics(model, data, q)
@@ -381,10 +585,15 @@ def manipulability_config(
     # Recover the optimal configuration
     q0 = pin.neutral(model)
     q0[:3] = best_result.x
-    q_opt, err = solve_ik(model, q0, targets, max_iter=2000)
+    q_opt, err = solve_ik(model, q0, targets, max_iter=2000,
+                          q_nominal=q_nominal, w_posture=w_posture,
+                          level_axis=level_axis)
     if err > 1e-4:
         # Fallback: use midpoint
-        q_opt = dock_configuration(model, anchor_a, anchor_b)
+        q_opt = dock_configuration(model, anchor_a, anchor_b,
+                                   level_axis=level_axis,
+                                   q_nominal=q_nominal,
+                                   w_posture=w_posture)
 
     # Compute final manipulability
     pin.forwardKinematics(model, data, q_opt)
