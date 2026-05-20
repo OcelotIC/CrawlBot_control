@@ -381,3 +381,6 @@ class SimConfig:
     # Set to 0.0 to disable (reverts to the pre-Option-A step
     # behavior). Introduced to close the T12 DS1 divergence;
     # see docs/architecture/M7_T12_MEMO.md §5.
+
+    # ── Gait geometry ───────────────────────────────────────────
+    gait_anchor_dx: float = 0.8  # Anchor-grid pitch [m]; rewrites MJCF anchor sites to x=(i-3.5)·dx (i=1..6) via _mutate_mjcf

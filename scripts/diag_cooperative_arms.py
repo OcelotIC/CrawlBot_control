@@ -52,21 +52,44 @@ ROBOT_JOINT_RE = re.compile(
     r'(<default class="robot_joint">\s*\n\s*<joint damping=")[^"]+'
     r'(" armature=")[^"]+(")')
 
+ANCHOR_SITE_RE = re.compile(
+    r'(<site name="anchor_(\d+)([ab])" class="anchor" pos=")'
+    r'([^"]+)(")')
+
 
 def _mjcf_md5(path: str) -> str:
     with open(path, 'rb') as f:
         return hashlib.md5(f.read()).hexdigest()
 
 
-def _mutate_mjcf(damping: float, armature: float):
+def _mutate_mjcf(damping: float, armature: float,
+                 anchor_dx: float | None = None):
     with open(MJCF, 'r') as f:
         text = f.read()
     new, n = ROBOT_JOINT_RE.subn(
         rf'\g<1>{damping}\g<2>{armature}\g<3>', text, count=1)
     if n != 1:
         raise RuntimeError('robot_joint default not found')
+    if anchor_dx is not None and abs(anchor_dx - 0.8) > 1e-9:
+        def _repl(m):
+            idx = int(m.group(2))
+            arm = m.group(3)
+            x_new = (idx - 3.5) * anchor_dx
+            y = 0.3 if arm == 'a' else -0.3
+            return f'{m.group(1)}{x_new:.3f} {y} 0.025{m.group(5)}'
+        new, n2 = ANCHOR_SITE_RE.subn(_repl, new)
+        if n2 != 12:
+            raise RuntimeError(f'expected 12 anchor sites, matched {n2}')
     with open(MJCF, 'w') as f:
         f.write(new)
+
+
+def _json_default(obj):
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    if isinstance(obj, (np.floating, np.integer)):
+        return obj.item()
+    raise TypeError(f"unserializable {type(obj)}")
 
 
 def _parse_label(label: str):
@@ -190,8 +213,9 @@ def _nmpc_table(step_log, out_path):
     return text
 
 
-def main(legacy: bool, alpha_torso_lin: float):
+def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8):
     cfg = r_single._make_m7_config()
+    cfg.gait_anchor_dx = anchor_dx
     # Sweet-spot config carry-over (these are also already the defaults
     # via _make_m7_config + SimConfig at this point).
     cfg.mapping_bypass_in_ss = False
@@ -243,6 +267,10 @@ def main(legacy: bool, alpha_torso_lin: float):
         out_dir = os.path.join(_root, 'results',
                                'diag_cooperative_arms',
                                f'alpha_lin_{int(alpha_torso_lin)}')
+    elif abs(anchor_dx - 0.8) > 1e-9:
+        out_dir = os.path.join(_root, 'results',
+                               'diag_cooperative_arms',
+                               f'dx_{anchor_dx:.2f}')
     else:
         out_dir = os.path.join(_root, 'results', 'diag_cooperative_arms')
 
@@ -260,6 +288,18 @@ def main(legacy: bool, alpha_torso_lin: float):
     sim._step2_diag_enabled = True
     sim._step2_diag_log.clear()
 
+    sim._step_q_end_log = []
+    _orig_setup_torso = sim._setup_torso_for_step
+    def _wrapped_setup_torso(*a, **kw):
+        result = _orig_setup_torso(*a, **kw)
+        sim._step_q_end_log.append({
+            'step_idx': len(sim._step_q_end_log),
+            'q_start': sim._step_q_start.tolist(),
+            'q_end': sim._step_q_end.tolist(),
+        })
+        return result
+    sim._setup_torso_for_step = _wrapped_setup_torso
+
     print('\n' + '=' * 70)
     print(f"  Cooperative-arms 5-step (cooperative={not legacy}, "
           f"alpha_torso_lin={alpha_torso_lin})")
@@ -271,6 +311,16 @@ def main(legacy: bool, alpha_torso_lin: float):
     log.save(os.path.join(out_dir, 'sim_log.json'))
     with open(os.path.join(out_dir, 'step_log.json'), 'w') as f:
         json.dump(sim._step2_diag_log, f, indent=2)
+
+    ik_trace_drop_so3 = [
+        {k: v for k, v in e.items() if k not in ('R_start', 'R_goal')}
+        for e in (getattr(sim, '_debug_ik_trace', None) or [])
+    ]
+    with open(os.path.join(out_dir, 'ik_trace.json'), 'w') as f:
+        json.dump(ik_trace_drop_so3, f, indent=2, default=_json_default)
+
+    with open(os.path.join(out_dir, 'step_q_end.json'), 'w') as f:
+        json.dump(sim._step_q_end_log, f, indent=2, default=_json_default)
 
     text_metrics = _step_metrics_table(
         log, sim._step2_diag_log, 5,
@@ -358,6 +408,9 @@ if __name__ == '__main__':
                         help='Disable cooperative_arms_mode (regression guard)')
     parser.add_argument('--alpha_torso_lin', type=float, default=500.0,
                         help='Sensitivity sweep value (default 500)')
+    parser.add_argument('--anchor_dx', type=float, default=0.8,
+                        help='Anchor-grid pitch [m]; rewrites MJCF anchor sites '
+                             'to x=(i-3.5)*dx for i=1..6 (default 0.8 = no-op)')
     args = parser.parse_args()
 
     with open(MJCF, 'r') as f:
@@ -366,8 +419,8 @@ if __name__ == '__main__':
     tag = 'LEGACY' if args.legacy else 'COOP'
     print(f'[COOP-ARMS {tag}] MJCF md5 pre:  {pre_hash}')
     try:
-        _mutate_mjcf(damping=0.0, armature=0.05)
-        main(args.legacy, args.alpha_torso_lin)
+        _mutate_mjcf(damping=0.0, armature=0.05, anchor_dx=args.anchor_dx)
+        main(args.legacy, args.alpha_torso_lin, args.anchor_dx)
     finally:
         with open(MJCF, 'w') as f:
             f.write(original)
