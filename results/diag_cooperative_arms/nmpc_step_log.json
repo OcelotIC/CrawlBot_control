@@ -3,7 +3,7 @@
     "label": "step00/SS/t=0.11",
     "iter": 7,
     "status": "Solve_Succeeded",
-    "time_ms": 12.652912999783439,
+    "time_ms": 10.228375000224332,
     "warm_x": false,
     "warm_duals": false
   },
@@ -11,7 +11,7 @@
     "label": "step00/SS/t=0.21",
     "iter": 6,
     "status": "Solve_Succeeded",
-    "time_ms": 11.041328999908728,
+    "time_ms": 9.45310299994162,
     "warm_x": true,
     "warm_duals": true
   },
@@ -19,7 +19,7 @@
     "label": "step00/SS/t=0.31",
     "iter": 6,
     "status": "Solve_Succeeded",
-    "time_ms": 11.10819099994842,
+    "time_ms": 9.126121000008425,
     "warm_x": true,
     "warm_duals": true
   },
@@ -27,7 +27,7 @@
     "label": "step00/SS/t=0.41",
     "iter": 6,
     "status": "Solve_Succeeded",
-    "time_ms": 11.622439000348095,
+    "time_ms": 8.231048000197916,
     "warm_x": true,
     "warm_duals": true
   },
@@ -35,7 +35,7 @@
     "label": "step00/SS/t=0.51",
     "iter": 6,
     "status": "Solve_Succeeded",
-    "time_ms": 11.09951699982048,
+    "time_ms": 8.667758000228787,
     "warm_x": true,
     "warm_duals": true
   },
@@ -43,7 +43,7 @@
     "label": "step00/SS/t=0.61",
     "iter": 7,
     "status": "Solve_Succeeded",
-    "time_ms": 12.845955000102549,
+    "time_ms": 10.02393699991444,
     "warm_x": true,
     "warm_duals": true
   },
@@ -51,7 +51,7 @@
     "label": "step00/SS/t=0.71",
     "iter": 7,
     "status": "Solve_Succeeded",
-    "time_ms": 13.08323900002506,
+    "time_ms": 11.015760000191221,
     "warm_x": true,
     "warm_duals": true
   },
@@ -59,7 +59,7 @@
     "label": "step00/SS/t=0.81",
     "iter": 7,
     "status": "Solve_Succeeded",
-    "time_ms": 13.234807000117144,
+    "time_ms": 9.712488999866764,
     "warm_x": true,
     "warm_duals": true
   },
@@ -67,7 +67,7 @@
     "label": "step00/SS/t=0.91",
     "iter": 8,
     "status": "Solve_Succeeded",
-    "time_ms": 14.348657000027742,
+    "time_ms": 11.841615999856003,
     "warm_x": true,
     "warm_duals": true
   },
@@ -75,7 +75,7 @@
     "label": "step00/SS/t=1.01",
     "iter": 9,
     "status": "Solve_Succeeded",
-    "time_ms": 16.09925899992959,
+    "time_ms": 12.115429000004951,
     "warm_x": true,
     "warm_duals": true
   },
@@ -83,7 +83,7 @@
     "label": "step00/SS/t=1.11",
     "iter": 9,
     "status": "Solve_Succeeded",
-    "time_ms": 15.78030900009253,
+    "time_ms": 12.235795999913535,
     "warm_x": true,
     "warm_duals": true
   },
@@ -91,7 +91,7 @@
     "label": "step00/SS/t=1.21",
     "iter": 9,
     "status": "Solve_Succeeded",
-    "time_ms": 15.105592000054457,
+    "time_ms": 11.640160000297328,
     "warm_x": true,
     "warm_duals": true
   },
@@ -99,7 +99,7 @@
     "label": "step00/SS/t=1.31",
     "iter": 9,
     "status": "Solve_Succeeded",
-    "time_ms": 15.196099000149843,
+    "time_ms": 11.525451999659708,
     "warm_x": true,
     "warm_duals": true
   },
@@ -107,7 +107,7 @@
     "label": "step00/SS/t=1.41",
     "iter": 9,
     "status": "Solve_Succeeded",
-    "time_ms": 15.257538999776443,
+    "time_ms": 11.543328999778169,
     "warm_x": true,
     "warm_duals": true
   },
@@ -115,7 +115,7 @@
     "label": "step00/SS/t=1.51",
     "iter": 9,
     "status": "Solve_Succeeded",
-    "time_ms": 15.145315999689046,
+    "time_ms": 11.74556699970708,
     "warm_x": true,
     "warm_duals": true
   },
@@ -123,7 +123,7 @@
     "label": "step00/SS/t=1.61",
     "iter": 9,
     "status": "Solve_Succeeded",
-    "time_ms": 15.078046999860817,
+    "time_ms": 15.131072000258428,
     "warm_x": true,
     "warm_duals": true
   },
@@ -131,7 +131,7 @@
     "label": "step00/SS/t=1.71",
     "iter": 10,
     "status": "Solve_Succeeded",
-    "time_ms": 17.119886000273254,
+    "time_ms": 15.040112999940902,
     "warm_x": true,
     "warm_duals": true
   },
@@ -139,7 +139,7 @@
     "label": "step00/SS/t=1.81",
     "iter": 10,
     "status": "Solve_Succeeded",
-    "time_ms": 16.690371000095183,
+    "time_ms": 13.664537999829918,
     "warm_x": true,
     "warm_duals": true
   },
@@ -147,7 +147,7 @@
     "label": "step00/SS/t=1.91",
     "iter": 10,
     "status": "Solve_Succeeded",
-    "time_ms": 16.183576000003086,
+    "time_ms": 12.789929000064149,
     "warm_x": true,
     "warm_duals": true
   },
@@ -155,7 +155,7 @@
     "label": "step00/SS/t=2.01",
     "iter": 11,
     "status": "Solve_Succeeded",
-    "time_ms": 18.029157999990275,
+    "time_ms": 13.730304000091564,
     "warm_x": true,
     "warm_duals": true
   },
@@ -163,7 +163,7 @@
     "label": "step00/SS/t=2.11",
     "iter": 11,
     "status": "Solve_Succeeded",
-    "time_ms": 18.00958800004082,
+    "time_ms": 13.465508000081172,
     "warm_x": true,
     "warm_duals": true
   },
@@ -171,7 +171,7 @@
     "label": "step00/SS/t=2.21",
     "iter": 11,
     "status": "Solve_Succeeded",
-    "time_ms": 17.704847999993945,
+    "time_ms": 13.251989999844227,
     "warm_x": true,
     "warm_duals": true
   },
@@ -179,7 +179,7 @@
     "label": "step00/SS/t=2.31",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 20.20015300013256,
+    "time_ms": 15.515135999976337,
     "warm_x": true,
     "warm_duals": true
   },
@@ -187,7 +187,7 @@
     "label": "step00/SS/t=2.41",
     "iter": 14,
     "status": "Solve_Succeeded",
-    "time_ms": 21.621633999984624,
+    "time_ms": 17.029336000177864,
     "warm_x": true,
     "warm_duals": true
   },
@@ -195,7 +195,7 @@
     "label": "step00/SS/t=2.51",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 19.198557999970944,
+    "time_ms": 14.701599000090937,
     "warm_x": true,
     "warm_duals": true
   },
@@ -203,7 +203,7 @@
     "label": "step00/SS/t=2.61",
     "iter": 11,
     "status": "Solve_Succeeded",
-    "time_ms": 18.737738999789144,
+    "time_ms": 13.699438999992708,
     "warm_x": true,
     "warm_duals": true
   },
@@ -211,7 +211,7 @@
     "label": "step00/SS/t=2.71",
     "iter": 11,
     "status": "Solve_Succeeded",
-    "time_ms": 18.76346100016235,
+    "time_ms": 14.196195999829797,
     "warm_x": true,
     "warm_duals": true
   },
@@ -219,7 +219,7 @@
     "label": "step00/SS/t=2.81",
     "iter": 11,
     "status": "Solve_Succeeded",
-    "time_ms": 18.58532500000365,
+    "time_ms": 14.240141999835032,
     "warm_x": true,
     "warm_duals": true
   },
@@ -227,7 +227,7 @@
     "label": "step00/SS/t=2.91",
     "iter": 11,
     "status": "Solve_Succeeded",
-    "time_ms": 19.111638000140374,
+    "time_ms": 14.634052000019437,
     "warm_x": true,
     "warm_duals": true
   },
@@ -235,7 +235,7 @@
     "label": "step00/SS/t=3.01",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 21.691078999992897,
+    "time_ms": 16.40377300009277,
     "warm_x": true,
     "warm_duals": true
   },
@@ -243,7 +243,7 @@
     "label": "step00/SS/t=3.11",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 21.448033999604377,
+    "time_ms": 16.38373399964621,
     "warm_x": true,
     "warm_duals": true
   },
@@ -251,7 +251,7 @@
     "label": "step00/SS/t=3.21",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 21.4022790000854,
+    "time_ms": 18.98286300001928,
     "warm_x": true,
     "warm_duals": true
   },
@@ -259,7 +259,7 @@
     "label": "step00/SS/t=3.31",
     "iter": 14,
     "status": "Solve_Succeeded",
-    "time_ms": 23.900164000224322,
+    "time_ms": 18.64070100009485,
     "warm_x": true,
     "warm_duals": true
   },
@@ -267,7 +267,7 @@
     "label": "step00/SS/t=3.41",
     "iter": 14,
     "status": "Solve_Succeeded",
-    "time_ms": 23.865655999998125,
+    "time_ms": 18.753018000097654,
     "warm_x": true,
     "warm_duals": true
   },
@@ -275,7 +275,7 @@
     "label": "step00/SS/t=3.51",
     "iter": 14,
     "status": "Solve_Succeeded",
-    "time_ms": 23.16172100017866,
+    "time_ms": 17.939881999609497,
     "warm_x": true,
     "warm_duals": true
   },
@@ -283,7 +283,7 @@
     "label": "step00/SS/t=3.61",
     "iter": 17,
     "status": "Solve_Succeeded",
-    "time_ms": 29.918335000274965,
+    "time_ms": 21.08359899966672,
     "warm_x": true,
     "warm_duals": true
   },
@@ -291,7 +291,7 @@
     "label": "step00/SS/t=3.71",
     "iter": 15,
     "status": "Solved_To_Acceptable_Level",
-    "time_ms": 24.482086000261916,
+    "time_ms": 18.222626999886415,
     "warm_x": true,
     "warm_duals": true
   },
@@ -299,7 +299,7 @@
     "label": "step00/SS/t=3.81",
     "iter": 15,
     "status": "Solve_Succeeded",
-    "time_ms": 25.35170500004824,
+    "time_ms": 18.61310799995408,
     "warm_x": true,
     "warm_duals": true
   },
@@ -307,7 +307,7 @@
     "label": "step00/SS/t=3.91",
     "iter": 15,
     "status": "Solve_Succeeded",
-    "time_ms": 25.632982999923115,
+    "time_ms": 19.882552000126452,
     "warm_x": true,
     "warm_duals": true
   },
@@ -315,7 +315,7 @@
     "label": "step00/SS/t=4.01",
     "iter": 15,
     "status": "Solve_Succeeded",
-    "time_ms": 24.443971999971836,
+    "time_ms": 18.54519700009405,
     "warm_x": true,
     "warm_duals": true
   },
@@ -323,7 +323,7 @@
     "label": "step00/SS/t=4.11",
     "iter": 15,
     "status": "Solve_Succeeded",
-    "time_ms": 24.488125999596377,
+    "time_ms": 18.716044999564474,
     "warm_x": true,
     "warm_duals": true
   },
@@ -331,7 +331,7 @@
     "label": "step00/SS/t=4.21",
     "iter": 14,
     "status": "Solve_Succeeded",
-    "time_ms": 23.39673500000572,
+    "time_ms": 17.71769300012238,
     "warm_x": true,
     "warm_duals": true
   },
@@ -339,7 +339,7 @@
     "label": "step00/SS/t=4.31",
     "iter": 14,
     "status": "Solve_Succeeded",
-    "time_ms": 25.95777300030022,
+    "time_ms": 18.03280600006474,
     "warm_x": true,
     "warm_duals": true
   },
@@ -347,7 +347,7 @@
     "label": "step00/SS/t=4.41",
     "iter": 14,
     "status": "Solve_Succeeded",
-    "time_ms": 24.244082999757666,
+    "time_ms": 17.38308699987101,
     "warm_x": true,
     "warm_duals": true
   },
@@ -355,7 +355,7 @@
     "label": "step00/SS/t=4.51",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 21.873009000046295,
+    "time_ms": 17.044355000052747,
     "warm_x": true,
     "warm_duals": true
   },
@@ -363,7 +363,7 @@
     "label": "step00/SS/t=4.61",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.234199999729753,
+    "time_ms": 17.32475400012845,
     "warm_x": true,
     "warm_duals": true
   },
@@ -371,7 +371,7 @@
     "label": "step00/SS/t=4.71",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.298910000245087,
+    "time_ms": 17.299168999670655,
     "warm_x": true,
     "warm_duals": true
   },
@@ -379,7 +379,7 @@
     "label": "step00/SS/t=4.81",
     "iter": 14,
     "status": "Solve_Succeeded",
-    "time_ms": 23.582387999795174,
+    "time_ms": 18.255775999932666,
     "warm_x": true,
     "warm_duals": true
   },
@@ -387,7 +387,7 @@
     "label": "step00/SS/t=4.91",
     "iter": 14,
     "status": "Solve_Succeeded",
-    "time_ms": 23.764712000229338,
+    "time_ms": 17.76263499959896,
     "warm_x": true,
     "warm_duals": true
   },
@@ -395,7 +395,7 @@
     "label": "step00/SS/t=5.01",
     "iter": 15,
     "status": "Solve_Succeeded",
-    "time_ms": 24.547791999793844,
+    "time_ms": 18.98394499994538,
     "warm_x": true,
     "warm_duals": true
   },
@@ -403,7 +403,7 @@
     "label": "step00/SS/t=5.11",
     "iter": 15,
     "status": "Solve_Succeeded",
-    "time_ms": 24.941992999629292,
+    "time_ms": 20.062672999756614,
     "warm_x": true,
     "warm_duals": true
   },
@@ -411,7 +411,7 @@
     "label": "step00/SS/t=5.21",
     "iter": 16,
     "status": "Solve_Succeeded",
-    "time_ms": 27.78889999990497,
+    "time_ms": 20.497185999829526,
     "warm_x": true,
     "warm_duals": true
   },
@@ -419,7 +419,7 @@
     "label": "step00/SS/t=5.31",
     "iter": 16,
     "status": "Solved_To_Acceptable_Level",
-    "time_ms": 26.218493999749626,
+    "time_ms": 19.445113000074343,
     "warm_x": true,
     "warm_duals": true
   },
@@ -427,7 +427,7 @@
     "label": "step00/SS/t=5.41",
     "iter": 17,
     "status": "Solve_Succeeded",
-    "time_ms": 28.17304400014109,
+    "time_ms": 21.63305100020807,
     "warm_x": true,
     "warm_duals": true
   },
@@ -435,7 +435,7 @@
     "label": "step00/SS/t=5.51",
     "iter": 17,
     "status": "Solve_Succeeded",
-    "time_ms": 27.70616699990569,
+    "time_ms": 22.199301999989984,
     "warm_x": true,
     "warm_duals": true
   },
@@ -443,7 +443,7 @@
     "label": "step00/SS/t=5.61",
     "iter": 16,
     "status": "Solve_Succeeded",
-    "time_ms": 26.242871999784256,
+    "time_ms": 20.47958599996491,
     "warm_x": true,
     "warm_duals": true
   },
@@ -451,7 +451,7 @@
     "label": "step00/SS/t=5.71",
     "iter": 16,
     "status": "Solve_Succeeded",
-    "time_ms": 26.7191160000948,
+    "time_ms": 21.35260599970934,
     "warm_x": true,
     "warm_duals": true
   },
@@ -459,7 +459,7 @@
     "label": "step00/SS/t=5.81",
     "iter": 15,
     "status": "Solve_Succeeded",
-    "time_ms": 25.992943000346713,
+    "time_ms": 19.256059999861463,
     "warm_x": true,
     "warm_duals": true
   },
@@ -467,7 +467,7 @@
     "label": "step00/SS/t=5.91",
     "iter": 15,
     "status": "Solve_Succeeded",
-    "time_ms": 24.87575699979061,
+    "time_ms": 19.033743999898434,
     "warm_x": true,
     "warm_duals": true
   },
@@ -475,7 +475,7 @@
     "label": "step00/SS/t=6.01",
     "iter": 15,
     "status": "Solve_Succeeded",
-    "time_ms": 25.51512299987735,
+    "time_ms": 19.36952599999131,
     "warm_x": true,
     "warm_duals": true
   },
@@ -483,7 +483,7 @@
     "label": "step00/SS/t=6.11",
     "iter": 14,
     "status": "Solve_Succeeded",
-    "time_ms": 23.6582540001109,
+    "time_ms": 18.332835999899544,
     "warm_x": true,
     "warm_duals": true
   },
@@ -491,7 +491,7 @@
     "label": "step00/SS/t=6.21",
     "iter": 14,
     "status": "Solve_Succeeded",
-    "time_ms": 23.135451000143803,
+    "time_ms": 18.362844999955996,
     "warm_x": true,
     "warm_duals": true
   },
@@ -499,7 +499,7 @@
     "label": "step00/SS/t=6.31",
     "iter": 14,
     "status": "Solve_Succeeded",
-    "time_ms": 24.066255999969144,
+    "time_ms": 18.301816000075632,
     "warm_x": true,
     "warm_duals": true
   },
@@ -507,7 +507,7 @@
     "label": "step00/SS/t=6.41",
     "iter": 14,
     "status": "Solve_Succeeded",
-    "time_ms": 23.62818799974775,
+    "time_ms": 19.468818999939685,
     "warm_x": true,
     "warm_duals": true
   },
@@ -515,7 +515,7 @@
     "label": "step00/SS/t=6.51",
     "iter": 14,
     "status": "Solve_Succeeded",
-    "time_ms": 24.802066999654926,
+    "time_ms": 19.012025999927573,
     "warm_x": true,
     "warm_duals": true
   },
@@ -523,7 +523,7 @@
     "label": "step00/SS/t=6.61",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 23.156345000188594,
+    "time_ms": 18.348366000282113,
     "warm_x": true,
     "warm_duals": true
   },
@@ -531,7 +531,7 @@
     "label": "step00/SS/t=6.71",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.639127999809716,
+    "time_ms": 17.41506100006518,
     "warm_x": true,
     "warm_duals": true
   },
@@ -539,7 +539,7 @@
     "label": "step00/SS/t=6.81",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.476599000128772,
+    "time_ms": 17.743528000210063,
     "warm_x": true,
     "warm_duals": true
   },
@@ -547,7 +547,7 @@
     "label": "step00/SS/t=6.91",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.832170000128826,
+    "time_ms": 16.90570700020544,
     "warm_x": true,
     "warm_duals": true
   },
@@ -555,7 +555,7 @@
     "label": "step00/SS/t=7.01",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.993407000285515,
+    "time_ms": 16.72639500020523,
     "warm_x": true,
     "warm_duals": true
   },
@@ -563,7 +563,7 @@
     "label": "step01/SS/t=7.62",
     "iter": 9,
     "status": "Solve_Succeeded",
-    "time_ms": 15.574505999666144,
+    "time_ms": 11.81931299970529,
     "warm_x": false,
     "warm_duals": false
   },
@@ -571,7 +571,7 @@
     "label": "step01/SS/t=7.72",
     "iter": 9,
     "status": "Solve_Succeeded",
-    "time_ms": 15.82296500009761,
+    "time_ms": 12.2794580001937,
     "warm_x": true,
     "warm_duals": true
   },
@@ -579,7 +579,7 @@
     "label": "step01/SS/t=7.82",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.64144800028589,
+    "time_ms": 16.65976899994348,
     "warm_x": true,
     "warm_duals": true
   },
@@ -587,7 +587,7 @@
     "label": "step01/SS/t=7.92",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.11700199995903,
+    "time_ms": 16.34515499972622,
     "warm_x": true,
     "warm_duals": true
   },
@@ -595,7 +595,7 @@
     "label": "step01/SS/t=8.02",
     "iter": 14,
     "status": "Solve_Succeeded",
-    "time_ms": 22.98760099984065,
+    "time_ms": 17.570876000263524,
     "warm_x": true,
     "warm_duals": true
   },
@@ -603,7 +603,7 @@
     "label": "step01/SS/t=8.12",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 21.355261000280734,
+    "time_ms": 15.170649000083358,
     "warm_x": true,
     "warm_duals": true
   },
@@ -611,7 +611,7 @@
     "label": "step01/SS/t=8.22",
     "iter": 11,
     "status": "Solve_Succeeded",
-    "time_ms": 19.27702800003317,
+    "time_ms": 14.19311600011497,
     "warm_x": true,
     "warm_duals": true
   },
@@ -619,7 +619,7 @@
     "label": "step01/SS/t=8.32",
     "iter": 11,
     "status": "Solve_Succeeded",
-    "time_ms": 18.241600999772345,
+    "time_ms": 13.635087999773532,
     "warm_x": true,
     "warm_duals": true
   },
@@ -627,7 +627,7 @@
     "label": "step01/SS/t=8.42",
     "iter": 10,
     "status": "Solve_Succeeded",
-    "time_ms": 17.137236999587913,
+    "time_ms": 13.242647999959445,
     "warm_x": true,
     "warm_duals": true
   },
@@ -635,7 +635,7 @@
     "label": "step01/SS/t=8.52",
     "iter": 10,
     "status": "Solve_Succeeded",
-    "time_ms": 18.226631000288762,
+    "time_ms": 13.087635999909253,
     "warm_x": true,
     "warm_duals": true
   },
@@ -643,7 +643,7 @@
     "label": "step01/SS/t=8.62",
     "iter": 10,
     "status": "Solve_Succeeded",
-    "time_ms": 17.299067999829276,
+    "time_ms": 12.710506999610516,
     "warm_x": true,
     "warm_duals": true
   },
@@ -651,7 +651,7 @@
     "label": "step01/SS/t=8.72",
     "iter": 10,
     "status": "Solve_Succeeded",
-    "time_ms": 18.492710000373336,
+    "time_ms": 13.284249000207637,
     "warm_x": true,
     "warm_duals": true
   },
@@ -659,7 +659,7 @@
     "label": "step01/SS/t=8.82",
     "iter": 10,
     "status": "Solve_Succeeded",
-    "time_ms": 18.2176889998118,
+    "time_ms": 13.45402600009038,
     "warm_x": true,
     "warm_duals": true
   },
@@ -667,7 +667,7 @@
     "label": "step01/SS/t=8.92",
     "iter": 10,
     "status": "Solve_Succeeded",
-    "time_ms": 18.39938400007668,
+    "time_ms": 13.156097999853955,
     "warm_x": true,
     "warm_duals": true
   },
@@ -675,7 +675,7 @@
     "label": "step01/SS/t=9.02",
     "iter": 10,
     "status": "Solve_Succeeded",
-    "time_ms": 17.821491999711725,
+    "time_ms": 13.657689999945433,
     "warm_x": true,
     "warm_duals": true
   },
@@ -683,7 +683,7 @@
     "label": "step01/SS/t=9.12",
     "iter": 11,
     "status": "Solve_Succeeded",
-    "time_ms": 20.188294000035967,
+    "time_ms": 14.58295900010853,
     "warm_x": true,
     "warm_duals": true
   },
@@ -691,7 +691,7 @@
     "label": "step01/SS/t=9.22",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 20.930875999965792,
+    "time_ms": 15.948130000197125,
     "warm_x": true,
     "warm_duals": true
   },
@@ -699,7 +699,7 @@
     "label": "step01/SS/t=9.32",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 21.953018000203883,
+    "time_ms": 16.254422000201885,
     "warm_x": true,
     "warm_duals": true
   },
@@ -707,7 +707,7 @@
     "label": "step01/SS/t=9.42",
     "iter": 11,
     "status": "Solve_Succeeded",
-    "time_ms": 19.278350000149658,
+    "time_ms": 15.448332000232767,
     "warm_x": true,
     "warm_duals": true
   },
@@ -715,7 +715,7 @@
     "label": "step01/SS/t=9.52",
     "iter": 14,
     "status": "Solve_Succeeded",
-    "time_ms": 23.63449299991771,
+    "time_ms": 16.382548999899882,
     "warm_x": true,
     "warm_duals": true
   },
@@ -723,7 +723,7 @@
     "label": "step01/SS/t=9.62",
     "iter": 11,
     "status": "Solve_Succeeded",
-    "time_ms": 19.16507999976602,
+    "time_ms": 14.048101999833307,
     "warm_x": true,
     "warm_duals": true
   },
@@ -731,7 +731,7 @@
     "label": "step01/SS/t=9.72",
     "iter": 11,
     "status": "Solve_Succeeded",
-    "time_ms": 20.17033399988577,
+    "time_ms": 14.187413999934506,
     "warm_x": true,
     "warm_duals": true
   },
@@ -739,7 +739,7 @@
     "label": "step01/SS/t=9.82",
     "iter": 11,
     "status": "Solve_Succeeded",
-    "time_ms": 19.68052699976397,
+    "time_ms": 13.817012999879807,
     "warm_x": true,
     "warm_duals": true
   },
@@ -747,7 +747,7 @@
     "label": "step01/SS/t=9.92",
     "iter": 11,
     "status": "Solve_Succeeded",
-    "time_ms": 18.747899000118196,
+    "time_ms": 19.52759000005244,
     "warm_x": true,
     "warm_duals": true
   },
@@ -755,7 +755,7 @@
     "label": "step01/SS/t=10.02",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.077454999816837,
+    "time_ms": 15.995083000234445,
     "warm_x": true,
     "warm_duals": true
   },
@@ -763,7 +763,7 @@
     "label": "step01/SS/t=10.12",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 19.848507000006066,
+    "time_ms": 14.923191999969276,
     "warm_x": true,
     "warm_duals": true
   },
@@ -771,7 +771,7 @@
     "label": "step01/SS/t=10.22",
     "iter": 11,
     "status": "Solve_Succeeded",
-    "time_ms": 19.49651199993241,
+    "time_ms": 14.264046999869606,
     "warm_x": true,
     "warm_duals": true
   },
@@ -779,7 +779,7 @@
     "label": "step01/SS/t=10.32",
     "iter": 11,
     "status": "Solve_Succeeded",
-    "time_ms": 18.5045819998777,
+    "time_ms": 16.74997899999653,
     "warm_x": true,
     "warm_duals": true
   },
@@ -787,7 +787,7 @@
     "label": "step01/SS/t=10.42",
     "iter": 11,
     "status": "Solve_Succeeded",
-    "time_ms": 26.42751900020812,
+    "time_ms": 14.339590999952634,
     "warm_x": true,
     "warm_duals": true
   },
@@ -795,7 +795,7 @@
     "label": "step01/SS/t=10.52",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 20.36312700010967,
+    "time_ms": 15.932966000036686,
     "warm_x": true,
     "warm_duals": true
   },
@@ -803,7 +803,7 @@
     "label": "step01/SS/t=10.62",
     "iter": 14,
     "status": "Solve_Succeeded",
-    "time_ms": 23.287484000320546,
+    "time_ms": 17.913695000061125,
     "warm_x": true,
     "warm_duals": true
   },
@@ -811,7 +811,7 @@
     "label": "step01/SS/t=10.72",
     "iter": 15,
     "status": "Solve_Succeeded",
-    "time_ms": 25.14585700009775,
+    "time_ms": 18.831282000064675,
     "warm_x": true,
     "warm_duals": true
   },
@@ -819,7 +819,7 @@
     "label": "step01/SS/t=10.82",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 20.402428000124928,
+    "time_ms": 15.74472699985563,
     "warm_x": true,
     "warm_duals": true
   },
@@ -827,7 +827,7 @@
     "label": "step01/SS/t=10.92",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 20.561619000091014,
+    "time_ms": 15.88537699990411,
     "warm_x": true,
     "warm_duals": true
   },
@@ -835,7 +835,7 @@
     "label": "step01/SS/t=11.02",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 22.60553299993262,
+    "time_ms": 16.31350800016662,
     "warm_x": true,
     "warm_duals": true
   },
@@ -843,7 +843,7 @@
     "label": "step01/SS/t=11.12",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 21.482700999968074,
+    "time_ms": 16.338107000137825,
     "warm_x": true,
     "warm_duals": true
   },
@@ -851,7 +851,7 @@
     "label": "step01/SS/t=11.22",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.67863299994133,
+    "time_ms": 17.381210000166902,
     "warm_x": true,
     "warm_duals": true
   },
@@ -859,7 +859,7 @@
     "label": "step01/SS/t=11.32",
     "iter": 15,
     "status": "Solve_Succeeded",
-    "time_ms": 25.364047000039136,
+    "time_ms": 19.527406999714003,
     "warm_x": true,
     "warm_duals": true
   },
@@ -867,7 +867,7 @@
     "label": "step01/SS/t=11.42",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.277827999914734,
+    "time_ms": 16.603663999831042,
     "warm_x": true,
     "warm_duals": true
   },
@@ -875,7 +875,7 @@
     "label": "step01/SS/t=11.52",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 22.742785999980697,
+    "time_ms": 16.43151999996917,
     "warm_x": true,
     "warm_duals": true
   },
@@ -883,7 +883,7 @@
     "label": "step01/SS/t=11.62",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 21.543242000007012,
+    "time_ms": 16.184347000034904,
     "warm_x": true,
     "warm_duals": true
   },
@@ -891,7 +891,7 @@
     "label": "step01/SS/t=11.72",
     "iter": 11,
     "status": "Solve_Succeeded",
-    "time_ms": 19.347291000030964,
+    "time_ms": 14.876270000058867,
     "warm_x": true,
     "warm_duals": true
   },
@@ -899,7 +899,7 @@
     "label": "step01/SS/t=11.82",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 20.385980999890307,
+    "time_ms": 16.009505999591056,
     "warm_x": true,
     "warm_duals": true
   },
@@ -907,7 +907,7 @@
     "label": "step01/SS/t=11.92",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 21.443204999741283,
+    "time_ms": 16.777314999671944,
     "warm_x": true,
     "warm_duals": true
   },
@@ -915,7 +915,7 @@
     "label": "step01/SS/t=12.02",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.48543099995004,
+    "time_ms": 17.37317700008134,
     "warm_x": true,
     "warm_duals": true
   },
@@ -923,7 +923,7 @@
     "label": "step01/SS/t=12.12",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.23657500007903,
+    "time_ms": 17.818972999975813,
     "warm_x": true,
     "warm_duals": true
   },
@@ -931,7 +931,7 @@
     "label": "step01/SS/t=12.22",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 21.56004700009362,
+    "time_ms": 16.14022900002965,
     "warm_x": true,
     "warm_duals": true
   },
@@ -939,7 +939,7 @@
     "label": "step01/SS/t=12.32",
     "iter": 14,
     "status": "Solve_Succeeded",
-    "time_ms": 24.01808600006916,
+    "time_ms": 18.470628000159195,
     "warm_x": true,
     "warm_duals": true
   },
@@ -947,7 +947,7 @@
     "label": "step01/SS/t=12.42",
     "iter": 15,
     "status": "Solve_Succeeded",
-    "time_ms": 74.54242199992223,
+    "time_ms": 19.471866999992926,
     "warm_x": true,
     "warm_duals": true
   },
@@ -955,7 +955,7 @@
     "label": "step01/SS/t=12.52",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 28.295176000028732,
+    "time_ms": 16.34465300003285,
     "warm_x": true,
     "warm_duals": true
   },
@@ -963,7 +963,7 @@
     "label": "step01/SS/t=12.62",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 21.0526480000226,
+    "time_ms": 16.75729999988107,
     "warm_x": true,
     "warm_duals": true
   },
@@ -971,7 +971,7 @@
     "label": "step01/SS/t=12.72",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 48.321933999886824,
+    "time_ms": 16.717388999950344,
     "warm_x": true,
     "warm_duals": true
   },
@@ -979,7 +979,7 @@
     "label": "step01/SS/t=12.82",
     "iter": 11,
     "status": "Solve_Succeeded",
-    "time_ms": 20.02269599961437,
+    "time_ms": 15.521227999670373,
     "warm_x": true,
     "warm_duals": true
   },
@@ -987,7 +987,7 @@
     "label": "step01/SS/t=12.92",
     "iter": 15,
     "status": "Solve_Succeeded",
-    "time_ms": 25.611029000174312,
+    "time_ms": 19.964740999967034,
     "warm_x": true,
     "warm_duals": true
   },
@@ -995,7 +995,7 @@
     "label": "step01/SS/t=13.02",
     "iter": 15,
     "status": "Solve_Succeeded",
-    "time_ms": 26.029455000298185,
+    "time_ms": 19.51247199986028,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1003,7 +1003,7 @@
     "label": "step01/SS/t=13.12",
     "iter": 16,
     "status": "Solve_Succeeded",
-    "time_ms": 28.1555589999698,
+    "time_ms": 21.02223200017761,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1011,7 +1011,7 @@
     "label": "step01/SS/t=13.22",
     "iter": 16,
     "status": "Solve_Succeeded",
-    "time_ms": 29.84218699975827,
+    "time_ms": 22.03737199988609,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1019,7 +1019,7 @@
     "label": "step01/SS/t=13.32",
     "iter": 17,
     "status": "Solve_Succeeded",
-    "time_ms": 30.499976000101015,
+    "time_ms": 23.225533999720938,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1027,7 +1027,7 @@
     "label": "step01/SS/t=13.42",
     "iter": 17,
     "status": "Solve_Succeeded",
-    "time_ms": 30.67807100023856,
+    "time_ms": 22.995768999862776,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1035,7 +1035,7 @@
     "label": "step01/SS/t=13.52",
     "iter": 18,
     "status": "Solve_Succeeded",
-    "time_ms": 32.18447199969887,
+    "time_ms": 23.668461000397656,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1043,7 +1043,7 @@
     "label": "step01/SS/t=13.62",
     "iter": 16,
     "status": "Solve_Succeeded",
-    "time_ms": 28.001839999888034,
+    "time_ms": 20.836158000292926,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1051,7 +1051,7 @@
     "label": "step01/SS/t=13.72",
     "iter": 15,
     "status": "Solve_Succeeded",
-    "time_ms": 26.357729000210384,
+    "time_ms": 20.178499999929045,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1059,7 +1059,7 @@
     "label": "step01/SS/t=13.82",
     "iter": 15,
     "status": "Solve_Succeeded",
-    "time_ms": 28.627284999856784,
+    "time_ms": 20.181004999813013,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1067,7 +1067,7 @@
     "label": "step01/SS/t=13.92",
     "iter": 14,
     "status": "Solve_Succeeded",
-    "time_ms": 28.868534000139334,
+    "time_ms": 19.043898999825615,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1075,7 +1075,7 @@
     "label": "step02/SS/t=14.53",
     "iter": 8,
     "status": "Solve_Succeeded",
-    "time_ms": 14.213079999990441,
+    "time_ms": 10.743630999968445,
     "warm_x": false,
     "warm_duals": false
   },
@@ -1083,7 +1083,7 @@
     "label": "step02/SS/t=14.63",
     "iter": 9,
     "status": "Solve_Succeeded",
-    "time_ms": 16.199256999698264,
+    "time_ms": 12.273102000108338,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1091,7 +1091,7 @@
     "label": "step02/SS/t=14.73",
     "iter": 9,
     "status": "Solve_Succeeded",
-    "time_ms": 17.65277899994544,
+    "time_ms": 12.342856000032043,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1099,7 +1099,7 @@
     "label": "step02/SS/t=14.83",
     "iter": 8,
     "status": "Solve_Succeeded",
-    "time_ms": 14.19923999992534,
+    "time_ms": 10.7073300000593,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1107,7 +1107,7 @@
     "label": "step02/SS/t=14.93",
     "iter": 8,
     "status": "Solve_Succeeded",
-    "time_ms": 13.941520000116725,
+    "time_ms": 10.911474999829807,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1115,7 +1115,7 @@
     "label": "step02/SS/t=15.03",
     "iter": 10,
     "status": "Solve_Succeeded",
-    "time_ms": 17.051899999842135,
+    "time_ms": 12.730230999750347,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1123,7 +1123,7 @@
     "label": "step02/SS/t=15.13",
     "iter": 10,
     "status": "Solve_Succeeded",
-    "time_ms": 17.385565000040515,
+    "time_ms": 13.086842000120669,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1131,7 +1131,7 @@
     "label": "step02/SS/t=15.23",
     "iter": 10,
     "status": "Solve_Succeeded",
-    "time_ms": 16.988496000067244,
+    "time_ms": 13.504439000371349,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1139,7 +1139,7 @@
     "label": "step02/SS/t=15.33",
     "iter": 11,
     "status": "Solve_Succeeded",
-    "time_ms": 19.531990999894333,
+    "time_ms": 14.145631000246794,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1147,7 +1147,7 @@
     "label": "step02/SS/t=15.43",
     "iter": 11,
     "status": "Solve_Succeeded",
-    "time_ms": 20.100632999856316,
+    "time_ms": 14.98027900015586,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1155,7 +1155,7 @@
     "label": "step02/SS/t=15.53",
     "iter": 11,
     "status": "Solve_Succeeded",
-    "time_ms": 19.564567000088573,
+    "time_ms": 15.594415000123263,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1163,7 +1163,7 @@
     "label": "step02/SS/t=15.63",
     "iter": 11,
     "status": "Solve_Succeeded",
-    "time_ms": 18.789257999742404,
+    "time_ms": 16.918446000090626,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1171,7 +1171,7 @@
     "label": "step02/SS/t=15.73",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 23.07249400018918,
+    "time_ms": 15.71406199991543,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1179,7 +1179,7 @@
     "label": "step02/SS/t=15.83",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 21.841745000074297,
+    "time_ms": 16.275809000035224,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1187,7 +1187,7 @@
     "label": "step02/SS/t=15.93",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 21.38022799999817,
+    "time_ms": 19.95127300006061,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1195,7 +1195,7 @@
     "label": "step02/SS/t=16.03",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 19.752281999899424,
+    "time_ms": 15.183380000053148,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1203,7 +1203,7 @@
     "label": "step02/SS/t=16.13",
     "iter": 11,
     "status": "Solve_Succeeded",
-    "time_ms": 19.403038999826094,
+    "time_ms": 14.963591000196175,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1211,7 +1211,7 @@
     "label": "step02/SS/t=16.23",
     "iter": 11,
     "status": "Solve_Succeeded",
-    "time_ms": 19.045018999804597,
+    "time_ms": 14.389611999831686,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1219,7 +1219,7 @@
     "label": "step02/SS/t=16.33",
     "iter": 11,
     "status": "Solve_Succeeded",
-    "time_ms": 18.76291200005653,
+    "time_ms": 14.634122999723331,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1227,7 +1227,7 @@
     "label": "step02/SS/t=16.43",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 23.300253999877896,
+    "time_ms": 17.912322000029235,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1235,7 +1235,7 @@
     "label": "step02/SS/t=16.53",
     "iter": 14,
     "status": "Solve_Succeeded",
-    "time_ms": 23.93121999966752,
+    "time_ms": 18.252400999699603,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1243,7 +1243,7 @@
     "label": "step02/SS/t=16.63",
     "iter": 14,
     "status": "Solve_Succeeded",
-    "time_ms": 23.455877999822405,
+    "time_ms": 17.84632099997907,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1251,7 +1251,7 @@
     "label": "step02/SS/t=16.73",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.39204299985431,
+    "time_ms": 16.901019000215456,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1259,7 +1259,7 @@
     "label": "step02/SS/t=16.83",
     "iter": 14,
     "status": "Solve_Succeeded",
-    "time_ms": 23.361860000022716,
+    "time_ms": 17.95623299994986,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1267,7 +1267,7 @@
     "label": "step02/SS/t=16.93",
     "iter": 14,
     "status": "Solve_Succeeded",
-    "time_ms": 23.459849000118993,
+    "time_ms": 18.15261100000498,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1275,7 +1275,7 @@
     "label": "step02/SS/t=17.03",
     "iter": 16,
     "status": "Solve_Succeeded",
-    "time_ms": 25.850160000118194,
+    "time_ms": 20.56040799971015,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1283,7 +1283,7 @@
     "label": "step02/SS/t=17.13",
     "iter": 15,
     "status": "Solve_Succeeded",
-    "time_ms": 24.271077000321384,
+    "time_ms": 18.868495999868173,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1291,7 +1291,7 @@
     "label": "step02/SS/t=17.23",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.023816000000807,
+    "time_ms": 16.681074000189255,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1299,7 +1299,7 @@
     "label": "step02/SS/t=17.33",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 21.7597000000751,
+    "time_ms": 16.845782000018517,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1307,7 +1307,7 @@
     "label": "step02/SS/t=17.43",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.26660999986052,
+    "time_ms": 17.548360000091634,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1315,7 +1315,7 @@
     "label": "step02/SS/t=17.53",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 21.852843000033317,
+    "time_ms": 17.34496900007798,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1323,7 +1323,7 @@
     "label": "step02/SS/t=17.63",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.343485000419605,
+    "time_ms": 17.46144299977459,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1331,7 +1331,7 @@
     "label": "step02/SS/t=17.73",
     "iter": 14,
     "status": "Solve_Succeeded",
-    "time_ms": 24.44393099995068,
+    "time_ms": 17.40037499985192,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1339,7 +1339,7 @@
     "label": "step02/SS/t=17.83",
     "iter": 15,
     "status": "Solve_Succeeded",
-    "time_ms": 26.300557000013214,
+    "time_ms": 18.92537000003358,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1347,7 +1347,7 @@
     "label": "step02/SS/t=17.93",
     "iter": 15,
     "status": "Solve_Succeeded",
-    "time_ms": 31.112087000110478,
+    "time_ms": 19.787975999861374,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1355,7 +1355,7 @@
     "label": "step02/SS/t=18.03",
     "iter": 15,
     "status": "Solve_Succeeded",
-    "time_ms": 24.763152000105038,
+    "time_ms": 19.630054000117525,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1363,7 +1363,7 @@
     "label": "step02/SS/t=18.13",
     "iter": 15,
     "status": "Solved_To_Acceptable_Level",
-    "time_ms": 25.172485999974015,
+    "time_ms": 19.668135000301845,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1371,7 +1371,7 @@
     "label": "step02/SS/t=18.23",
     "iter": 15,
     "status": "Solve_Succeeded",
-    "time_ms": 25.14030099973752,
+    "time_ms": 19.89188399966224,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1379,7 +1379,7 @@
     "label": "step02/SS/t=18.33",
     "iter": 18,
     "status": "Solve_Succeeded",
-    "time_ms": 29.123058000095625,
+    "time_ms": 23.239720999754354,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1387,7 +1387,7 @@
     "label": "step02/SS/t=18.43",
     "iter": 16,
     "status": "Solve_Succeeded",
-    "time_ms": 25.604352000300423,
+    "time_ms": 20.675664999998844,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1395,7 +1395,7 @@
     "label": "step02/SS/t=18.53",
     "iter": 14,
     "status": "Solve_Succeeded",
-    "time_ms": 23.773311999775615,
+    "time_ms": 17.77231500000198,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1403,7 +1403,7 @@
     "label": "step02/SS/t=18.63",
     "iter": 16,
     "status": "Solve_Succeeded",
-    "time_ms": 27.681758999733574,
+    "time_ms": 20.581511000273167,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1411,7 +1411,7 @@
     "label": "step02/SS/t=18.73",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 20.71753699965484,
+    "time_ms": 15.677911000238964,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1419,7 +1419,7 @@
     "label": "step02/SS/t=18.83",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 20.864309999979014,
+    "time_ms": 15.77331900034551,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1427,7 +1427,7 @@
     "label": "step02/SS/t=18.93",
     "iter": 14,
     "status": "Solve_Succeeded",
-    "time_ms": 25.408821999917564,
+    "time_ms": 19.439466999756405,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1435,7 +1435,7 @@
     "label": "step02/SS/t=19.03",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 24.545237999973324,
+    "time_ms": 18.336890999762545,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1443,7 +1443,7 @@
     "label": "step02/SS/t=19.13",
     "iter": 17,
     "status": "Solve_Succeeded",
-    "time_ms": 28.776675000244722,
+    "time_ms": 21.510798999770486,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1451,7 +1451,7 @@
     "label": "step02/SS/t=19.23",
     "iter": 14,
     "status": "Solve_Succeeded",
-    "time_ms": 24.51012100027583,
+    "time_ms": 18.42747699993197,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1459,7 +1459,7 @@
     "label": "step02/SS/t=19.33",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 20.53242500005581,
+    "time_ms": 15.29019600002357,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1467,7 +1467,7 @@
     "label": "step02/SS/t=19.43",
     "iter": 10,
     "status": "Solve_Succeeded",
-    "time_ms": 17.977370000153314,
+    "time_ms": 13.998014999742736,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1475,7 +1475,7 @@
     "label": "step02/SS/t=19.53",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 20.77109899983043,
+    "time_ms": 15.507720000186964,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1483,7 +1483,7 @@
     "label": "step02/SS/t=19.63",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.663448000002973,
+    "time_ms": 17.166837999866402,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1491,7 +1491,7 @@
     "label": "step02/SS/t=19.73",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 21.74155000011524,
+    "time_ms": 16.950295999777154,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1499,7 +1499,7 @@
     "label": "step02/SS/t=19.83",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 21.210083999903873,
+    "time_ms": 18.653447000360757,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1507,7 +1507,7 @@
     "label": "step02/SS/t=19.93",
     "iter": 15,
     "status": "Solve_Succeeded",
-    "time_ms": 25.283593000040128,
+    "time_ms": 19.58752100017591,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1515,7 +1515,7 @@
     "label": "step02/SS/t=20.03",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 21.335762000035174,
+    "time_ms": 17.01897100019778,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1523,7 +1523,7 @@
     "label": "step02/SS/t=20.13",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 20.664010000018607,
+    "time_ms": 16.6396010004064,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1531,7 +1531,7 @@
     "label": "step02/SS/t=20.23",
     "iter": 14,
     "status": "Solve_Succeeded",
-    "time_ms": 22.341185999721347,
+    "time_ms": 17.436241999803315,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1539,7 +1539,7 @@
     "label": "step02/SS/t=20.33",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 20.416200999989087,
+    "time_ms": 15.964582000378869,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1547,7 +1547,7 @@
     "label": "step02/SS/t=20.43",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 20.464551999793912,
+    "time_ms": 15.404536000005464,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1555,7 +1555,7 @@
     "label": "step02/SS/t=20.53",
     "iter": 11,
     "status": "Solve_Succeeded",
-    "time_ms": 19.101571000192052,
+    "time_ms": 14.453689999754715,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1563,7 +1563,7 @@
     "label": "step02/SS/t=20.63",
     "iter": 14,
     "status": "Solve_Succeeded",
-    "time_ms": 23.40811800013398,
+    "time_ms": 17.533717000333127,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1571,7 +1571,7 @@
     "label": "step02/SS/t=20.73",
     "iter": 11,
     "status": "Solve_Succeeded",
-    "time_ms": 19.216525000047113,
+    "time_ms": 15.196492999621114,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1579,7 +1579,7 @@
     "label": "step02/SS/t=20.83",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 21.436606999941432,
+    "time_ms": 17.003509999995003,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1587,7 +1587,7 @@
     "label": "step02/SS/t=20.93",
     "iter": 11,
     "status": "Solve_Succeeded",
-    "time_ms": 19.27079099959883,
+    "time_ms": 15.955960999690433,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1595,7 +1595,7 @@
     "label": "step02/SS/t=21.03",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 21.16944900035378,
+    "time_ms": 16.76547000033679,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1603,7 +1603,7 @@
     "label": "step02/SS/t=21.13",
     "iter": 15,
     "status": "Solved_To_Acceptable_Level",
-    "time_ms": 26.571457000045484,
+    "time_ms": 20.540390999940428,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1611,7 +1611,7 @@
     "label": "step02/SS/t=21.23",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 21.248254000056477,
+    "time_ms": 17.295722999733698,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1619,7 +1619,7 @@
     "label": "step02/SS/t=21.33",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 22.495200999856024,
+    "time_ms": 16.810855999665364,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1627,7 +1627,7 @@
     "label": "step02/SS/t=21.43",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 21.949478999886196,
+    "time_ms": 16.9469460001892,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1635,7 +1635,7 @@
     "label": "step02/SS/t=21.53",
     "iter": 15,
     "status": "Solve_Succeeded",
-    "time_ms": 26.71641000006275,
+    "time_ms": 20.30291799974293,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1643,7 +1643,7 @@
     "label": "step02/SS/t=21.63",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 28.22632800007341,
+    "time_ms": 18.74482099992747,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1651,7 +1651,7 @@
     "label": "step02/SS/t=21.73",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 21.58637999991697,
+    "time_ms": 16.792036999959237,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1659,7 +1659,7 @@
     "label": "step02/SS/t=21.83",
     "iter": 14,
     "status": "Solve_Succeeded",
-    "time_ms": 25.673152999843296,
+    "time_ms": 19.43833999985145,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1667,7 +1667,7 @@
     "label": "step02/SS/t=21.93",
     "iter": 15,
     "status": "Solve_Succeeded",
-    "time_ms": 25.03819499997917,
+    "time_ms": 19.527584000115894,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1675,7 +1675,7 @@
     "label": "step02/SS/t=22.03",
     "iter": 16,
     "status": "Solved_To_Acceptable_Level",
-    "time_ms": 26.720336999915162,
+    "time_ms": 20.84305400012454,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1683,7 +1683,7 @@
     "label": "step02/SS/t=22.13",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.68666800000574,
+    "time_ms": 17.681949000234454,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1691,7 +1691,7 @@
     "label": "step02/SS/t=22.23",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.542027999861602,
+    "time_ms": 17.561850999754824,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1699,7 +1699,7 @@
     "label": "step02/SS/t=22.33",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.437840000293363,
+    "time_ms": 19.482764000258612,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1707,7 +1707,7 @@
     "label": "step02/SS/t=22.43",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.670124000342184,
+    "time_ms": 17.577047999566275,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1715,7 +1715,7 @@
     "label": "step02/SS/t=22.53",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 23.960226999861334,
+    "time_ms": 17.98204299984718,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1723,7 +1723,7 @@
     "label": "step02/SS/t=22.63",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 23.34838500019032,
+    "time_ms": 19.531915999777993,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1731,7 +1731,7 @@
     "label": "step02/SS/t=22.73",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.203144999821234,
+    "time_ms": 20.227158999659878,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1739,7 +1739,7 @@
     "label": "step02/SS/t=22.83",
     "iter": 14,
     "status": "Solve_Succeeded",
-    "time_ms": 24.182014999951207,
+    "time_ms": 29.2465849997825,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1747,7 +1747,7 @@
     "label": "step02/SS/t=22.93",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.895820000030653,
+    "time_ms": 18.93024399987553,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1755,7 +1755,7 @@
     "label": "step02/SS/t=23.03",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 23.410808999869914,
+    "time_ms": 17.957602000024053,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1763,7 +1763,7 @@
     "label": "step02/SS/t=23.13",
     "iter": 16,
     "status": "Solve_Succeeded",
-    "time_ms": 28.720585999963077,
+    "time_ms": 21.125427999777457,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1771,7 +1771,7 @@
     "label": "step02/SS/t=23.23",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.49078999966514,
+    "time_ms": 20.852556000136246,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1779,7 +1779,7 @@
     "label": "step02/SS/t=23.33",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.71132999976544,
+    "time_ms": 18.56215899988456,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1787,7 +1787,7 @@
     "label": "step02/SS/t=23.43",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.880101000282593,
+    "time_ms": 18.797409999933734,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1795,7 +1795,7 @@
     "label": "step02/SS/t=23.53",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.40877999975055,
+    "time_ms": 19.12549200005742,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1803,7 +1803,7 @@
     "label": "step02/SS/t=23.63",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.583290000056877,
+    "time_ms": 16.983202999654168,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1811,7 +1811,7 @@
     "label": "step02/SS/t=23.73",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.27641700028471,
+    "time_ms": 17.44686800020645,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1819,7 +1819,7 @@
     "label": "step02/SS/t=23.83",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.52471100018738,
+    "time_ms": 18.250867999995535,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1827,7 +1827,7 @@
     "label": "step02/SS/t=23.93",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 23.064480999892112,
+    "time_ms": 18.94645100037451,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1835,7 +1835,7 @@
     "label": "step02/SS/t=24.03",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.62875999986136,
+    "time_ms": 16.863124999872525,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1843,7 +1843,7 @@
     "label": "step02/SS/t=24.13",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.930995000024268,
+    "time_ms": 16.863883000041824,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1851,7 +1851,7 @@
     "label": "step02/SS/t=24.23",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.88360299962733,
+    "time_ms": 17.1154699996805,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1859,7 +1859,7 @@
     "label": "step02/SS/t=24.33",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.649665000244568,
+    "time_ms": 17.40236800014827,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1867,7 +1867,7 @@
     "label": "step02/SS/t=24.43",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.543233999840595,
+    "time_ms": 17.622236000079283,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1875,7 +1875,7 @@
     "label": "step02/SS/t=24.53",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 23.433205999936035,
+    "time_ms": 17.513047000193183,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1883,7 +1883,7 @@
     "label": "step02/SS/t=24.63",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.68030400000498,
+    "time_ms": 17.618289999973058,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1891,7 +1891,7 @@
     "label": "step02/SS/t=24.73",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.79725500011409,
+    "time_ms": 17.76568600007522,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1899,7 +1899,7 @@
     "label": "step02/SS/t=24.83",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 23.84560100017552,
+    "time_ms": 17.83181299970238,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1907,7 +1907,7 @@
     "label": "step02/SS/t=24.93",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.13589100028912,
+    "time_ms": 17.75424599964026,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1915,7 +1915,7 @@
     "label": "step02/SS/t=25.03",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.377626999968925,
+    "time_ms": 17.40127700031735,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1923,7 +1923,7 @@
     "label": "step02/SS/t=25.13",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.37038700013727,
+    "time_ms": 17.529392000142252,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1931,7 +1931,7 @@
     "label": "step02/SS/t=25.23",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.15658200020698,
+    "time_ms": 17.54999900003895,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1939,7 +1939,7 @@
     "label": "step02/SS/t=25.33",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.570421999716928,
+    "time_ms": 17.356390000259125,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1947,7 +1947,7 @@
     "label": "step02/SS/t=25.43",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.127952000118967,
+    "time_ms": 17.23451499992734,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1955,7 +1955,7 @@
     "label": "step02/SS/t=25.53",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.61776000023019,
+    "time_ms": 17.039635000401177,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1963,7 +1963,7 @@
     "label": "step02/SS/t=25.63",
     "iter": 14,
     "status": "Solve_Succeeded",
-    "time_ms": 23.8838349996513,
+    "time_ms": 19.00235099992642,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1971,7 +1971,7 @@
     "label": "step02/SS/t=25.73",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.5881669998671,
+    "time_ms": 17.854081000223232,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1979,7 +1979,7 @@
     "label": "step02/SS/t=25.83",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.541477999766357,
+    "time_ms": 17.58605900022303,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1987,7 +1987,7 @@
     "label": "step02/SS/t=25.93",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 26.993191000201477,
+    "time_ms": 17.13771699996869,
     "warm_x": true,
     "warm_duals": true
   },
@@ -1995,7 +1995,7 @@
     "label": "step02/SS/t=26.03",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 26.811987000201043,
+    "time_ms": 16.97786700015058,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2003,7 +2003,7 @@
     "label": "step02/SS/t=26.13",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.046658000363095,
+    "time_ms": 17.421708999791008,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2011,7 +2011,7 @@
     "label": "step02/SS/t=26.23",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.472415999800432,
+    "time_ms": 17.304505000083736,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2019,7 +2019,7 @@
     "label": "step02/SS/t=26.33",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.461374999693362,
+    "time_ms": 17.29281500001889,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2027,7 +2027,7 @@
     "label": "step02/SS/t=26.43",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 21.81133000021873,
+    "time_ms": 17.627930999879027,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2035,7 +2035,7 @@
     "label": "step02/SS/t=26.53",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.097905999999057,
+    "time_ms": 17.64479899975413,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2043,7 +2043,7 @@
     "label": "step02/SS/t=26.63",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 21.908527000050526,
+    "time_ms": 17.086721999930887,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2051,7 +2051,7 @@
     "label": "step02/SS/t=26.73",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 21.1256540001159,
+    "time_ms": 16.016828000374517,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2059,7 +2059,7 @@
     "label": "step02/SS/t=26.83",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 20.847241999945254,
+    "time_ms": 15.875103999860585,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2067,7 +2067,7 @@
     "label": "step02/SS/t=26.93",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 21.729633000177273,
+    "time_ms": 17.984159000207,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2075,7 +2075,7 @@
     "label": "step02/SS/t=27.03",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 20.863808000285644,
+    "time_ms": 22.772710000026564,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2083,7 +2083,7 @@
     "label": "step02/SS/t=27.13",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 21.764936999716156,
+    "time_ms": 17.34937599985642,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2091,7 +2091,7 @@
     "label": "step02/SS/t=27.23",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.033700000065437,
+    "time_ms": 18.149874999835447,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2099,7 +2099,7 @@
     "label": "step02/SS/t=27.33",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.093781000421586,
+    "time_ms": 17.492498000137857,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2107,7 +2107,7 @@
     "label": "step02/SS/t=27.43",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.181124999860913,
+    "time_ms": 18.10596900031669,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2115,7 +2115,7 @@
     "label": "step02/SS/t=27.53",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.121885999695223,
+    "time_ms": 17.616889999771956,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2123,7 +2123,7 @@
     "label": "step02/SS/t=27.63",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 21.756496999842057,
+    "time_ms": 17.276056999889988,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2131,7 +2131,7 @@
     "label": "step02/SS/t=27.73",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.189076999893587,
+    "time_ms": 17.800210999666888,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2139,7 +2139,7 @@
     "label": "step02/SS/t=27.83",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 24.482778999754373,
+    "time_ms": 20.00637299988739,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2147,7 +2147,7 @@
     "label": "step02/SS/t=27.93",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 21.684431000267068,
+    "time_ms": 20.807663000141474,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2155,7 +2155,7 @@
     "label": "step02/SS/t=28.03",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.639045999767404,
+    "time_ms": 17.850267000085296,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2163,7 +2163,7 @@
     "label": "step02/SS/t=28.13",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.13808299984521,
+    "time_ms": 17.73370899991278,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2171,7 +2171,7 @@
     "label": "step02/SS/t=28.23",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.402162000162207,
+    "time_ms": 18.020911999883538,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2179,7 +2179,7 @@
     "label": "step02/SS/t=28.33",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.05893400014247,
+    "time_ms": 18.85529299988775,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2187,7 +2187,7 @@
     "label": "step02/SS/t=28.43",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 20.990557999994053,
+    "time_ms": 19.375629000023764,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2195,7 +2195,7 @@
     "label": "step02/SS/t=28.53",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 21.277569999710977,
+    "time_ms": 17.363874999773543,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2203,7 +2203,7 @@
     "label": "step02/SS/t=28.63",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 21.12552800008416,
+    "time_ms": 16.485327999816946,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2211,7 +2211,7 @@
     "label": "step02/SS/t=28.73",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 20.945032000327046,
+    "time_ms": 16.473395000048185,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2219,7 +2219,7 @@
     "label": "step02/SS/t=28.83",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 20.77285799987294,
+    "time_ms": 18.05409000007785,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2227,7 +2227,7 @@
     "label": "step02/SS/t=28.93",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.27727199988294,
+    "time_ms": 17.67820000031861,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2235,7 +2235,7 @@
     "label": "step02/SS/t=29.03",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.35463399983928,
+    "time_ms": 17.255991000183712,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2243,7 +2243,7 @@
     "label": "step02/SS/t=29.13",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 20.97864200004551,
+    "time_ms": 16.050027999881422,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2251,7 +2251,7 @@
     "label": "step02/SS/t=29.23",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 21.028569000009156,
+    "time_ms": 15.716004999831057,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2259,7 +2259,7 @@
     "label": "step02/SS/t=29.33",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.907616999873426,
+    "time_ms": 17.828423000082694,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2267,7 +2267,7 @@
     "label": "step02/SS/t=29.43",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.26353800006109,
+    "time_ms": 17.258890999983123,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2275,7 +2275,7 @@
     "label": "step02/SS/t=29.53",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 21.884853999836196,
+    "time_ms": 17.211640999903466,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2283,7 +2283,7 @@
     "label": "step02/SS/t=29.63",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 20.919976999721257,
+    "time_ms": 16.255734000424127,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2291,7 +2291,7 @@
     "label": "step02/SS/t=29.73",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 20.764195999618096,
+    "time_ms": 16.327069999988453,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2299,7 +2299,7 @@
     "label": "step02/SS/t=29.83",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 20.89713000032134,
+    "time_ms": 16.728530000364117,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2307,7 +2307,7 @@
     "label": "step02/SS/t=29.93",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 20.63692000001538,
+    "time_ms": 16.204328000185342,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2315,7 +2315,7 @@
     "label": "step02/SS/t=30.03",
     "iter": 12,
     "status": "Solve_Succeeded",
-    "time_ms": 20.460537999952066,
+    "time_ms": 16.02389099980428,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2323,7 +2323,7 @@
     "label": "step02/SS/t=30.13",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.20601599992733,
+    "time_ms": 18.528406999848812,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2331,7 +2331,7 @@
     "label": "step02/SS/t=30.23",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.021434000180307,
+    "time_ms": 18.632027999956335,
     "warm_x": true,
     "warm_duals": true
   },
@@ -2339,7 +2339,7 @@
     "label": "step02/SS/t=30.33",
     "iter": 13,
     "status": "Solve_Succeeded",
-    "time_ms": 22.00402700009363,
+    "time_ms": 18.91285500005324,
     "warm_x": true,
     "warm_duals": true
   }
