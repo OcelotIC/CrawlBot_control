@@ -38,7 +38,7 @@ URDF = os.path.join(_root, 'models', 'VISPA_crawling_fixed.urdf')
 QEND = os.path.join(_root, 'results', 'diag_cooperative_arms', 'step_q_end.json')
 
 BEAM_HALF_Z = 0.025          # beam spans z in [-0.025, 0.025] (structure frame)
-Z_TARGETS = [-0.20, -0.25, -0.274, -0.30, -0.35]
+Z_TARGETS = [-0.20, -0.25, -0.274, -0.32, -0.35, -0.40, -0.45]
 
 
 def main():
