@@ -50,7 +50,9 @@ Values at the dock instant, per step:
 - Recoil (torso travel, 22–690mm) is the **intended locomotion**, not a dock impact — it does not correlate with dock acceleration.
 - **Tightening to 1mm/1° is infeasible** with current control: the EE only transiently grazes its closest approach (1.15mm best) then drifts; a 1mm gate misses it (step 0 → TIMEOUT 26.7mm). Reverted to 5mm/5°.
 
-Diagnostics: `scripts/diag_dock_quality.py`, fig `results/diag_cooperative_arms/dock_quality.png`.
+Diagnostics: `scripts/diag_dock_quality.py`.
+
+![Dock quality: per-step d_grip, orientation, residual velocity and acceleration at the dock instant](../../results/diag_cooperative_arms/dock_quality.png)
 
 ---
 
@@ -92,7 +94,7 @@ the norm as a 1.73 "FAIL").
 - **Platform attitude accumulates** monotonically to 3.8° over 5 steps (~0.76°/step → would breach 5° ≈ step 7, extrapolated).
 - Both concerns expected to **worsen at 14% mass ratio** (untested).
 
-Fig: `results/diag_cooperative_arms/momentum_aocs.png`.
+![Momentum/AOCS: RWA momentum (per-axis box), platform attitude drift, omega_s, wheel torque, L_com](../../results/diag_cooperative_arms/momentum_aocs.png)
 
 ## 6. Group D — actuator / solver health (`scripts/diag_actuator_solver.py`)
 
@@ -105,7 +107,7 @@ Fig: `results/diag_cooperative_arms/momentum_aocs.png`.
 
 **B and D are the same step-2 transient (t≈16.63, longest stride), causally linked:** the **centroidal NMPC under-budgets the whole-body wrench ~10×** (its point-mass+momentum model has no arm/joint/torso inertial dynamics). So the real momentum disturbance exceeds the plan → **wheels saturate (B)**, a **joint hits 20Nm**, and the **QP commands 62N** — it docks, but with **zero actuator margin** in that ~1s window. This is the documented "QP needs ~9× more wrench than NMPC plans" (commit 673cc68), quantified at 10.8×. Root: the **soft-CoM residual** meant to keep NMPC↔QP consistent is **OFF** (`α_com_soft=0`).
 
-Fig: `results/diag_cooperative_arms/actuator_solver.png`.
+![Actuator/solver: contact |f| QP vs NMPC plan, per-joint torque vs +-20Nm, NMPC solve time](../../results/diag_cooperative_arms/actuator_solver.png)
 
 ## 6b. Group C — cascade band-aid footprint (`scripts/diag_cascade_health.py`)
 
@@ -137,7 +139,7 @@ mapping, which is committed OFF. The 49.6% clip rate quantifies the
 **F-SAT / δ(q_current) debt**: the traversal is robust to it today,
 but it is a standing liability (the band-aid, not a guarantee).
 
-Fig: `results/diag_cooperative_arms/cascade_health.png`.
+![Cascade health: CoM-z standoff hold + torso-z, torso position tracking, F-SAT per-tick increment](../../results/diag_cooperative_arms/cascade_health.png)
 
 ## 7. Verdict & open items
 
