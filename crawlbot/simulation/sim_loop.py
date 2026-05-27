@@ -155,6 +155,36 @@ class SimulationLoop:
         # times when they are set up per-step, so they use `t` directly.
         self._t_plan_offset: float = 0.0
 
+        # Step 2 diagnostics B+C (QP realization + mapping layer). Set
+        # _step2_diag_enabled=True externally before run() to populate.
+        # Each entry: dict(t, qs, c_ref, r_b_ref, p_torso, a_torso_des,
+        # a_torso_qp, delta_q). Captured only during step 2 SS to limit size.
+        self._step2_diag_enabled: bool = False
+        self._step2_diag_log: list = []
+        # Most recent CoMToTorsoMapping δ(q) output; populated by _step()
+        # only on cycles where the live mapping was invoked (i.e. NOT
+        # under mapping_bypass_in_ss). None otherwise.
+        self._last_mapping_delta: Optional[np.ndarray] = None
+        # Auxiliary: δ(q_current) computed alongside the live mapping
+        # (which uses q_planned during SS) for the planned-vs-current
+        # mass-distribution diagnostic. Not used in control.
+        self._last_mapping_delta_current: Optional[np.ndarray] = None
+        # F-RATE: cache for mapping outputs at NMPC rate (10 Hz). The
+        # mapping (δ(q), δ̇(q,q̇)) is recomputed once per NMPC tick and
+        # reused across the WBC sub-steps. Avoids the q_current → δ → r_b
+        # → q feedback loop running at 100 Hz.
+        # F-SAT: previous-cycle r_b_ref kept so per-WBC-tick increment
+        # can be saturated against the physical body-acceleration bound.
+        self._mapping_nmpc_tick: int = -1
+        self._mapping_cache_delta: Optional[np.ndarray] = None
+        self._mapping_cache_delta_dot: Optional[np.ndarray] = None
+        self._last_r_b_ref_out: Optional[np.ndarray] = None
+        # F-SAT telemetry: counts of cycles where the increment was
+        # clipped, max clip magnitude, per-step bookkeeping.
+        self._sat_total_calls: int = 0
+        self._sat_clipped_calls: int = 0
+        self._sat_max_clip_mm: float = 0.0
+
     # ── Setup ────────────────────────────────────────────────────────────
 
     def setup(self, n_steps: int = 3, start_a: int = 2, start_b: int = 2):
@@ -223,13 +253,31 @@ class SimulationLoop:
         needed_pairs = set()
         for gp in self.plan.phases:
             needed_pairs.add((gp.anchor_a_idx, gp.anchor_b_idx))
+        # Startup-IK regularizers (default None/0 ⇒ legacy behaviour):
+        # pitch/roll-level the torso to the structure (yaw free) and
+        # bias arm joints toward a natural pose via whole-system
+        # null-space posture. Scoped to ONLY the (start_a, start_b)
+        # pair: the leveled+posture solve is ~11× slower (the outer
+        # Nelder-Mead runs many inner IKs), and only (start_a,
+        # start_b) becomes q_dock_init (the actual initial state +
+        # QP nominal posture). The other torso_map entries are just
+        # manipulability references / IK seeds / rare fallbacks, and a
+        # leveled start propagates forward through the live R_t0 of
+        # the fixed-rotation per-step IK — so they stay on the fast
+        # legacy path. Bounds the added setup cost to one extra solve.
+        _ik_kw = dict(
+            level_axis=getattr(cfg, 'ik_level_axis', None),
+            q_nominal=getattr(cfg, 'ik_q_nominal', None),
+            w_posture=float(getattr(cfg, 'ik_w_posture', 0.0)),
+        )
         self.torso_map = {}
         for (ai, bi) in needed_pairs:
             se3_a = self.sched.anchor_se3('a', ai)
             se3_b = self.sched.anchor_se3('b', bi)
+            pair_kw = _ik_kw if (ai, bi) == (start_a, start_b) else {}
             try:
                 q_opt, w = manipulability_config(
-                    self.robot.model, se3_a, se3_b)
+                    self.robot.model, se3_a, se3_b, **pair_kw)
                 self.torso_map[(ai, bi)] = q_opt
             except RuntimeError:
                 pass
@@ -249,7 +297,30 @@ class SimulationLoop:
             self.q_dock_init = dock_configuration(
                 self.robot.model,
                 self.sched.anchor_se3('a', start_a),
-                self.sched.anchor_se3('b', start_b))
+                self.sched.anchor_se3('b', start_b),
+                **_ik_kw)
+
+        # Constant CoM-z standoff: re-solve the INITIAL config at the
+        # standoff height so the robot starts at crawl height. Otherwise
+        # the z-reference ramps from the unconstrained init (CoM-z ~-0.48)
+        # to the standoff dock targets (-0.35), and that startup z
+        # transient competes with EE tracking and breaks docking.
+        if cfg.use_com_z_standoff:
+            rs_init = self.robot.update(
+                self.q_dock_init, np.zeros(self.robot.model.nv))
+            R_t_init = rs_init.oMf_torso.rotation.copy()
+            q_z, err_z, _, _ = dock_configuration_fixed_rotation(
+                self.robot.model,
+                self.sched.anchor_se3('a', start_a),
+                self.sched.anchor_se3('b', start_b),
+                R_torso_fixed=R_t_init,
+                q_init=self.q_dock_init.copy(),
+                com_z_target=cfg.com_z_standoff)
+            if err_z < 1e-4:
+                self.q_dock_init = q_z
+            else:
+                print(f"  [standoff] init IK residual {err_z:.2e} >= 1e-4; "
+                      f"keeping unconstrained init")
 
         sp = self.mj_data.qpos[0:3].copy()
         sq = self.mj_data.qpos[3:7].copy()
@@ -697,10 +768,24 @@ class SimulationLoop:
             Kp_ee_ang=kpe_ang * np.ones(3), Kd_ee_ang=kde_ang * np.ones(3),
             Kp_posture=1.0, Kd_posture=1.5,
             L_max=cfg.L_max, tau_w_max=cfg.tau_w_max,
+            # NB: QP-side contact wrench bound is intentionally NOT
+            # piped from cfg.nmpc_f_max. Data shows the WBC needs
+            # ~460 N transiently to track a 49 N NMPC plan (step 2,
+            # commit-pending diag); capping the QP at 100 N regresses
+            # step 2 from 164 mm → 545 mm. The NMPC f_max bounds what
+            # the planner BUDGETS for; the QP delivers what the
+            # CoM/torso/EE tracking needs. The WB QP default 3000 N
+            # is effectively unbounded and stays as a sanity backstop.
             use_m2_stack=cfg.use_m2_stack,
             ee_null_space=cfg.use_m2_stack,
             alpha_com_soft=cfg.alpha_com_soft,
-            alpha_passivity=cfg.alpha_passivity)
+            alpha_passivity=cfg.alpha_passivity,
+            r_tube=cfg.r_tube,
+            w_tube_lin=cfg.w_tube_lin,
+            cooperative_arms_mode=cfg.cooperative_arms_mode,
+            alpha_torso_ang=cfg.ss_alpha_torso_ang,
+            alpha_torso_lin=cfg.ss_alpha_torso_lin,
+            stance_thrust_correction=cfg.stance_thrust_correction)
         qp = WholeBodyQP(c)
         qp.set_nominal_posture(self.q_dock_init[self.robot.joints_q_slice])
         return qp
@@ -912,7 +997,9 @@ class SimulationLoop:
                         model, se3_a, se3_b,
                         R_torso_fixed=R_t0,
                         torso_pos=0.5 * (se3_a.translation + se3_b.translation),
-                        q_init=pq_live.copy()))
+                        q_init=pq_live.copy(),
+                        com_z_target=(cfg.com_z_standoff
+                                      if cfg.use_com_z_standoff else None)))
                 if err_fixed < 1e-4 and w_fixed >= cfg.ik_fixed_rotation_w_min:
                     q_end = q_fixed
                     ik_mode = 'fixed_rotation'
@@ -1479,6 +1566,12 @@ class SimulationLoop:
                                   f"pre-planner infeasible — holding position")
                         step_idx += 1
                         i += 2
+                        if cfg.stop_on_failed_step:
+                            if verbose:
+                                print(f"  [stop_on_failed_step] aborting "
+                                      f"traversal after step "
+                                      f"{step_idx - 1} SKIP")
+                            break
                         continue
 
                     self.qp_ss.set_nominal_posture(
@@ -1521,7 +1614,33 @@ class SimulationLoop:
                               f"released {swing_arm}@{old_anchor}")
 
                     docked = False
+                    # Periodic snapshot capture for offline rendering.
+                    # When cfg.frames_per_step > 0, schedule
+                    # frames_per_step evenly-spaced captures across
+                    # [t_ss_start, t_ss_start + T_step].
+                    if int(getattr(cfg, 'frames_per_step', 0)) > 0:
+                        n_frames = int(cfg.frames_per_step)
+                        if n_frames == 1:
+                            self._frame_capture_times = [t_ss_start]
+                        else:
+                            self._frame_capture_times = [
+                                t_ss_start + (k / (n_frames - 1)) * T_step
+                                for k in range(n_frames)]
+                        self._frame_capture_step_idx = int(step_idx)
+                        self._frame_capture_kidx = 0
+                    else:
+                        self._frame_capture_times = []
                     while t < t_ss_deadline and not docked:
+                        # Periodic frame capture (cfg.frames_per_step > 0).
+                        # Triggered when t crosses the next scheduled time.
+                        if self._frame_capture_times and t >= self._frame_capture_times[0]:
+                            mujoco.mj_forward(self.mj_model, self.mj_data)
+                            label = (
+                                f'frame_step{self._frame_capture_step_idx}_'
+                                f'{self._frame_capture_kidx}')
+                            self._capture_snapshot(log, t, label)
+                            self._frame_capture_times.pop(0)
+                            self._frame_capture_kidx += 1
                         hw, L_com_prev = self._step(
                             t, 'SS', step_idx, swing_arm, stance_arm,
                             cc_ss, target_idx, stance_a, stance_b,
@@ -1683,6 +1802,12 @@ class SimulationLoop:
 
                     step_idx += 1
                     i += 2  # skip SS phase (already processed)
+                    if cfg.stop_on_failed_step and not docked:
+                        if verbose:
+                            print(f"  [stop_on_failed_step] aborting "
+                                  f"traversal after step "
+                                  f"{step_idx - 1} TIMEOUT")
+                        break
                 else:
                     # Trailing DS (end of gait): run settling phase
                     t_ds_start = plan.t_start[i] + t_offset
@@ -1781,6 +1906,24 @@ class SimulationLoop:
         return log
 
     # ── Single NMPC+QP step ──────────────────────────────────────────────
+
+    def _swing_query_time(self, t_raw: float, phase: str, ss_end) -> float:
+        """Plan-time fed to ``SwingPlanner.reference_at``.
+
+        Clamped so an extended SS convergence-hold queries the dock
+        target (quintic τ pinned at 1, v=a=0) rather than walking into
+        the *next* scheduled phase's anchors — which belong to the
+        other arm and the subsequent target, and which the controller
+        never tracks. The control and logging paths MUST share this:
+        when they computed it independently the logging path omitted
+        the clamp and e_ee_pos reported an 800mm phantom error against
+        a reference the QP was not following (T15 schedule/execution
+        desync).
+        """
+        tq = t_raw - self._t_plan_offset
+        if phase == 'SS' and ss_end is not None:
+            tq = min(tq, (ss_end - self._t_plan_offset) - 0.01)
+        return tq
 
     def _step(self, t, phase, step_idx, swing_arm, stance_arm,
               cc_ss, target_anchor, stance_a, stance_b,
@@ -1903,6 +2046,14 @@ class SimulationLoop:
                     'norm': float(np.linalg.norm(L_com_ref_nmpc)),
                 })
         info_n = None
+        # NMPC warm-start diagnosis: tag each solve with locomotion-step
+        # index and phase. Read by NMPCSolver.solve when populating
+        # step_log. Does not affect control logic.
+        try:
+            self.nmpc._nmpc.diag_label = (
+                f"step{int(step_idx):02d}/{phase}/t={float(t):.2f}")
+        except Exception:
+            pass
         try:
             rp, vp, _, lr, info_n = self.nmpc.solve(
                 r_com=rs.r_com, v_com=rs.v_com, L_com=rs.L_com,
@@ -2034,13 +2185,87 @@ class SimulationLoop:
                 a_torso_ff_used = np.concatenate([np.zeros(3), tr.a[3:6]])
             elif phase in ('SS', 'DS') and self.mapping is not None and cfg.use_m2_stack:
                 af_for_mapping = np.zeros(3) if self._diag_pure_pd else af
-                if phase == 'SS':
-                    q_map, dq_map = self._planned_arm_config(tq, rs)
+                # Planned-vs-current diag (commit 64479ab) confirmed
+                # q_current is the right q-source for the δ term. But
+                # q_current at the WBC rate (100 Hz) closes a mapping
+                # feedback loop that oscillates r_b_ref by up to
+                # 237 mm/tick on large swings (commit 1b5b841).
+                # F-RATE: recompute δ(q) and δ̇(q,q̇) ONCE per NMPC tick
+                # (10 Hz). The (m_total/m_b)·rp_interp term still varies
+                # smoothly at WBC rate via the existing interpolation.
+                ratio = self.mapping.ratio
+                m_b = self.mapping.m_b
+                if cfg.use_local_delta_mapping:
+                    # Loop-free: r_b_ref = r_com_ref - D_local(q)/m_total.
+                    # D_local is base-position invariant -> no mapping->q
+                    # feedback even with live q (and no q_planned mismatch).
+                    # Computed every WBC tick (NOT F-RATE cached): the
+                    # 10Hz caching existed only to break the base-position
+                    # feedback loop, which D_local does not have. Caching
+                    # would instead STEP D_local at NMPC boundaries and
+                    # re-introduce reference jitter.
+                    m_total = self.mapping.m_total
+                    _delta_q = np.asarray(
+                        self.mapping.compute_delta_local(rs.q), dtype=float)
+                    _delta_dot = np.asarray(
+                        self.mapping.compute_delta_local_dot(rs.q, rs.v),
+                        dtype=float)
+                    # Keep the telemetry cache vars populated (the block
+                    # below copies self._mapping_cache_delta).
+                    self._mapping_cache_delta = _delta_q.copy()
+                    self._mapping_cache_delta_dot = _delta_dot.copy()
+                    r_b_ref_m = rp_interp - _delta_q / m_total
+                    v_b_ref_m = vp_interp - _delta_dot / m_total
+                    a_b_ff_m = af_for_mapping
                 else:
-                    q_map, dq_map = rs.q, rs.v
-                r_b_ref_m, v_b_ref_m, a_b_ff_m, _ = self.mapping.compute(
-                    r_com_ref=rp_interp, v_com_ref=vp_interp,
-                    a_com_ff=af_for_mapping, q_current=q_map, dq_current=dq_map)
+                    if qs == 0 or self._mapping_cache_delta is None:
+                        self._mapping_cache_delta = np.asarray(
+                            self.mapping.compute_delta(rs.q),
+                            dtype=float).copy()
+                        self._mapping_cache_delta_dot = np.asarray(
+                            self.mapping.compute_delta_dot(rs.q, rs.v),
+                            dtype=float).copy()
+                    _delta_q = self._mapping_cache_delta
+                    _delta_dot = self._mapping_cache_delta_dot
+                    r_b_ref_m = ratio * rp_interp - _delta_q / m_b
+                    v_b_ref_m = ratio * vp_interp - _delta_dot / m_b
+                    a_b_ff_m = ratio * af_for_mapping
+                # F-SAT: cap the per-WBC-tick r_b_ref increment at the
+                # *planned* torso-reference velocity (|v_b_ref_m|, already
+                # feasibility-bounded by the pre-planner CoM trajectory)
+                # plus a jitter slack. This clips the multi-m/s cross-tick
+                # δ(q_current) jitter the limiter exists for, while letting
+                # the reference advance at its commanded rate. The previous
+                # cap, (f_max/m_b)·dt²·2 ≈ 0.125mm/tick, was the body's
+                # 2-tick *startup* distance — it throttled sustained motion,
+                # so the torso reference advanced only ~0.125mm × n_ticks and
+                # never reached the dock on large steps (T15 step 2: needed
+                # ~590mm, old cap allowed ~200mm), stranding the swing arm.
+                if self._last_r_b_ref_out is not None and phase == 'SS':
+                    v_ref_ff = float(np.linalg.norm(v_b_ref_m))
+                    threshold = ((v_ref_ff + cfg.fsat_jitter_margin)
+                                 * cfg.dt_qp)
+                    delta_rb = r_b_ref_m - self._last_r_b_ref_out
+                    nrm = float(np.linalg.norm(delta_rb))
+                    self._sat_total_calls += 1
+                    if nrm > threshold and nrm > 0.0:
+                        r_b_ref_m = (self._last_r_b_ref_out
+                                     + threshold * delta_rb / nrm)
+                        self._sat_clipped_calls += 1
+                        self._sat_max_clip_mm = max(
+                            self._sat_max_clip_mm,
+                            (nrm - threshold) * 1000.0)
+                self._last_r_b_ref_out = r_b_ref_m.copy()
+                # Telemetry (still records δ used by the WBC; q_current
+                # comparison still computed for the planned-vs-current
+                # diagnostic, unchanged).
+                self._last_mapping_delta = self._mapping_cache_delta.copy()
+                try:
+                    self._last_mapping_delta_current = np.asarray(
+                        self.mapping.compute_delta(rs.q),
+                        dtype=float).copy()
+                except Exception:
+                    self._last_mapping_delta_current = None
                 # Option A: post-dock blend of the DS torso linear
                 # position reference from the SS-exit pose to the live
                 # mapping output over cfg.ds_ramp_duration_s. Quintic
@@ -2102,10 +2327,8 @@ class SimulationLoop:
                 # which is exactly what the margin/hold windows need —
                 # no separate EXT approach-velocity reference is
                 # required.
-                tq_plan = tq - self._t_plan_offset
-                ss_end_plan = ss_end - self._t_plan_offset
                 sr = self.swing_planner.reference_at(
-                    min(tq_plan, ss_end_plan - 0.01))
+                    self._swing_query_time(tq, phase, ss_end))
                 if sr.is_swinging and sr.swing_arm == swing_arm:
                     J_ee, Jdq_ee, oMf_ee = self._get_ee_data(rs, swing_arm)
                     ek = dict(J_ee=J_ee, Jdot_dq_ee=Jdq_ee,
@@ -2132,6 +2355,14 @@ class SimulationLoop:
             if passivity_override is not None:
                 passivity_active = bool(passivity_override)
 
+            # WBC slack/tube diagnosis: tag each QP solve with locomotion
+            # step + phase + sub-step. Read by WholeBodyQP.solve when
+            # populating hw_slack_log. Does not affect control logic.
+            try:
+                qp.diag_label = (
+                    f"step{int(step_idx):02d}/{phase}/qs={int(qs):02d}")
+            except Exception:
+                pass
             try:
                 qdd_t_qp, qdd_qp, lambda_qp_sol, tau, _ = qp.solve(
                     q_t=rs.q_torso, dq_t=rs.dq_torso,
@@ -2154,6 +2385,45 @@ class SimulationLoop:
                 qdd_t_qp = np.zeros(6)
                 qdd_qp = np.zeros(self.robot.model.nv)
                 qp_ok = False
+
+            # ── Diagnostic B + C: per-cycle log of (c_ref, r_b_ref,
+            # p_torso_actual, a_torso_des, a_torso_qp, δ(q_planned),
+            # δ(q_current)) during step 0 OR step 2 SS. Gated on a
+            # runtime attribute. Reads qp.last_torso_debug populated by
+            # WholeBodyQP.solve(); also captures both δ-variants for
+            # the planned-vs-current mass-distribution diagnostic.
+            if getattr(self, '_step2_diag_enabled', False) \
+                    and phase == 'SS':
+                td = getattr(qp, 'last_torso_debug', None)
+                entry = {
+                    't': float(tq), 'qs': int(qs),
+                    'c_ref': np.asarray(rp_interp, dtype=float).tolist(),
+                    'r_b_ref': np.asarray(p_torso_ref_used,
+                                          dtype=float).tolist(),
+                    'p_torso': np.asarray(
+                        rs.oMf_torso.translation, dtype=float).tolist(),
+                }
+                if td is not None:
+                    entry['a_torso_des'] = (
+                        np.asarray(td['a_torso_des_pre'],
+                                   dtype=float).tolist())
+                    entry['a_torso_qp'] = (
+                        np.asarray(td['x_dd_torso_post'],
+                                   dtype=float).tolist())
+                else:
+                    entry['a_torso_des'] = None
+                    entry['a_torso_qp'] = None
+                if self._last_mapping_delta is not None:
+                    entry['delta_q'] = self._last_mapping_delta.tolist()
+                else:
+                    entry['delta_q'] = None
+                if self._last_mapping_delta_current is not None:
+                    entry['delta_q_current'] = (
+                        self._last_mapping_delta_current.tolist())
+                else:
+                    entry['delta_q_current'] = None
+                entry['step_idx'] = int(step_idx)
+                self._step2_diag_log.append(entry)
 
             # M7 physics-trace capture (SS only, first-QP-substep, 1 Hz).
             # No control change — reads QP outputs + kinematic conditioning
@@ -2395,7 +2665,8 @@ class SimulationLoop:
         # EE tracking error (vs planned trajectory reference, not just target).
         # Plan-time (offset-corrected) for the swing planner lookup.
         import pinocchio as pin
-        sr_log = self.swing_planner.reference_at(t - self._t_plan_offset)
+        sr_log = self.swing_planner.reference_at(
+            self._swing_query_time(t, phase, ss_end))
         _, _, oMf_ee_log = self._get_ee_data(rs_f, swing_arm)
         log.e_ee_pos.append(float(np.linalg.norm(oMf_ee_log.translation - sr_log.p_ee)))
         e_ori_ee = pin.log3(oMf_ee_log.rotation.T @ sr_log.R_ee)
@@ -2472,7 +2743,8 @@ class SimulationLoop:
         q_ee_actual = pin.Quaternion(oMf_ee_f.rotation)
         log.q_ee.append(np.array([q_ee_actual.w, q_ee_actual.x,
                                    q_ee_actual.y, q_ee_actual.z]))
-        sr_f = self.swing_planner.reference_at(t_log - self._t_plan_offset)
+        sr_f = self.swing_planner.reference_at(
+            self._swing_query_time(t_log, phase, ss_end))
         log.p_ee_ref.append(sr_f.p_ee.copy())
         q_ee_r = pin.Quaternion(sr_f.R_ee)
         log.q_ee_ref.append(np.array([q_ee_r.w, q_ee_r.x,
@@ -2517,8 +2789,10 @@ class SimulationLoop:
 
         # Contact wrenches
         log.lambda_ref.append(lr.copy())
-        log.lambda_qp.append(lambda_qp_sol.copy() if hasattr(lambda_qp_sol, 'copy')
-                              else np.zeros(12))
+        _lqp = (lambda_qp_sol.copy() if hasattr(lambda_qp_sol, 'copy')
+                else np.zeros(12))
+        log.lambda_qp.append(_lqp)
+        log.lambda_qp_norm.append(float(np.linalg.norm(_lqp)))
 
         # Kinetic energy: 0.5 * v^T H v (relative to structure)
         v_rel = rs_f.v[:rs_f.H.shape[0]]

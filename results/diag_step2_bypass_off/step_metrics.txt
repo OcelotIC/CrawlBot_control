@@ -1,0 +1,7 @@
+Step                Outcome   d [mm]  ori [°]  recoil [mm]  EE err [mm]
+-----------------------------------------------------------------------
+   0           DOCK_TIMEOUT    62.29     0.08        778.6       1640.5
+   1                NO_DATA
+   2                NO_DATA
+   3           DOCK_TIMEOUT  1599.90     0.10       1467.8       1280.7
+   4                NO_DATA

@@ -741,6 +741,35 @@ The soft cost is preferred for simplicity and because the torso position referen
 ---
 
 
+### Deviation: Cooperative-Arms Task Stack (post-spec)
+
+Empirical observations during step 1 of multi-step traversals (this branch, May 2026) showed the strict-priority hierarchy of §4.3 producing a kinematic deadlock: the body lagged ~240 mm behind the torso reference, the swing EE flat-lined ~197 mm short of the dock target, and the null-space projection $\mathbf{N}_\text{torso}\mathbf{J}_\text{ee}$ geometrically prevented the EE task from pulling the body forward. No actuator was near saturation (joint torque 8%, RWA 18%, contact wrench 0.3%).
+
+The implementation deviates from §4.3 in **cooperative-arms mode** (`cfg.cooperative_arms_mode = True`, default in `_make_m7_config`):
+
+- **P1 (strict equality)** — torso *angular* 3D only, weight $\alpha_\text{torso}^\text{ang}$. Protects the AOCS angular-momentum budget.
+- **P2 (weighted LS, co-equal)** — torso *linear* 3D (weight $\alpha_\text{torso}^\text{lin}$) and EE 6D (weight $\alpha_\text{ee}$). Both projected through $\mathbf{N}_\text{torso}^\text{ang}$, no projection between them. The QP arbitrates via the relative $\alpha$: at the defaults $\alpha_\text{torso}^\text{lin} = 500$ vs $\alpha_\text{ee} = 3000$, the EE task dominates 6:1 on body-linear motion, allowing the swing arm to pull the body toward its dock target when reach margin demands.
+- **P3 (posture)** — projected through $\mathbf{N}_\text{combo}$ over the stacked P1 + P2 Jacobians ($\mathbb{R}^{12 \times n}$), with `rcond = 1e-4` on the combined pseudo-inverse to handle the wider conditioning of the stacked block (individual task pinvs stay at `1e-8`).
+
+The DOF accounting still holds: angular 3 + linear 3 + EE 6 = 12 consumed (from 14 free SS DOFs), leaving 2 DOFs for posture.
+
+**Stance-arm thrust — explicit inertial-coupling correction (negative-result experiment).** An attempt was made to close the residual 2.4 mm step-2 gap by adding an explicit feedforward to the stance wrench reference:
+
+$$
+\boldsymbol{\lambda}_\text{stance}^\text{des} \;=\; \mathbf{f}_\text{stance}^\text{nmpc} \;+\; \bigl(\mathbf{J}_\text{c}^\text{stance}[:,\,:6]\bigr)^{-\top} \mathbf{M}_{fj}\, \ddot{\mathbf{q}}_j^\text{prev}
+$$
+
+with $\mathbf{M}_{fj} = \mathbf{H}[:6,\,6:]$ (Pinocchio CRBA off-diagonal block) and $\ddot{\mathbf{q}}_j^\text{prev}$ from the previous WBC solution. The hypothesis was that the slow-rate NMPC reference does not see this coupling, so adding it explicitly at the WBC rate would improve cooperative motion.
+
+Empirically the correction regresses step 0 from DOCK 4.55 mm to TIMEOUT 12.1 mm (results/diag_cooperative_arms_thrust/). Structure drift and angular velocity do improve (the floating base becomes stiffer against joint reaction), but body progression — which depends on EE pull translating into base motion — is suppressed. The likely cause is double-counting: the dynamics equality $\mathbf{M}\ddot{\mathbf{q}} + \mathbf{h} = \mathbf{J}_\text{c}^{\top}\boldsymbol{\lambda} + \mathbf{S}^{\top}\boldsymbol{\tau}$ already ties $\boldsymbol{\lambda}$ to the same inertial reaction; a wrench-reference bias for that reaction propagates through the Lagrangian multiplier of the equality and ends up opposing body motion.
+
+The flag (`stance_thrust_correction`, default `False`) and the code path are preserved for future investigation, but the operating configuration leaves the correction off. Possible alternative formulations — joint-torque feedforward, angular-only correction, or reducing $\alpha_\text{wrench}$ during the correction — are not pursued on this branch.
+
+The legacy strict-priority stack of §4.3 remains available via `cfg.cooperative_arms_mode = False` and is exercised by the regression guard in `scripts/diag_cooperative_arms.py --legacy`.
+
+---
+
+
 ### AOCS Controller (Corrected)
 
 The wheels must reject the full disturbance torque about $O_p$, not just the centroidal rate:

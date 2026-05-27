@@ -89,6 +89,38 @@ class WholeBodyQPConfig:
     alpha_com_soft: float = 5.0   # Soft CoM residual weight (1-10 per spec)
     ee_null_space: bool = False   # Null-space project EE task against torso task
 
+    # ── Option D: torso linear soft tube ────────────────────────
+    # See SimConfig docstring for the full rationale. r_tube > 0 enables
+    # the split. Angular torso stays at α_torso; linear torso is gated by
+    # ||p_torso - p_ref|| > r_tube with cost weight
+    # w_tube_lin * (|e|^2 - r_tube^2). Inside the tube the EE / posture
+    # null-space projections only need to avoid the 3D angular Jacobian.
+    r_tube: float = 0.0           # [m] tube radius; 0 = legacy 6D equality
+    w_tube_lin: float = 50.0      # cost scale on (|e|² - r²) when violated
+
+    # ── Cooperative-arms task stack (deviation from spec §4.3) ──
+    # See SimConfig.cooperative_arms_mode for the full rationale.
+    # When True, torso angular is P1 (alpha_torso_ang); torso linear +
+    # EE 6D are co-equal P2 weighted-LS (alpha_torso_lin, alpha_ee).
+    # Posture P3 is projected against the combined P1+P2 stack with
+    # rcond=1e-4 on the combined 12×n pinv (looser than the 1e-8 used
+    # on individual task pinvs) to handle the wider conditioning of
+    # the stacked Jacobian. r_tube is ignored when cooperative_arms_mode
+    # is True (split is structural, not violation-gated).
+    cooperative_arms_mode: bool = False
+    alpha_torso_ang: float = 5e2
+    alpha_torso_lin: float = 5e2
+
+    # ── Stance-thrust inertial-coupling correction (experimental) ───
+    # Adds (J_c_stance[:,:6])^{-T} · M_fj · ddq_j_prev to the stance
+    # slot of the wrench reference, intending to feed-forward the
+    # floating-base/joint inertial coupling. Empirically REGRESSES
+    # step 0 (TIMEOUT 12.1 mm vs cooperative-baseline DOCK 4.55 mm) —
+    # see results/diag_cooperative_arms_thrust/. Kept off by default
+    # and isolated behind its own flag so the cooperative-arms
+    # baseline isn't degraded.
+    stance_thrust_correction: bool = False
+
     # ── Passivity constraint (DS only) ──
     alpha_passivity: float = 1.0  # Energy decay rate α [1/s] (α < 50 at 100 Hz)
 
@@ -181,6 +213,35 @@ class WholeBodyQP:
 
         # Nominal posture (set by user, default: zero)
         self._q_nominal = np.zeros(nq)
+
+        # Option D tube telemetry (populated by solve() when r_tube > 0).
+        # _tube_total_calls    : total QP solves with torso task active
+        # _tube_violations     : solves where ||e_lin|| > r_tube (linear active)
+        # _tube_max_e_lin_m    : max ||e_lin|| observed [m]
+        # _tube_last_violated  : last solve outcome (True if violated)
+        self._tube_total_calls: int = 0
+        self._tube_violations: int = 0
+        self._tube_max_e_lin_m: float = 0.0
+        self._tube_last_violated: bool = False
+
+        # Stance-thrust correction state (cooperative-arms mode).
+        # ddq_j from the previous WBC solve, used to feed-forward the
+        # inertial floating-base/joint coupling M_fj @ ddq_j into the
+        # stance contact wrench reference. One WBC tick (~10 ms) of
+        # delay; acceptable at 100 Hz. Zero on first solve.
+        self._ddq_j_prev: np.ndarray = np.zeros(nq)
+        self._stance_thrust_corr_calls: int = 0
+        self._stance_thrust_corr_max_norm: float = 0.0
+
+        # hw-slack telemetry (always populated). After each QP solve we
+        # record the norms of the upper/lower slack variables; non-zero
+        # values mean the momentum-box safety constraint was active and
+        # the w_hw_slack=1e4 cost was consuming QP budget. Each entry:
+        # dict(label, slack_up_max, slack_lo_max, slack_norm). Set
+        # diag_label externally per QP solve to tag entries with
+        # sim context (e.g. "step02/SS").
+        self.hw_slack_log: list = []
+        self.diag_label: str = ''
 
     def set_nominal_posture(self, q_nom: np.ndarray) -> None:
         """Set the nominal joint posture for regularization.
@@ -555,15 +616,100 @@ class WholeBodyQP:
             a_torso_des = a_ff_t + Kp_t @ e_6d + Kd_t @ (v_ref_t - v_torso_actual)
 
             jdq = Jdot_dq_torso if Jdot_dq_torso is not None else np.zeros(6)
-            A_torso = np.zeros((6, n))
-            A_torso[:, idx['qdd_t'][0]: idx['qdd_t'][1]] = J_torso[:, :6]
-            A_torso[:, idx['qdd'][0]: idx['qdd'][1]] = J_torso[:, 6:]
-            b_torso = a_torso_des - jdq
+            A_torso_full = np.zeros((6, n))
+            A_torso_full[:, idx['qdd_t'][0]: idx['qdd_t'][1]] = J_torso[:, :6]
+            A_torso_full[:, idx['qdd'][0]: idx['qdd'][1]] = J_torso[:, 6:]
+            b_torso_full = a_torso_des - jdq
 
             # Effective weight in M2 stack (sim_loop sets alpha_torso via config;
             # in pure M2 testing, fall back to 1e3 if user left alpha_torso=0).
             w_torso = cfg.alpha_torso if cfg.alpha_torso > 0 else 1e3
-            qp.add_task(A_torso, b_torso, w_torso, priority=1)
+
+            # ── Cooperative-arms mode: split angular/linear ───────────
+            # Angular goes to P1 at alpha_torso_ang (strict equality
+            # strength). Linear is stashed and added later as a P2
+            # weighted-LS co-contributor with EE (same null-space
+            # projection N_torso_ang). The "effective" A_torso /
+            # b_torso / J_torso_eff used downstream collapse to the
+            # angular 3D subset — matching the inside-tube branch.
+            # Stance-arm thrust still flows passively via the dynamics
+            # equality (no explicit cost on stance thrust).
+            _coop_A_lin = None
+            _coop_b_lin = None
+            if cfg.cooperative_arms_mode:
+                A_torso_ang = A_torso_full[3:, :]
+                b_torso_ang = b_torso_full[3:]
+                _coop_A_lin = A_torso_full[:3, :]
+                _coop_b_lin = b_torso_full[:3]
+                # P1 — angular only, strict-equality strength
+                qp.add_task(A_torso_ang, b_torso_ang,
+                            cfg.alpha_torso_ang, priority=1)
+                # Effective torso (used for N_torso, EE FF, residuals)
+                A_torso = A_torso_ang
+                b_torso = b_torso_ang
+                J_torso_eff = J_torso[3:, :]
+                a_torso_des_eff = a_torso_des[3:]
+                # Skip Option D and legacy paths.
+                continue_torso_block = False
+            else:
+                continue_torso_block = True
+
+            # ── Option D: torso linear soft tube ──────────────────────
+            # r_tube > 0 splits the 6D task: angular stays at full weight,
+            # linear is gated by ||p_torso - p_ref|| > r_tube with the
+            # violation-magnitude weight. Inside the tube the linear task
+            # is skipped entirely, and the effective A_torso (used for
+            # null-space projections and EE feedforward downstream)
+            # collapses to the 3 angular rows — freeing the linear-base
+            # DOFs for EE tracking.
+            r_tube = float(getattr(cfg, 'r_tube', 0.0))
+            if continue_torso_block and r_tube > 0.0:
+                e_lin_norm = float(np.linalg.norm(e_pos))
+                linear_active = (e_lin_norm > r_tube)
+
+                A_torso_ang = A_torso_full[3:, :]   # (3, n)
+                b_torso_ang = b_torso_full[3:]      # (3,)
+                A_torso_lin = A_torso_full[:3, :]   # (3, n)
+                b_torso_lin = b_torso_full[:3]      # (3,)
+
+                # Angular task is always enforced at the full weight.
+                qp.add_task(A_torso_ang, b_torso_ang, w_torso, priority=1)
+
+                if linear_active:
+                    # Outside the tube: add linear task with weight that
+                    # scales linearly with the squared-violation; this is
+                    # the QP-friendly surrogate for the user-specified
+                    # quartic cost w_tube * (|e|² - r²)² in position space.
+                    violation_sq = max(0.0, e_lin_norm ** 2 - r_tube ** 2)
+                    w_lin = float(cfg.w_tube_lin) * violation_sq
+                    if w_lin > 0.0:
+                        qp.add_task(
+                            A_torso_lin, b_torso_lin, w_lin, priority=1)
+                    # Effective task (for null-space / FF) stays 6D.
+                    A_torso = A_torso_full
+                    b_torso = b_torso_full
+                    J_torso_eff = J_torso
+                    a_torso_des_eff = a_torso_des
+                else:
+                    # Inside the tube: angular-only for projections / FF.
+                    A_torso = A_torso_ang
+                    b_torso = b_torso_ang
+                    J_torso_eff = J_torso[3:, :]
+                    a_torso_des_eff = a_torso_des[3:]
+
+                self._tube_total_calls += 1
+                if linear_active:
+                    self._tube_violations += 1
+                self._tube_max_e_lin_m = max(
+                    self._tube_max_e_lin_m, e_lin_norm)
+                self._tube_last_violated = bool(linear_active)
+            elif continue_torso_block:
+                # Legacy: full 6D equality task at P1.
+                qp.add_task(A_torso_full, b_torso_full, w_torso, priority=1)
+                A_torso = A_torso_full
+                b_torso = b_torso_full
+                J_torso_eff = J_torso
+                a_torso_des_eff = a_torso_des
 
         # ──────────────────────────────────────────────────────────── #
         # Null-space projectors used by the rest of the M2 stack
@@ -617,8 +763,11 @@ class WholeBodyQP:
             # (rcond=1e-8), matching the one used for the null-space
             # projector above.
             if torso_task_active and J_torso is not None:
-                J_torso_pinv = np.linalg.pinv(J_torso, rcond=1e-8)
-                a_ff_ee = a_ff_ee + J_ee @ J_torso_pinv @ a_torso_des
+                # Use the effective torso Jacobian / desired-acceleration
+                # (3D angular only when the Option D tube is satisfied;
+                # full 6D otherwise — matches the null-space projection).
+                J_torso_pinv = np.linalg.pinv(J_torso_eff, rcond=1e-8)
+                a_ff_ee = a_ff_ee + J_ee @ J_torso_pinv @ a_torso_des_eff
 
             a_ee_des = a_ff_ee + Kp_ee_full @ e_6d_ee + Kd_ee_full @ (v_ref_ee - v_ee_actual)
 
@@ -646,6 +795,21 @@ class WholeBodyQP:
         else:
             A_ee_proj = None
             b_ee_res = None
+
+        # --- Cooperative-arms P2: torso LINEAR (co-equal with EE) ---
+        # Projected through the SAME N_torso (= N_torso_ang) used for EE
+        # so the two P2 tasks share a null-space frame. The QP arbitrates
+        # between them via alpha_torso_lin vs alpha_ee — at the defaults
+        # (500 vs 3000) EE dominates 6:1 on body-linear motion, letting
+        # the swing arm pull the body forward when reach margin demands.
+        A_coop_lin_proj = None
+        b_coop_lin_res = None
+        if (cfg.cooperative_arms_mode and _coop_A_lin is not None
+                and N_torso is not None and A_torso_pinv is not None):
+            A_coop_lin_proj = _coop_A_lin @ N_torso
+            b_coop_lin_res = _coop_b_lin - _coop_A_lin @ A_torso_pinv @ b_torso
+            qp.add_task(A_coop_lin_proj, b_coop_lin_res,
+                        cfg.alpha_torso_lin, priority=2)
 
         # --- Task 2b: Soft CoM residual (M2 stack only) ---
         # Quadratic cost α_com_soft * ||J_com @ qdd - a_com_des||² with
@@ -703,13 +867,24 @@ class WholeBodyQP:
             # targets:
             #   b_posture_res = b_posture − A_posture · A_combo^+ · b_combo
             if cfg.use_m2_stack and A_torso is not None:
+                # Cooperative-arms: include A_torso_lin (the P2 linear task)
+                # in the combined null-space basis so posture doesn't fight
+                # either component of the split torso task. rcond=1e-4 on
+                # the combined 12×n pinv handles the wider conditioning of
+                # the stacked Jacobian (individual task pinvs above stay at
+                # the tighter rcond=1e-8).
+                rows = [A_torso]
+                rhs = [b_torso]
+                if (cfg.cooperative_arms_mode and _coop_A_lin is not None):
+                    rows.append(_coop_A_lin)
+                    rhs.append(_coop_b_lin)
                 if A_ee is not None:
-                    A_combo = np.vstack([A_torso, A_ee])
-                    b_combo = np.concatenate([b_torso, b_ee])
-                else:
-                    A_combo = A_torso
-                    b_combo = b_torso
-                A_combo_pinv = np.linalg.pinv(A_combo, rcond=1e-8)
+                    rows.append(A_ee)
+                    rhs.append(b_ee)
+                A_combo = np.vstack(rows)
+                b_combo = np.concatenate(rhs)
+                _rcond = 1e-4 if cfg.cooperative_arms_mode else 1e-8
+                A_combo_pinv = np.linalg.pinv(A_combo, rcond=_rcond)
                 N_combo = np.eye(n) - A_combo_pinv @ A_combo
                 A_posture_proj = A_posture @ N_combo
                 b_posture_res = b_posture - A_posture @ A_combo_pinv @ b_combo
@@ -734,7 +909,44 @@ class WholeBodyQP:
         # --- Task 3: Contact wrench tracking ---
         A_wrench = np.zeros((self._dim_lambda, n))
         A_wrench[:, idx['lambda'][0]: idx['lambda'][1]] = np.eye(self._dim_lambda)
-        b_wrench = lambda_ref
+        b_wrench = lambda_ref.copy()
+
+        # Stance-thrust inertial-coupling correction (cooperative-arms mode).
+        # The NMPC reference f_stance_nmpc captures momentum-shaping intent
+        # at the slow rate. At the WBC rate it doesn't see the
+        # joint-acceleration coupling M_fj @ ddq_j that the floating base
+        # generates from arm motion. Add
+        #     Δλ_stance = (J_c_stance[:, :6])^{-T} · M_fj · ddq_j_prev
+        # to the stance slot of b_wrench so the QP biases the contact
+        # toward producing the wrench the floating base actually needs to
+        # absorb the joint reaction. Gated on:
+        #   • cooperative_arms_mode (opt-in)
+        #   • not settle_mode (SS only, where exactly one EE is welded)
+        #   • exactly one active contact (the stance)
+        # ddq_j_prev introduces ~10 ms of delay; acceptable at 100 Hz.
+        if (cfg.stance_thrust_correction and not settle_mode
+                and J_contacts is not None and J_contacts.size > 0):
+            nc_active = J_contacts.shape[0] // 6
+            if nc_active == 1:
+                # Find the active contact slot j.
+                j_stance = next(
+                    (j for j in range(cfg.nc_max)
+                     if contact_config.active_contacts[j]),
+                    None)
+                if j_stance is not None:
+                    M_fj = H_robot[:6, 6:]                    # (6, nq)
+                    rhs_ff = M_fj @ self._ddq_j_prev          # (6,)
+                    J_c_ff = J_contacts[0:6, :6]              # (6, 6)
+                    try:
+                        delta_lambda = np.linalg.solve(J_c_ff.T, rhs_ff)
+                    except np.linalg.LinAlgError:
+                        delta_lambda = np.linalg.lstsq(
+                            J_c_ff.T, rhs_ff, rcond=1e-6)[0]
+                    b_wrench[j_stance * 6: (j_stance + 1) * 6] += delta_lambda
+                    self._stance_thrust_corr_calls += 1
+                    self._stance_thrust_corr_max_norm = max(
+                        self._stance_thrust_corr_max_norm,
+                        float(np.linalg.norm(delta_lambda)))
 
         qp.add_task(A_wrench, b_wrench, cfg.alpha_wrench, priority=4)
 
@@ -795,6 +1007,22 @@ class WholeBodyQP:
         lambda_opt = z_opt[idx['lambda'][0]: idx['lambda'][1]]
         tau_q_opt = z_opt[idx['tau'][0]: idx['tau'][1]]
 
+        # --- hw_slack telemetry ---
+        # Capture the 3-vector slacks on the upper/lower momentum-box
+        # constraint. Non-zero values indicate the soft-slack cost
+        # (w_hw_slack, default 1e4) was active and consuming QP budget.
+        try:
+            s_up = z_opt[idx['slack_hw_up'][0]: idx['slack_hw_up'][1]]
+            s_lo = z_opt[idx['slack_hw_lo'][0]: idx['slack_hw_lo'][1]]
+            self.hw_slack_log.append({
+                'label': self.diag_label,
+                's_up_max': float(np.max(np.abs(s_up))),
+                's_lo_max': float(np.max(np.abs(s_lo))),
+                's_norm': float(np.linalg.norm(np.concatenate([s_up, s_lo]))),
+            })
+        except (KeyError, IndexError, ValueError):
+            pass
+
         # --- Debug capture: torso task pre- vs post-solve (M7 diagnosis) ---
         if torso_task_active and A_torso is not None:
             qdd_full = np.concatenate([qdd_t_opt, qdd_opt])
@@ -812,6 +1040,11 @@ class WholeBodyQP:
             }
         else:
             self.last_torso_debug = None
+
+        # Cache joint qdd for next-cycle stance-thrust correction.
+        # Updated unconditionally (cheap); the read site is gated by
+        # cooperative_arms_mode + not settle_mode + nc_active == 1.
+        self._ddq_j_prev = qdd_opt.copy()
 
         return qdd_t_opt, qdd_opt, lambda_opt, tau_q_opt, info
 

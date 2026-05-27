@@ -5,6 +5,7 @@ All tunable parameters for the NMPC+QP+AOCS pipeline in one place.
 
 import numpy as np
 from dataclasses import dataclass, field
+from typing import Optional
 
 
 @dataclass
@@ -79,10 +80,65 @@ class SimConfig:
     # Diagnostic: zero wheel torque during DS (Mode B still runs in SS).
     aocs_off_in_ds: bool = False
 
+    # When True, the gait-phase loop breaks out of the multi-step
+    # traversal as soon as a step ABORTs (dock_timeout or
+    # preplanner_infeasible). Subsequent steps would only observe
+    # post-failure cascade dynamics, not the controller in normal
+    # operation, so running them is wasted compute. Default True
+    # (fail-fast diagnostics); set False to reproduce the legacy
+    # full-cascade runs.
+    stop_on_failed_step: bool = True
+
+    # ── Frame capture for offline rendering ─────────────────────
+    # When > 0, capture this many evenly-spaced snapshots across
+    # the SS swing of every step (labelled frame_step{idx}_{k}).
+    # Default 0 = off. Used by scripts/render_traversal.py.
+    frames_per_step: int = 0
+
     # ── M2: reworked QP task stack ──────────────────────────────
     use_m2_stack: bool = False    # Enable reworked QP (torso P1 + EE null-space P2 + soft CoM)
     alpha_com_soft: float = 0.0   # Soft CoM residual disabled — redundant with torso 6D position task; 5.0 was fighting torso tracking
     alpha_passivity: float = 1.0  # DS passivity decay rate [1/s]
+
+    # ── Cooperative-arms mode (deviation from spec §4.3) ────────
+    # When True, the WBC task stack splits the torso 6D task into:
+    #   P1 — torso ANGULAR 3D (strict-equality strength, alpha_torso_ang)
+    #   P2 — torso LINEAR 3D + EE 6D as weighted-LS co-contributors,
+    #        BOTH projected through N_torso_ang (no projection between them)
+    #   P3 — posture, projected through N(combined P1+P2)
+    # This drops the strict EE→torso null-space hierarchy: the EE task can
+    # now pull the body forward in the linear DOFs when its reach margin
+    # demands it. The torso angular DOF stays strict (protects AOCS
+    # budget). Stance-arm thrust still flows passively through the
+    # dynamics constraint (no explicit QP cost on stance thrust —
+    # documented limitation; cooperative reaction is structurally
+    # rewarded by the LS arbitration, not by a dedicated task).
+    # Default False preserves the legacy M2 strict-priority stack.
+    cooperative_arms_mode: bool = False
+
+    # ── Stance-thrust inertial-coupling correction (experimental, OFF) ─
+    # Negative-result experiment: see WholeBodyQPConfig docstring and
+    # results/diag_cooperative_arms_thrust/. Adds an explicit
+    # M_fj · ddq_j feedforward to the stance wrench reference. Was
+    # hypothesized to close the 2.4 mm step-2 gap by absorbing the
+    # joint-acceleration coupling at the contact; in practice it
+    # regressed step 0 to TIMEOUT 12.1 mm. Kept available behind this
+    # flag for future investigation.
+    stance_thrust_correction: bool = False
+
+    # ── Option D: torso linear soft tube ────────────────────────
+    # When r_tube > 0, the WBC torso P1 task is split:
+    #   (a) angular 3D — always enforced at the full α_torso weight
+    #       (hard-equality-strength task)
+    #   (b) linear 3D — gated. Skipped while ||p_torso - p_ref|| ≤ r_tube;
+    #       outside the tube, added with weight w_tube_lin · (|e|² - r²)
+    #       so the cost grows with the violation magnitude.
+    # When the linear task is skipped, the null-space projection for
+    # the EE / posture / soft-CoM tasks is computed against the 3D
+    # angular Jacobian only, freeing the linear-base DOFs for EE
+    # tracking. Default 0 disables the tube (legacy 6D equality task).
+    r_tube: float = 0.0           # [m] tube radius for torso linear position
+    w_tube_lin: float = 50.0      # cost scale on (|e|² - r²) when violated
 
     # ── M3: NMPC conservation-law box constraint ────────────────
     enforce_hw_conservation: bool = False  # Enable B2 Option B hw box
@@ -102,18 +158,28 @@ class SimConfig:
     # CoarsePlanResult.from_heuristic() directly.
     preplanner_M: int = 15                  # collocation intervals
     preplanner_kappa: float = 0.7           # terminal margin multiplier (< 1)
-    preplanner_f_max: float = 25.0          # [N] per active contact
+    preplanner_f_max: float = 25.0          # [N] per active contact (also used by F-SAT clamp)
     preplanner_tau_max: float = 8.0         # [Nm] per active contact
     preplanner_w_L: float = 1.0             # cost weight on ||L_com||²
     preplanner_w_u: float = 1e-2            # cost weight on ||[f; τ]||²
     preplanner_max_iter: int = 300          # IPOPT max iterations
     preplanner_a_cruise_max: float = 0.0     # [m/s²] cruise accel limit (0=off)
     preplanner_cruise_ramp_frac: float = 0.2 # ramp fraction for cruise window
+    # F-SAT (mapping torso-ref rate limiter): the per-WBC-tick r_b_ref
+    # increment is capped at (|v_b_ref_ff| + fsat_jitter_margin)·dt_qp,
+    # i.e. the planned (feasibility-bounded) torso-reference velocity
+    # plus a jitter slack. The slack absorbs the once-per-NMPC-tick
+    # δ(q_current) step (F-RATE updates δ at 10 Hz) and discretisation,
+    # while still clipping the multi-m/s cross-tick δ jitter the limiter
+    # exists for. Replaces the old fixed (f_max/m_b)·dt²·2 ≈ 0.125mm/tick
+    # cap, which throttled *sustained* forward motion and prevented the
+    # torso reference from reaching the dock on large steps (T15 step 2).
+    fsat_jitter_margin: float = 0.05         # [m/s] jitter slack on the torso-ref rate cap
 
     # ── NMPC solver ─────────────────────────────────────────────
     nmpc_N: int = 8
     nmpc_dt: float = 0.1
-    nmpc_f_max: float = 25.0
+    nmpc_f_max: float = 300.0
     nmpc_tau_max: float = 8.0
     nmpc_Wv: float = 10.0
     nmpc_p_max: float = 50.0      # Linear momentum bound [kg·m/s]
@@ -133,6 +199,8 @@ class SimConfig:
     # ── QP weights — Single-support ─────────────────────────────
     ss_alpha_com: float = 2e2
     ss_alpha_torso: float = 5e2
+    ss_alpha_torso_ang: float = 5e2  # Cooperative-arms P1 torso angular weight
+    ss_alpha_torso_lin: float = 5e2  # Cooperative-arms P2 torso linear weight (co-equal w/ EE)
     ss_alpha_ee: float = 3e3
     ss_alpha_posture: float = 2e1
     ss_alpha_wrench: float = 1e-2  # pure regularisation; 1e2 was penalising contact forces (the only actuation path through the stance weld) and attenuating the torso task 7x (see scripts/test_qp_tracking.py)
@@ -168,6 +236,48 @@ class SimConfig:
     # well above near-singularity (w < ~1e-6).
     ik_fixed_rotation: bool = True
     ik_fixed_rotation_w_min: float = 1e-4
+
+    # ── Startup-IK posture/leveling regularizers ────────────────
+    # Forwarded by sim_loop.setup() into manipulability_config (and
+    # the rare dock_configuration fallback). All default off ⇒
+    # bit-identical legacy startup IK. See crawlbot/core/ik.py
+    # solve_ik docstring.
+    #   ik_level_axis : (3,) unit vector in the structure
+    #     (Pinocchio-world) frame. The startup IK keeps the torso
+    #     body-z parallel to ±this axis (pitch/roll leveled, yaw
+    #     free). For the T15-FK rail the surface normal is +z, so
+    #     np.array([0., 0., 1.]). None ⇒ legacy free rotation.
+    #   ik_q_nominal : (nq-7,) arm-joint reference; soft bias away
+    #     from contorted/entangled branches. None ⇒ no posture term.
+    #   ik_w_posture : weight on the posture regularizer. 0 ⇒ off.
+    ik_level_axis: Optional[np.ndarray] = None
+    ik_q_nominal: Optional[np.ndarray] = None
+    ik_w_posture: float = 0.0
+
+    # ── Constant CoM-z standoff (crawl height) ──────────────────────
+    # The reworked architecture never specified a standoff: the dock IK
+    # left CoM-z free, so dock configs drifted toward the beam (CoM-z
+    # range 408mm over a 5-step run) and the torso grazed/penetrated the
+    # structure (steps 2-4). Terrestrial analog: a walker holds a roughly
+    # constant CoM height while x,y translate. When enabled, the
+    # fixed-rotation dock IK pins CoM-z = com_z_standoff (structure
+    # frame), holding a uniform standoff; x,y stay free to crawl. The
+    # value -0.35 m is the worst-direction-manipulability optimum from
+    # scripts/diag_standoff_feasibility.py (sigma_min peak 0.099, torso
+    # clearance >=273mm), feasible for every anchor pair.
+    use_com_z_standoff: bool = False        # off by default (bit-identical ablation)
+    com_z_standoff: float = -0.35           # [m] target CoM-z in structure frame
+
+    # ── Loop-free CoM->torso mapping (base-relative moment) ─────────
+    # The world-frame delta(q) couples base position into r_b_ref,
+    # creating a mapping->q->mapping feedback loop (237mm/tick jitter)
+    # when fed q_current — the loop F-SAT was bolted on to suppress.
+    # When True, the mapping uses the base-position-invariant identity
+    #   r_b_ref = r_com_ref - D_local(q)/m_total
+    # which matches reality (live arm joints) AND has no base-position
+    # feedback, so F-SAT becomes unnecessary. Default False = legacy
+    # world-frame delta (bit-identical ablation).
+    use_local_delta_mapping: bool = False
 
     # ── M7 Manipulability-IK-1: trajectory-aware IK (Candidate 1) ──
     # When True, sim_loop builds an additional torso_map_traj dict
@@ -306,3 +416,6 @@ class SimConfig:
     # Set to 0.0 to disable (reverts to the pre-Option-A step
     # behavior). Introduced to close the T12 DS1 divergence;
     # see docs/architecture/M7_T12_MEMO.md §5.
+
+    # ── Gait geometry ───────────────────────────────────────────
+    gait_anchor_dx: float = 0.8  # Anchor-grid pitch [m]; rewrites MJCF anchor sites to x=(i-3.5)·dx (i=1..6) via _mutate_mjcf
