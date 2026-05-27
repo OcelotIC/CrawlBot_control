@@ -107,12 +107,49 @@ Fig: `results/diag_cooperative_arms/momentum_aocs.png`.
 
 Fig: `results/diag_cooperative_arms/actuator_solver.png`.
 
+## 6b. Group C — cascade band-aid footprint (`scripts/diag_cascade_health.py`)
+
+The live SS cascade is **world-frame δ(q_current) + F-SAT rate clamp**
+(not the principled loop-free mapping; see CLAUDE.md "Note —
+reverted/superseded"). This measures how hard that band-aid works.
+
+| check | result | verdict |
+|---|---|---|
+| CoM-z standoff hold (target −0.35), all steps | overall range **52mm**; per-step dev ≤ **27mm** (step 3 worst) | ✓ holds throughout |
+| torso position tracking \|p_torso − p_torso_ref\| | mean **4.3mm**, peak 46.6mm (transient) | ✓ tracks mapped ref |
+| F-SAT clip rate | **49.59%** of ticks clipped (1527/3079), max clip 10.2mm | band-aid works ~half the time |
+| F-SAT per-tick increment \|d r_b_ref\| | peak 44.2mm/tick, mean 4.2mm/tick | δ(q_current) jitter |
+
+Per-step CoM-z deviation from −0.35: step 0 → 2mm, step 1 → 13mm,
+step 2 → 21mm, step 3 → 27mm, step 4 → 23mm. The standoff fix
+(`61c3d5a`) was previously verified only at step 0; it **holds across
+all 5 steps**.
+
+**Verdict: the cascade *functions* but is *heavily band-aid-dependent*.**
+The CoM-z standoff holds and the torso tracks the mapped+clamped
+reference at ~4.3mm mean — so the body follows, it does not lag/drag.
+But F-SAT is clipping **half** the ticks: the rate limiter is doing
+sustained work suppressing the δ(q_current) feedback jitter, not just
+catching occasional spikes. This is the **C-side of the same root
+cause as B/D** — the live cascade survives on rate-clamping the
+world-frame δ feedback rather than on the principled (loop-free)
+mapping, which is committed OFF. The 49.6% clip rate quantifies the
+**F-SAT / δ(q_current) debt**: the traversal is robust to it today,
+but it is a standing liability (the band-aid, not a guarantee).
+
+Fig: `results/diag_cooperative_arms/cascade_health.png`.
+
 ## 7. Verdict & open items
 
 **Verdict:** end-to-end 5-step traversal **works**; dock **in-spec** (A); momentum **state** healthy (B); solver healthy (D) — but with **eroding actuator/momentum margin** concentrated in one step-2 transient, all rooted in a **10× NMPC↔QP wrench inconsistency** (soft-CoM cascade guarantee disabled).
 
+**Campaign complete (A/B/C/D all measured).** C (§6b): CoM-z standoff
+holds across all 5 steps (≤27mm dev); torso tracks the mapped ref
+(mean 4.3mm); **F-SAT clips 49.6% of ticks** — the cascade functions
+but leans heavily on the band-aid (the δ(q_current)/F-SAT debt,
+quantified).
+
 **Still pending:**
-- **C cascade band-aid** (CoM-z hold all steps, F-SAT clip rate, torso tracking) — closely related to the D finding (the band-aid cascade).
 - Only the **1% mass-ratio canonical scenario**; 14% (spec T12) unchecked — B & D both indicate that's where margins bite.
 - **FK-mode test** still red (deselected).
 
