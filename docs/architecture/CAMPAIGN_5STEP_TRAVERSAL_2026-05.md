@@ -72,19 +72,23 @@ Sources: Deremetz et al., "HOTDOCK: Design and Validation…" (ResearchGate 3448
 
 ## 5. Group B — momentum / AOCS health (`scripts/diag_momentum_aocs.py`)
 
-Checked against spec thresholds on the verified 5-dock run:
+Checked against spec thresholds on the verified 5-dock run. **NB:** the
+wheel box is **per-axis** (±5 each), so saturation = max over axes of
+|·|, *not* the vector norm (the norm can reach 5√3≈8.66 with all 3
+wheels at ±5 and zero per-axis violation — an earlier draft mis-reported
+the norm as a 1.73 "FAIL").
 
-| metric | value | thresh | pass |
+| metric (per-axis) | value | thresh | pass |
 |---|---|---|---|
-| hw saturation peak | 0.652 (3.26/5 Nms) | <1.0 | ✓ |
-| hw saturation rms | 0.376 | <0.7 | ✓ |
+| hw saturation peak | 0.559 (2.79/5 Nms) | <1.0 | ✓ |
+| hw saturation rms (norm) | 0.376 | <0.7 | ✓ |
 | platform rotation total | 3.80° | <5° | ✓ (76% of budget) |
 | platform ω peak | 0.41°/s | <2°/s | ✓ |
-| **τ_w peak ratio** | **1.732 (8.66/5 Nm)** | <1.0 | **✗** |
+| τ_w peak | 1.000 (5.0/5 Nm, **0 ticks over**) | <1.0 | at-limit |
 
 **Verdict: momentum *state* healthy, margin eroding.**
-- Wheels stay in box (65% peak), ω_s gentle, L_com low (mean 0.25 Nms) — NMPC momentum constraint + AOCS keep the state feasible.
-- **τ_w over-commands transiently** (3% of ticks): bursts on step-2 SS (peak 8.66 Nm, ~1s) and step-4 end; steps 0,1,3 ≤3 Nm. Wheel `ctrlrange=±5` clamps it → wheels saturate, structure briefly under-actuated for attitude. **The step-2 burst is the same disturbance event as that step's 62N contact-force spike** (longest stride, 522mm torso travel).
+- Wheels stay in box (per-axis 56% peak), ω_s gentle, L_com low (mean 0.25 Nms) — NMPC momentum constraint + AOCS keep the state feasible.
+- **τ_w reaches the per-axis ±5 Nm wheel limit transiently** (saturation, **no over-command** — 0 per-axis violations) in two ~1s bursts: step-2 SS and step-4 end (norm there = 5√3 = all 3 wheels clamped). So **zero wheel-torque margin** during those windows. **The step-2 burst is the same disturbance event as that step's 62N contact-force spike** (longest stride, 522mm torso travel).
 - **Platform attitude accumulates** monotonically to 3.8° over 5 steps (~0.76°/step → would breach 5° ≈ step 7, extrapolated).
 - Both concerns expected to **worsen at 14% mass ratio** (untested).
 

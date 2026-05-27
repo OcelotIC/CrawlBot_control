@@ -58,20 +58,30 @@ def main():
     drift_deg = np.array([quat_angle_deg(sq[i], sq[0]) for i in range(len(sq))])
 
     # --- metrics + thresholds ---
+    # The box is PER-AXIS (each wheel has its own +-5 limit / ctrlrange).
+    # So saturation is max over axes of |.|, NOT the vector norm: the norm
+    # can reach 5*sqrt(3)=8.66 with all 3 wheels exactly at +-5 and zero
+    # per-axis violation.
+    hw_ax_peak = np.abs(hw).max()        # worst per-axis |hw_i| over run
+    tauw_ax_peak = np.abs(tauw).max()    # worst per-axis |tau_w_i| over run
+    tauw_over = int((np.abs(tauw) > TAUW_MAX + 1e-9).any(axis=1).sum())
     metrics = {
-        'hw_sat_peak':       (hw_n.max() / HW_MAX, 1.0),
-        'hw_sat_rms':        (np.sqrt(np.mean((hw_n / HW_MAX) ** 2)), 0.7),
-        'platform_rot_total_deg': (drift_deg.max(), 5.0),
+        'hw_sat_peak (per-axis)':  (hw_ax_peak / HW_MAX, 1.0),
+        'hw_sat_rms (norm)':       (np.sqrt(np.mean((hw_n / HW_MAX) ** 2)), 0.7),
+        'platform_rot_total_deg':  (drift_deg.max(), 5.0),
         'platform_omega_peak_deg_s': (oms_deg.max(), 2.0),
-        'tau_w_peak_ratio':  (tauw_n.max() / TAUW_MAX, 1.0),
+        'tau_w_peak (per-axis)':   (tauw_ax_peak / TAUW_MAX, 1.0),
     }
 
     print('=== Group B: momentum / AOCS health ===')
     print(f"{'metric':>28} {'value':>10} {'thresh':>8} {'PASS?':>6}")
     for k, (v, th) in metrics.items():
         print(f"{k:>28} {v:>10.3f} {th:>8.2f} {str(v < th):>6}")
-    print(f"\n  peak |hw| = {hw_n.max():.2f} Nms (box +-{HW_MAX}); "
-          f"peak |tau_w| = {tauw_n.max():.2f} Nm (box +-{TAUW_MAX})")
+    print(f"\n  per-axis peak |hw_i| = {hw_ax_peak:.2f} Nms (limit +-{HW_MAX}); "
+          f"per-axis peak |tau_w_i| = {tauw_ax_peak:.3f} Nm (limit +-{TAUW_MAX}); "
+          f"ticks with any axis over tau_w limit = {tauw_over}")
+    print(f"  (norm peaks: |hw|={hw_n.max():.2f}, |tau_w|={tauw_n.max():.2f}=5sqrt3 "
+          f"when all 3 wheels clamped -> NOT a per-axis violation)")
     print(f"  |L_com| peak = {Lc_n.max():.3f}  mean = {Lc_n.mean():.3f} Nms")
     print(f"  platform net rotation start->end = {drift_deg[-1]:.2f} deg (peak {drift_deg.max():.2f})")
 
@@ -87,7 +97,7 @@ def main():
         ax[0].plot(t, hw[:, i], lw=0.9, label=f'hw_{c}')
     ax[0].axhline(HW_MAX, color='r', ls='--', lw=0.8); ax[0].axhline(-HW_MAX, color='r', ls='--', lw=0.8)
     ax[0].set_ylabel('hw [Nms]'); ax[0].legend(fontsize=7, ncol=3, loc='upper right')
-    ax[0].set_title(f'Structure RWA momentum (peak sat {metrics["hw_sat_peak"][0]*100:.0f}% of box)')
+    ax[0].set_title(f'Structure RWA momentum (per-axis peak {metrics["hw_sat_peak (per-axis)"][0]*100:.0f}% of box)')
 
     ax[1].plot(t, drift_deg, 'C4', lw=1.1)
     ax[1].axhline(5.0, color='r', ls='--', lw=0.8, label='5 deg spec')
