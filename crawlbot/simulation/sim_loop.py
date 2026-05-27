@@ -1883,6 +1883,24 @@ class SimulationLoop:
 
     # ── Single NMPC+QP step ──────────────────────────────────────────────
 
+    def _swing_query_time(self, t_raw: float, phase: str, ss_end) -> float:
+        """Plan-time fed to ``SwingPlanner.reference_at``.
+
+        Clamped so an extended SS convergence-hold queries the dock
+        target (quintic τ pinned at 1, v=a=0) rather than walking into
+        the *next* scheduled phase's anchors — which belong to the
+        other arm and the subsequent target, and which the controller
+        never tracks. The control and logging paths MUST share this:
+        when they computed it independently the logging path omitted
+        the clamp and e_ee_pos reported an 800mm phantom error against
+        a reference the QP was not following (T15 schedule/execution
+        desync).
+        """
+        tq = t_raw - self._t_plan_offset
+        if phase == 'SS' and ss_end is not None:
+            tq = min(tq, (ss_end - self._t_plan_offset) - 0.01)
+        return tq
+
     def _step(self, t, phase, step_idx, swing_arm, stance_arm,
               cc_ss, target_anchor, stance_a, stance_b,
               hw, L_com_prev, log, ss_end=None, settle_mode=False,
@@ -2256,10 +2274,8 @@ class SimulationLoop:
                 # which is exactly what the margin/hold windows need —
                 # no separate EXT approach-velocity reference is
                 # required.
-                tq_plan = tq - self._t_plan_offset
-                ss_end_plan = ss_end - self._t_plan_offset
                 sr = self.swing_planner.reference_at(
-                    min(tq_plan, ss_end_plan - 0.01))
+                    self._swing_query_time(tq, phase, ss_end))
                 if sr.is_swinging and sr.swing_arm == swing_arm:
                     J_ee, Jdq_ee, oMf_ee = self._get_ee_data(rs, swing_arm)
                     ek = dict(J_ee=J_ee, Jdot_dq_ee=Jdq_ee,
@@ -2596,7 +2612,8 @@ class SimulationLoop:
         # EE tracking error (vs planned trajectory reference, not just target).
         # Plan-time (offset-corrected) for the swing planner lookup.
         import pinocchio as pin
-        sr_log = self.swing_planner.reference_at(t - self._t_plan_offset)
+        sr_log = self.swing_planner.reference_at(
+            self._swing_query_time(t, phase, ss_end))
         _, _, oMf_ee_log = self._get_ee_data(rs_f, swing_arm)
         log.e_ee_pos.append(float(np.linalg.norm(oMf_ee_log.translation - sr_log.p_ee)))
         e_ori_ee = pin.log3(oMf_ee_log.rotation.T @ sr_log.R_ee)
@@ -2673,7 +2690,8 @@ class SimulationLoop:
         q_ee_actual = pin.Quaternion(oMf_ee_f.rotation)
         log.q_ee.append(np.array([q_ee_actual.w, q_ee_actual.x,
                                    q_ee_actual.y, q_ee_actual.z]))
-        sr_f = self.swing_planner.reference_at(t_log - self._t_plan_offset)
+        sr_f = self.swing_planner.reference_at(
+            self._swing_query_time(t_log, phase, ss_end))
         log.p_ee_ref.append(sr_f.p_ee.copy())
         q_ee_r = pin.Quaternion(sr_f.R_ee)
         log.q_ee_ref.append(np.array([q_ee_r.w, q_ee_r.x,
