@@ -94,17 +94,31 @@ the norm as a 1.73 "FAIL").
 
 Fig: `results/diag_cooperative_arms/momentum_aocs.png`.
 
-## 6. Verdict & open items
+## 6. Group D — actuator / solver health (`scripts/diag_actuator_solver.py`)
 
-**Verdict:** end-to-end 5-step traversal **works**; dock criterion **validated in-spec** (A); momentum **state** healthy but with **eroding margin** (B: transient AOCS torque saturation + ~0.76°/step attitude accumulation).
+| check | result | verdict |
+|---|---|---|
+| NMPC solve <50ms | 99.6% (mean 19ms, peak 128ms) | ✓ (thresh 95%) |
+| NMPC infeasible | 0% | ✓ (thresh <2%) |
+| per-joint τ vs ±20Nm | worst joint **20.0 Nm (100%) for 2 ticks** | transient saturation |
+| contact force QP vs NMPC plan | **62.2N QP vs 5.8N planned @ step2 (10.8×)** | cascade mismatch |
+
+**B and D are the same step-2 transient (t≈16.63, longest stride), causally linked:** the **centroidal NMPC under-budgets the whole-body wrench ~10×** (its point-mass+momentum model has no arm/joint/torso inertial dynamics). So the real momentum disturbance exceeds the plan → **wheels saturate (B)**, a **joint hits 20Nm**, and the **QP commands 62N** — it docks, but with **zero actuator margin** in that ~1s window. This is the documented "QP needs ~9× more wrench than NMPC plans" (commit 673cc68), quantified at 10.8×. Root: the **soft-CoM residual** meant to keep NMPC↔QP consistent is **OFF** (`α_com_soft=0`).
+
+Fig: `results/diag_cooperative_arms/actuator_solver.png`.
+
+## 7. Verdict & open items
+
+**Verdict:** end-to-end 5-step traversal **works**; dock **in-spec** (A); momentum **state** healthy (B); solver healthy (D) — but with **eroding actuator/momentum margin** concentrated in one step-2 transient, all rooted in a **10× NMPC↔QP wrench inconsistency** (soft-CoM cascade guarantee disabled).
 
 **Still pending:**
-- **C cascade band-aid** (CoM-z hold all steps, F-SAT clip rate, torso tracking) and **D actuator/solver** (the step-2 62N spike root, per-joint τ, NMPC solve rate). Note B already linked the step-2 τ_w burst ↔ the 62N spike — likely one event for D.
-- Only the **1% mass-ratio canonical scenario**; 14% (spec T12) unchecked — and B suggests it's where margins bite.
-- **FK-mode test** still red (deselected, not fixed).
+- **C cascade band-aid** (CoM-z hold all steps, F-SAT clip rate, torso tracking) — closely related to the D finding (the band-aid cascade).
+- Only the **1% mass-ratio canonical scenario**; 14% (spec T12) unchecked — B & D both indicate that's where margins bite.
+- **FK-mode test** still red (deselected).
 
 **Open control items (not blocking the traversal):**
 - Settled **~4.8mm steady-state EE offset** on long strides (cooperative torso-linear vs EE tension).
+- **10× NMPC↔QP wrench mismatch** under load (soft-CoM off) — the consistency guarantee the architecture was designed around is inactive; survives on QP slack.
 - **Loop-free mapping angular drift** (committed OFF) — spec §3 constrained-dynamic-singularity; §6 mitigation never implemented.
 - **F-SAT / δ(q_current) debt** — live cascade is the world-frame δ + F-SAT band-aid.
-- **AOCS torque margin** — transient saturation on the hardest stride; attitude accumulation per step.
+- **AOCS / actuator margin** — transient wheel + joint + contact saturation on the hardest stride; platform attitude accumulation ~0.76°/step.
