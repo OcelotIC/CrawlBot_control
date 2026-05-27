@@ -70,16 +70,37 @@ Sources: Deremetz et al., "HOTDOCK: Design and Validation…" (ResearchGate 3448
 
 ---
 
-## 5. Verdict & open items
+## 5. Group B — momentum / AOCS health (`scripts/diag_momentum_aocs.py`)
 
-**Verdict:** end-to-end 5-step traversal **works** and the dock criterion is **validated in-spec** (position/orientation/velocity all within HOTDOCK's envelope). This is "works" in a grounded sense for docking — not asserted.
+Checked against spec thresholds on the verified 5-dock run:
 
-**NOT yet validated (honesty):**
-- **Full diagnostic-threshold suite** (project anti-pattern A1: "it docked is not a metric"). Only the dock-quality group (A) is done. Pending: **B momentum/AOCS health** (hw vs ±5 Nms box now `enforce_hw_conservation=True`, structure attitude drift vs 5°, L_com, τ_w), **C cascade band-aid** (CoM-z hold all steps, F-SAT clip rate, torso tracking), **D actuator/solver** (the step-2 62N contact-force spike, per-joint τ, NMPC solve rate).
-- Only the **1% mass-ratio canonical scenario**; 14% (spec T12) unchecked.
+| metric | value | thresh | pass |
+|---|---|---|---|
+| hw saturation peak | 0.652 (3.26/5 Nms) | <1.0 | ✓ |
+| hw saturation rms | 0.376 | <0.7 | ✓ |
+| platform rotation total | 3.80° | <5° | ✓ (76% of budget) |
+| platform ω peak | 0.41°/s | <2°/s | ✓ |
+| **τ_w peak ratio** | **1.732 (8.66/5 Nm)** | <1.0 | **✗** |
+
+**Verdict: momentum *state* healthy, margin eroding.**
+- Wheels stay in box (65% peak), ω_s gentle, L_com low (mean 0.25 Nms) — NMPC momentum constraint + AOCS keep the state feasible.
+- **τ_w over-commands transiently** (3% of ticks): bursts on step-2 SS (peak 8.66 Nm, ~1s) and step-4 end; steps 0,1,3 ≤3 Nm. Wheel `ctrlrange=±5` clamps it → wheels saturate, structure briefly under-actuated for attitude. **The step-2 burst is the same disturbance event as that step's 62N contact-force spike** (longest stride, 522mm torso travel).
+- **Platform attitude accumulates** monotonically to 3.8° over 5 steps (~0.76°/step → would breach 5° ≈ step 7, extrapolated).
+- Both concerns expected to **worsen at 14% mass ratio** (untested).
+
+Fig: `results/diag_cooperative_arms/momentum_aocs.png`.
+
+## 6. Verdict & open items
+
+**Verdict:** end-to-end 5-step traversal **works**; dock criterion **validated in-spec** (A); momentum **state** healthy but with **eroding margin** (B: transient AOCS torque saturation + ~0.76°/step attitude accumulation).
+
+**Still pending:**
+- **C cascade band-aid** (CoM-z hold all steps, F-SAT clip rate, torso tracking) and **D actuator/solver** (the step-2 62N spike root, per-joint τ, NMPC solve rate). Note B already linked the step-2 τ_w burst ↔ the 62N spike — likely one event for D.
+- Only the **1% mass-ratio canonical scenario**; 14% (spec T12) unchecked — and B suggests it's where margins bite.
 - **FK-mode test** still red (deselected, not fixed).
 
 **Open control items (not blocking the traversal):**
-- Settled **~4.8mm steady-state EE offset** on long strides (scales with body-travel demand; cooperative torso-linear vs EE tension). Not impact, not velocity — a precision characteristic.
-- **Loop-free mapping angular drift** (committed OFF) — the spec §3 constrained-dynamic-singularity; §6 mitigation (condition-number monitor + damped null-space) never implemented.
-- **F-SAT / δ(q_current) debt** — the live cascade is the world-frame δ + F-SAT band-aid, not the principled mapping.
+- Settled **~4.8mm steady-state EE offset** on long strides (cooperative torso-linear vs EE tension).
+- **Loop-free mapping angular drift** (committed OFF) — spec §3 constrained-dynamic-singularity; §6 mitigation never implemented.
+- **F-SAT / δ(q_current) debt** — live cascade is the world-frame δ + F-SAT band-aid.
+- **AOCS torque margin** — transient saturation on the hardest stride; attitude accumulation per step.
