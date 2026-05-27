@@ -222,12 +222,10 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8):
     cfg.t_ss_margin = 5.0
     cfg.r_tube = 0.0
     cfg.preplanner_f_max = 25.0  # F-SAT clamp source
-    # Constant CoM-z standoff (crawl height): dock-IK support exists
-    # (cfg.use_com_z_standoff) but pinning the *target* alone makes the
-    # body overshoot upward (EE pulls it toward the anchor with no runtime
-    # CoM-z hold) -> step-0 regression. Left OFF pending a runtime hold;
-    # see scripts/diag_step0_standoff_fail.py.
-    cfg.use_com_z_standoff = False
+    # Constant CoM-z standoff (crawl height). Initial config is also
+    # re-solved at this standoff (setup) so the z-reference is flat from
+    # t=0 — no startup z transient to compete with EE tracking.
+    cfg.use_com_z_standoff = True
     cfg.com_z_standoff = -0.35
     # Rework knob.
     cfg.cooperative_arms_mode = (not legacy)

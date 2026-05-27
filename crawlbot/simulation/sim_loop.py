@@ -300,6 +300,28 @@ class SimulationLoop:
                 self.sched.anchor_se3('b', start_b),
                 **_ik_kw)
 
+        # Constant CoM-z standoff: re-solve the INITIAL config at the
+        # standoff height so the robot starts at crawl height. Otherwise
+        # the z-reference ramps from the unconstrained init (CoM-z ~-0.48)
+        # to the standoff dock targets (-0.35), and that startup z
+        # transient competes with EE tracking and breaks docking.
+        if cfg.use_com_z_standoff:
+            rs_init = self.robot.update(
+                self.q_dock_init, np.zeros(self.robot.model.nv))
+            R_t_init = rs_init.oMf_torso.rotation.copy()
+            q_z, err_z, _, _ = dock_configuration_fixed_rotation(
+                self.robot.model,
+                self.sched.anchor_se3('a', start_a),
+                self.sched.anchor_se3('b', start_b),
+                R_torso_fixed=R_t_init,
+                q_init=self.q_dock_init.copy(),
+                com_z_target=cfg.com_z_standoff)
+            if err_z < 1e-4:
+                self.q_dock_init = q_z
+            else:
+                print(f"  [standoff] init IK residual {err_z:.2e} >= 1e-4; "
+                      f"keeping unconstrained init")
+
         sp = self.mj_data.qpos[0:3].copy()
         sq = self.mj_data.qpos[3:7].copy()
         mj_qpos, _ = pinocchio_to_mujoco(
