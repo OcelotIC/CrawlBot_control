@@ -846,6 +846,21 @@ class SimulationLoop:
         return float(np.linalg.norm(
             self.mj_data.site_xpos[grip_sid] - self.mj_data.site_xpos[anch_sid]))
 
+    def _gripper_speed(self, arm):
+        """Swing-EE linear speed relative to the structure [m/s].
+
+        Anchors are static in the structure frame, so this is the EE
+        approach speed onto the anchor. Used as a dock-gate criterion:
+        a clean dock needs low relative speed, else the weld's inelastic
+        impact projection injects a momentum impulse (recoil / force
+        spike). Pinocchio relative twist -> J_ee @ v gives EE velocity
+        relative to the structure (LOCAL_WORLD_ALIGNED linear part).
+        """
+        pq, pv = mujoco_to_pinocchio(self.mj_data.qpos, self.mj_data.qvel)
+        rs = self.robot.update(pq, pv)
+        J_ee, _, _ = self._get_ee_data(rs, arm)
+        return float(np.linalg.norm((J_ee @ pv)[0:3]))
+
     def _gripper_ori_err_deg(self, arm, anchor_idx):
         """Angle between the gripper frame and its target anchor frame.
 
@@ -1674,10 +1689,12 @@ class SimulationLoop:
                                 swing_arm, target_idx)
                             pos_ok = d < cfg.weld_radius
                             ori_ok = ori_err_deg < cfg.dock_ori_threshold_deg
+                            vel_ok = (self._gripper_speed(swing_arm)
+                                      < cfg.dock_vel_max)
                             if cfg.use_gmo_dock:
-                                docked = self._contact_confirmed and ori_ok
+                                docked = self._contact_confirmed and ori_ok and vel_ok
                             else:
-                                docked = pos_ok and ori_ok
+                                docked = pos_ok and ori_ok and vel_ok
                             if docked:
                                 log.dock_events.append({
                                     't': round(t, 3), 'step': step_idx,
@@ -1725,10 +1742,12 @@ class SimulationLoop:
                                 swing_arm, target_idx)
                             pos_ok = d < cfg.weld_radius
                             ori_ok = ori_err_deg < cfg.dock_ori_threshold_deg
+                            vel_ok = (self._gripper_speed(swing_arm)
+                                      < cfg.dock_vel_max)
                             if cfg.use_gmo_dock:
-                                docked = self._contact_confirmed and ori_ok
+                                docked = self._contact_confirmed and ori_ok and vel_ok
                             else:
-                                docked = pos_ok and ori_ok
+                                docked = pos_ok and ori_ok and vel_ok
                             if docked:
                                 log.dock_events.append({
                                     't': round(t, 3), 'step': step_idx,
