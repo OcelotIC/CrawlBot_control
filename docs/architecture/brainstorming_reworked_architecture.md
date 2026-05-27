@@ -1,5 +1,13 @@
 # Two-Layer Control Architecture for the SpaceServicer on ASTROHUB
 
+> **⚠ STATUS (2026-05-27): historical intent + derivation.** The mathematical
+> derivation (momentum conservation, frame/SE(3) algebra, feasibility envelope)
+> and §4.4 (cooperative-arms deviation) are current. For **what the code
+> actually does today**, `docs/architecture/STACK_OVERVIEW.md` is ground-truth
+> and supersedes any current-state claim here. Note: §4.5's mapping uses
+> world-frame `δ(q)` at the *current* config — that matches the code; the
+> "planned-δ" claim lives only in the handoff doc / CLAUDE.md and is stale.
+
 **Date:** 2026-04-09
 **Authors:** Idriss
 **Working notes assisted by:** Claude (Anthropic)

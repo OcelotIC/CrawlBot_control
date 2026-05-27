@@ -33,6 +33,7 @@ class SimConfig:
 
     # ── Docking ─────────────────────────────────────────────────
     weld_radius: float = 0.005    # Real dock threshold [m]
+    dock_vel_max: float = 0.01    # [m/s] max swing-EE relative speed for a clean dock (gate velocity term)
     # Orientation gate for dock activation. The anchor frame is Identity
     # in the structure frame (verified 2026-04-11), so this is the angle
     # between the gripper's rotation matrix and I. MuJoCo's weld is

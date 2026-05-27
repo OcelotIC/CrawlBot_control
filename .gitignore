@@ -22,6 +22,18 @@ results/benchmarks/*.json
 results/_diag_check/
 scripts/_diag_check_*.py
 
+# Bulky machine-readable run artifacts (regenerable by re-running the diag
+# scripts). Deliverable figures (*.png referenced by docs) are committed
+# explicitly; these logs are intermediate and bloat the repo.
+results/**/sim_log.json
+results/**/step_log.json
+results/**/nmpc_step_log.json
+results/**/hw_slack_log.json
+results/**/physics_trace.pkl
+results/**/*_metrics.txt
+results/**/step_metrics.txt
+results/**/sat_stats.txt
+
 # One-off exploratory run: v21 + mapping-bypass + raised EE-ang gains.
 # Numerics reported in chat; not preserved on branch per instruction.
 results/M7_1pct_1step_v21_mapping_off_hi_ori_gain/

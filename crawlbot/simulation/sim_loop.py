@@ -821,12 +821,22 @@ class SimulationLoop:
         for name in ['gripper_a', 'gripper_b']:
             sid = mujoco.mj_name2id(self.mj_model, mujoco.mjtObj.mjOBJ_SITE, name)
             self._site_ids[name] = sid
+        # Cache ALL anchor sites present in the model (not a hardcoded
+        # count). A hardcoded range(5) silently dropped anchor_6, so the
+        # dock gate read d=inf and never fired on any step targeting the
+        # 6th anchor (e.g. step 4 -> dock_timeout despite the EE reaching
+        # the anchor). Discovering the count from the model keeps the
+        # cache consistent with the gait/MJCF for any anchor grid.
         for arm in ['a', 'b']:
-            for idx in range(5):
+            idx = 0
+            while True:
                 name = f'anchor_{idx+1}{arm}'
-                sid = mujoco.mj_name2id(self.mj_model, mujoco.mjtObj.mjOBJ_SITE, name)
-                if sid >= 0:
-                    self._site_ids[name] = sid
+                sid = mujoco.mj_name2id(
+                    self.mj_model, mujoco.mjtObj.mjOBJ_SITE, name)
+                if sid < 0:
+                    break
+                self._site_ids[name] = sid
+                idx += 1
 
     def _gripper_distance(self, arm, anchor_idx):
         grip_sid = self._site_ids.get(f'gripper_{arm}', -1)
@@ -835,6 +845,21 @@ class SimulationLoop:
             return np.inf
         return float(np.linalg.norm(
             self.mj_data.site_xpos[grip_sid] - self.mj_data.site_xpos[anch_sid]))
+
+    def _gripper_speed(self, arm):
+        """Swing-EE linear speed relative to the structure [m/s].
+
+        Anchors are static in the structure frame, so this is the EE
+        approach speed onto the anchor. Used as a dock-gate criterion:
+        a clean dock needs low relative speed, else the weld's inelastic
+        impact projection injects a momentum impulse (recoil / force
+        spike). Pinocchio relative twist -> J_ee @ v gives EE velocity
+        relative to the structure (LOCAL_WORLD_ALIGNED linear part).
+        """
+        pq, pv = mujoco_to_pinocchio(self.mj_data.qpos, self.mj_data.qvel)
+        rs = self.robot.update(pq, pv)
+        J_ee, _, _ = self._get_ee_data(rs, arm)
+        return float(np.linalg.norm((J_ee @ pv)[0:3]))
 
     def _gripper_ori_err_deg(self, arm, anchor_idx):
         """Angle between the gripper frame and its target anchor frame.
@@ -1664,10 +1689,12 @@ class SimulationLoop:
                                 swing_arm, target_idx)
                             pos_ok = d < cfg.weld_radius
                             ori_ok = ori_err_deg < cfg.dock_ori_threshold_deg
+                            vel_ok = (self._gripper_speed(swing_arm)
+                                      < cfg.dock_vel_max)
                             if cfg.use_gmo_dock:
-                                docked = self._contact_confirmed and ori_ok
+                                docked = self._contact_confirmed and ori_ok and vel_ok
                             else:
-                                docked = pos_ok and ori_ok
+                                docked = pos_ok and ori_ok and vel_ok
                             if docked:
                                 log.dock_events.append({
                                     't': round(t, 3), 'step': step_idx,
@@ -1715,10 +1742,12 @@ class SimulationLoop:
                                 swing_arm, target_idx)
                             pos_ok = d < cfg.weld_radius
                             ori_ok = ori_err_deg < cfg.dock_ori_threshold_deg
+                            vel_ok = (self._gripper_speed(swing_arm)
+                                      < cfg.dock_vel_max)
                             if cfg.use_gmo_dock:
-                                docked = self._contact_confirmed and ori_ok
+                                docked = self._contact_confirmed and ori_ok and vel_ok
                             else:
-                                docked = pos_ok and ori_ok
+                                docked = pos_ok and ori_ok and vel_ok
                             if docked:
                                 log.dock_events.append({
                                     't': round(t, 3), 'step': step_idx,
@@ -2116,7 +2145,7 @@ class SimulationLoop:
         # M7: single QP variant throughout DS and SS. Synchronized
         # trajectories eliminate the need for gain scheduling.
         qp = self.qp_ss
-        tau_last = np.zeros(12)
+        tau_last = np.zeros(self.robot.n_joints)
         tau_w_last = np.zeros(3)
         transport_mag_last = 0.0
         _omega_s_last = np.zeros(3)
@@ -2379,8 +2408,13 @@ class SimulationLoop:
                     settle_mode=settle_mode,
                     passivity_active=passivity_active,
                     **tkw, **ek)
-            except Exception:
-                tau = np.zeros(12)
+            except Exception as _qp_exc:
+                # Surface QP failures (silent swallow -> zero torque is
+                # dangerous). Fall back to zero torque of the correct
+                # actuator dimension.
+                print(f"  [QP-FAIL] {phase} t={t:.2f} qs={qs}: "
+                      f"{type(_qp_exc).__name__}: {_qp_exc}")
+                tau = np.zeros(self.robot.n_joints)
                 lambda_qp_sol = np.zeros(12)
                 qdd_t_qp = np.zeros(6)
                 qdd_qp = np.zeros(self.robot.model.nv)

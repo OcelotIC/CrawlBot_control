@@ -227,6 +227,11 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8):
     # t=0 — no startup z transient to compete with EE tracking.
     cfg.use_com_z_standoff = True
     cfg.com_z_standoff = -0.35
+    # Dock gate: 5mm/5deg (1mm/1deg is infeasible — the EE only transiently
+    # approaches to ~1.15mm/~4.8mm then drifts; not a stable sub-mm dock).
+    # Velocity criterion kept as a clean-dock guard (no-op at the current
+    # 2-4mm/s, but blocks welding during a fast transient).
+    cfg.dock_vel_max = 0.01
     # Rework knob.
     cfg.cooperative_arms_mode = (not legacy)
     cfg.ss_alpha_torso_lin = float(alpha_torso_lin)
