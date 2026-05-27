@@ -2210,6 +2210,10 @@ class SimulationLoop:
                     _delta_dot = np.asarray(
                         self.mapping.compute_delta_local_dot(rs.q, rs.v),
                         dtype=float)
+                    # Keep the telemetry cache vars populated (the block
+                    # below copies self._mapping_cache_delta).
+                    self._mapping_cache_delta = _delta_q.copy()
+                    self._mapping_cache_delta_dot = _delta_dot.copy()
                     r_b_ref_m = rp_interp - _delta_q / m_total
                     v_b_ref_m = vp_interp - _delta_dot / m_total
                     a_b_ff_m = af_for_mapping
