@@ -254,6 +254,20 @@ class SimConfig:
     ik_q_nominal: Optional[np.ndarray] = None
     ik_w_posture: float = 0.0
 
+    # ── Constant CoM-z standoff (crawl height) ──────────────────────
+    # The reworked architecture never specified a standoff: the dock IK
+    # left CoM-z free, so dock configs drifted toward the beam (CoM-z
+    # range 408mm over a 5-step run) and the torso grazed/penetrated the
+    # structure (steps 2-4). Terrestrial analog: a walker holds a roughly
+    # constant CoM height while x,y translate. When enabled, the
+    # fixed-rotation dock IK pins CoM-z = com_z_standoff (structure
+    # frame), holding a uniform standoff; x,y stay free to crawl. The
+    # value -0.35 m is the worst-direction-manipulability optimum from
+    # scripts/diag_standoff_feasibility.py (sigma_min peak 0.099, torso
+    # clearance >=273mm), feasible for every anchor pair.
+    use_com_z_standoff: bool = False        # off by default (bit-identical ablation)
+    com_z_standoff: float = -0.35           # [m] target CoM-z in structure frame
+
     # ── M7 Manipulability-IK-1: trajectory-aware IK (Candidate 1) ──
     # When True, sim_loop builds an additional torso_map_traj dict
     # whose q_end is optimised for worst-case σ_min(J_a)·σ_min(J_b)

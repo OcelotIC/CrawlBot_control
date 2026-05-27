@@ -975,7 +975,9 @@ class SimulationLoop:
                         model, se3_a, se3_b,
                         R_torso_fixed=R_t0,
                         torso_pos=0.5 * (se3_a.translation + se3_b.translation),
-                        q_init=pq_live.copy()))
+                        q_init=pq_live.copy(),
+                        com_z_target=(cfg.com_z_standoff
+                                      if cfg.use_com_z_standoff else None)))
                 if err_fixed < 1e-4 and w_fixed >= cfg.ik_fixed_rotation_w_min:
                     q_end = q_fixed
                     ik_mode = 'fixed_rotation'

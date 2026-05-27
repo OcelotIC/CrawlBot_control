@@ -363,6 +363,7 @@ def dock_configuration_fixed_rotation(
     q_init: np.ndarray = None,
     max_iter: int = 2000,
     tol: float = 1e-8,
+    com_z_target: Optional[float] = None,
 ) -> Tuple[np.ndarray, float, float]:
     """IK with torso rotation held at R_torso_fixed (M7 / change A).
 
@@ -409,6 +410,10 @@ def dock_configuration_fixed_rotation(
     if torso_pos is None:
         torso_pos = 0.5 * (anchor_a.translation + anchor_b.translation)
     q0[:3] = torso_pos
+    if com_z_target is not None:
+        # Seed the base height near the standoff so the CoM-z task starts
+        # close to its target (the anchor-midpoint z is on the beam).
+        q0[2] = com_z_target
     quat = pin.Quaternion(R_torso_fixed)
     q0[3] = quat.x
     q0[4] = quat.y
@@ -422,40 +427,79 @@ def dock_configuration_fixed_rotation(
     data = model.createData()
     nv = model.nv
 
-    # Custom IK loop: same as solve_ik but zero out base angular dq
-    # at every iteration to hold the rotation fixed.
-    for it in range(max_iter):
-        pin.forwardKinematics(model, data, q)
-        pin.updateFramePlacements(model, data)
-        pin.computeJointJacobians(model, data, q)
-        dq = np.zeros(nv)
-        err_tot = 0.0
+    if com_z_target is not None:
+        # ── Constant CoM-z standoff variant ───────────────────────────
+        # Stacked damped-LS over the FREE DOFs (base-linear + arms; base-
+        # angular excluded so the torso rotation stays at R_torso_fixed by
+        # construction). Tasks: tool_a (6) + tool_b (6) + CoM-z (1). The
+        # extra CoM-z row consumes one of the 5 redundant DOFs to hold the
+        # crawl height; feasibility for every anchor pair was verified in
+        # scripts/diag_standoff_feasibility.py.
+        sl = _get_arm_slices(model)
+        free = np.r_[0:3,
+                     np.arange(sl['arm_a_v'].start, sl['arm_a_v'].stop),
+                     np.arange(sl['arm_b_v'].start, sl['arm_b_v'].stop)]
+        lam = 1e-3
+        err_tot = np.inf
+        for it in range(max_iter):
+            pin.forwardKinematics(model, data, q)
+            pin.updateFramePlacements(model, data)
+            pin.computeJointJacobians(model, data, q)
+            J_rows, e_rows = [], []
+            for fid, tgt in targets.items():
+                e_rows.append(pin.log6(data.oMf[fid].actInv(tgt)).vector)
+                J_rows.append(pin.getFrameJacobian(model, data, fid,
+                                                    pin.LOCAL))
+            com = pin.centerOfMass(model, data, q)
+            Jcom = pin.jacobianCenterOfMass(model, data, q)   # (3, nv)
+            J_rows.append(Jcom[2:3, :])
+            e_rows.append(np.array([com_z_target - com[2]]))
+            err = np.concatenate(e_rows)
+            err_tot = float(np.linalg.norm(err))
+            if err_tot < tol:
+                break
+            Jf = np.vstack(J_rows)[:, free]                   # (13, nfree)
+            dqf = Jf.T @ np.linalg.solve(
+                Jf @ Jf.T + lam ** 2 * np.eye(Jf.shape[0]), err)
+            dq = np.zeros(nv)
+            dq[free] = dqf
+            alpha = min(1.0, 0.5 / max(np.max(np.abs(dq)), 1e-10))
+            q = pin.integrate(model, q, alpha * dq)
+    else:
+        # Custom IK loop: same as solve_ik but zero out base angular dq
+        # at every iteration to hold the rotation fixed.
+        for it in range(max_iter):
+            pin.forwardKinematics(model, data, q)
+            pin.updateFramePlacements(model, data)
+            pin.computeJointJacobians(model, data, q)
+            dq = np.zeros(nv)
+            err_tot = 0.0
 
-        for fid, tgt in targets.items():
-            err = pin.log6(data.oMf[fid].actInv(tgt)).vector
-            J = pin.getFrameJacobian(model, data, fid, pin.LOCAL)
+            for fid, tgt in targets.items():
+                err = pin.log6(data.oMf[fid].actInv(tgt)).vector
+                J = pin.getFrameJacobian(model, data, fid, pin.LOCAL)
 
-            # Arm joints: primary contribution
-            idx = _arm_v_slice(model, fid)
-            n_arm = idx.stop - idx.start
-            Ja = J[:, idx]
-            dq[idx] += np.linalg.solve(
-                Ja.T @ Ja + 1e-4 * np.eye(n_arm), Ja.T @ err)
+                # Arm joints: primary contribution
+                idx = _arm_v_slice(model, fid)
+                n_arm = idx.stop - idx.start
+                Ja = J[:, idx]
+                dq[idx] += np.linalg.solve(
+                    Ja.T @ Ja + 1e-4 * np.eye(n_arm), Ja.T @ err)
 
-            # Base: only the *linear* 3 DOFs are free (drop angular cols).
-            Jb_lin = J[:, :3]
-            dq[:3] += np.linalg.solve(
-                Jb_lin.T @ Jb_lin + 1e-3 * np.eye(3),
-                Jb_lin.T @ err) * 0.3
+                # Base: only the *linear* 3 DOFs are free (drop angular cols).
+                Jb_lin = J[:, :3]
+                dq[:3] += np.linalg.solve(
+                    Jb_lin.T @ Jb_lin + 1e-3 * np.eye(3),
+                    Jb_lin.T @ err) * 0.3
 
-            err_tot += np.linalg.norm(err)
+                err_tot += np.linalg.norm(err)
 
-        # Integrate; base angular dq stays zero so rotation is held.
-        alpha = min(1.0, 0.5 / max(np.max(np.abs(dq)), 1e-10))
-        q = pin.integrate(model, q, alpha * dq)
+            # Integrate; base angular dq stays zero so rotation is held.
+            alpha = min(1.0, 0.5 / max(np.max(np.abs(dq)), 1e-10))
+            q = pin.integrate(model, q, alpha * dq)
 
-        if err_tot < tol:
-            break
+            if err_tot < tol:
+                break
 
     # Manipulability metrics at the solution (IK_FORMULATION §4):
     #   w_product   = Yoshikawa, √det(JJᵀ) per arm, product across arms.
