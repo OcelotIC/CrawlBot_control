@@ -152,7 +152,8 @@ but leans heavily on the band-aid (the δ(q_current)/F-SAT debt,
 quantified).
 
 **Still pending:**
-- Only the **1% mass-ratio canonical scenario**; 14% (spec T12) unchecked — B & D both indicate that's where margins bite.
+- 14% mass-ratio (spec T12) now **measured** — see §8. The prediction
+  held: the margins bite, the traversal **dies at step 2**.
 - **FK-mode test** still red (deselected).
 
 **Open control items (not blocking the traversal):**
@@ -161,3 +162,62 @@ quantified).
 - **Loop-free mapping angular drift** (committed OFF) — spec §3 constrained-dynamic-singularity; §6 mitigation never implemented.
 - **F-SAT / δ(q_current) debt** — live cascade is the world-frame δ + F-SAT band-aid.
 - **AOCS / actuator margin** — transient wheel + joint + contact saturation on the hardest stride; platform attitude accumulation ~0.76°/step.
+
+## 8. Group T12 — 14% mass-ratio stress test (`--mass_ratio 0.14`)
+
+The §7 verdict predicted the eroding margins would "worsen at 14% mass
+ratio (untested)". **Now tested** (structure mass 7110→507.857 kg via
+`scripts/diag_cooperative_arms.py --mass_ratio 0.14`, same AOCS box,
+diagnostic-only). The structure is **14× lighter**, so the same
+arm-reaction wrenches impart ~14× more structure rotation — the
+prediction held exactly.
+
+**Headline: the traversal dies at step 2.** Steps 0–1 dock
+(2.19 / 4.72 mm); step 2 `DOCK_TIMEOUT` at 7.75 mm (just outside the
+5 mm gate); steps 3–4 never reached. 0 NMPC fails, 0 QP fails, 0 hw
+over-command — it is **not** a solver/crash failure; the controller
+runs out of physical authority.
+
+| metric | 1% canonical | 14% (T12) | Δ |
+|---|---|---|---|
+| steps docked | 0,1,2,3,4 | **0,1 only — die@2** | regression |
+| platform rotation total | 3.80° (5 steps) | **6.55° (2 steps)** | FAIL (>5°), ~3.3°/step |
+| platform ω peak | 0.41°/s | **5.10°/s** | FAIL (>2°/s), 12× |
+| hw sat peak (per-axis) | 0.559 | 0.608 | ✓ (90% of box) |
+| hw sat rms (norm) | 0.376 | 0.556 | ✓ but ↑ |
+| τ_w peak (per-axis) | 1.000 (at-limit) | 1.000 (at-limit) | wheels clamped |
+| QP/NMPC wrench ratio | 10.8× | **12.1×** | worse |
+| worst joint τ | 20.0 Nm (2 ticks) | 20.0 Nm (2 ticks) | saturated, now **binding** |
+| L̇_com peak | — | **11.1 Nm vs 5.0 lim** | 2.2× over momentum-rate limit |
+| CoM-z standoff range | 52 mm | **123 mm** | 2.4× degraded (step-2 dev 76 mm) |
+| F-SAT clip rate | 49.6% | 45.0% (max clip 16.7 mm) | similar rate, larger clips |
+| struct drift | — | 110 mm | — |
+
+**Mechanism (same root cause, now uncovered):** at 1% the QP slack
+absorbs the 10× NMPC-under-budgeted wrench (soft-CoM off). At 14% the
+disturbance on the platform is 14× larger, so:
+1. **AOCS wheels saturate** (τ_w pinned at ±5 Nm, all 3 clamped) trying
+   to counter the arm reaction → **attitude budget blown** (6.55° in
+   *2* steps; ω_s 5.1°/s).
+2. **`L̇_com` exceeds the 5 Nm structure-disturbance limit 2.2×** — the
+   momentum-rate constraint the NMPC is supposed to honour is violated
+   because the plan never saw the real whole-body wrench.
+3. The **longest stride (step 2)** needs the most body-linear authority
+   exactly when joint τ is saturated (20 Nm) and the wheels are clamped
+   → the EE can't close the last ~3 mm → TIMEOUT at 7.75 mm.
+
+**Verdict: 14% is where the documented liability becomes a hard
+failure.** This is not a new bug — it is the **same 10×→12× NMPC↔QP
+wrench inconsistency** (soft-CoM `α_com_soft=0`) and the **AOCS-box /
+attitude-budget erosion** flagged in §5/§7, now amplified 14× past the
+QP-slack cushion that hides it at 1%. The fix direction is unchanged:
+re-engage the soft-CoM cascade-consistency residual so the NMPC budgets
+the true wrench (and/or scale the AOCS box with mass ratio). Until then
+the traversal is a **1%-mass-ratio result**.
+
+![14% Group B: wheel momentum/attitude/omega — platform rotation 6.55° over 2 steps, omega 5.1°/s](../../results/diag_cooperative_arms_14pct/momentum_aocs.png)
+![14% Group D: 12.1× QP-vs-NMPC wrench, joint tau at 20 Nm](../../results/diag_cooperative_arms_14pct/actuator_solver.png)
+![14% Group C: CoM-z standoff degrades to 123 mm range, step-2 dev 76 mm](../../results/diag_cooperative_arms_14pct/cascade_health.png)
+
+Repro: `MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/diag_cooperative_arms.py --mass_ratio 0.14`
+then the B/C/D scripts with arg `diag_cooperative_arms_14pct`.
