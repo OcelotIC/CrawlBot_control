@@ -1,5 +1,14 @@
 # Claude Code Handoff — Reworked Architecture Implementation
 
+> **⚠ STATUS (2026-05-27): the milestone plan (M-1…M8) and anti-patterns are
+> current; the "Current state (v21)" prose in §M7 is STALE (frozen 2026-04-18).**
+> For what the code actually does, `docs/architecture/STACK_OVERVIEW.md` is
+> ground-truth. Key reversals since this doc froze (commit-tracked): the
+> "planned-δ mapping" fix in §M7 was **reverted to `δ(q_current)` + F-SAT**
+> (commit 50a9e52, 2026-05-12); `a_cruise_max` is **0 (off)**; the "torso-ori
+> 45° last blocker" is no longer observed (F-SAT rescale + CoM-z standoff,
+> 2026-05-27, dock steps 0–3). See §M7 errata below.
+
 **Date:** 2026-04-10
 **Source document:** `brainstorming_reworked_architecture.md` (§0–§9)
 **Codebase:** `CrawlBot_control/` (GitHub: `CrawlBot_control`)
@@ -817,6 +826,21 @@ The root cause of the docking failure was trajectory desynchronization: the swin
   - **Timeout:** `t > T_step + T_margin` without docking → hold position, attempt convergence for `T_hold_max` seconds, then abort step
   - **NMPC infeasible:** use warm-shifted fallback (shift previous plan by one step)
   - **Tracking divergence:** if `‖r_com - r_com_ref‖ > d_abort` → pause and report
+
+> **⚠ ERRATA (2026-05-27) — this subsection is STALE; see STACK_OVERVIEW.md.**
+> Commit-tracked corrections to the claims below:
+> - **Planned-δ mapping was reverted** to `δ(q_current)` (commit 50a9e52,
+>   2026-05-12) because planned-δ mismatched the actual arm (62mm miss). The
+>   feedback loop returned; **F-SAT** (commits 651469f/7b1ce89) was added to
+>   clamp the jitter. So "Planned-δ mapping" below is NOT what runs.
+> - **`a_cruise_max=0.01` is now `0` (off)** — superseded by the cooperative-
+>   arms work (brainstorming §4.4).
+> - **The "45°" orientation blocker is no longer observed.** It was partly a
+>   units artifact (e_torso_ori is logged in degrees; a diagnostic double-
+>   converted it). With the F-SAT rescale + constant CoM-z standoff (PR #17,
+>   2026-05-27) the traversal docks steps 0–3 at e_torso_ori ~1–3°. The open
+>   blockers are now step-4 dock-timeout and the loop-free-mapping angular
+>   drift (= the §3 constrained-dynamic-singularity this spec predicted).
 
 ### Current state (v21) — Position solved, orientation is the last blocker
 

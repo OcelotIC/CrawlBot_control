@@ -80,13 +80,15 @@ pip install <package> --break-system-packages
 
 Update this line as work progresses:
 
-**→ Active: M7 — Orientation bisection (position chain solved, torso ori 45° is last blocker)**
+> **For current-state questions, `docs/architecture/STACK_OVERVIEW.md` is the code-ground-truth reference.** This milestone block is a short pointer, kept in sync with it.
 
-**Completed:** M-1, M0, M1, M2, M3, M4, M5, M6, M7 state machine rework, 7-DOF arm upgrade, AOCS desaturation sign fix, weight_ratio=1 fix, dock gate (d<5mm AND ori<5°), α_wrench=0.01 fix, CoM shaping at pre-planner, planned-δ mapping, EE task-consistent feedforward, δ̇ velocity correction, manipulability-optimized init
+**→ Active:** Cooperative-arms traversal **docks steps 0–3**; **step 4 dock-timeout** is the open blocker (PR #17 merged: F-SAT rate-cap rescale + constant CoM-z standoff).
 
-**Position tracking chain solved:** QP standalone 24mm EE / 0.72° torso ori / 1.2 Nm torque (of 20 Nm budget)
+**Completed (current):** M-1…M6; M7 two-phase state machine; 7-DOF arms; cooperative-arms QP stack (torso-ang P1 + torso-lin/EE co-equal P2, brainstorming §4.4); AOCS legacy_corrected (orbital term on); dock gate (d<5mm AND ori<5°); α_wrench=0.01; **F-SAT rate-cap rescale**; **constant CoM-z standoff (−0.35)**; swing-reference logging clamp.
 
-**Last blocker:** Torso orientation 45° in closed-loop vs 0.72° standalone. Next: orientation-focused bisection to identify the cascade culprit.
+**Note — reverted/superseded since the handoff doc:** "planned-δ mapping" was **reverted to δ(q_current) + F-SAT** (commit 50a9e52, 2026-05-12); CoM-shaping `a_cruise_max` is **0 (off)**. The "torso-ori 45° last blocker" was partly a units artifact and is no longer observed (e_torso_ori ~1–3° in the docking run).
+
+**Open:** step 4 dock-timeout; loop-free-mapping angular drift (committed OFF — the spec §3 constrained-dynamic-singularity, §6 mitigation never implemented); δ-source / F-SAT removal.
 
 ---
 
@@ -109,9 +111,10 @@ Update this line as work progresses:
 | NMPC control dim | 12 | — | spec §5.1 |
 | weight_ratio | 1.0 | — | Tasks use face-value weights + null-space projection |
 | α_wrench | 0.01 | — | Pure regularization, not a competing objective |
-| α_com_soft | 0.0 | — | Redundant with mapping; disabled |
-| CoM shaping | a_cruise_max=0.01 m/s² | — | Trapezoidal accel profile at pre-planner |
-| Mapping mode (SS) | planned-δ with δ̇ | — | Feedforward, not feedback |
+| α_com_soft | 0.0 | — | Soft-CoM residual disabled (QP has no direct CoM feedback) |
+| CoM shaping | a_cruise_max=**0.0** (off) | — | Pre-planner cruise-accel cap disabled |
+| Mapping mode (SS) | **δ(q_current) + F-SAT** rate clamp | — | World-frame δ at current config (NOT planned-δ — reverted 50a9e52); F-SAT band-aids the resulting jitter. Loop-free δ_local exists but OFF |
+| CoM-z standoff | −0.35 m (on) | m | Dock-IK + init pin crawl height (PR #17) |
 
 ---
 
