@@ -233,7 +233,7 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8):
     # alpha_torso_ang stays at default 500 (set by _make_m7_config).
     # 5 evenly-spaced snapshots per SS for the offline renderer.
     # FRAMES_PER_STEP=0 disables capture entirely (e.g. for tests).
-    cfg.frames_per_step = int(os.environ.get('FRAMES_PER_STEP', '5'))
+    cfg.frames_per_step = int(os.environ.get('FRAMES_PER_STEP', '6'))
 
     # Startup-IK regularizers (canonical defaults applied at runner
     # level so other scripts/tests keep the legacy free-rotation IK):

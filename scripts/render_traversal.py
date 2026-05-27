@@ -300,22 +300,37 @@ def main():
         rendered[(s_idx, k_idx)] = img
         print(f'  wrote {out_path}  ({label_txt})')
 
-    # ── Compose a 3×5 overview grid ───
-    rows = sorted(set(s for s, _ in rendered.keys()))[:3]
-    cols = sorted(set(k for _, k in rendered.keys()))[:5]
+    # ── Per-step strips (6 views/step) + full overview grid ──────────
+    rows = sorted(set(s for s, _ in rendered.keys()))      # ALL steps
+    cols = sorted(set(k for _, k in rendered.keys()))      # ALL frames
     if rows and cols:
         thumb_w = WIDTH // 2
         thumb_h = HEIGHT // 2
-        grid_w = thumb_w * len(cols)
-        grid_h = thumb_h * len(rows)
-        grid = Image.new('RGB', (grid_w, grid_h), (20, 20, 20))
+
+        # One strip image per step (its frames left→right in time).
+        strips_dir = os.path.join(FRAMES_DIR, 'strips')
+        os.makedirs(strips_dir, exist_ok=True)
+        for s in rows:
+            ks = sorted(k for (ss, k) in rendered.keys() if ss == s)
+            strip = Image.new('RGB', (thumb_w * len(ks), thumb_h),
+                              (20, 20, 20))
+            for ci, k in enumerate(ks):
+                strip.paste(rendered[(s, k)].resize(
+                    (thumb_w, thumb_h), Image.LANCZOS), (ci * thumb_w, 0))
+            sp = os.path.join(strips_dir, f'step{s}_strip.png')
+            strip.save(sp)
+            print(f'  wrote {sp}')
+
+        # Full overview: all steps (rows) × all frames (cols).
+        grid = Image.new('RGB', (thumb_w * len(cols), thumb_h * len(rows)),
+                         (20, 20, 20))
         for ri, s in enumerate(rows):
             for ci, k in enumerate(cols):
                 img = rendered.get((s, k))
                 if img is None:
                     continue
-                thumb = img.resize((thumb_w, thumb_h), Image.LANCZOS)
-                grid.paste(thumb, (ci * thumb_w, ri * thumb_h))
+                grid.paste(img.resize((thumb_w, thumb_h), Image.LANCZOS),
+                           (ci * thumb_w, ri * thumb_h))
         grid.save(OVERVIEW_PNG)
         print(f'  wrote {OVERVIEW_PNG}')
 
