@@ -268,6 +268,17 @@ class SimConfig:
     use_com_z_standoff: bool = False        # off by default (bit-identical ablation)
     com_z_standoff: float = -0.35           # [m] target CoM-z in structure frame
 
+    # ── Loop-free CoM->torso mapping (base-relative moment) ─────────
+    # The world-frame delta(q) couples base position into r_b_ref,
+    # creating a mapping->q->mapping feedback loop (237mm/tick jitter)
+    # when fed q_current — the loop F-SAT was bolted on to suppress.
+    # When True, the mapping uses the base-position-invariant identity
+    #   r_b_ref = r_com_ref - D_local(q)/m_total
+    # which matches reality (live arm joints) AND has no base-position
+    # feedback, so F-SAT becomes unnecessary. Default False = legacy
+    # world-frame delta (bit-identical ablation).
+    use_local_delta_mapping: bool = False
+
     # ── M7 Manipulability-IK-1: trajectory-aware IK (Candidate 1) ──
     # When True, sim_loop builds an additional torso_map_traj dict
     # whose q_end is optimised for worst-case σ_min(J_a)·σ_min(J_b)

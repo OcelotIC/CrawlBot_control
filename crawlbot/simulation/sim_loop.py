@@ -2195,18 +2195,37 @@ class SimulationLoop:
                 # smoothly at WBC rate via the existing interpolation.
                 ratio = self.mapping.ratio
                 m_b = self.mapping.m_b
-                if qs == 0 or self._mapping_cache_delta is None:
-                    self._mapping_cache_delta = np.asarray(
-                        self.mapping.compute_delta(rs.q),
-                        dtype=float).copy()
-                    self._mapping_cache_delta_dot = np.asarray(
-                        self.mapping.compute_delta_dot(rs.q, rs.v),
-                        dtype=float).copy()
-                _delta_q = self._mapping_cache_delta
-                _delta_dot = self._mapping_cache_delta_dot
-                r_b_ref_m = ratio * rp_interp - _delta_q / m_b
-                v_b_ref_m = ratio * vp_interp - _delta_dot / m_b
-                a_b_ff_m = ratio * af_for_mapping
+                if cfg.use_local_delta_mapping:
+                    # Loop-free: r_b_ref = r_com_ref - D_local(q)/m_total.
+                    # D_local is base-position invariant -> no mapping->q
+                    # feedback even with live q (and no q_planned mismatch).
+                    # Computed every WBC tick (NOT F-RATE cached): the
+                    # 10Hz caching existed only to break the base-position
+                    # feedback loop, which D_local does not have. Caching
+                    # would instead STEP D_local at NMPC boundaries and
+                    # re-introduce reference jitter.
+                    m_total = self.mapping.m_total
+                    _delta_q = np.asarray(
+                        self.mapping.compute_delta_local(rs.q), dtype=float)
+                    _delta_dot = np.asarray(
+                        self.mapping.compute_delta_local_dot(rs.q, rs.v),
+                        dtype=float)
+                    r_b_ref_m = rp_interp - _delta_q / m_total
+                    v_b_ref_m = vp_interp - _delta_dot / m_total
+                    a_b_ff_m = af_for_mapping
+                else:
+                    if qs == 0 or self._mapping_cache_delta is None:
+                        self._mapping_cache_delta = np.asarray(
+                            self.mapping.compute_delta(rs.q),
+                            dtype=float).copy()
+                        self._mapping_cache_delta_dot = np.asarray(
+                            self.mapping.compute_delta_dot(rs.q, rs.v),
+                            dtype=float).copy()
+                    _delta_q = self._mapping_cache_delta
+                    _delta_dot = self._mapping_cache_delta_dot
+                    r_b_ref_m = ratio * rp_interp - _delta_q / m_b
+                    v_b_ref_m = ratio * vp_interp - _delta_dot / m_b
+                    a_b_ff_m = ratio * af_for_mapping
                 # F-SAT: cap the per-WBC-tick r_b_ref increment at the
                 # *planned* torso-reference velocity (|v_b_ref_m|, already
                 # feasibility-bounded by the pre-planner CoM trajectory)

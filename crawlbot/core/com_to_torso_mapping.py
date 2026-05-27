@@ -127,6 +127,54 @@ class CoMToTorsoMapping:
         return delta_dot
 
     # ------------------------------------------------------------------ #
+    # Base-relative arm moment (loop-free reformulation)                   #
+    # ------------------------------------------------------------------ #
+    # The world-frame delta(q) above carries the base-position term
+    # (delta = m_arms * r_base + D_local), which couples the torso
+    # position being controlled back into its own reference and creates a
+    # mapping -> q -> mapping feedback loop when fed q_current (237mm/tick
+    # oscillation, commit 1b5b841). D_local = sum_i m_i*(r_i - r_torso) is
+    # base-TRANSLATION invariant (both CoMs translate together), so the
+    # identity r_b = r_com - D_local/m_total is exact AND loop-free:
+    # feeding live arm joints matches reality (no q_planned mismatch) while
+    # carrying no base-position term (no q_current jitter). See
+    # brainstorming_reworked_architecture.md and session root-cause notes.
+
+    def compute_delta_local(self, q: np.ndarray) -> np.ndarray:
+        """D_local(q) = sum_{i != torso} m_i * (r_i - r_torso), world frame.
+
+        Base-translation invariant (the r_base term cancels). Computed
+        per-link relative to the torso CoM to avoid large-number
+        cancellation.
+        """
+        data = self.model.createData()
+        pin.forwardKinematics(self.model, data, q)
+        r_torso = data.oMi[TORSO_JOINT_IDX].act(
+            self.model.inertias[TORSO_JOINT_IDX].lever)
+        d = np.zeros(3)
+        for i, m_i in zip(self.non_torso_joints, self.m_others):
+            r_i = data.oMi[i].act(self.model.inertias[i].lever)
+            d += m_i * (r_i - r_torso)
+        return d
+
+    def compute_delta_local_dot(self, q: np.ndarray,
+                                dq: np.ndarray) -> np.ndarray:
+        """d/dt D_local = sum_i m_i * (J_i - J_torso) @ dq.
+
+        The base-linear columns of (J_i - J_torso) cancel, so this is
+        base-velocity invariant (no feedback through base motion).
+        """
+        data = self.model.createData()
+        pin.forwardKinematics(self.model, data, q)
+        pin.computeJointJacobians(self.model, data, q)
+        J_torso = self.body_com_jacobian(data, TORSO_JOINT_IDX)
+        dd = np.zeros(3)
+        for i, m_i in zip(self.non_torso_joints, self.m_others):
+            J_i = self.body_com_jacobian(data, i)
+            dd += m_i * ((J_i - J_torso) @ dq)
+        return dd
+
+    # ------------------------------------------------------------------ #
     # Forward mapping: (r_com, v_com, a_com, q) -> torso refs              #
     # ------------------------------------------------------------------ #
 
