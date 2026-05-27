@@ -1,3 +1,0 @@
-Stance-thrust correction telemetry
-  total correction applications: 1530
-  max ||Δλ_stance|| (6D wrench): 2.5660

@@ -1,7 +1,0 @@
-Step                Outcome   d [mm]  ori [°]  recoil [mm]  EE err [mm]  |f|max [N]  rb_osc_max
------------------------------------------------------------------------------------------------
-   0           DOCK_TIMEOUT    64.39     0.55        406.5       1654.8        28.1       0.125
-   1                NO_DATA
-   2                NO_DATA
-   3                NO_DATA
-   4                NO_DATA

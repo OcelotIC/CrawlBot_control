@@ -1,6 +1,0 @@
-Step Phase    N iter_min iter_max iter_mean t_max_ms t_mean_ms warm_x warm_du status_distribution
--------------------------------------------------------------------------------------------------
-   0    SS   71        8       20      13.3     32.5      18.3     70      70 Solve_Succeeded:69, Solved_To_Acceptable_Level:2
-   1    SS  115        6       22      14.7     28.4      20.1    114     114 Solve_Succeeded:111, Solved_To_Acceptable_Level:4
-   2    SS  208        6       37      17.2     62.7      24.8    207     207 Solve_Succeeded:202, Solved_To_Acceptable_Level:6
-   4    DS  200       12      178      32.5    372.2      59.2    200     200 Solve_Succeeded:159, Infeasible_Problem_Detected:36, Solved_To_Acceptable_Level:5
