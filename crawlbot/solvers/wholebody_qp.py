@@ -599,6 +599,13 @@ class WholeBodyQP:
         )
         A_torso = None
         b_torso = None
+        # Initialized here (not only inside the torso block) so the
+        # cooperative-linear references at the P2 / posture stages are
+        # always bound — when torso_task_active is False (settle_mode,
+        # e.g. the terminal DS after the last dock) the block below is
+        # skipped, and these stayed undefined -> UnboundLocalError.
+        _coop_A_lin = None
+        _coop_b_lin = None
         if torso_task_active:
             Kp_t = np.diag(cfg.Kp_torso)   # (6,6)
             Kd_t = np.diag(cfg.Kd_torso)   # (6,6)

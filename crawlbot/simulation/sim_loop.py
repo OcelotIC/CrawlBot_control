@@ -821,12 +821,22 @@ class SimulationLoop:
         for name in ['gripper_a', 'gripper_b']:
             sid = mujoco.mj_name2id(self.mj_model, mujoco.mjtObj.mjOBJ_SITE, name)
             self._site_ids[name] = sid
+        # Cache ALL anchor sites present in the model (not a hardcoded
+        # count). A hardcoded range(5) silently dropped anchor_6, so the
+        # dock gate read d=inf and never fired on any step targeting the
+        # 6th anchor (e.g. step 4 -> dock_timeout despite the EE reaching
+        # the anchor). Discovering the count from the model keeps the
+        # cache consistent with the gait/MJCF for any anchor grid.
         for arm in ['a', 'b']:
-            for idx in range(5):
+            idx = 0
+            while True:
                 name = f'anchor_{idx+1}{arm}'
-                sid = mujoco.mj_name2id(self.mj_model, mujoco.mjtObj.mjOBJ_SITE, name)
-                if sid >= 0:
-                    self._site_ids[name] = sid
+                sid = mujoco.mj_name2id(
+                    self.mj_model, mujoco.mjtObj.mjOBJ_SITE, name)
+                if sid < 0:
+                    break
+                self._site_ids[name] = sid
+                idx += 1
 
     def _gripper_distance(self, arm, anchor_idx):
         grip_sid = self._site_ids.get(f'gripper_{arm}', -1)
@@ -2116,7 +2126,7 @@ class SimulationLoop:
         # M7: single QP variant throughout DS and SS. Synchronized
         # trajectories eliminate the need for gain scheduling.
         qp = self.qp_ss
-        tau_last = np.zeros(12)
+        tau_last = np.zeros(self.robot.n_joints)
         tau_w_last = np.zeros(3)
         transport_mag_last = 0.0
         _omega_s_last = np.zeros(3)
@@ -2379,8 +2389,13 @@ class SimulationLoop:
                     settle_mode=settle_mode,
                     passivity_active=passivity_active,
                     **tkw, **ek)
-            except Exception:
-                tau = np.zeros(12)
+            except Exception as _qp_exc:
+                # Surface QP failures (silent swallow -> zero torque is
+                # dangerous). Fall back to zero torque of the correct
+                # actuator dimension.
+                print(f"  [QP-FAIL] {phase} t={t:.2f} qs={qs}: "
+                      f"{type(_qp_exc).__name__}: {_qp_exc}")
+                tau = np.zeros(self.robot.n_joints)
                 lambda_qp_sol = np.zeros(12)
                 qdd_t_qp = np.zeros(6)
                 qdd_qp = np.zeros(self.robot.model.nv)
