@@ -1,0 +1,30 @@
+========================================================================================
+  t_ss_margin parametric sweep — side-by-side report
+  Config: T15-FK reference architecture, 5 steps, start=(2,2)
+========================================================================================
+
+--- Per-step outcomes ---
+Step |                     Run A (5s) |                    Run B (10s) |                    Run C (15s)
+-------------------------------------------------------------------------------------------------------
+   0 |           DOCK d=  2.9mm ori=  0.0° |           DOCK d=  2.9mm ori=  0.0° |           DOCK d=  2.9mm ori=  0.0°
+   1 |           DOCK d=  4.8mm ori=  0.1° |           DOCK d=  4.8mm ori=  0.1° |           DOCK d=  4.8mm ori=  0.1°
+   2 |   DOCK_TIMEOUT d=425.7mm ori= 11.5° |   DOCK_TIMEOUT d=432.1mm ori= 11.7° |   DOCK_TIMEOUT d=431.0mm ori= 10.9°
+   3 |        NO_DATA d=     -- ori=    -- |        NO_DATA d=     -- ori=    -- |        NO_DATA d=     -- ori=    --
+   4 |        NO_DATA d=     -- ori=    -- |        NO_DATA d=     -- ori=    -- |        NO_DATA d=     -- ori=    --
+
+--- Step 2 detail (peak torso recoil / peak EE error during SS) ---
+ Run   margin                outcome   d [mm]  ori [°]  recoil [mm]  EE err [mm]
+--------------------------------------------------------------------------------
+   A      5.0           DOCK_TIMEOUT   425.73    11.48        142.4       1220.8
+   B     10.0           DOCK_TIMEOUT   432.07    11.65        152.0       1256.2
+   C     15.0           DOCK_TIMEOUT   431.03    10.95        152.0       1256.2
+
+--- NMPC aggregate per (step, phase) ---
+(step,phase)   |   A iter_max/p95  A fails |   B iter_max/p95  B fails |   C iter_max/p95  C fails
+--------------------------------------------------------------------------------------------------
+step00/SS     |   20/  19               0 |   20/  19               0 |   20/  19               0
+step01/SS     |   22/  19               0 |   22/  19               0 |   22/  19               0
+step02/SS     |   37/  29               0 |   37/  29               0 |   37/  28               0
+step04/DS     |  178/  88              36 |  133/ 102              15 |  187/  99             101
+
+Summary JSON: /home/user/CrawlBot_control/results/diag_nmpc_margin_sweep/sweep_report.json
