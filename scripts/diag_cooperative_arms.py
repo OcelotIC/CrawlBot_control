@@ -56,6 +56,13 @@ ANCHOR_SITE_RE = re.compile(
     r'(<site name="anchor_(\d+)([ab])" class="anchor" pos=")'
     r'([^"]+)(")')
 
+# Structure body inertial (mass + fullinertia). Used to set the
+# robot/structure mass ratio programmatically (rule 4: no copy-paste
+# MJCF). Canonical structure mass 7110 kg => mass_ratio ~0.01 (1%).
+STRUCT_INERTIAL_RE = re.compile(
+    r'(<inertial pos="0 0 0" mass=")([0-9.]+)'
+    r'("\s*fullinertia=")([^"]+)(")')
+
 
 def _mjcf_md5(path: str) -> str:
     with open(path, 'rb') as f:
@@ -63,13 +70,30 @@ def _mjcf_md5(path: str) -> str:
 
 
 def _mutate_mjcf(damping: float, armature: float,
-                 anchor_dx: float | None = None):
+                 anchor_dx: float | None = None,
+                 mass_ratio: float | None = None):
     with open(MJCF, 'r') as f:
         text = f.read()
     new, n = ROBOT_JOINT_RE.subn(
         rf'\g<1>{damping}\g<2>{armature}\g<3>', text, count=1)
     if n != 1:
         raise RuntimeError('robot_joint default not found')
+    # Structure mass/inertia: scale by 0.01/mass_ratio relative to the
+    # canonical (1%) values. mass_ratio=0.14 => scale 1/14 => structure
+    # mass 7110->507.857 kg + inertia x1/14 (the validated T12 mass,
+    # scripts/run_m7_v22_14pct_with_swing_hold.py). hw/tau_w limits are
+    # NOT scaled (the stress test: same AOCS box at higher disturbance).
+    if mass_ratio is not None and abs(mass_ratio - 0.01) > 1e-9:
+        scale = 0.01 / mass_ratio
+
+        def _repl_inertial(m):
+            mass_new = float(m.group(2)) * scale
+            inertia_new = ' '.join(
+                f'{float(v) * scale:.6g}' for v in m.group(4).split())
+            return f'{m.group(1)}{mass_new:.6g}{m.group(3)}{inertia_new}{m.group(5)}'
+        new, ni = STRUCT_INERTIAL_RE.subn(_repl_inertial, new, count=1)
+        if ni != 1:
+            raise RuntimeError('structure inertial block not found')
     if anchor_dx is not None and abs(anchor_dx - 0.8) > 1e-9:
         def _repl(m):
             idx = int(m.group(2))
@@ -213,7 +237,8 @@ def _nmpc_table(step_log, out_path):
     return text
 
 
-def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8):
+def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
+         mass_ratio: float = 0.01):
     cfg = r_single._make_m7_config()
     cfg.gait_anchor_dx = anchor_dx
     # Sweet-spot config carry-over (these are also already the defaults
@@ -273,6 +298,9 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8):
     if legacy:
         out_dir = os.path.join(_root, 'results',
                                'diag_cooperative_arms_legacy')
+    elif abs(mass_ratio - 0.01) > 1e-9:
+        out_dir = os.path.join(_root, 'results',
+                               f'diag_cooperative_arms_{int(round(mass_ratio*100))}pct')
     elif abs(alpha_torso_lin - 500.0) > 1e-6:
         out_dir = os.path.join(_root, 'results',
                                'diag_cooperative_arms',
@@ -388,7 +416,8 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8):
     # Only fires for the canonical default (cooperative + α_lin=500);
     # subprocess so mujoco.Renderer can pick up MUJOCO_GL=osmesa
     # without conflicting with the sim's MUJOCO_GL=disabled.
-    canonical = (not legacy) and abs(alpha_torso_lin - 500.0) < 1e-6
+    canonical = ((not legacy) and abs(alpha_torso_lin - 500.0) < 1e-6
+                 and abs(mass_ratio - 0.01) < 1e-9)
     if canonical and cfg.frames_per_step > 0:
         import subprocess
         env = os.environ.copy()
@@ -421,6 +450,10 @@ if __name__ == '__main__':
     parser.add_argument('--anchor_dx', type=float, default=0.8,
                         help='Anchor-grid pitch [m]; rewrites MJCF anchor sites '
                              'to x=(i-3.5)*dx for i=1..6 (default 0.8 = no-op)')
+    parser.add_argument('--mass_ratio', type=float, default=0.01,
+                        help='Robot/structure mass ratio; scales structure '
+                             'mass+inertia by 0.01/ratio (default 0.01 = no-op; '
+                             '0.14 = spec T12 14%%, structure 507.857 kg)')
     args = parser.parse_args()
 
     with open(MJCF, 'r') as f:
@@ -429,8 +462,10 @@ if __name__ == '__main__':
     tag = 'LEGACY' if args.legacy else 'COOP'
     print(f'[COOP-ARMS {tag}] MJCF md5 pre:  {pre_hash}')
     try:
-        _mutate_mjcf(damping=0.0, armature=0.05, anchor_dx=args.anchor_dx)
-        main(args.legacy, args.alpha_torso_lin, args.anchor_dx)
+        _mutate_mjcf(damping=0.0, armature=0.05, anchor_dx=args.anchor_dx,
+                     mass_ratio=args.mass_ratio)
+        main(args.legacy, args.alpha_torso_lin, args.anchor_dx,
+             args.mass_ratio)
     finally:
         with open(MJCF, 'w') as f:
             f.write(original)
