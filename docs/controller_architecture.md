@@ -1,3 +1,9 @@
+> **⚠ SUPERSEDED (2026-05-27).** This file is stale — it predates or does not
+> track the reworked controller. For what the code actually does,
+> `docs/architecture/STACK_OVERVIEW.md` is the code-ground-truth reference and
+> supersedes any current-state claim here (e.g. the NMPC is 9-state
+> `[r_com,v_com,L_com]`, not 12; module APIs and parameters have changed).
+
 # Architecture du contrôleur hiérarchique — Vue d'ensemble
 
 ## 1. Vue globale
