@@ -165,6 +165,16 @@ class SimConfig:
     preplanner_max_iter: int = 300          # IPOPT max iterations
     preplanner_a_cruise_max: float = 0.0     # [m/s²] cruise accel limit (0=off)
     preplanner_cruise_ramp_frac: float = 0.2 # ramp fraction for cruise window
+    # F-SAT (mapping torso-ref rate limiter): the per-WBC-tick r_b_ref
+    # increment is capped at (|v_b_ref_ff| + fsat_jitter_margin)·dt_qp,
+    # i.e. the planned (feasibility-bounded) torso-reference velocity
+    # plus a jitter slack. The slack absorbs the once-per-NMPC-tick
+    # δ(q_current) step (F-RATE updates δ at 10 Hz) and discretisation,
+    # while still clipping the multi-m/s cross-tick δ jitter the limiter
+    # exists for. Replaces the old fixed (f_max/m_b)·dt²·2 ≈ 0.125mm/tick
+    # cap, which throttled *sustained* forward motion and prevented the
+    # torso reference from reaching the dock on large steps (T15 step 2).
+    fsat_jitter_margin: float = 0.05         # [m/s] jitter slack on the torso-ref rate cap
 
     # ── NMPC solver ─────────────────────────────────────────────
     nmpc_N: int = 8

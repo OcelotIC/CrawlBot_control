@@ -2183,15 +2183,21 @@ class SimulationLoop:
                 r_b_ref_m = ratio * rp_interp - _delta_q / m_b
                 v_b_ref_m = ratio * vp_interp - _delta_dot / m_b
                 a_b_ff_m = ratio * af_for_mapping
-                # F-SAT: cap the per-WBC-tick r_b_ref increment by the
-                # physical body motion under one anchor's friction-cone
-                # limit, scaled with a safety margin. Prevents reference
-                # jitter when the mapping output transitions across NMPC
-                # ticks or when the actual q drifts.
+                # F-SAT: cap the per-WBC-tick r_b_ref increment at the
+                # *planned* torso-reference velocity (|v_b_ref_m|, already
+                # feasibility-bounded by the pre-planner CoM trajectory)
+                # plus a jitter slack. This clips the multi-m/s cross-tick
+                # δ(q_current) jitter the limiter exists for, while letting
+                # the reference advance at its commanded rate. The previous
+                # cap, (f_max/m_b)·dt²·2 ≈ 0.125mm/tick, was the body's
+                # 2-tick *startup* distance — it throttled sustained motion,
+                # so the torso reference advanced only ~0.125mm × n_ticks and
+                # never reached the dock on large steps (T15 step 2: needed
+                # ~590mm, old cap allowed ~200mm), stranding the swing arm.
                 if self._last_r_b_ref_out is not None and phase == 'SS':
-                    f_max_grip = float(cfg.preplanner_f_max)
-                    v_max = (f_max_grip / m_b) * cfg.dt_qp * 2.0
-                    threshold = v_max * cfg.dt_qp
+                    v_ref_ff = float(np.linalg.norm(v_b_ref_m))
+                    threshold = ((v_ref_ff + cfg.fsat_jitter_margin)
+                                 * cfg.dt_qp)
                     delta_rb = r_b_ref_m - self._last_r_b_ref_out
                     nrm = float(np.linalg.norm(delta_rb))
                     self._sat_total_calls += 1
