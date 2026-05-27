@@ -82,13 +82,13 @@ Update this line as work progresses:
 
 > **For current-state questions, `docs/architecture/STACK_OVERVIEW.md` is the code-ground-truth reference.** This milestone block is a short pointer, kept in sync with it.
 
-**→ Active:** Cooperative-arms traversal **docks steps 0–3**; **step 4 dock-timeout** is the open blocker (PR #17 merged: F-SAT rate-cap rescale + constant CoM-z standoff).
+**→ Active:** Cooperative-arms traversal **docks all 5 steps (0–4)** end-to-end (commit 7ac9124). Step-4 timeout was 3 root-cause bugs (anchor-site cache off-by-one → d_grip=inf; stale `zeros(12)` tau dim; `_coop_A_lin` UnboundLocalError in settle_mode) — not control.
 
 **Completed (current):** M-1…M6; M7 two-phase state machine; 7-DOF arms; cooperative-arms QP stack (torso-ang P1 + torso-lin/EE co-equal P2, brainstorming §4.4); AOCS legacy_corrected (orbital term on); dock gate (d<5mm AND ori<5°); α_wrench=0.01; **F-SAT rate-cap rescale**; **constant CoM-z standoff (−0.35)**; swing-reference logging clamp.
 
 **Note — reverted/superseded since the handoff doc:** "planned-δ mapping" was **reverted to δ(q_current) + F-SAT** (commit 50a9e52, 2026-05-12); CoM-shaping `a_cruise_max` is **0 (off)**. The "torso-ori 45° last blocker" was partly a units artifact and is no longer observed (e_torso_ori ~1–3° in the docking run).
 
-**Open:** step 4 dock-timeout; loop-free-mapping angular drift (committed OFF — the spec §3 constrained-dynamic-singularity, §6 mitigation never implemented); δ-source / F-SAT removal.
+**Open:** loop-free-mapping angular drift (committed OFF — the spec §3 constrained-dynamic-singularity, §6 mitigation never implemented); δ-source / F-SAT removal; tighten dock margins (steps 1–3 dock at ~4.8mm, near the 5mm gate).
 
 ---
 

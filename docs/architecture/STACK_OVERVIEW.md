@@ -167,7 +167,11 @@ boxes (∞). [V/A]
   the spec's own §3 *constrained dynamic singularity* prediction; the §6
   mitigation (condition-number monitor + damped null-space) was **never
   implemented**. Robot-side WB-QP issue (no robot wheels). [V reasoning]
-- **Step 4 dock timeout:** not yet diagnosed against the real stack.
+- **Step 4 dock timeout: RESOLVED (commit 7ac9124).** Was 3 bugs, not
+  control: (a) `_cache_site_ids` cached only anchors 1–5 → `_gripper_distance`
+  returned inf for anchor 6 → dock gate never fired; (b) stale `tau=zeros(12)`
+  (6-DOF) crashed the terminal DS settle on `ctrl[:14]`; (c) `_coop_A_lin`
+  UnboundLocalError in `settle_mode`. All 5 steps now dock end-to-end.
 - **Mapping debt:** world-frame `δ(q_current)` + F-SAT is the live combo;
   loop-free `δ_local` removes the feedback but exposed the angular drift
   above (committed OFF).
