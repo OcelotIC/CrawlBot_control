@@ -31,6 +31,7 @@ sys.path.insert(0, _root)
 os.environ.setdefault('MUJOCO_GL', 'disabled')
 os.environ.setdefault('MPLBACKEND', 'Agg')
 
+import argparse
 import numpy as np
 import matplotlib
 matplotlib.use('Agg')
@@ -41,7 +42,9 @@ OUT = os.path.join(_root, 'results', 'diag_attribution', 'lambda_decomp')
 M_ROBOT = 71.0  # kg, spec §0.4
 
 
-def main():
+def main(log_path=LOG, out_dir=OUT):
+    LOG = log_path
+    OUT = out_dir
     os.makedirs(OUT, exist_ok=True)
     log = json.load(open(LOG))
     t = np.array(log['t'])
@@ -185,4 +188,8 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    ap = argparse.ArgumentParser()
+    ap.add_argument('--log', default=LOG)
+    ap.add_argument('--out', default=OUT)
+    a = ap.parse_args()
+    main(a.log, a.out)
