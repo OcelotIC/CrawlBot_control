@@ -93,7 +93,51 @@ these caveats (§7c); `STACK_OVERVIEW.md` §2.6/§5 updated likewise.
 
 ---
 
+## Probes 1 & 2 — de-risking a CMM-interface (2026-05-28)
+
+To decide whether to replace the `δ(q)` position-mapping with a
+**centroidal-momentum QP task** (`A(q)q̈+Ȧq̇ = ḣ_ref`, tracking the NMPC's
+native momentum), two probes were run. Both came back as **honest
+negatives that weaken the case for any 1% architecture change**:
+
+- **Probe 1 (reference smoothness, `scripts/probe1_reference_smoothness.py`).**
+  The premise — "the QP chases a jittery δ-mapped reference" — is **NOT
+  supported**. The *tracked* reference `p_torso_ref` (post-F-SAT) is
+  smooth (per-tick |Δ| max 21 mm, max/median **3.4×**); the NMPC's
+  `r_com_ref` is the rough one (10 Hz ZOH staircase, 76–205 mm jumps,
+  max/median 32×). **At the f1 peak, Δp_torso_ref = 3.5 mm (35th pct) —
+  no reference jerk.** F-SAT already delivers a smooth reference, so a
+  CMM task would not be tracking a *smoother* signal (both face the same
+  10 Hz NMPC staircase).
+- **Probe 2 (constrained conditioning, `scripts/probe2_cmm_conditioning.py`).**
+  The §3-singularity hypothesis for the spike is **REFUTED**. At the
+  f1-peak bracket, `σ_min(stance arm)=0.18–0.20` and
+  `σ_min(CoM|constrained)=0.29` — **above the traversal average**, not a
+  dip. Worst conditioning is step-1 release (0.056) and the dock configs
+  (~0.13), none near-singular, none at the peak. **Consequence:** (i) a
+  CMM-CoM task would be well-conditioned throughout the 1% traversal — it
+  would *not* inherit a §3 wall; (ii) but the loop-free step-0 failure
+  (H3a) is **NOT** explained by §3 conditioning (step-0 σ_min is mid-pack
+  0.167) — so the memo's earlier "loop-free blocked by §3" attribution is
+  **shaky** and the step-0 timeout likely has another cause (candidate: a
+  bug/scaling in `compute_delta_local`, not a genuine singularity).
+
+**Revised bottom line (1% baseline).** The step-2 "10.8× mismatch" is a
+**2-tick transient** (t=16.63–16.73; `|f1|>40 N` on **1/508 ticks**,
+`τ_joint=20 Nm` on the same **2 ticks**; `qp_ok`/`nmpc_ok` True; median SS
+contact force **0.00 N**; `v_com` on-plan throughout) — preceded by a
+single **128 ms** NMPC solve (vs ~30 ms). It is a 10 Hz↔100 Hz NMPC↔QP
+coordination hiccup, **not** a mapping-jitter, momentum, conditioning, or
+authority deficit. **The 1% paper baseline is healthy** (5/5 docks, smooth
+tracked references, well-conditioned). A CMM-interface refactor is
+**conditioning-safe but weakly motivated**: it is architectural
+*defensibility* (replace the F-SAT band-aid — which clips ~49.6% of raw δ
+increments — with a principled, citable centroidal coupling), **not a fix
+for a measured failure**. It would not remove the 2-tick transient.
+
 ## Artifacts
 
 - `scripts/diag_lambda_decomp_step2.py` → `results/diag_attribution/lambda_decomp/{metrics.json, lambda_decomp.png}`
 - `scripts/diag_loopfree_mapping_step2.py` → `results/diag_attribution/loopfree_mapping/{sim_log.json, compare.json}`
+- `scripts/probe1_reference_smoothness.py` → `results/diag_attribution/probe1_reference_smoothness/{metrics.json, probe1.png}`
+- `scripts/probe2_cmm_conditioning.py` → `results/diag_attribution/probe2_cmm_conditioning/{metrics.json, probe2.png}`
