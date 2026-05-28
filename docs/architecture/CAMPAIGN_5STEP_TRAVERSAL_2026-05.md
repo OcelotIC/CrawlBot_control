@@ -105,7 +105,7 @@ the norm as a 1.73 "FAIL").
 | per-joint τ vs ±20Nm | worst joint **20.0 Nm (100%) for 2 ticks** | transient saturation |
 | contact force QP vs NMPC plan | **62.2N QP vs 5.8N planned @ step2 (10.8×)** | cascade mismatch |
 
-**B and D are the same step-2 transient (t≈16.63, longest stride), causally linked:** the **centroidal NMPC under-budgets the whole-body wrench ~10×** (its point-mass+momentum model has no arm/joint/torso inertial dynamics). So the real momentum disturbance exceeds the plan → **wheels saturate (B)**, a **joint hits 20Nm**, and the **QP commands 62N** — it docks, but with **zero actuator margin** in that ~1s window. This is the documented "QP needs ~9× more wrench than NMPC plans" (commit 673cc68), quantified at 10.8×. Root: the **soft-CoM residual** meant to keep NMPC↔QP consistent is **OFF** (`α_com_soft=0`).
+**B and D are the same step-2 transient (t≈16.63, longest stride), causally linked:** the **centroidal NMPC under-budgets the whole-body wrench ~10×** (its point-mass+momentum model has no arm/joint/torso inertial dynamics). So the real momentum disturbance exceeds the plan → **wheels saturate (B)**, a **joint hits 20Nm**, and the **QP commands 62N** — it docks, but with **zero actuator margin** in that ~1s window. This is the documented "QP needs ~9× more wrench than NMPC plans" (commit 673cc68), quantified at 10.8×. The leading hypothesis is that the **soft-CoM residual** meant to keep NMPC↔QP consistent being **OFF** (`α_com_soft=0`) is the cause — **but this attribution is not yet confirmed** (the peak `lambda_qp` has not been decomposed net-vs-internal). See **§7c** before treating soft-CoM as the fix.
 
 ![Actuator/solver: contact |f| QP vs NMPC plan, per-joint torque vs +-20Nm, NMPC solve time](../../results/diag_cooperative_arms/actuator_solver.png)
 
@@ -158,10 +158,65 @@ quantified).
 
 **Open control items (not blocking the traversal):**
 - Settled **~4.8mm steady-state EE offset** on long strides (cooperative torso-linear vs EE tension).
-- **10× NMPC↔QP wrench mismatch** under load (soft-CoM off) — the consistency guarantee the architecture was designed around is inactive; survives on QP slack.
+- **10× NMPC↔QP wrench mismatch** under load (soft-CoM off) — the consistency guarantee the architecture was designed around is inactive; survives on QP slack. **Attribution to soft-CoM-off is a hypothesis, not established — see §7c.**
 - **Loop-free mapping angular drift** (committed OFF) — spec §3 constrained-dynamic-singularity; §6 mitigation never implemented.
 - **F-SAT / δ(q_current) debt** — live cascade is the world-frame δ + F-SAT band-aid.
 - **AOCS / actuator margin** — transient wheel + joint + contact saturation on the hardest stride; platform attitude accumulation ~0.76°/step.
+
+## 7c. Attribution caveats — soft-CoM evidence is not what it looks like (added 2026-05-28)
+
+The "rooted in soft-CoM off" claim above (§6, §7) is the **leading
+hypothesis**, not a settled result. Two confounds, found while
+investigating whether to re-engage `α_com_soft`, must be recorded:
+
+1. **The only prior sweep used the wrong stack.**
+   `results/M5_alpha_sweep/metrics.csv` (the basis for the "every
+   non-zero α diverges" belief, and for the `config.py:101` comment
+   "5.0 was fighting torso tracking") was produced by
+   `scripts/sweep_alpha_com_soft.py`, which builds a plain `SimConfig`
+   — so `cooperative_arms_mode` defaulted **False** (`config.py:118`).
+   It therefore exercised the **legacy M5 single-6D-torso stack, not
+   the cooperative-arms stack we ship**, and it changed *two* things
+   vs. the docking baseline (cooperative off **and** soft-CoM on). It
+   is **not valid evidence** against soft-CoM in the current stack.
+
+2. **The soft-CoM projection basis is stack-dependent.** The residual
+   is projected into `null(A_torso) ∩ null(A_ee)`
+   (`wholebody_qp.py:842`). In cooperative mode `A_torso` collapses to
+   **angular-only** (`wholebody_qp.py:655`), so that basis becomes
+   `null(torso-angular) ∩ null(EE)` and **no longer excludes the
+   torso-linear subspace** — which is a co-equal P2 task in cooperative
+   mode (`ss_alpha_torso_lin`). Re-engaging soft-CoM as-is would put it
+   in the torso-linear subspace, i.e. competing with a P2 task rather
+   than living purely in residual freedom. This is a **latent
+   architectural question (hierarchy redesign), not a harness bug** —
+   do not "fix" the projection as cleanup.
+
+**Why a corrected sweep is still not the right first question.** The
+residual enforces `a_com_des = a_com_ff(NMPC) + PD` (`wholebody_qp.py:578`),
+i.e. tracking of the **centroidal NMPC plan**. But that NMPC is a
+**point-mass model with no arm-momentum term** (`L_com` moves only via
+contact wrench), so the reference soft-CoM enforces is structurally
+inconsistent with the swing the QP must execute. Soft-CoM (feedback
+enforcement) and a CMM-feedforward into the NMPC (reference correction)
+are duals; **feedback against a wrong reference cannot win.** A
+corrected sweep would measure the task-fight cleanly without resolving
+it.
+
+**Attribution — now decomposed (2026-05-28); see
+`ATTRIBUTION_MEMO_soft_com_2026-05.md`.** Result: the 10.8× is **net,
+single-contact, transient, and linear** — *not* what soft-CoM addresses.
+(a) **internal/squeeze force RULED OUT** — contact-2 ≡ 0 N across all 89
+step-2 SS ticks (single contact ⇒ no 12→6 null space). (b) **arm/CMM
+momentum NOT INDICATED** — `|L_dot|=5.4 N·m` (≤5 limit) and `v_com`
+tracks plan at 1.04×; the 36 N·m contact *moment* is the r×f reaction of
+the linear-force spike. (c) **mapping/F-SAT debt is the mechanism** —
+over step-2 SS `|f1|` median 2.2 N / p95 10.3 N / **peak 62.2 N**
+(≈28× median) with velocity on-plan = a high-frequency jerk; **but**
+flipping `use_local_delta_mapping=True` **regresses to a step-0 dock
+timeout** (its own unmitigated §3 drift). **Verdict: an `α_com_soft`
+sweep is the wrong next action; attack the F-SAT/δ(q_current) jitter (or
+implement the §6 loop-free mitigation) instead.**
 
 ## 8. Group T12 — 14% mass-ratio stress test (`--mass_ratio 0.14`)
 
@@ -214,6 +269,16 @@ QP-slack cushion that hides it at 1%. The fix direction is unchanged:
 re-engage the soft-CoM cascade-consistency residual so the NMPC budgets
 the true wrench (and/or scale the AOCS box with mass ratio). Until then
 the traversal is a **1%-mass-ratio result**.
+
+> **Update (2026-05-28) — fix direction REVISED, see §7c / attribution
+> memo.** The "re-engage soft-CoM" recommendation in this paragraph was
+> written before the wrench mismatch was decomposed. It has since been
+> investigated: the step-2 peak is **net, single-contact, transient, and
+> linear** (a mapping/F-SAT jitter spike), *not* a soft-CoM-addressable
+> momentum-consistency error — `v_com` already tracks the NMPC plan at
+> 1.04× and `L_dot` is in budget. **An `α_com_soft` sweep is not the
+> next action.** This §8 14%-failure narrative still stands as a
+> *symptom*, but its proposed *cause/fix* is superseded by §7c.
 
 ![14% Group B: wheel momentum/attitude/omega — platform rotation 6.55° over 2 steps, omega 5.1°/s](../../results/diag_cooperative_arms_14pct/momentum_aocs.png)
 ![14% Group D: 12.1× QP-vs-NMPC wrench, joint tau at 20 Nm](../../results/diag_cooperative_arms_14pct/actuator_solver.png)
