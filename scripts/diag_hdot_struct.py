@@ -67,16 +67,20 @@ def main():
     ph = np.array(sl['phase'], dtype=object)
     sidx = np.array(sl['step_idx'])
     lqp = np.array(sl['lambda_qp'])             # (N, 12)
+    lref = np.array(sl['lambda_ref'])           # (N, 12) NMPC plan
     r_com = np.array(sl['r_com'])               # (N, 3)
     dock_t = [e['t'] for e in sl['dock_events']]
 
-    # lambda_qp convention: contact_1 = arm A, contact_2 = arm B
+    # lambda_* convention: contact_1 = arm A, contact_2 = arm B
     # slot 0:6 = (f_a, tau_a), slot 6:12 = (f_b, tau_b)
     f_a = lqp[:, 0:3]; tau_a = lqp[:, 3:6]
     f_b = lqp[:, 6:9]; tau_b = lqp[:, 9:12]
+    f_a_p = lref[:, 0:3]; tau_a_p = lref[:, 3:6]
+    f_b_p = lref[:, 6:9]; tau_b_p = lref[:, 9:12]
 
     N = len(t)
-    Hdot_s = np.zeros((N, 3))
+    Hdot_s = np.zeros((N, 3))           # QP output
+    Hdot_s_plan = np.zeros((N, 3))      # NMPC plan
     Ldot_com = np.zeros((N, 3))
     rC_stance = np.full((N, 3), np.nan)
 
@@ -86,57 +90,63 @@ def main():
         if phase == 'SS' and s in STANCE_ANCHOR:
             arm, idx = STANCE_ANCHOR[s]
             rC = _anchor_pos(idx, arm)
-            f, tau = (f_a[i], tau_a[i]) if arm == 'a' else (f_b[i], tau_b[i])
+            if arm == 'a':
+                f, tau = f_a[i], tau_a[i]
+                fp, taup = f_a_p[i], tau_a_p[i]
+            else:
+                f, tau = f_b[i], tau_b[i]
+                fp, taup = f_b_p[i], tau_b_p[i]
             Hdot_s[i] = np.cross(rC, f) + tau
+            Hdot_s_plan[i] = np.cross(rC, fp) + taup
             Ldot_com[i] = np.cross(rC - r_com[i], f) + tau
             rC_stance[i] = rC
         else:
             # DS: both contacts active. Use the anchor pair currently welded.
-            # Inferred from how many docks have fired before t[i] (start: (2a, 2b)).
             ndocks = sum(1 for dt in dock_t if dt < t[i])
-            # ndocks=0 -> initial (2a,2b); ndocks=k after k docks
-            # After step k dock, anchor pair = ('a', a_idx_after_step_k), ('b', b_idx)
-            # Schedule: even step advances b; odd step advances a (matches STANCE table).
             a_idx = 2 + sum(1 for k in range(ndocks) if k % 2 == 1)
             b_idx = 2 + sum(1 for k in range(ndocks) if k % 2 == 0)
-            for arm, idx, f, tau in [('a', a_idx, f_a[i], tau_a[i]),
-                                     ('b', b_idx, f_b[i], tau_b[i])]:
+            for arm, idx, f, tau, fp, taup in [
+                    ('a', a_idx, f_a[i], tau_a[i], f_a_p[i], tau_a_p[i]),
+                    ('b', b_idx, f_b[i], tau_b[i], f_b_p[i], tau_b_p[i])]:
                 rC = _anchor_pos(idx, arm)
                 Hdot_s[i] += np.cross(rC, f) + tau
+                Hdot_s_plan[i] += np.cross(rC, fp) + taup
                 Ldot_com[i] += np.cross(rC - r_com[i], f) + tau
 
     Hdot_s_axis = np.abs(Hdot_s).max(axis=1)
+    Hdot_s_plan_axis = np.abs(Hdot_s_plan).max(axis=1)
     Ldot_com_axis = np.abs(Ldot_com).max(axis=1)
 
     print('=== Group Ḣ_s: structure-disturbance moment vs τ_w_max=5 Nm ===\n')
-    print('Per SS step (constraint matters most here):')
+    print('Per SS step — comparing NMPC plan (lambda_ref) vs QP output (lambda_qp):')
     print(f"  {'step':>4} {'stance':>6} {'|r_C|[m]':>9} "
-          f"{'budget_f⊥[N]':>13} {'med|Ḣ_s|':>9} {'p95':>6} {'peak':>6} "
-          f"{'%>5Nm':>7} {'|L̇|peak':>9}")
+          f"{'plan_peak':>10} {'plan_p95':>9} "
+          f"{'qp_peak':>8} {'qp_p95':>7} {'qp_%>5':>7}")
     for s in range(5):
         m = (sidx == s) & (ph == 'SS')
         if not m.any():
             continue
         h_ax = Hdot_s_axis[m]
-        l_ax = Ldot_com_axis[m]
+        h_pl = Hdot_s_plan_axis[m]
         arm, idx = STANCE_ANCHOR[s]
-        rC = _anchor_pos(idx, arm)
-        rC_mag = np.linalg.norm(rC)
-        f_budget = TAU_W_MAX / rC_mag  # |f⊥| ≤ τ_w / |r_C|
+        rC_mag = np.linalg.norm(_anchor_pos(idx, arm))
         pct_over = float(np.mean(h_ax > TAU_W_MAX) * 100)
         print(f"  {s:>4} {arm+str(idx):>6} {rC_mag:>9.3f} "
-              f"{f_budget:>13.1f} "
-              f"{np.median(h_ax):>9.2f} {np.percentile(h_ax, 95):>6.2f} "
-              f"{h_ax.max():>6.2f} {pct_over:>6.1f}% {l_ax.max():>9.2f}")
+              f"{h_pl.max():>10.2f} {np.percentile(h_pl, 95):>9.2f} "
+              f"{h_ax.max():>8.2f} {np.percentile(h_ax, 95):>7.2f} "
+              f"{pct_over:>6.1f}%")
 
     print()
-    print(f"  All-tick peak |Ḣ_s|_per-axis = {Hdot_s_axis.max():.2f} Nm "
-          f"(vs τ_w_max=5)")
-    print(f"  All-tick peak |L̇_com|_per-axis = {Ldot_com_axis.max():.2f} Nm "
-          f"(current NMPC proxy)")
+    print(f"  All-tick peak |Ḣ_s|_per-axis (NMPC plan)  = "
+          f"{Hdot_s_plan_axis.max():.2f} Nm  "
+          f"({'≤ 5 Nm — constraint binding ✓' if Hdot_s_plan_axis.max() <= TAU_W_MAX + 1e-3 else '> 5 Nm — constraint OFF or violated'})")
+    print(f"  All-tick peak |Ḣ_s|_per-axis (QP output)   = "
+          f"{Hdot_s_axis.max():.2f} Nm  (downstream / mapping)")
+    print(f"  All-tick peak |L̇_com|_per-axis (old proxy) = "
+          f"{Ldot_com_axis.max():.2f} Nm")
     div = np.linalg.norm(Hdot_s - Ldot_com, axis=1)
     print(f"  Max |Ḣ_s − L̇_com| over run = {div.max():.2f} Nm "
-          f"(divergence = r_com × m·a_com term)")
+          f"(proxy divergence)")
 
     # --- figure ---
     fig, ax = plt.subplots(3, 1, figsize=(12, 9), sharex=True)
@@ -150,13 +160,15 @@ def main():
         a.grid(alpha=0.3)
 
     ax[0].plot(t, Hdot_s_axis, 'C3', lw=1.0,
-               label='|Ḣ_s|_per-axis (exact wheel demand)')
-    ax[0].plot(t, Ldot_com_axis, 'C0', lw=0.9, alpha=0.7,
-               label='|L̇_com|_per-axis (current NMPC proxy)')
+               label='|Ḣ_s| QP output (downstream)')
+    ax[0].plot(t, Hdot_s_plan_axis, 'C1', lw=1.1,
+               label='|Ḣ_s| NMPC plan (constraint target)')
+    ax[0].plot(t, Ldot_com_axis, 'C0', lw=0.8, alpha=0.5,
+               label='|L̇_com| (old proxy)')
     ax[0].axhline(TAU_W_MAX, color='r', ls='--', lw=0.9, label='τ_w_max=5 Nm')
     ax[0].set_ylabel('moment [Nm]')
     ax[0].legend(fontsize=8, loc='upper right')
-    ax[0].set_title('Structure-disturbance moment vs wheel-torque budget')
+    ax[0].set_title('Structure-disturbance moment: NMPC plan vs QP output vs L̇_com proxy')
     ax[0].set_yscale('symlog', linthresh=1.0)
 
     ax[1].plot(t, div, 'C2', lw=1.0)

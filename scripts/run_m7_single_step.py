@@ -50,6 +50,16 @@ def _make_m7_config():
         h_max_tight=np.full(3, 5.0),
         w_L_nmpc=1.0,
         kappa_terminal=1.0,
+        # tau_struct_max (spec §5.1 |Ḣ_s,i|≤τ_w) deliberately left at the
+        # SimConfig default (np.inf, OFF). Enabling it at 5.0 in this
+        # runner regressed the 1% canonical (platform rotation 3.80→7.61°
+        # over budget; step 4 d_grip 2.13→4.95 mm) because IPOPT relaxed
+        # plan_peak |Ḣ_s| to 9.04 Nm at constrained steps (Acceptable
+        # status), and the QP could not track the relaxed plan cleanly.
+        # The gait timings were implicitly tuned against the |L̇_com|
+        # proxy; turning the exact constraint on demands path-time
+        # decoupling (out of scope). Opt-in via
+        # `diag_cooperative_arms.py --tau_struct_max 5.0`.
         # M4: corrected legacy AOCS
         aocs_mode='legacy_corrected',
         aocs_use_legacy_corrected=True,
