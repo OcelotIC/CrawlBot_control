@@ -2639,11 +2639,15 @@ class SimulationLoop:
                     # the structure back to its initial orientation).
                     # Compute θ_s = log3(R_init.T @ R_now) — small-angle
                     # attitude error in body frame.
+                    # Local import: `pin` is re-imported deeper in this
+                    # method (~line 2784), which shadows the module-level
+                    # name for this whole function under Python scoping.
+                    import pinocchio as _pin
                     qw, qx, qy, qz = self._struct_quat_init
-                    R_init = pin.Quaternion(qw, qx, qy, qz).toRotationMatrix()
+                    R_init = _pin.Quaternion(qw, qx, qy, qz).toRotationMatrix()
                     qw, qx, qy, qz = self.mj_data.qpos[3:7]
-                    R_now = pin.Quaternion(qw, qx, qy, qz).toRotationMatrix()
-                    theta_s = pin.log3(R_init.T @ R_now)
+                    R_now = _pin.Quaternion(qw, qx, qy, qz).toRotationMatrix()
+                    theta_s = _pin.log3(R_init.T @ R_now)
                     if cfg.aocs_mode == 'legacy_pid_numerical':
                         from crawlbot.aocs.force_estimator import (
                             compute_aocs_command_legacy_pid_numerical)
