@@ -238,7 +238,8 @@ def _nmpc_table(step_log, out_path):
 
 
 def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
-         mass_ratio: float = 0.01, aocs_mode: str = 'legacy_corrected'):
+         mass_ratio: float = 0.01, aocs_mode: str = 'legacy_corrected',
+         settle_seconds: float = 20.0):
     cfg = r_single._make_m7_config()
     cfg.gait_anchor_dx = anchor_dx
     # Sweet-spot config carry-over (these are also already the defaults
@@ -257,6 +258,12 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     # Velocity criterion kept as a clean-dock guard (no-op at the current
     # 2-4mm/s, but blocks welding during a fast transient).
     cfg.dock_vel_max = 0.01
+    # Post-traversal settle: how long to hold both arms welded after the
+    # last dock, with the AOCS active. Drives the post-settle drift
+    # measurement (residual ω_s, h_w, accumulated attitude). Default 20s
+    # matches the prior implicit behavior; bump to ~120s for asymptotic
+    # measurement.
+    cfg.t_settle_final = float(settle_seconds)
     # Rework knob.
     cfg.cooperative_arms_mode = (not legacy)
     cfg.ss_alpha_torso_lin = float(alpha_torso_lin)
@@ -473,6 +480,11 @@ if __name__ == '__main__':
                              'legacy_pd_* add a PD regulator on ω_s; they '
                              'differ in how ω̇_s is sourced (finite-diff vs '
                              'model-based).')
+    parser.add_argument('--settle_seconds', type=float, default=20.0,
+                        help='Post-traversal settle duration [s] (cfg.t_settle_final). '
+                             'Drives the post-settle drift measurement. '
+                             'Default 20s; ~120s gives asymptotic ω_s/h_w decay '
+                             'for PD modes (time constant I_s/K_ω ≈ 30s).')
     args = parser.parse_args()
 
     with open(MJCF, 'r') as f:
@@ -484,7 +496,7 @@ if __name__ == '__main__':
         _mutate_mjcf(damping=0.0, armature=0.05, anchor_dx=args.anchor_dx,
                      mass_ratio=args.mass_ratio)
         main(args.legacy, args.alpha_torso_lin, args.anchor_dx,
-             args.mass_ratio, args.aocs_mode)
+             args.mass_ratio, args.aocs_mode, args.settle_seconds)
     finally:
         with open(MJCF, 'w') as f:
             f.write(original)
