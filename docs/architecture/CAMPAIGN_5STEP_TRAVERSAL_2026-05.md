@@ -286,3 +286,70 @@ the traversal is a **1%-mass-ratio result**.
 
 Repro: `MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/diag_cooperative_arms.py --mass_ratio 0.14`
 then the B/C/D scripts with arg `diag_cooperative_arms_14pct`.
+
+## 9. Group Ḣ_s — proxy-vs-exact wheel-feasibility (`scripts/diag_hdot_struct.py`)
+
+The live NMPC enforces the **proxy** constraint $|\dot L_{com,i}|\le\tau_{w,max}=5$ Nm
+(`centroidal_nmpc.py:264–268`) — angular-momentum-rate computed with the lever from
+the **robot** CoM. The spec'd **exact** wheel-torque demand is
+$|\dot H_{s,i}|=|\sum_j(r_{C_j}\times f_j+\tau_j)|\le\tau_{w,max}$ — lever from the
+**structure** CoM. The two differ by $r_{com}\times m\dot v_{com}$; at the −0.35 m
+crawl standoff this term is substantial. The exact constraint is implemented at
+`centroidal_nmpc.py:276–281` and **disabled by default** (`tau_struct_max=∞`).
+
+**The proxy is respected by the NMPC plan.** Cross-checked against IPOPT's
+reported primal infeasibility (`nmpc_step_log.json::inf_pr`): across all 508
+solves in the 1% canonical run, `inf_pr ∈ [2.9e-11, 4.0e-5]` (median 2.1e-7),
+all within `tol=1e-6`. Zero ticks above `acceptable_tol=1e-4`. **No silent
+relaxation** — when IPOPT reports `Solve_Succeeded`, it is.
+
+**The exact Ḣ_s is *not* respected** (constraint disabled, so this is the
+disturbance the wheels would actually have to absorb if the plan executed
+verbatim). Per-step, per-axis peak on the NMPC plan (`lambda_ref`):
+
+| step | stance | \|r_C\| | plan peak \|Ḣ_s,i\| | budget | over by |
+|---|---|---|---|---|---|
+| 0 | a[2] | 0.50 m | 6.64 Nm | 5 | 1.3× |
+| 1 | b[3] | 0.50 | 6.73 | 5 | 1.3× |
+| 2 | a[3] | 0.50 | 8.52 | 5 | 1.7× |
+| 3 | b[4] | 1.24 | 2.97 | 5 | ✓ |
+| 4 | a[4] | 1.24 | **12.07** | 5 | **2.4×** |
+
+The longest-lever stance (step 4, |r_C|=1.24 m) drives the largest exact-Ḣ_s
+overshoot — the geometric throttling the constraint is designed to enforce.
+The L̇_com proxy stays well within budget at all steps (peak 2.91 Nm) because
+it uses the lever from a moving robot CoM that cancels much of the structure-CoM
+lever. The proxy hides the underlying disturbance.
+
+**Constraint-enable experiment.** A one-knob trial set `tau_struct_max=5.0` at
+the runner level. Outcomes (per the earlier branch tip, since reverted):
+
+- All 5 steps still docked. NMPC infeasibility: 0% (no `Infeasible` returns).
+- IPOPT relaxed via `Solved_To_Acceptable_Level` 5/93 ticks at step 2 and 3/99
+  at step 4 — the steps where the strict constraint is tightest.
+- Plan-side `|Ḣ_s|` compressed from 12 → 9 Nm peak (still over budget; IPOPT
+  could not strictly satisfy).
+- **Closed-loop attitude regressed**: platform rotation total 3.80°→7.61°
+  (over the 5° spec budget); step 4 d_grip 2.13→4.95 mm.
+- Verdict: the strict constraint cannot be silently absorbed at current gait
+  timings. The compressed plan trades off other parts of the NMPC cost in a
+  way that the QP+mapping cascade tracks worse, not better.
+
+**Decision** (commit `29ce2e7`): runner-level default reverted; opt-in
+`scripts/diag_cooperative_arms.py --tau_struct_max 5.0` routes to a separate
+output dir for A/B reproducibility. The principled fix is path-time decoupling
+on the long-lever steps (slow step-4 SS so the planner can satisfy strict
+$|\dot H_s|\le 5$) — out of scope for this PR.
+
+**The L̇_com proxy as currently configured is genuinely misleading at the
+crawl standoff.** It is binding on the wrong quantity. The actual wheel demand
+the plan would impose is up to 2.4× the wheel-torque budget at the late steps;
+the cascade survives at 1% because the wheels saturate transiently and the
+heavy structure absorbs the rest as a tiny attitude drift. At 14% (§8) the
+same plan produces a 1.9× overshoot at step 2 and the structure can't absorb
+it.
+
+![Ḣ_s vs L̇_com vs 5 Nm budget at 1% canonical. Orange = NMPC plan Ḣ_s (peaks 12 Nm at step 4); blue = L̇_com proxy (stays below 5 throughout); red = QP-output Ḣ_s (downstream mapping spike at step 2).](../../results/diag_cooperative_arms/hdot_struct.png)
+
+Repro: `MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/diag_cooperative_arms.py` (constraint off, default)
+or `--tau_struct_max 5.0` (constraint on, opt-in); then `python3 scripts/diag_hdot_struct.py [subdir]`.
