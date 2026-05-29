@@ -446,3 +446,67 @@ the spec §6 mapping mitigation — separate next-branch work.
 ![pd_numerical wins: NMPC plan |Ḣ_s| clamps at 5 Nm; QP-output spike at step 2 persists but AOCS damps the resulting ω_s. Platform rotation 1.58° vs 5° spec budget.](../../results/diag_cooperative_arms_legacy_pd_numerical/hdot_struct.png)
 
 Repro: `MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/diag_cooperative_arms.py --aocs_mode legacy_pd_numerical`
+
+## 11. Settle measurement — irreversible per-traversal rotation (`branch claude/aocs-sign-fix-and-settle`)
+
+Per the long-duration scaling question: distinguish **reversible-transient**
+rotation (peaks during motion, AOCS recovers via $\dot\omega_s$ damping)
+from **irreversible-net** rotation (locked in after settle, accumulates
+linearly over N traversals).
+
+### Setup
+
+Canonical 5-step traversal with `--aocs_mode legacy_pd_numerical
+--settle_seconds 120` (extended from default 20 s to capture asymptotic
+decay; PD time constant $I_s/K_\omega \approx 30$ s). 120 s = ~4 time
+constants ⇒ effectively asymptotic.
+
+### Results
+
+After the last dock at $t = 42$ s, the AOCS continues running on a
+welded robot for 120 s of settle:
+
+| metric | settle start | settle end (asymptotic) | verdict |
+|---|---|---|---|
+| $\|\omega_s\|$ | 1.05 mrad/s | 0.02 mrad/s | decayed cleanly — AOCS works |
+| $\|h_w\|$ | 0.887 Nms | 0.256 Nms | decayed cleanly — desat works |
+| **\|attitude\|** | **1.936°** | **1.950°** | **essentially unchanged** |
+
+Of the **1.978° transient peak**, the AOCS recovers only **0.029° (1.5%)**.
+The remaining **1.950° (98.5%) is irreversible** — the structure settles
+at a *new* attitude.
+
+Per-step: **~0.4°/step**. **Spec budget (5°) breached after ~12 steps.**
+Extrapolation to N=1000 steps: ~400° drift.
+
+### Architectural reading
+
+This is **not a controller bug**. Conservation about the structure CoM
+($L_{robot/s} + I_s\omega_s + h_w \equiv 0$) constrains the *rates and
+momenta* but says nothing about the *attitude*. The attitude is
+$\int\omega_s\,dt$, and that integral over the gait is non-zero by
+1.95° — there is no built-in mechanism to undo it.
+
+The substrate (NMPC + AOCS + correct constraints) works as designed.
+What's missing is **gait-level momentum neutrality**: the swing arm
+trajectory injects net angular impulse on the structure that the
+wheels cannot recover from after the fact (they can only redistribute,
+not eliminate, in a closed system).
+
+### Implications for hundreds-to-thousands of steps
+
+| approach | gist | feasibility |
+|---|---|---|
+| Reaction Null Space (RNS) swing planning | plan arm motion in the null space of the coupling so net base reaction ≈ 0 per cycle | proven (Nenchev/Yoshida 1999; flown ETS-VII); R-NS task in WBC exists with $\alpha=0$ |
+| Periodic gait reset | design exactly-symmetric N-step cycle | mechanically constrained (robot must advance, not oscillate) |
+| External actuators | host spacecraft thrusters / magnetorquers handle attitude | out of this controller's scope; depends on mission |
+
+The 5-step demo is **complete and consistent** for the architecture
+under study. The long-duration scaling is a **gait-design problem at
+the planning layer above**, not a controller-cascade problem inside
+the layers this campaign covers.
+
+![Post-traversal settle: ω_s and h_w decay to ~0, attitude locks at 1.95°. AOCS recovers 1.5% of transient peak; 98.5% is irreversible per-traversal drift.](../../results/diag_cooperative_arms_legacy_pd_numerical/settle.png)
+
+Repro: `MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/diag_cooperative_arms.py --aocs_mode legacy_pd_numerical --settle_seconds 120`
+then `python3 scripts/diag_settle.py diag_cooperative_arms_legacy_pd_numerical`.
