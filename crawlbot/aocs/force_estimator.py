@@ -251,7 +251,12 @@ def compute_aocs_command(
 ) -> np.ndarray:
     """Compute AOCS wheel torque command.
 
-    τ_w = -Ḣ_est - K_ω · ω_s - K_h · (h_w - h_w*)
+    τ_w = -Ḣ_est + K_ω · ω_s - K_h · (h_w - h_w*)
+
+    Damping sign derivation: Newton-Euler about the structure CoM gives
+    I_s · ω̇_s = -Ḣ_s - τ_w (wheel reaction). For ω_s>0 to brake
+    (ω̇_s<0), we need τ_w > -Ḣ_s, i.e. the damping contribution
+    must ADD positive — so +K_ω·ω_s, NOT the negated form.
 
     Parameters
     ----------
@@ -278,7 +283,7 @@ def compute_aocs_command(
     if hw_target is None:
         hw_target = np.zeros(3)
 
-    tau_w = -H_dot_est - K_omega * omega_s - K_h * (hw_current - hw_target)
+    tau_w = -H_dot_est + K_omega * omega_s - K_h * (hw_current - hw_target)
     tau_w = np.clip(tau_w, -tau_w_max, tau_w_max)
     return tau_w
 

@@ -240,7 +240,15 @@ class TestAOCSCommand:
         assert np.all(np.abs(tau_w) <= 5.0 + 1e-15)
 
     def test_aocs_command_damping(self):
-        """Non-zero omega_s adds -K_omega * omega_s damping."""
+        """Non-zero omega_s adds +K_omega * omega_s damping.
+
+        Sign convention (Newton-Euler about structure CoM):
+            I_s · ω̇_s = -Ḣ_s - τ_w
+        For ω_s>0 to brake (ω̇_s<0), τ_w must EXCEED -Ḣ_s — the
+        damping contribution adds positive. Prior versions of this
+        formula used -K_ω·ω_s (wrong sign) — never exposed because
+        all earlier tests used ω_s=0.
+        """
         H_dot_est = np.zeros(3)
         omega_s = np.array([0.1, 0.0, 0.0])
         hw = np.zeros(3)
@@ -249,11 +257,41 @@ class TestAOCSCommand:
             H_dot_est, omega_s, hw, K_omega=50.0, K_h=0.0, tau_w_max=100.0,
         )
 
-        # Expected: -K_omega * omega_s = -50 * 0.1 = -5.0 in x
+        # Expected: +K_omega * omega_s = +50 * 0.1 = +5.0 in x
         np.testing.assert_allclose(
-            tau_w[0], -5.0, atol=1e-15,
-            err_msg="Damping contribution should be -K_omega * omega_s",
+            tau_w[0], +5.0, atol=1e-15,
+            err_msg="Damping must be +K_omega * omega_s (positive sign)",
         )
+
+    def test_aocs_command_damping_physical_consistency(self):
+        """Damping term must produce a torque that REDUCES ω_s.
+
+        Setup: ω_s positive about z, no disturbance, no desat.
+        Reaction on structure from wheels is -τ_w (Newton's 3rd).
+        For braking: I_s · ω̇_s = -τ_w < 0 → τ_w > 0.
+        """
+        H_dot_est = np.zeros(3)
+        hw = np.zeros(3)
+        # ω_s positive in all three axes
+        for axis in range(3):
+            omega_s = np.zeros(3)
+            omega_s[axis] = 0.05
+            tau_w = compute_aocs_command(
+                H_dot_est, omega_s, hw,
+                K_omega=50.0, K_h=0.0, tau_w_max=100.0,
+            )
+            assert tau_w[axis] > 0, (
+                f"axis {axis}: τ_w={tau_w[axis]} should be POSITIVE to brake "
+                f"positive ω_s (Newton-Euler about struct CoM)")
+            # And opposite sign reverses it.
+            omega_s[axis] = -0.05
+            tau_w = compute_aocs_command(
+                H_dot_est, omega_s, hw,
+                K_omega=50.0, K_h=0.0, tau_w_max=100.0,
+            )
+            assert tau_w[axis] < 0, (
+                f"axis {axis}: τ_w={tau_w[axis]} should be NEGATIVE to brake "
+                f"negative ω_s")
 
     def test_aocs_command_desaturation(self):
         """Non-zero hw with K_h > 0 adds desaturation term."""
@@ -285,9 +323,10 @@ class TestAOCSCommand:
             hw_target=hw_target, K_omega=50.0, K_h=0.5, tau_w_max=100.0,
         )
 
-        # Expected x: -1.0 - 5.0 - 1.0 = -7.0
-        expected_x = -1.0 - 50.0 * 0.1 - 0.5 * 2.0
+        # Expected x: -Ḣ + K_ω·ω - K_h·(hw - hw*)
+        #           = -1.0 + 50·0.1 - 0.5·2.0 = -1.0 + 5.0 - 1.0 = +3.0
+        expected_x = -1.0 + 50.0 * 0.1 - 0.5 * 2.0
         np.testing.assert_allclose(
             tau_w[0], expected_x, atol=1e-15,
-            err_msg="Combined command should sum all terms",
+            err_msg="Combined command: τ_w = -Ḣ + K_ω·ω - K_h·(hw-hw*)",
         )
