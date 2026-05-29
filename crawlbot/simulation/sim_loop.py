@@ -210,6 +210,10 @@ class SimulationLoop:
                                 'structure')
         self._struct_I = self.mj_model.body_inertia[sid].copy() \
             if sid >= 0 else np.array([597.0, 1493.0, 1777.0])
+        # Cache initial structure attitude (wxyz quaternion) for the
+        # legacy_pid_* AOCS modes: θ_s = log3(R_init.T @ R_now) gives
+        # the small-angle attitude error in body frame.
+        self._struct_quat_init = self.mj_data.qpos[3:7].copy()
         mujoco.mj_forward(self.mj_model, self.mj_data)
 
         # Read anchor sites in world frame and convert to structure-local frame
@@ -2629,6 +2633,48 @@ class SimulationLoop:
                         K_d=cfg.aocs_K_d,
                         hw_min=cfg.hw_min, hw_max=cfg.hw_max,
                         tau_w_max=cfg.aocs_tau_w_max)
+                elif cfg.aocs_mode in ('legacy_pid_numerical',
+                                       'legacy_pid_model'):
+                    # legacy_pd_* + attitude-tracking P term (drives
+                    # the structure back to its initial orientation).
+                    # Compute θ_s = log3(R_init.T @ R_now) — small-angle
+                    # attitude error in body frame.
+                    qw, qx, qy, qz = self._struct_quat_init
+                    R_init = pin.Quaternion(qw, qx, qy, qz).toRotationMatrix()
+                    qw, qx, qy, qz = self.mj_data.qpos[3:7]
+                    R_now = pin.Quaternion(qw, qx, qy, qz).toRotationMatrix()
+                    theta_s = pin.log3(R_init.T @ R_now)
+                    if cfg.aocs_mode == 'legacy_pid_numerical':
+                        from crawlbot.aocs.force_estimator import (
+                            compute_aocs_command_legacy_pid_numerical)
+                        tau_w_cmd = compute_aocs_command_legacy_pid_numerical(
+                            L_com=rs.L_com, L_com_prev=_L_com_qp_prev,
+                            r_com=rs.r_com, v_com=rs.v_com,
+                            v_com_prev=_v_com_qp_prev,
+                            omega_s=omega_s, omega_s_prev=_omega_s_last,
+                            theta_s=theta_s,
+                            hw_current=hw_phys, dt=cfg.dt_qp,
+                            robot_mass=self.robot._total_mass,
+                            K_hw=cfg.aocs_K_hw, K_omega=cfg.aocs_K_omega,
+                            K_d=cfg.aocs_K_d, K_theta=cfg.aocs_K_theta,
+                            hw_min=cfg.hw_min, hw_max=cfg.hw_max,
+                            tau_w_max=cfg.aocs_tau_w_max)
+                    else:
+                        from crawlbot.aocs.force_estimator import (
+                            compute_aocs_command_legacy_pid_model)
+                        tau_w_cmd = compute_aocs_command_legacy_pid_model(
+                            L_com=rs.L_com, L_com_prev=_L_com_qp_prev,
+                            r_com=rs.r_com, v_com=rs.v_com,
+                            v_com_prev=_v_com_qp_prev,
+                            omega_s=omega_s, theta_s=theta_s,
+                            tau_w_prev=tau_w_last,
+                            I_struct=self._struct_I,
+                            hw_current=hw_phys, dt=cfg.dt_qp,
+                            robot_mass=self.robot._total_mass,
+                            K_hw=cfg.aocs_K_hw, K_omega=cfg.aocs_K_omega,
+                            K_d=cfg.aocs_K_d, K_theta=cfg.aocs_K_theta,
+                            hw_min=cfg.hw_min, hw_max=cfg.hw_max,
+                            tau_w_max=cfg.aocs_tau_w_max)
                 else:
                     # Legacy AOCS: L_dot feedforward only (spin component).
                     # Desaturation sign matches compute_aocs_command_legacy_corrected

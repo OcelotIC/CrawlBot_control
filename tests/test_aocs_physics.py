@@ -330,3 +330,86 @@ class TestAOCSCommand:
             tau_w[0], expected_x, atol=1e-15,
             err_msg="Combined command: τ_w = -Ḣ + K_ω·ω - K_h·(hw-hw*)",
         )
+
+
+# ---------------------------------------------------------------------------
+# legacy_pid_* attitude-tracking sign convention
+# ---------------------------------------------------------------------------
+
+class TestAOCSCommandLegacyPID:
+    """Sign convention for the new attitude-tracking modes.
+
+    Same Newton-Euler derivation as the K_omega term: for θ_s > 0 to
+    decrease, need negative angular acceleration ⇒ τ_w > -Ḣ_s ⇒ K_θ
+    contribution must add POSITIVE.
+    """
+
+    def _make_inputs(self, theta_z=0.0):
+        """Minimal AOCS inputs: at-rest robot, single nonzero θ_s_z."""
+        z = np.zeros(3)
+        return dict(
+            L_com=z.copy(), L_com_prev=z.copy(),
+            r_com=z.copy(), v_com=z.copy(), v_com_prev=z.copy(),
+            omega_s=z.copy(),
+            theta_s=np.array([0.0, 0.0, theta_z]),
+            hw_current=z.copy(),
+            dt=0.01, robot_mass=71.0,
+            K_hw=0.0, K_omega=0.0, K_d=0.0, K_theta=10.0,
+            tau_w_max=100.0,
+        )
+
+    def test_pid_numerical_theta_sign(self):
+        """θ_s > 0 ⇒ τ_w > 0 (positive damping). Numerical mode."""
+        from crawlbot.aocs.force_estimator import (
+            compute_aocs_command_legacy_pid_numerical)
+        inputs = self._make_inputs(theta_z=+0.05)
+        inputs['omega_s_prev'] = inputs['omega_s'].copy()
+        tau_w = compute_aocs_command_legacy_pid_numerical(**inputs)
+        assert tau_w[2] > 0, f"τ_w_z={tau_w[2]} should be POSITIVE for θ_z>0"
+
+        inputs = self._make_inputs(theta_z=-0.05)
+        inputs['omega_s_prev'] = inputs['omega_s'].copy()
+        tau_w = compute_aocs_command_legacy_pid_numerical(**inputs)
+        assert tau_w[2] < 0, f"τ_w_z={tau_w[2]} should be NEGATIVE for θ_z<0"
+
+    def test_pid_model_theta_sign(self):
+        """θ_s > 0 ⇒ τ_w > 0 (positive damping). Model mode."""
+        from crawlbot.aocs.force_estimator import (
+            compute_aocs_command_legacy_pid_model)
+        inputs = self._make_inputs(theta_z=+0.05)
+        inputs['tau_w_prev'] = np.zeros(3)
+        inputs['I_struct'] = np.array([597., 1493., 1777.])
+        tau_w = compute_aocs_command_legacy_pid_model(**inputs)
+        assert tau_w[2] > 0, f"τ_w_z={tau_w[2]} should be POSITIVE for θ_z>0"
+
+        inputs = self._make_inputs(theta_z=-0.05)
+        inputs['tau_w_prev'] = np.zeros(3)
+        inputs['I_struct'] = np.array([597., 1493., 1777.])
+        tau_w = compute_aocs_command_legacy_pid_model(**inputs)
+        assert tau_w[2] < 0, f"τ_w_z={tau_w[2]} should be NEGATIVE for θ_z<0"
+
+    def test_pid_reduces_to_pd_when_K_theta_zero(self):
+        """K_theta=0 should match the corresponding PD function exactly."""
+        from crawlbot.aocs.force_estimator import (
+            compute_aocs_command_legacy_pid_numerical,
+            compute_aocs_command_legacy_pd_numerical)
+        z = np.zeros(3)
+        # Use a non-trivial state so any sign error would show up
+        rng = np.random.default_rng(0)
+        common = dict(
+            L_com=rng.standard_normal(3), L_com_prev=rng.standard_normal(3),
+            r_com=rng.standard_normal(3),
+            v_com=rng.standard_normal(3), v_com_prev=rng.standard_normal(3),
+            omega_s=rng.standard_normal(3) * 0.01,
+            omega_s_prev=rng.standard_normal(3) * 0.01,
+            hw_current=rng.standard_normal(3) * 0.5,
+            dt=0.01, robot_mass=71.0,
+            K_hw=2.0, K_omega=50.0, K_d=25.0,
+            tau_w_max=100.0,
+        )
+        pd = compute_aocs_command_legacy_pd_numerical(**common)
+        pid = compute_aocs_command_legacy_pid_numerical(
+            theta_s=z.copy(), K_theta=0.0, **common)
+        np.testing.assert_allclose(
+            pd, pid, atol=1e-15,
+            err_msg="PID with K_theta=0 must match PD exactly")

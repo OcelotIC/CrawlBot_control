@@ -474,12 +474,15 @@ if __name__ == '__main__':
                              'mass+inertia by 0.01/ratio (default 0.01 = no-op; '
                              '0.14 = spec T12 14%%, structure 507.857 kg)')
     parser.add_argument('--aocs_mode', type=str, default='legacy_corrected',
-                        choices=['legacy_corrected', 'legacy_pd_numerical',
-                                 'legacy_pd_model', 'H_est'],
+                        choices=['legacy_corrected',
+                                 'legacy_pd_numerical', 'legacy_pd_model',
+                                 'legacy_pid_numerical', 'legacy_pid_model',
+                                 'H_est'],
                         help='AOCS controller (default legacy_corrected). '
-                             'legacy_pd_* add a PD regulator on ω_s; they '
-                             'differ in how ω̇_s is sourced (finite-diff vs '
-                             'model-based).')
+                             'legacy_pd_*  add a PD on ω_s. '
+                             'legacy_pid_* further add an attitude P term '
+                             'to recover the per-traversal net rotation. '
+                             '_numerical / _model differ in ω̇_s source.')
     parser.add_argument('--settle_seconds', type=float, default=20.0,
                         help='Post-traversal settle duration [s] (cfg.t_settle_final). '
                              'Drives the post-settle drift measurement. '
