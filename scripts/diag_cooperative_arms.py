@@ -238,7 +238,7 @@ def _nmpc_table(step_log, out_path):
 
 
 def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
-         mass_ratio: float = 0.01, tau_struct_max: float = 5.0):
+         mass_ratio: float = 0.01):
     cfg = r_single._make_m7_config()
     cfg.gait_anchor_dx = anchor_dx
     # Sweet-spot config carry-over (these are also already the defaults
@@ -260,10 +260,6 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     # Rework knob.
     cfg.cooperative_arms_mode = (not legacy)
     cfg.ss_alpha_torso_lin = float(alpha_torso_lin)
-    # Structure-disturbance constraint (spec §5.1): |Ḣ_s,i| ≤ τ_w_max.
-    # Set to 5.0 by default by _make_m7_config; --tau_struct_max inf
-    # disables it (A/B regression against the L̇_com proxy).
-    cfg.tau_struct_max = float(tau_struct_max)
     # alpha_torso_ang stays at default 500 (set by _make_m7_config).
     # 5 evenly-spaced snapshots per SS for the offline renderer.
     # FRAMES_PER_STEP=0 disables capture entirely (e.g. for tests).
@@ -305,10 +301,6 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     elif abs(mass_ratio - 0.01) > 1e-9:
         out_dir = os.path.join(_root, 'results',
                                f'diag_cooperative_arms_{int(round(mass_ratio*100))}pct')
-    elif np.isfinite(tau_struct_max):
-        # Opt-in Ḣ_s constraint (non-default; default is OFF=canonical).
-        out_dir = os.path.join(_root, 'results',
-                               'diag_cooperative_arms_hdoton')
     elif abs(alpha_torso_lin - 500.0) > 1e-6:
         out_dir = os.path.join(_root, 'results',
                                'diag_cooperative_arms',
@@ -462,13 +454,6 @@ if __name__ == '__main__':
                         help='Robot/structure mass ratio; scales structure '
                              'mass+inertia by 0.01/ratio (default 0.01 = no-op; '
                              '0.14 = spec T12 14%%, structure 507.857 kg)')
-    parser.add_argument('--tau_struct_max', type=float, default=float('inf'),
-                        help='|Ḣ_s,i| budget [Nm], per-axis (spec §5.1; '
-                             'default inf = OFF, runner-level. Opt-in with '
-                             '5.0 to test the exact wheel-feasibility '
-                             'constraint — known to regress the canonical '
-                             '1% gait via IPOPT relaxation, see commit '
-                             'after b57aaf8.)')
     args = parser.parse_args()
 
     with open(MJCF, 'r') as f:
@@ -480,7 +465,7 @@ if __name__ == '__main__':
         _mutate_mjcf(damping=0.0, armature=0.05, anchor_dx=args.anchor_dx,
                      mass_ratio=args.mass_ratio)
         main(args.legacy, args.alpha_torso_lin, args.anchor_dx,
-             args.mass_ratio, args.tau_struct_max)
+             args.mass_ratio)
     finally:
         with open(MJCF, 'w') as f:
             f.write(original)

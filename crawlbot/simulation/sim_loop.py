@@ -355,7 +355,6 @@ class SimulationLoop:
             N=cfg.nmpc_N, dt=cfg.nmpc_dt,
             f_max=cfg.nmpc_f_max, tau_max=cfg.nmpc_tau_max,
             L_max=cfg.L_max, tau_w_max=cfg.tau_w_max,
-            tau_struct_max=cfg.tau_struct_max,
             p_max=cfg.nmpc_p_max,
             Wv=cfg.nmpc_Wv * np.ones(3),
             enforce_hw_conservation=cfg.enforce_hw_conservation,

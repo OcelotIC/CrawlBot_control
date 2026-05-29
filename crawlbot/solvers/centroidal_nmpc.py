@@ -38,6 +38,14 @@ Constraints:
     - Linear:    ||m·v_com||² <= p_max² (linear momentum → orbital bound)
     - SOC:       ||f_j||² <= f_max²     (force norm limits)
     - SOC:       ||τ_j||² <= τ_max²     (torque norm limits)
+    - Wheel-torque (Ḣ_s rate cap):
+                 |Σ_j [r_Cj × f_j + τ_j]_i| <= τ_w_max
+                 The exact moment the AOCS wheels must absorb to keep the
+                 structure stationary. Lever from structure CoM (origin in
+                 R_s). Linear in the controls — the decentralized contract
+                 with the AOCS. Replaces the historical L̇_com proxy which
+                 used lever from robot CoM (wrong quantity at standoff,
+                 see docs/architecture/CAMPAIGN_5STEP_TRAVERSAL_2026-05.md §9).
     - RWA box:   c_simple - L_com(k) - r_com(k) × m·v_com(k) ∈ [-h_max', h_max']
                  (M3 conservation-law, Option B, enforce_hw_conservation=True)
 
@@ -81,10 +89,9 @@ class CentroidalNMPCConfig:
 
     # 6D centroidal momentum constraints
     L_max: float = np.inf                    # |L_com,i| ≤ L_max [Nms]  (angular)
-    tau_w_max: float = np.inf                # |L̇_com,i| ≤ τ_w_max [Nm] (angular rate)
+    tau_w_max: float = np.inf                # |Ḣ_s,i| ≤ τ_w_max [Nm]  (wheel-torque rate cap)
     p_max: float = np.inf                    # ||m·v_com|| ≤ p_max [kg·m/s] (linear momentum)
                                              # Bounds orbital disturbance: τ_orbital ≤ |r_com|·p_max
-    tau_struct_max: float = np.inf           # |Ḣ_s,i| ≤ tau_struct_max [Nm] (structure disturbance)
 
     # ── M3: B2 conservation-law RWA box constraint (Option B, tightened) ──
     # Per spec §4.5-4.6, §5.1: enforce h_w^s(k) ∈ [-h_max', h_max'] at every
@@ -238,7 +245,6 @@ class CentroidalNMPC:
         tau_max_sq = cfg.tau_max ** 2
 
         p_max_sq = (cfg.p_max ** 2) if np.isfinite(cfg.p_max) else np.inf
-        has_Hdot_s = np.isfinite(cfg.tau_struct_max)
         enforce_hw = bool(cfg.enforce_hw_conservation)
         h_max_tight = np.asarray(cfg.h_max_tight, dtype=float).reshape(3)
 
@@ -261,24 +267,21 @@ class CentroidalNMPC:
                 ca.dot(tau2, tau2) - tau_max_sq,
             )
 
-            # L̇_com rate constraint: |L̇_com,i| ≤ τ_w_max
-            L_dot = (ca.cross(r_C1 - r_com, f1) + tau1 +
-                     ca.cross(r_C2 - r_com, f2) + tau2)
+            # Wheel-torque rate cap: |Ḣ_s,i| ≤ τ_w_max
+            # Ḣ_s = Σ [r_Cⱼ × fⱼ + τⱼ] is the exact moment the AOCS wheels
+            # must counter to keep the structure stationary (Newton's 3rd
+            # law about structure CoM = origin in R_s). Linear in the
+            # contact-wrench controls; the decentralized robot↔AOCS
+            # contract. Replaces the prior |L̇_com,i| proxy, which used
+            # lever-from-robot-CoM and bounded only the spin-rate part
+            # of the robot-momentum-rate — wrong quantity at non-zero
+            # standoff (campaign §9 documents the divergence).
+            H_dot_s = (ca.cross(r_C1, f1) + tau1 +
+                       ca.cross(r_C2, f2) + tau2)
             tw = cfg.tau_w_max
-            Ldot_ineq = ca.vertcat(L_dot - tw, -L_dot - tw)
+            Hdot_s_ineq = ca.vertcat(H_dot_s - tw, -H_dot_s - tw)
 
-            parts = [soc, Ldot_ineq]
-
-            # Structure disturbance constraint: Ḣ_s = Σ [r_Cⱼ × fⱼ + τⱼ]
-            # r_Cⱼ are lever arms from structure CoM (= origin in R_s).
-            # Unlike L̇_com which uses (r_Cⱼ - r_com), this uses r_Cⱼ directly
-            # to bound the torque the structure AOCS must absorb.
-            if has_Hdot_s:
-                H_dot_s = (ca.cross(r_C1, f1) + tau1 +
-                           ca.cross(r_C2, f2) + tau2)
-                ts = cfg.tau_struct_max
-                Hdot_s_ineq = ca.vertcat(H_dot_s - ts, -H_dot_s - ts)
-                parts.append(Hdot_s_ineq)
+            parts = [soc, Hdot_s_ineq]
 
             # Linear momentum constraint: ||m·v_com||² ≤ p_max²
             p_lin = m * v_com
@@ -298,9 +301,7 @@ class CentroidalNMPC:
 
             return ca.vertcat(*parts)
 
-        ng_path = 4 + 6 + 1  # 4 SOC + 6 L̇ bilateral + 1 linear momentum
-        if has_Hdot_s:
-            ng_path += 6        # + 6 Ḣ_s bilateral
+        ng_path = 4 + 6 + 1  # 4 SOC + 6 Ḣ_s bilateral + 1 linear momentum
         if enforce_hw:
             ng_path += 6        # + 6 hw bilateral
         nmpc.set_path_constraints(path_constraints, ng=ng_path)

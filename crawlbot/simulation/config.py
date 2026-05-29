@@ -61,8 +61,7 @@ class SimConfig:
     # ±5 Nms limit, so the momentum handoff remains consistent.
     hw_qp_tight: np.ndarray = field(default_factory=lambda: np.full(3, 3.0))
     L_max: float = 10.0           # Robot angular momentum limit [Nms]
-    tau_w_max: float = 5.0        # Reaction wheel torque limit [Nm]
-    tau_struct_max: float = np.inf  # Structure disturbance torque limit [Nm]
+    tau_w_max: float = 5.0        # |Ḣ_s,i| ≤ τ_w_max [Nm] — wheel-torque rate cap (NMPC)
 
     # ── AOCS ────────────────────────────────────────────────────
     aocs_K_hw: float = 2.0        # Legacy feedback gain [1/s]

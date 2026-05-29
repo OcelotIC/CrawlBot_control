@@ -145,16 +145,17 @@ def main():
               f"{pct_over:>6.1f}%")
 
     print()
+    binding = Hdot_s_plan_axis.max() <= TAU_W_MAX + 1e-3
     print(f"  All-tick peak |Ḣ_s|_per-axis (NMPC plan)  = "
           f"{Hdot_s_plan_axis.max():.2f} Nm  "
-          f"({'≤ 5 Nm — constraint binding ✓' if Hdot_s_plan_axis.max() <= TAU_W_MAX + 1e-3 else '> 5 Nm — constraint OFF or violated'})")
+          f"({'≤ 5 Nm — constraint respected ✓' if binding else '> 5 Nm — IPOPT relaxed / constraint not in NLP'})")
     print(f"  All-tick peak |Ḣ_s|_per-axis (QP output)   = "
           f"{Hdot_s_axis.max():.2f} Nm  (downstream / mapping)")
-    print(f"  All-tick peak |L̇_com|_per-axis (old proxy) = "
+    print(f"  All-tick peak |L̇_com|_per-axis (former proxy) = "
           f"{Ldot_com_axis.max():.2f} Nm")
     div = np.linalg.norm(Hdot_s - Ldot_com, axis=1)
     print(f"  Max |Ḣ_s − L̇_com| over run = {div.max():.2f} Nm "
-          f"(proxy divergence)")
+          f"(former-proxy divergence)")
 
     # --- figure ---
     fig, ax = plt.subplots(3, 1, figsize=(12, 9), sharex=True)
@@ -170,13 +171,13 @@ def main():
     ax[0].plot(t, Hdot_s_axis, 'C3', lw=1.0,
                label='|Ḣ_s| QP output (downstream)')
     ax[0].plot(t, Hdot_s_plan_axis, 'C1', lw=1.1,
-               label='|Ḣ_s| NMPC plan (constraint target)')
+               label='|Ḣ_s| NMPC plan (active constraint)')
     ax[0].plot(t, Ldot_com_axis, 'C0', lw=0.8, alpha=0.5,
-               label='|L̇_com| (old proxy)')
+               label='|L̇_com| (former proxy)')
     ax[0].axhline(TAU_W_MAX, color='r', ls='--', lw=0.9, label='τ_w_max=5 Nm')
     ax[0].set_ylabel('moment [Nm]')
     ax[0].legend(fontsize=8, loc='upper right')
-    ax[0].set_title('Structure-disturbance moment: NMPC plan vs QP output vs L̇_com proxy')
+    ax[0].set_title('Wheel-torque rate cap: NMPC plan |Ḣ_s| (the active constraint) vs QP-output downstream')
     ax[0].set_yscale('symlog', linthresh=1.0)
 
     ax[1].plot(t, div, 'C2', lw=1.0)
