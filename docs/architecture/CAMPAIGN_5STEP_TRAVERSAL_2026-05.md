@@ -353,3 +353,96 @@ it.
 
 Repro: `MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/diag_cooperative_arms.py` (constraint off, default)
 or `--tau_struct_max 5.0` (constraint on, opt-in); then `python3 scripts/diag_hdot_struct.py [subdir]`.
+
+## 10. Group Ḣ_s + AOCS — resolution of the §9 regression (`branch claude/nmpc-hdot-s-rate-cap`)
+
+§9 documented an apparent regression: enabling the strict $|\dot H_s|\le\tau_{w,max}$
+constraint at the NMPC layer caused platform attitude to blow past the 5° spec
+budget (3.80° → 7.61°), even though the plan respected the budget cleanly.
+The framing was *the constraint exposes a cascade coupling the proxy was
+hiding*. That framing was half right.
+
+Investigating the AOCS side (branch `claude/nmpc-hdot-s-rate-cap`) surfaced
+the actual structural defect — **the AOCS lacked any active recovery for the
+rotational momentum the wheels couldn't absorb during the QP-output spike** —
+and a latent sign bug:
+
+- The live `legacy_corrected` AOCS is *feedforward + desaturation only*. No
+  $-K_\omega\,\omega_s$ damping. When the QP-output `Ḣ_s` spike at step 2
+  exceeds the wheel torque budget, the residual integrates straight into
+  $\omega_s$ and there's nothing to bring it back. That's the closed-loop
+  attitude drift §9 measured.
+- The alternative `H_est` mode does have $-K_\omega\,\omega_s$ in its formula,
+  but the sign is **wrong**: Newton-Euler about the structure CoM gives
+  $I_s\,\dot\omega_s = -\dot H_s - \tau_w$, so for $\omega_s>0$ to brake, the
+  damping contribution must be $+K_\omega\,\omega_s$, not $-K_\omega\,\omega_s$.
+  H_est ships with the wrong sign — never exposed in tests because all
+  existing AOCS tests use $\omega_s=0$. **H_est not fixed here** (not the
+  canonical mode; out of scope). Flagged for follow-up.
+
+### What was added on this branch
+
+1. **`legacy_pd_numerical`** (`force_estimator.py`): extends `legacy_corrected`
+   with a PD regulator on $\omega_s$. $\dot\omega_s$ via one-step finite
+   difference of measured $\omega_s$.
+2. **`legacy_pd_model`** (same file): same structure, but $\dot\omega_s$ from
+   the Newton-Euler residual using the previous tick's $\tau_{w,prev}$ and
+   the current $\dot H_{s,est}$. Cleaner than numerical (no high-frequency
+   noise re-injection) but model-coupled.
+3. Both modes use the **correct** PD sign: $+K_\omega\,\omega_s + K_d\,\dot\omega_s$,
+   added to the existing feedforward.
+4. Selected via `cfg.aocs_mode = 'legacy_pd_numerical'` or `'legacy_pd_model'`
+   and the new `--aocs_mode` CLI flag on `diag_cooperative_arms.py`. The
+   canonical runner default (`_make_m7_config`) is unchanged.
+
+Defaults: $K_\omega = 50$ Nm·s/rad, $K_d = 25$ Nm·s²/rad — order-of-magnitude
+sized from the disturbance / structure inertia. Tunable in `SimConfig`.
+
+### Results @ 1% canonical 5-step traversal
+
+| metric | baseline (§5/§6 vintage, L̇_com proxy, no PD) | §9 (Ḣ_s cap + legacy_corrected) | **§10 (Ḣ_s cap + legacy_pd_numerical)** | §10 (Ḣ_s cap + legacy_pd_model) |
+|---|---|---|---|---|
+| steps docked | 5/5 ≤ 4.94 mm | 5/5 ≤ 4.98 mm | **5/5 ≤ 4.99 mm** | 5/5 ≤ 4.89 mm |
+| platform rotation total | 3.80° | 7.61° ✗ (over budget) | **1.58° ✓** (3× margin) | 4.12° ✓ |
+| max ‖hw_phys‖ | 2.79 Nms | 4.11 | 3.58 | 3.47 |
+| NMPC plan \|Ḣ_s\| peak | 13.1 Nm (over budget, hidden) | 5.00 (at budget, honored) | **5.00 (honored)** | 5.00 (honored) |
+| QP-output \|Ḣ_s\| peak step 2 | 28 Nm | 49 | 51 | 50 |
+| NMPC fails | 0 | 0 | 0 | 0 |
+
+The **§9 framing flips**: the constraint-on configuration is not a regression
+of its own — it's a correct planner-layer change that *exposed* a downstream
+AOCS gap. With the corrected AOCS PD, the constraint swap is a strict
+improvement on every metric except the QP-output spike (which is a separate
+mapping-cascade problem; see §6c). `pd_numerical` is the clear winner at 1%.
+
+### Architectural reading
+
+The decentralized contract works as designed when both sides honor it:
+
+- NMPC plans contact wrenches with $|\dot H_s|\le\tau_{w,max}$ — promise the
+  AOCS only what the wheels can absorb. (Done at §9.)
+- AOCS damps any residual $\omega_s$ that leaks through when the QP-output
+  exceeds the budget transiently (mapping cascade still injects this). (Done
+  at §10.)
+- Each layer can be developed and replaced independently.
+
+The QP-output spike at step 2 (51 Nm) remains; it does not break the contract
+because the AOCS now successfully damps the resulting $\omega_s$ before it
+accumulates past the 5° budget. The structural fix for the spike itself is
+the spec §6 mapping mitigation — separate next-branch work.
+
+### Still open after §10
+
+- **Mapping cascade** (§6c debt): F-SAT still clips ~40% of ticks; the QP-output
+  spike at step 2 went from 28 → 51 Nm as the constraint tightened the plan;
+  the AOCS damping absorbs the *consequences* but not the *cause*. Spec §6
+  loop-free mitigation is the next architectural target.
+- **`H_est` sign fix** (one-line; flagged here, deferred).
+- **14% mass-ratio retest** with the new architecture — likely benefits more
+  from PD damping than 1% does, since the lighter structure rotates faster
+  under the same residual.
+- **Path-time decoupling** at the binding long-lever steps (still notional).
+
+![pd_numerical wins: NMPC plan |Ḣ_s| clamps at 5 Nm; QP-output spike at step 2 persists but AOCS damps the resulting ω_s. Platform rotation 1.58° vs 5° spec budget.](../../results/diag_cooperative_arms_legacy_pd_numerical/hdot_struct.png)
+
+Repro: `MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/diag_cooperative_arms.py --aocs_mode legacy_pd_numerical`
