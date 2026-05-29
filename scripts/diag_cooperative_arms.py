@@ -239,7 +239,7 @@ def _nmpc_table(step_log, out_path):
 
 def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
          mass_ratio: float = 0.01, aocs_mode: str = 'legacy_corrected',
-         settle_seconds: float = 20.0):
+         settle_seconds: float = 20.0, K_theta: float = 1.0):
     cfg = r_single._make_m7_config()
     cfg.gait_anchor_dx = anchor_dx
     # Sweet-spot config carry-over (these are also already the defaults
@@ -267,6 +267,8 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     # Rework knob.
     cfg.cooperative_arms_mode = (not legacy)
     cfg.ss_alpha_torso_lin = float(alpha_torso_lin)
+    # AOCS K_theta gain override (active only for legacy_pid_* modes).
+    cfg.aocs_K_theta = float(K_theta)
     # AOCS mode override (default 'legacy_corrected' = canonical).
     # legacy_pd_numerical / legacy_pd_model add a PD regulator on ω_s
     # on top of the legacy_corrected feedforward + desat. The two
@@ -318,8 +320,12 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
                                f'diag_cooperative_arms_{int(round(mass_ratio*100))}pct')
     elif aocs_mode != 'legacy_corrected':
         # Non-default AOCS mode → separate dir for A/B.
+        # Add _Kt{val} suffix when K_theta differs from default (PID modes).
+        suffix = ''
+        if 'pid' in aocs_mode and abs(K_theta - 1.0) > 1e-9:
+            suffix = f'_Kt{K_theta:g}'
         out_dir = os.path.join(_root, 'results',
-                               f'diag_cooperative_arms_{aocs_mode}')
+                               f'diag_cooperative_arms_{aocs_mode}{suffix}')
     elif abs(alpha_torso_lin - 500.0) > 1e-6:
         out_dir = os.path.join(_root, 'results',
                                'diag_cooperative_arms',
@@ -488,6 +494,10 @@ if __name__ == '__main__':
                              'Drives the post-settle drift measurement. '
                              'Default 20s; ~120s gives asymptotic ω_s/h_w decay '
                              'for PD modes (time constant I_s/K_ω ≈ 30s).')
+    parser.add_argument('--K_theta', type=float, default=1.0,
+                        help='Attitude tracking gain [Nm/rad] (legacy_pid_* only). '
+                             'Default 1.0 — gentle (60s recovery time constant '
+                             'with K_ω=50). Bump to 5-10 for faster recovery.')
     args = parser.parse_args()
 
     with open(MJCF, 'r') as f:
@@ -499,7 +509,8 @@ if __name__ == '__main__':
         _mutate_mjcf(damping=0.0, armature=0.05, anchor_dx=args.anchor_dx,
                      mass_ratio=args.mass_ratio)
         main(args.legacy, args.alpha_torso_lin, args.anchor_dx,
-             args.mass_ratio, args.aocs_mode, args.settle_seconds)
+             args.mass_ratio, args.aocs_mode, args.settle_seconds,
+             args.K_theta)
     finally:
         with open(MJCF, 'w') as f:
             f.write(original)
