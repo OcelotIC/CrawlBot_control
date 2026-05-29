@@ -44,20 +44,28 @@ TAU_W_MAX = 5.0  # Nm — per-axis wheel torque limit
 
 
 def _anchor_pos(idx: int, arm: str) -> np.ndarray:
-    """Canonical structure-frame anchor position (dx=0.8, dy=0.3, z=0.025)."""
-    x = (idx - 3.5) * 0.8
+    """Canonical structure-frame anchor position (dx=0.8, dy=0.3, z=0.025).
+
+    idx is the **0-indexed array index** matching `anchors_a[idx]` in
+    `ContactScheduler` — NOT the MJCF anchor name (which is 1-indexed).
+    MJCF site `anchor_{idx+1}{arm}` sits at x = ((idx+1) - 3.5) * 0.8
+    = (idx - 2.5) * 0.8.
+    """
+    x = (idx - 2.5) * 0.8
     y = 0.3 if arm == 'a' else -0.3
     return np.array([x, y, 0.025])
 
 
-# Stance anchor per SS step (the arm NOT swinging; even k -> swing b, odd -> swing a).
-# Starting pair (2a, 2b). After step k SS: anchor advances by 1 on the swing arm.
+# Stance anchor per SS step. stance index = anchors_a/b[k] index that has
+# NOT swung yet at the start of this step. Starting (start_a=2, start_b=2)
+# per diag_cooperative_arms.py:291. Even step => swing b (stance A);
+# odd step => swing a (stance B). Indices are 0-based array indices.
 STANCE_ANCHOR = {
-    0: ('a', 2),   # swing b 2→3; stance a at 2a
-    1: ('b', 3),   # swing a 2→3; stance b at 3b
-    2: ('a', 3),   # swing b 3→4; stance a at 3a
-    3: ('b', 4),   # swing a 3→4; stance b at 4b
-    4: ('a', 4),   # swing b 4→5; stance a at 4a
+    0: ('a', 2),   # step 0 SS: stance A at anchors_a[2] (x=-0.4)
+    1: ('b', 3),   # step 1 SS: stance B at anchors_b[3] (x=+0.4)  (b advanced 2→3 in step 0)
+    2: ('a', 3),   # step 2 SS: stance A at anchors_a[3] (x=+0.4)  (a advanced 2→3 in step 1)
+    3: ('b', 4),   # step 3 SS: stance B at anchors_b[4] (x=+1.2)
+    4: ('a', 4),   # step 4 SS: stance A at anchors_a[4] (x=+1.2)
 }
 
 
