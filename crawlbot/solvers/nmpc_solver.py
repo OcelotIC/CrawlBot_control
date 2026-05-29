@@ -493,6 +493,11 @@ class NMPCSolver:
             'time_ms': float(info.solve_time_ms),
             'warm_x': _diag_warm_x,
             'warm_duals': _diag_warm_duals,
+            # IPOPT-reported primal/dual infeasibility at termination.
+            # Diagnostic: cross-check vs external constraint re-evaluation
+            # to detect logging-vs-control mismatches in lambda_ref.
+            'inf_pr': float(stats.get('inf_pr', float('nan'))),
+            'inf_du': float(stats.get('inf_du', float('nan'))),
         }
         self.step_log.append(entry)
         if self.diag_verbose:
