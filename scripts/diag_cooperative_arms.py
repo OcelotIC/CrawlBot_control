@@ -240,7 +240,7 @@ def _nmpc_table(step_log, out_path):
 def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
          mass_ratio: float = 0.01, aocs_mode: str = 'legacy_corrected',
          settle_seconds: float = 20.0, K_theta: float = 1.0,
-         K_omega: float = 50.0):
+         K_omega: float = 50.0, tau_w_max: float = 5.0):
     cfg = r_single._make_m7_config()
     cfg.gait_anchor_dx = anchor_dx
     # Sweet-spot config carry-over (these are also already the defaults
@@ -272,6 +272,11 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     cfg.aocs_K_theta = float(K_theta)
     # AOCS K_omega (ω_s damping) override (legacy_pd_* / legacy_pid_*).
     cfg.aocs_K_omega = float(K_omega)
+    # Wheel torque limit override — set NMPC and AOCS together so the
+    # decentralized contract stays consistent (NMPC |Ḣ_s|≤τ_w_max,
+    # AOCS clips its commanded torque at the same value).
+    cfg.tau_w_max = float(tau_w_max)
+    cfg.aocs_tau_w_max = float(tau_w_max)
     # AOCS mode override (default 'legacy_corrected' = canonical).
     # legacy_pd_numerical / legacy_pd_model add a PD regulator on ω_s
     # on top of the legacy_corrected feedforward + desat. The two
@@ -323,12 +328,14 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
                                f'diag_cooperative_arms_{int(round(mass_ratio*100))}pct')
     elif aocs_mode != 'legacy_corrected':
         # Non-default AOCS mode → separate dir for A/B.
-        # Add _Kt{val}/_Kw{val} suffixes when gains differ from defaults.
+        # Add _Kt{val}/_Kw{val}/_Tw{val} suffixes when gains/limits differ from defaults.
         suffix = ''
         if 'pid' in aocs_mode and abs(K_theta - 1.0) > 1e-9:
             suffix += f'_Kt{K_theta:g}'
         if abs(K_omega - 50.0) > 1e-9:
             suffix += f'_Kw{K_omega:g}'
+        if abs(tau_w_max - 5.0) > 1e-9:
+            suffix += f'_Tw{tau_w_max:g}'
         out_dir = os.path.join(_root, 'results',
                                f'diag_cooperative_arms_{aocs_mode}{suffix}')
     elif abs(alpha_torso_lin - 500.0) > 1e-6:
@@ -509,6 +516,12 @@ if __name__ == '__main__':
                              '(legacy, ζ ≈ 0.2 underdamped). '
                              'Pole-placement design (T_s=30s, ζ=0.7, '
                              'worst-axis I_s=1777) gives K_θ=36, K_ω=355.')
+    parser.add_argument('--tau_w_max', type=float, default=5.0,
+                        help='Wheel torque limit [Nm], per-axis. Default 5.0. '
+                             'Sets BOTH cfg.tau_w_max (NMPC |Ḣ_s| budget) '
+                             'AND cfg.aocs_tau_w_max (AOCS command clip) '
+                             'so the two contracts stay in lock-step. '
+                             'Use to stress-test wheel sizing.')
     args = parser.parse_args()
 
     with open(MJCF, 'r') as f:
@@ -521,7 +534,7 @@ if __name__ == '__main__':
                      mass_ratio=args.mass_ratio)
         main(args.legacy, args.alpha_torso_lin, args.anchor_dx,
              args.mass_ratio, args.aocs_mode, args.settle_seconds,
-             args.K_theta, args.K_omega)
+             args.K_theta, args.K_omega, args.tau_w_max)
     finally:
         with open(MJCF, 'w') as f:
             f.write(original)
