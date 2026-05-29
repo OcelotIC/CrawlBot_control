@@ -495,9 +495,10 @@ if __name__ == '__main__':
                              'Default 20s; ~120s gives asymptotic ω_s/h_w decay '
                              'for PD modes (time constant I_s/K_ω ≈ 30s).')
     parser.add_argument('--K_theta', type=float, default=1.0,
-                        help='Attitude tracking gain [Nm/rad] (legacy_pid_* only). '
-                             'Default 1.0 — gentle (60s recovery time constant '
-                             'with K_ω=50). Bump to 5-10 for faster recovery.')
+                        help='Attitude P gain [Nm/rad] (legacy_pid_* only). '
+                             'Default 1.0 — gentle (~60s recovery time '
+                             'constant with K_ω=50). Bump to ~10 to recover '
+                             '>97%% of per-traversal rotation in 120s settle.')
     args = parser.parse_args()
 
     with open(MJCF, 'r') as f:

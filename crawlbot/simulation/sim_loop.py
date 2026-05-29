@@ -2637,17 +2637,32 @@ class SimulationLoop:
                                        'legacy_pid_model'):
                     # legacy_pd_* + attitude-tracking P term (drives
                     # the structure back to its initial orientation).
-                    # Compute θ_s = log3(R_init.T @ R_now) — small-angle
-                    # attitude error in body frame.
-                    # Local import: `pin` is re-imported deeper in this
-                    # method (~line 2784), which shadows the module-level
-                    # name for this whole function under Python scoping.
+                    #
+                    # Geometric SO(3) attitude error (Lee–McClamroch):
+                    #   e_R = ½(R_init^T R_now − R_now^T R_init)^∨
+                    # where (·)^∨ extracts the 3-vector from a skew-
+                    # symmetric matrix. Properties vs log3:
+                    #   (1) frame-consistent with ω_s (both implicitly
+                    #       in current body frame at small angles, with
+                    #       only third-order discrepancy from R_now T R_init)
+                    #   (2) bounded |e_R| ≤ |sin θ| ≤ 1 — graceful
+                    #       saturation under any disturbance
+                    #   (3) no singularity at θ = π (log3 would have one)
+                    # For our sub-3° drift regime, e_R ≈ θ_s to within
+                    # 1% — the K_θ=10 result on log3 transfers directly.
+                    # Local import: see note at the H_est branch above.
                     import pinocchio as _pin
                     qw, qx, qy, qz = self._struct_quat_init
                     R_init = _pin.Quaternion(qw, qx, qy, qz).toRotationMatrix()
                     qw, qx, qy, qz = self.mj_data.qpos[3:7]
                     R_now = _pin.Quaternion(qw, qx, qy, qz).toRotationMatrix()
-                    theta_s = _pin.log3(R_init.T @ R_now)
+                    R_err = R_init.T @ R_now
+                    # vee of (R_err − R_err^T) / 2 — geometric SO(3) error.
+                    theta_s = 0.5 * np.array([
+                        R_err[2, 1] - R_err[1, 2],
+                        R_err[0, 2] - R_err[2, 0],
+                        R_err[1, 0] - R_err[0, 1],
+                    ])
                     if cfg.aocs_mode == 'legacy_pid_numerical':
                         from crawlbot.aocs.force_estimator import (
                             compute_aocs_command_legacy_pid_numerical)
