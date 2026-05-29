@@ -23,7 +23,9 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DIR = os.path.join(_root, 'results', 'diag_cooperative_arms')
+import sys
+_subdir = sys.argv[1] if len(sys.argv) > 1 else 'diag_cooperative_arms'
+DIR = os.path.join(_root, 'results', _subdir)
 LOG = os.path.join(DIR, 'sim_log.json')
 OUT = os.path.join(DIR, 'cascade_health.png')
 Z_STANDOFF = -0.35

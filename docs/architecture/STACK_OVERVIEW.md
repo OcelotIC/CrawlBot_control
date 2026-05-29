@@ -110,6 +110,14 @@ is held only through the **single stance-arm weld**. [V]
 - P3 posture, projected through combined P1+P2 (`rcond=1e-4`). [A]
 - **Soft-CoM residual OFF** (`alpha_com_soft=0`, ~L826) → QP has **no
   direct CoM/momentum feedback**; trusts the mapping. [V]
+  - ⚠ **Two confounds before re-engaging it (see §5):** (a) the only
+    sweep on record (`results/M5_alpha_sweep/`) ran
+    `cooperative_arms_mode=False` — the **wrong stack** — so its
+    "every non-zero α diverges" is not evidence against soft-CoM here;
+    (b) the projection basis `null(A_torso)∩null(A_ee)` (~L842)
+    collapses to **angular-only ∩ EE** in cooperative mode
+    (`A_torso`=angular, ~L655), so it **no longer excludes torso-linear**
+    (a co-equal P2 task). [V]
 - hw box present only as **soft slack** (`w_hw_slack=1e4`); hard
   `L_max`/`τ_w` boxes are ∞ (dead). [A]
 - Passivity active **DS only**; `tau_max=20 Nm` effective. [A]
@@ -175,6 +183,22 @@ boxes (∞). [V/A]
 - **Mapping debt:** world-frame `δ(q_current)` + F-SAT is the live combo;
   loop-free `δ_local` removes the feedback but exposed the angular drift
   above (committed OFF).
+- **Soft-CoM re-engagement — blocked on attribution, not a knob-sweep.**
+  The campaign's 10.8× QP↔NMPC wrench mismatch (`CAMPAIGN_…md` §6/§7) is
+  attributed to soft-CoM-off, but that is a **hypothesis** (peak
+  `lambda_qp` not yet decomposed). Two reasons a sweep is premature: (1)
+  soft-CoM enforces `a_com_des = a_com_ff(NMPC)+PD` (~L578), but the
+  point-mass NMPC has **no arm-momentum term** → the reference is
+  structurally wrong; soft-CoM (feedback) and a CMM-feedforward into the
+  NMPC (reference fix) are duals, and **feedback against a wrong
+  reference cannot win**. (2) Candidate mechanisms not yet ruled out:
+  arm-momentum (→ CMM-feedforward), **internal/squeeze force** in the
+  null space of the 12→6 centroidal map (soft-CoM constitutively cannot
+  touch it), or **F-SAT/δ(q_current) mapping debt** (49.6% tick clip).
+  The two prior-sweep confounds (§2.6) further mean no clean evidence
+  exists yet. **Next: attribution experiments, not α-tuning.** The
+  projection-basis question in §2.6 is a **hierarchy redesign**, not a
+  harness fix — do not merge it as cleanup.
 
 ---
 

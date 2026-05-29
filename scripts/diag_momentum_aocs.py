@@ -27,8 +27,10 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-LOG = os.path.join(_root, 'results', 'diag_cooperative_arms', 'sim_log.json')
-OUT = os.path.join(_root, 'results', 'diag_cooperative_arms', 'momentum_aocs.png')
+import sys
+_subdir = sys.argv[1] if len(sys.argv) > 1 else 'diag_cooperative_arms'
+LOG = os.path.join(_root, 'results', _subdir, 'sim_log.json')
+OUT = os.path.join(_root, 'results', _subdir, 'momentum_aocs.png')
 
 HW_MAX = 5.0      # Nms (spec/config)
 TAUW_MAX = 5.0    # Nm

@@ -369,3 +369,138 @@ def compute_aocs_command_legacy_corrected(
     # Sign: +K_hw·hw_error, not −K_hw·hw_error (see docstring).
     tau_w = -L_dot_est - orbital + K_hw * hw_error
     return np.clip(tau_w, -tau_w_max, tau_w_max)
+
+
+def compute_aocs_command_legacy_pd_numerical(
+    L_com: np.ndarray,
+    L_com_prev: np.ndarray,
+    r_com: np.ndarray,
+    v_com: np.ndarray,
+    v_com_prev: np.ndarray,
+    omega_s: np.ndarray,
+    omega_s_prev: np.ndarray,
+    hw_current: np.ndarray,
+    dt: float,
+    robot_mass: float,
+    K_hw: float = 2.0,
+    K_omega: float = 50.0,
+    K_d: float = 25.0,
+    hw_min: np.ndarray = None,
+    hw_max: np.ndarray = None,
+    tau_w_max: float = 5.0,
+) -> np.ndarray:
+    """Legacy-corrected AOCS + PD on ω_s with NUMERICAL ω̇_s estimate.
+
+    Same feedforward + desaturation as ``compute_aocs_command_legacy_corrected``,
+    plus a PD regulator that drives ω_s → 0:
+
+        τ_w = -Ḣ_s_est + K_hw·hw_error - K_ω·ω_s - K_d·ω̇_s
+
+    where ω̇_s is estimated by one-step finite difference:
+
+        ω̇_s ≈ (ω_s − ω_s_prev) / dt
+
+    The numerical-derivative variant is simple but noise-amplifying at
+    dt_qp = 0.01 s — ω_s comes from MuJoCo's qvel with quantization noise
+    that this derivative re-injects. Lower K_d reduces saturation risk
+    from differentiation noise.
+
+    Parameters
+    ----------
+    omega_s, omega_s_prev : (3,) current and previous structure angular
+        velocity [rad/s], in structure body frame.
+    K_omega : float, attitude-rate damping gain [Nm·s/rad].
+    K_d : float, attitude-acceleration damping gain [Nm·s²/rad].
+
+    Other parameters: see ``compute_aocs_command_legacy_corrected``.
+    """
+    if hw_min is None:
+        hw_min = -np.full(3, np.inf)
+    if hw_max is None:
+        hw_max = np.full(3, np.inf)
+
+    L_dot_est = (L_com - L_com_prev) / dt
+    dv_com_est = (v_com - v_com_prev) / dt
+    orbital = np.cross(r_com, robot_mass * dv_com_est)
+    hw_error = np.clip(hw_current, hw_min, hw_max) - hw_current
+
+    omega_dot_est = (omega_s - omega_s_prev) / dt
+    # Damping sign derivation (Newton-Euler about structure CoM):
+    #   I_s · ω̇_s = -Ḣ_s - τ_w  (wheel reaction = -τ_w by Newton's 3rd)
+    # For ω_s>0 to decrease, want ω̇_s<0 → τ_w > -Ḣ_s, i.e. ADD positive
+    # contribution. So the PD term is +K_ω·ω_s + K_d·ω̇_s, NOT negated.
+    # (H_est uses -K_ω·ω_s — that sign was untested under non-zero ω_s.)
+    pd_term = K_omega * omega_s + K_d * omega_dot_est
+
+    tau_w = -L_dot_est - orbital + K_hw * hw_error + pd_term
+    return np.clip(tau_w, -tau_w_max, tau_w_max)
+
+
+def compute_aocs_command_legacy_pd_model(
+    L_com: np.ndarray,
+    L_com_prev: np.ndarray,
+    r_com: np.ndarray,
+    v_com: np.ndarray,
+    v_com_prev: np.ndarray,
+    omega_s: np.ndarray,
+    tau_w_prev: np.ndarray,
+    I_struct: np.ndarray,
+    hw_current: np.ndarray,
+    dt: float,
+    robot_mass: float,
+    K_hw: float = 2.0,
+    K_omega: float = 50.0,
+    K_d: float = 25.0,
+    hw_min: np.ndarray = None,
+    hw_max: np.ndarray = None,
+    tau_w_max: float = 5.0,
+) -> np.ndarray:
+    """Legacy-corrected AOCS + PD on ω_s with MODEL-BASED ω̇_s estimate.
+
+    Structure-body Newton-Euler gives:
+
+        I_s · ω̇_s = -Ḣ_s_real - τ_w
+
+    Using the AOCS's own disturbance estimate Ḣ_s_est and the previously
+    applied wheel torque τ_w_prev (one-step lag avoids self-reference):
+
+        ω̇_s_est = (-Ḣ_s_est - τ_w_prev) / I_s
+
+    Interpretation: ω̇_s_est captures "the residual disturbance the last
+    tick's wheel torque did NOT absorb, per unit structure inertia." The
+    D term -K_d·ω̇_s_est then increases the current command in the
+    direction that would have absorbed it. Cleaner than numerical
+    differentiation (no high-frequency noise re-injection) but tied to
+    the model's accuracy (depends on a credible Ḣ_s_est and a correct
+    structure-inertia value).
+
+    Parameters
+    ----------
+    omega_s : (3,) current structure angular velocity [rad/s].
+    tau_w_prev : (3,) wheel torque commanded the previous QP sub-tick
+        [Nm]. Use the actually-clipped command (post-saturation).
+    I_struct : (3,) structure-body principal moments of inertia [kg·m²].
+        Read from ``mj_model.body_inertia[struct_bid]``.
+    K_omega : float, attitude-rate damping gain [Nm·s/rad].
+    K_d : float, attitude-acceleration damping gain [Nm·s²/rad].
+
+    Other parameters: see ``compute_aocs_command_legacy_corrected``.
+    """
+    if hw_min is None:
+        hw_min = -np.full(3, np.inf)
+    if hw_max is None:
+        hw_max = np.full(3, np.inf)
+
+    L_dot_est = (L_com - L_com_prev) / dt
+    dv_com_est = (v_com - v_com_prev) / dt
+    orbital = np.cross(r_com, robot_mass * dv_com_est)
+    H_dot_est = L_dot_est + orbital  # ≡ Ḣ_s
+    hw_error = np.clip(hw_current, hw_min, hw_max) - hw_current
+
+    # Model-based ω̇_s from last tick's residual.
+    omega_dot_est = (-H_dot_est - tau_w_prev) / np.maximum(I_struct, 1e-9)
+    # Damping sign: +K_ω·ω_s + K_d·ω̇_s (see numerical mode for derivation).
+    pd_term = K_omega * omega_s + K_d * omega_dot_est
+
+    tau_w = -H_dot_est + K_hw * hw_error + pd_term
+    return np.clip(tau_w, -tau_w_max, tau_w_max)

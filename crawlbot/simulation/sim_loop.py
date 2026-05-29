@@ -204,6 +204,12 @@ class SimulationLoop:
         tid = mujoco.mj_name2id(self.mj_model, mujoco.mjtObj.mjOBJ_BODY, 'torso')
         assert abs(self.mj_model.body_mass[tid] - 40.0) < 1.0, \
             f"Torso mass mismatch: {self.mj_model.body_mass[tid]}"
+        # Cache structure principal inertia for AOCS PD model variant.
+        # body_inertia is (nbody, 3) — principal moments at body CoM.
+        sid = mujoco.mj_name2id(self.mj_model, mujoco.mjtObj.mjOBJ_BODY,
+                                'structure')
+        self._struct_I = self.mj_model.body_inertia[sid].copy() \
+            if sid >= 0 else np.array([597.0, 1493.0, 1777.0])
         mujoco.mj_forward(self.mj_model, self.mj_data)
 
         # Read anchor sites in world frame and convert to structure-local frame
@@ -355,7 +361,6 @@ class SimulationLoop:
             N=cfg.nmpc_N, dt=cfg.nmpc_dt,
             f_max=cfg.nmpc_f_max, tau_max=cfg.nmpc_tau_max,
             L_max=cfg.L_max, tau_w_max=cfg.tau_w_max,
-            tau_struct_max=cfg.tau_struct_max,
             p_max=cfg.nmpc_p_max,
             Wv=cfg.nmpc_Wv * np.ones(3),
             enforce_hw_conservation=cfg.enforce_hw_conservation,
@@ -2590,6 +2595,38 @@ class SimulationLoop:
                         hw_current=hw_phys, dt=cfg.dt_qp,
                         robot_mass=self.robot._total_mass,
                         K_hw=cfg.aocs_K_hw,
+                        hw_min=cfg.hw_min, hw_max=cfg.hw_max,
+                        tau_w_max=cfg.aocs_tau_w_max)
+                elif cfg.aocs_mode == 'legacy_pd_numerical':
+                    # legacy_corrected + PD on ω_s (numerical ω̇_s).
+                    from crawlbot.aocs.force_estimator import (
+                        compute_aocs_command_legacy_pd_numerical)
+                    tau_w_cmd = compute_aocs_command_legacy_pd_numerical(
+                        L_com=rs.L_com, L_com_prev=_L_com_qp_prev,
+                        r_com=rs.r_com, v_com=rs.v_com,
+                        v_com_prev=_v_com_qp_prev,
+                        omega_s=omega_s, omega_s_prev=_omega_s_last,
+                        hw_current=hw_phys, dt=cfg.dt_qp,
+                        robot_mass=self.robot._total_mass,
+                        K_hw=cfg.aocs_K_hw, K_omega=cfg.aocs_K_omega,
+                        K_d=cfg.aocs_K_d,
+                        hw_min=cfg.hw_min, hw_max=cfg.hw_max,
+                        tau_w_max=cfg.aocs_tau_w_max)
+                elif cfg.aocs_mode == 'legacy_pd_model':
+                    # legacy_corrected + PD on ω_s (model-based ω̇_s
+                    # from previous τ_w_cmd and structure inertia).
+                    from crawlbot.aocs.force_estimator import (
+                        compute_aocs_command_legacy_pd_model)
+                    tau_w_cmd = compute_aocs_command_legacy_pd_model(
+                        L_com=rs.L_com, L_com_prev=_L_com_qp_prev,
+                        r_com=rs.r_com, v_com=rs.v_com,
+                        v_com_prev=_v_com_qp_prev,
+                        omega_s=omega_s, tau_w_prev=tau_w_last,
+                        I_struct=self._struct_I,
+                        hw_current=hw_phys, dt=cfg.dt_qp,
+                        robot_mass=self.robot._total_mass,
+                        K_hw=cfg.aocs_K_hw, K_omega=cfg.aocs_K_omega,
+                        K_d=cfg.aocs_K_d,
                         hw_min=cfg.hw_min, hw_max=cfg.hw_max,
                         tau_w_max=cfg.aocs_tau_w_max)
                 else:

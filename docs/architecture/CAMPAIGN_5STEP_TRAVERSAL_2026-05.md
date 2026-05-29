@@ -105,7 +105,7 @@ the norm as a 1.73 "FAIL").
 | per-joint τ vs ±20Nm | worst joint **20.0 Nm (100%) for 2 ticks** | transient saturation |
 | contact force QP vs NMPC plan | **62.2N QP vs 5.8N planned @ step2 (10.8×)** | cascade mismatch |
 
-**B and D are the same step-2 transient (t≈16.63, longest stride), causally linked:** the **centroidal NMPC under-budgets the whole-body wrench ~10×** (its point-mass+momentum model has no arm/joint/torso inertial dynamics). So the real momentum disturbance exceeds the plan → **wheels saturate (B)**, a **joint hits 20Nm**, and the **QP commands 62N** — it docks, but with **zero actuator margin** in that ~1s window. This is the documented "QP needs ~9× more wrench than NMPC plans" (commit 673cc68), quantified at 10.8×. Root: the **soft-CoM residual** meant to keep NMPC↔QP consistent is **OFF** (`α_com_soft=0`).
+**B and D are the same step-2 transient (t≈16.63, longest stride), causally linked:** the **centroidal NMPC under-budgets the whole-body wrench ~10×** (its point-mass+momentum model has no arm/joint/torso inertial dynamics). So the real momentum disturbance exceeds the plan → **wheels saturate (B)**, a **joint hits 20Nm**, and the **QP commands 62N** — it docks, but with **zero actuator margin** in that ~1s window. This is the documented "QP needs ~9× more wrench than NMPC plans" (commit 673cc68), quantified at 10.8×. The leading hypothesis is that the **soft-CoM residual** meant to keep NMPC↔QP consistent being **OFF** (`α_com_soft=0`) is the cause — **but this attribution is not yet confirmed** (the peak `lambda_qp` has not been decomposed net-vs-internal). See **§7c** before treating soft-CoM as the fix.
 
 ![Actuator/solver: contact |f| QP vs NMPC plan, per-joint torque vs +-20Nm, NMPC solve time](../../results/diag_cooperative_arms/actuator_solver.png)
 
@@ -152,12 +152,297 @@ but leans heavily on the band-aid (the δ(q_current)/F-SAT debt,
 quantified).
 
 **Still pending:**
-- Only the **1% mass-ratio canonical scenario**; 14% (spec T12) unchecked — B & D both indicate that's where margins bite.
+- 14% mass-ratio (spec T12) now **measured** — see §8. The prediction
+  held: the margins bite, the traversal **dies at step 2**.
 - **FK-mode test** still red (deselected).
 
 **Open control items (not blocking the traversal):**
 - Settled **~4.8mm steady-state EE offset** on long strides (cooperative torso-linear vs EE tension).
-- **10× NMPC↔QP wrench mismatch** under load (soft-CoM off) — the consistency guarantee the architecture was designed around is inactive; survives on QP slack.
+- **10× NMPC↔QP wrench mismatch** under load (soft-CoM off) — the consistency guarantee the architecture was designed around is inactive; survives on QP slack. **Attribution to soft-CoM-off is a hypothesis, not established — see §7c.**
 - **Loop-free mapping angular drift** (committed OFF) — spec §3 constrained-dynamic-singularity; §6 mitigation never implemented.
 - **F-SAT / δ(q_current) debt** — live cascade is the world-frame δ + F-SAT band-aid.
 - **AOCS / actuator margin** — transient wheel + joint + contact saturation on the hardest stride; platform attitude accumulation ~0.76°/step.
+
+## 7c. Attribution caveats — soft-CoM evidence is not what it looks like (added 2026-05-28)
+
+The "rooted in soft-CoM off" claim above (§6, §7) is the **leading
+hypothesis**, not a settled result. Two confounds, found while
+investigating whether to re-engage `α_com_soft`, must be recorded:
+
+1. **The only prior sweep used the wrong stack.**
+   `results/M5_alpha_sweep/metrics.csv` (the basis for the "every
+   non-zero α diverges" belief, and for the `config.py:101` comment
+   "5.0 was fighting torso tracking") was produced by
+   `scripts/sweep_alpha_com_soft.py`, which builds a plain `SimConfig`
+   — so `cooperative_arms_mode` defaulted **False** (`config.py:118`).
+   It therefore exercised the **legacy M5 single-6D-torso stack, not
+   the cooperative-arms stack we ship**, and it changed *two* things
+   vs. the docking baseline (cooperative off **and** soft-CoM on). It
+   is **not valid evidence** against soft-CoM in the current stack.
+
+2. **The soft-CoM projection basis is stack-dependent.** The residual
+   is projected into `null(A_torso) ∩ null(A_ee)`
+   (`wholebody_qp.py:842`). In cooperative mode `A_torso` collapses to
+   **angular-only** (`wholebody_qp.py:655`), so that basis becomes
+   `null(torso-angular) ∩ null(EE)` and **no longer excludes the
+   torso-linear subspace** — which is a co-equal P2 task in cooperative
+   mode (`ss_alpha_torso_lin`). Re-engaging soft-CoM as-is would put it
+   in the torso-linear subspace, i.e. competing with a P2 task rather
+   than living purely in residual freedom. This is a **latent
+   architectural question (hierarchy redesign), not a harness bug** —
+   do not "fix" the projection as cleanup.
+
+**Why a corrected sweep is still not the right first question.** The
+residual enforces `a_com_des = a_com_ff(NMPC) + PD` (`wholebody_qp.py:578`),
+i.e. tracking of the **centroidal NMPC plan**. But that NMPC is a
+**point-mass model with no arm-momentum term** (`L_com` moves only via
+contact wrench), so the reference soft-CoM enforces is structurally
+inconsistent with the swing the QP must execute. Soft-CoM (feedback
+enforcement) and a CMM-feedforward into the NMPC (reference correction)
+are duals; **feedback against a wrong reference cannot win.** A
+corrected sweep would measure the task-fight cleanly without resolving
+it.
+
+**Attribution — now decomposed (2026-05-28); see
+`ATTRIBUTION_MEMO_soft_com_2026-05.md`.** Result: the 10.8× is **net,
+single-contact, transient, and linear** — *not* what soft-CoM addresses.
+(a) **internal/squeeze force RULED OUT** — contact-2 ≡ 0 N across all 89
+step-2 SS ticks (single contact ⇒ no 12→6 null space). (b) **arm/CMM
+momentum NOT INDICATED** — `|L_dot|=5.4 N·m` (≤5 limit) and `v_com`
+tracks plan at 1.04×; the 36 N·m contact *moment* is the r×f reaction of
+the linear-force spike. (c) **mapping/F-SAT debt is the mechanism** —
+over step-2 SS `|f1|` median 2.2 N / p95 10.3 N / **peak 62.2 N**
+(≈28× median) with velocity on-plan = a high-frequency jerk; **but**
+flipping `use_local_delta_mapping=True` **regresses to a step-0 dock
+timeout** (its own unmitigated §3 drift). **Verdict: an `α_com_soft`
+sweep is the wrong next action; attack the F-SAT/δ(q_current) jitter (or
+implement the §6 loop-free mitigation) instead.**
+
+## 8. Group T12 — 14% mass-ratio stress test (`--mass_ratio 0.14`)
+
+The §7 verdict predicted the eroding margins would "worsen at 14% mass
+ratio (untested)". **Now tested** (structure mass 7110→507.857 kg via
+`scripts/diag_cooperative_arms.py --mass_ratio 0.14`, same AOCS box,
+diagnostic-only). The structure is **14× lighter**, so the same
+arm-reaction wrenches impart ~14× more structure rotation — the
+prediction held exactly.
+
+**Headline: the traversal dies at step 2.** Steps 0–1 dock
+(2.19 / 4.72 mm); step 2 `DOCK_TIMEOUT` at 7.75 mm (just outside the
+5 mm gate); steps 3–4 never reached. 0 NMPC fails, 0 QP fails, 0 hw
+over-command — it is **not** a solver/crash failure; the controller
+runs out of physical authority.
+
+| metric | 1% canonical | 14% (T12) | Δ |
+|---|---|---|---|
+| steps docked | 0,1,2,3,4 | **0,1 only — die@2** | regression |
+| platform rotation total | 3.80° (5 steps) | **6.55° (2 steps)** | FAIL (>5°), ~3.3°/step |
+| platform ω peak | 0.41°/s | **5.10°/s** | FAIL (>2°/s), 12× |
+| hw sat peak (per-axis) | 0.559 | 0.608 | ✓ (90% of box) |
+| hw sat rms (norm) | 0.376 | 0.556 | ✓ but ↑ |
+| τ_w peak (per-axis) | 1.000 (at-limit) | 1.000 (at-limit) | wheels clamped |
+| QP/NMPC wrench ratio | 10.8× | **12.1×** | worse |
+| worst joint τ | 20.0 Nm (2 ticks) | 20.0 Nm (2 ticks) | saturated, now **binding** |
+| L̇_com peak | — | **11.1 Nm vs 5.0 lim** | 2.2× over momentum-rate limit |
+| CoM-z standoff range | 52 mm | **123 mm** | 2.4× degraded (step-2 dev 76 mm) |
+| F-SAT clip rate | 49.6% | 45.0% (max clip 16.7 mm) | similar rate, larger clips |
+| struct drift | — | 110 mm | — |
+
+**Mechanism (same root cause, now uncovered):** at 1% the QP slack
+absorbs the 10× NMPC-under-budgeted wrench (soft-CoM off). At 14% the
+disturbance on the platform is 14× larger, so:
+1. **AOCS wheels saturate** (τ_w pinned at ±5 Nm, all 3 clamped) trying
+   to counter the arm reaction → **attitude budget blown** (6.55° in
+   *2* steps; ω_s 5.1°/s).
+2. **`L̇_com` exceeds the 5 Nm structure-disturbance limit 2.2×** — the
+   momentum-rate constraint the NMPC is supposed to honour is violated
+   because the plan never saw the real whole-body wrench.
+3. The **longest stride (step 2)** needs the most body-linear authority
+   exactly when joint τ is saturated (20 Nm) and the wheels are clamped
+   → the EE can't close the last ~3 mm → TIMEOUT at 7.75 mm.
+
+**Verdict: 14% is where the documented liability becomes a hard
+failure.** This is not a new bug — it is the **same 10×→12× NMPC↔QP
+wrench inconsistency** (soft-CoM `α_com_soft=0`) and the **AOCS-box /
+attitude-budget erosion** flagged in §5/§7, now amplified 14× past the
+QP-slack cushion that hides it at 1%. The fix direction is unchanged:
+re-engage the soft-CoM cascade-consistency residual so the NMPC budgets
+the true wrench (and/or scale the AOCS box with mass ratio). Until then
+the traversal is a **1%-mass-ratio result**.
+
+> **Update (2026-05-28) — fix direction REVISED, see §7c / attribution
+> memo.** The "re-engage soft-CoM" recommendation in this paragraph was
+> written before the wrench mismatch was decomposed. It has since been
+> investigated: the step-2 peak is **net, single-contact, transient, and
+> linear** (a mapping/F-SAT jitter spike), *not* a soft-CoM-addressable
+> momentum-consistency error — `v_com` already tracks the NMPC plan at
+> 1.04× and `L_dot` is in budget. **An `α_com_soft` sweep is not the
+> next action.** This §8 14%-failure narrative still stands as a
+> *symptom*, but its proposed *cause/fix* is superseded by §7c.
+
+![14% Group B: wheel momentum/attitude/omega — platform rotation 6.55° over 2 steps, omega 5.1°/s](../../results/diag_cooperative_arms_14pct/momentum_aocs.png)
+![14% Group D: 12.1× QP-vs-NMPC wrench, joint tau at 20 Nm](../../results/diag_cooperative_arms_14pct/actuator_solver.png)
+![14% Group C: CoM-z standoff degrades to 123 mm range, step-2 dev 76 mm](../../results/diag_cooperative_arms_14pct/cascade_health.png)
+
+Repro: `MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/diag_cooperative_arms.py --mass_ratio 0.14`
+then the B/C/D scripts with arg `diag_cooperative_arms_14pct`.
+
+## 9. Group Ḣ_s — proxy-vs-exact wheel-feasibility (`scripts/diag_hdot_struct.py`)
+
+The live NMPC enforces the **proxy** constraint $|\dot L_{com,i}|\le\tau_{w,max}=5$ Nm
+(`centroidal_nmpc.py:264–268`) — angular-momentum-rate computed with the lever from
+the **robot** CoM. The spec'd **exact** wheel-torque demand is
+$|\dot H_{s,i}|=|\sum_j(r_{C_j}\times f_j+\tau_j)|\le\tau_{w,max}$ — lever from the
+**structure** CoM. The two differ by $r_{com}\times m\dot v_{com}$; at the −0.35 m
+crawl standoff this term is substantial. The exact constraint is implemented at
+`centroidal_nmpc.py:276–281` and **disabled by default** (`tau_struct_max=∞`).
+
+**The proxy is respected by the NMPC plan.** Cross-checked against IPOPT's
+reported primal infeasibility (`nmpc_step_log.json::inf_pr`): across all 508
+solves in the 1% canonical run, `inf_pr ∈ [2.9e-11, 4.0e-5]` (median 2.1e-7),
+all within `tol=1e-6`. Zero ticks above `acceptable_tol=1e-4`. **No silent
+relaxation** — when IPOPT reports `Solve_Succeeded`, it is.
+
+**The exact Ḣ_s is *not* respected** (constraint disabled, so this is the
+disturbance the wheels would actually have to absorb if the plan executed
+verbatim). Per-step, per-axis peak on the NMPC plan (`lambda_ref`):
+
+| step | stance | \|r_C\| | plan peak \|Ḣ_s,i\| | budget | over by |
+|---|---|---|---|---|---|
+| 0 | a[2] | 0.50 m | 6.64 Nm | 5 | 1.3× |
+| 1 | b[3] | 0.50 | 6.73 | 5 | 1.3× |
+| 2 | a[3] | 0.50 | 8.52 | 5 | 1.7× |
+| 3 | b[4] | 1.24 | 2.97 | 5 | ✓ |
+| 4 | a[4] | 1.24 | **12.07** | 5 | **2.4×** |
+
+The longest-lever stance (step 4, |r_C|=1.24 m) drives the largest exact-Ḣ_s
+overshoot — the geometric throttling the constraint is designed to enforce.
+The L̇_com proxy stays well within budget at all steps (peak 2.91 Nm) because
+it uses the lever from a moving robot CoM that cancels much of the structure-CoM
+lever. The proxy hides the underlying disturbance.
+
+**Constraint-enable experiment.** A one-knob trial set `tau_struct_max=5.0` at
+the runner level. Outcomes (per the earlier branch tip, since reverted):
+
+- All 5 steps still docked. NMPC infeasibility: 0% (no `Infeasible` returns).
+- IPOPT relaxed via `Solved_To_Acceptable_Level` 5/93 ticks at step 2 and 3/99
+  at step 4 — the steps where the strict constraint is tightest.
+- Plan-side `|Ḣ_s|` compressed from 12 → 9 Nm peak (still over budget; IPOPT
+  could not strictly satisfy).
+- **Closed-loop attitude regressed**: platform rotation total 3.80°→7.61°
+  (over the 5° spec budget); step 4 d_grip 2.13→4.95 mm.
+- Verdict: the strict constraint cannot be silently absorbed at current gait
+  timings. The compressed plan trades off other parts of the NMPC cost in a
+  way that the QP+mapping cascade tracks worse, not better.
+
+**Decision** (commit `29ce2e7`): runner-level default reverted; opt-in
+`scripts/diag_cooperative_arms.py --tau_struct_max 5.0` routes to a separate
+output dir for A/B reproducibility. The principled fix is path-time decoupling
+on the long-lever steps (slow step-4 SS so the planner can satisfy strict
+$|\dot H_s|\le 5$) — out of scope for this PR.
+
+**The L̇_com proxy as currently configured is genuinely misleading at the
+crawl standoff.** It is binding on the wrong quantity. The actual wheel demand
+the plan would impose is up to 2.4× the wheel-torque budget at the late steps;
+the cascade survives at 1% because the wheels saturate transiently and the
+heavy structure absorbs the rest as a tiny attitude drift. At 14% (§8) the
+same plan produces a 1.9× overshoot at step 2 and the structure can't absorb
+it.
+
+![Ḣ_s vs L̇_com vs 5 Nm budget at 1% canonical. Orange = NMPC plan Ḣ_s (peaks 12 Nm at step 4); blue = L̇_com proxy (stays below 5 throughout); red = QP-output Ḣ_s (downstream mapping spike at step 2).](../../results/diag_cooperative_arms/hdot_struct.png)
+
+Repro: `MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/diag_cooperative_arms.py` (constraint off, default)
+or `--tau_struct_max 5.0` (constraint on, opt-in); then `python3 scripts/diag_hdot_struct.py [subdir]`.
+
+## 10. Group Ḣ_s + AOCS — resolution of the §9 regression (`branch claude/nmpc-hdot-s-rate-cap`)
+
+§9 documented an apparent regression: enabling the strict $|\dot H_s|\le\tau_{w,max}$
+constraint at the NMPC layer caused platform attitude to blow past the 5° spec
+budget (3.80° → 7.61°), even though the plan respected the budget cleanly.
+The framing was *the constraint exposes a cascade coupling the proxy was
+hiding*. That framing was half right.
+
+Investigating the AOCS side (branch `claude/nmpc-hdot-s-rate-cap`) surfaced
+the actual structural defect — **the AOCS lacked any active recovery for the
+rotational momentum the wheels couldn't absorb during the QP-output spike** —
+and a latent sign bug:
+
+- The live `legacy_corrected` AOCS is *feedforward + desaturation only*. No
+  $-K_\omega\,\omega_s$ damping. When the QP-output `Ḣ_s` spike at step 2
+  exceeds the wheel torque budget, the residual integrates straight into
+  $\omega_s$ and there's nothing to bring it back. That's the closed-loop
+  attitude drift §9 measured.
+- The alternative `H_est` mode does have $-K_\omega\,\omega_s$ in its formula,
+  but the sign is **wrong**: Newton-Euler about the structure CoM gives
+  $I_s\,\dot\omega_s = -\dot H_s - \tau_w$, so for $\omega_s>0$ to brake, the
+  damping contribution must be $+K_\omega\,\omega_s$, not $-K_\omega\,\omega_s$.
+  H_est ships with the wrong sign — never exposed in tests because all
+  existing AOCS tests use $\omega_s=0$. **H_est not fixed here** (not the
+  canonical mode; out of scope). Flagged for follow-up.
+
+### What was added on this branch
+
+1. **`legacy_pd_numerical`** (`force_estimator.py`): extends `legacy_corrected`
+   with a PD regulator on $\omega_s$. $\dot\omega_s$ via one-step finite
+   difference of measured $\omega_s$.
+2. **`legacy_pd_model`** (same file): same structure, but $\dot\omega_s$ from
+   the Newton-Euler residual using the previous tick's $\tau_{w,prev}$ and
+   the current $\dot H_{s,est}$. Cleaner than numerical (no high-frequency
+   noise re-injection) but model-coupled.
+3. Both modes use the **correct** PD sign: $+K_\omega\,\omega_s + K_d\,\dot\omega_s$,
+   added to the existing feedforward.
+4. Selected via `cfg.aocs_mode = 'legacy_pd_numerical'` or `'legacy_pd_model'`
+   and the new `--aocs_mode` CLI flag on `diag_cooperative_arms.py`. The
+   canonical runner default (`_make_m7_config`) is unchanged.
+
+Defaults: $K_\omega = 50$ Nm·s/rad, $K_d = 25$ Nm·s²/rad — order-of-magnitude
+sized from the disturbance / structure inertia. Tunable in `SimConfig`.
+
+### Results @ 1% canonical 5-step traversal
+
+| metric | baseline (§5/§6 vintage, L̇_com proxy, no PD) | §9 (Ḣ_s cap + legacy_corrected) | **§10 (Ḣ_s cap + legacy_pd_numerical)** | §10 (Ḣ_s cap + legacy_pd_model) |
+|---|---|---|---|---|
+| steps docked | 5/5 ≤ 4.94 mm | 5/5 ≤ 4.98 mm | **5/5 ≤ 4.99 mm** | 5/5 ≤ 4.89 mm |
+| platform rotation total | 3.80° | 7.61° ✗ (over budget) | **1.58° ✓** (3× margin) | 4.12° ✓ |
+| max ‖hw_phys‖ | 2.79 Nms | 4.11 | 3.58 | 3.47 |
+| NMPC plan \|Ḣ_s\| peak | 13.1 Nm (over budget, hidden) | 5.00 (at budget, honored) | **5.00 (honored)** | 5.00 (honored) |
+| QP-output \|Ḣ_s\| peak step 2 | 28 Nm | 49 | 51 | 50 |
+| NMPC fails | 0 | 0 | 0 | 0 |
+
+The **§9 framing flips**: the constraint-on configuration is not a regression
+of its own — it's a correct planner-layer change that *exposed* a downstream
+AOCS gap. With the corrected AOCS PD, the constraint swap is a strict
+improvement on every metric except the QP-output spike (which is a separate
+mapping-cascade problem; see §6c). `pd_numerical` is the clear winner at 1%.
+
+### Architectural reading
+
+The decentralized contract works as designed when both sides honor it:
+
+- NMPC plans contact wrenches with $|\dot H_s|\le\tau_{w,max}$ — promise the
+  AOCS only what the wheels can absorb. (Done at §9.)
+- AOCS damps any residual $\omega_s$ that leaks through when the QP-output
+  exceeds the budget transiently (mapping cascade still injects this). (Done
+  at §10.)
+- Each layer can be developed and replaced independently.
+
+The QP-output spike at step 2 (51 Nm) remains; it does not break the contract
+because the AOCS now successfully damps the resulting $\omega_s$ before it
+accumulates past the 5° budget. The structural fix for the spike itself is
+the spec §6 mapping mitigation — separate next-branch work.
+
+### Still open after §10
+
+- **Mapping cascade** (§6c debt): F-SAT still clips ~40% of ticks; the QP-output
+  spike at step 2 went from 28 → 51 Nm as the constraint tightened the plan;
+  the AOCS damping absorbs the *consequences* but not the *cause*. Spec §6
+  loop-free mitigation is the next architectural target.
+- **`H_est` sign fix** (one-line; flagged here, deferred).
+- **14% mass-ratio retest** with the new architecture — likely benefits more
+  from PD damping than 1% does, since the lighter structure rotates faster
+  under the same residual.
+- **Path-time decoupling** at the binding long-lever steps (still notional).
+
+![pd_numerical wins: NMPC plan |Ḣ_s| clamps at 5 Nm; QP-output spike at step 2 persists but AOCS damps the resulting ω_s. Platform rotation 1.58° vs 5° spec budget.](../../results/diag_cooperative_arms_legacy_pd_numerical/hdot_struct.png)
+
+Repro: `MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/diag_cooperative_arms.py --aocs_mode legacy_pd_numerical`

@@ -1,0 +1,23 @@
+{
+  "baseline_canonical": {
+    "n_docks": 5,
+    "step2": {
+      "step2_SS_ticks": 89,
+      "peak_t": 16.629999999999978,
+      "f1_peak_N": 62.18727551829286,
+      "tau1_peak_Nm": 36.27504744271911,
+      "nmpc_f_N": 5.7594050754107515,
+      "qp_over_nmpc_force_ratio": 10.797517226873952,
+      "m_a_com_peak_N": 45.772693574373,
+      "f1_rms_over_SS_N": 8.089825297350595,
+      "f2_max_step2_N": 0.0
+    }
+  },
+  "loopfree_mapping": {
+    "n_docks": 0,
+    "step2": {
+      "step2_SS_ticks": 0,
+      "note": "no step-2 SS (timed out earlier?)"
+    }
+  }
+}

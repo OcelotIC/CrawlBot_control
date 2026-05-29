@@ -61,20 +61,26 @@ class SimConfig:
     # ±5 Nms limit, so the momentum handoff remains consistent.
     hw_qp_tight: np.ndarray = field(default_factory=lambda: np.full(3, 3.0))
     L_max: float = 10.0           # Robot angular momentum limit [Nms]
-    tau_w_max: float = 5.0        # Reaction wheel torque limit [Nm]
-    tau_struct_max: float = np.inf  # Structure disturbance torque limit [Nm]
+    tau_w_max: float = 5.0        # |Ḣ_s,i| ≤ τ_w_max [Nm] — wheel-torque rate cap (NMPC)
 
     # ── AOCS ────────────────────────────────────────────────────
     aocs_K_hw: float = 2.0        # Legacy feedback gain [1/s]
     aocs_tau_w_max: float = 5.0   # Max wheel torque [Nm]
     rwa_I_w: float = 0.01         # Wheel spin inertia [kg·m²]
 
-    # Mode: 'legacy' | 'legacy_corrected' | 'H_est' | 'nmpc_plan'
+    # Mode: 'legacy' | 'legacy_corrected' | 'legacy_pd_numerical'
+    #     | 'legacy_pd_model' | 'H_est' | 'nmpc_plan'
+    # The two legacy_pd_* variants extend legacy_corrected with a PD
+    # regulator on ω_s. They differ in how ω̇_s is sourced:
+    #   legacy_pd_numerical — one-step finite difference of measured ω_s
+    #   legacy_pd_model     — Newton-Euler on the structure body using
+    #                         the previous τ_w_cmd and current Ḣ_s_est
     aocs_mode: str = 'legacy'
     aocs_use_H_estimator: bool = False     # use aocs_mode to select
     aocs_use_legacy_corrected: bool = False  # M4: add r_com × m·dv_com term
     aocs_filter_tau: float = 0.016
-    aocs_K_omega: float = 50.0
+    aocs_K_omega: float = 50.0  # Nm·s/rad — ω_s damping (legacy_pd_*, H_est)
+    aocs_K_d: float = 25.0      # Nm·s²/rad — ω̇_s damping (legacy_pd_* only)
     aocs_K_h: float = 0.5
     aocs_hw_target: np.ndarray = field(default_factory=lambda: np.zeros(3))
 

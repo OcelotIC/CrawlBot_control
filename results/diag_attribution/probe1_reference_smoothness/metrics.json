@@ -1,0 +1,69 @@
+{
+  "all_SS": {
+    "r_com_ref (NMPC CoM, smooth?)": {
+      "median_mm": 6.370741377319888,
+      "p95_mm": 10.416268121973188,
+      "max_mm": 205.53067412597542,
+      "rough_ratio_max_over_median": 32.261657153070665
+    },
+    "p_torso_ref (\u03b4-mapping, jittery?)": {
+      "median_mm": 6.219837527604817,
+      "p95_mm": 12.132535466162432,
+      "max_mm": 21.0091327189343,
+      "rough_ratio_max_over_median": 3.377762300975193
+    },
+    "v_com_ref (NMPC vel, m/s units)": {
+      "median_mm": 3.1129038747024227,
+      "p95_mm": 8.78740563863076,
+      "max_mm": 105.63141038687499,
+      "rough_ratio_max_over_median": 33.9333993719844
+    },
+    "L_com_ref (NMPC ang-mom, Nms units)": {
+      "median_mm": 24.554949883014803,
+      "p95_mm": 161.46266724778297,
+      "max_mm": 734.2169085132687,
+      "rough_ratio_max_over_median": 29.900973612702938
+    },
+    "mapping_excess_roughness": {
+      "p_torso_ref_max / r_com_ref_max": 0.10221896467900077,
+      "p_torso_ref_p95 / r_com_ref_p95": 1.164767969112543
+    }
+  },
+  "step2_SS": {
+    "r_com_ref (NMPC CoM, smooth?)": {
+      "median_mm": 0.0,
+      "p95_mm": 10.721185276665413,
+      "max_mm": 76.19241607196206,
+      "rough_ratio_max_over_median": 76192416071.96207
+    },
+    "p_torso_ref (\u03b4-mapping, jittery?)": {
+      "median_mm": 6.219837527604817,
+      "p95_mm": 13.086552492886874,
+      "max_mm": 21.0091327189343,
+      "rough_ratio_max_over_median": 3.377762300975193
+    },
+    "v_com_ref (NMPC vel, m/s units)": {
+      "median_mm": 3.116158484317123,
+      "p95_mm": 13.78218127682502,
+      "max_mm": 105.63141038687499,
+      "rough_ratio_max_over_median": 33.89795830940323
+    },
+    "L_com_ref (NMPC ang-mom, Nms units)": {
+      "median_mm": 24.65736463186998,
+      "p95_mm": 136.5348554712681,
+      "max_mm": 734.2169085132687,
+      "rough_ratio_max_over_median": 29.77677945210265
+    },
+    "mapping_excess_roughness": {
+      "p_torso_ref_max / r_com_ref_max": 0.27573784639000865,
+      "p_torso_ref_p95 / r_com_ref_p95": 1.2206255330154276
+    }
+  },
+  "coincidence_at_step2_f1_peak": {
+    "t": 16.629999999999978,
+    "f1_N": 62.18727551829286,
+    "p_torso_ref_incr_mm": 3.5438207616631803,
+    "p_torso_ref_incr_percentile_in_step2SS": 34.831460674157306,
+    "r_com_ref_incr_mm": 10.079260485552002
+  }
+}
