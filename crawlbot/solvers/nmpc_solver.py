@@ -496,8 +496,10 @@ class NMPCSolver:
             # IPOPT-reported primal/dual infeasibility at termination.
             # Diagnostic: cross-check vs external constraint re-evaluation
             # to detect logging-vs-control mismatches in lambda_ref.
-            'inf_pr': float(stats.get('inf_pr', float('nan'))),
-            'inf_du': float(stats.get('inf_du', float('nan'))),
+            # CasADi nests per-iter history in stats['iterations']; the
+            # last element is the value at convergence.
+            'inf_pr': float(stats.get('iterations', {}).get('inf_pr', [float('nan')])[-1]),
+            'inf_du': float(stats.get('iterations', {}).get('inf_du', [float('nan')])[-1]),
         }
         self.step_log.append(entry)
         if self.diag_verbose:
