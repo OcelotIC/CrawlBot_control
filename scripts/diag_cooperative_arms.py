@@ -238,7 +238,7 @@ def _nmpc_table(step_log, out_path):
 
 
 def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
-         mass_ratio: float = 0.01):
+         mass_ratio: float = 0.01, aocs_mode: str = 'legacy_corrected'):
     cfg = r_single._make_m7_config()
     cfg.gait_anchor_dx = anchor_dx
     # Sweet-spot config carry-over (these are also already the defaults
@@ -260,6 +260,14 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     # Rework knob.
     cfg.cooperative_arms_mode = (not legacy)
     cfg.ss_alpha_torso_lin = float(alpha_torso_lin)
+    # AOCS mode override (default 'legacy_corrected' = canonical).
+    # legacy_pd_numerical / legacy_pd_model add a PD regulator on ω_s
+    # on top of the legacy_corrected feedforward + desat. The two
+    # differ only in how ω̇_s is sourced (finite-diff vs Newton-Euler).
+    if aocs_mode != 'legacy_corrected':
+        cfg.aocs_mode = aocs_mode
+        cfg.aocs_use_legacy_corrected = False
+        cfg.aocs_use_H_estimator = (aocs_mode == 'H_est')
     # alpha_torso_ang stays at default 500 (set by _make_m7_config).
     # 5 evenly-spaced snapshots per SS for the offline renderer.
     # FRAMES_PER_STEP=0 disables capture entirely (e.g. for tests).
@@ -301,6 +309,10 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     elif abs(mass_ratio - 0.01) > 1e-9:
         out_dir = os.path.join(_root, 'results',
                                f'diag_cooperative_arms_{int(round(mass_ratio*100))}pct')
+    elif aocs_mode != 'legacy_corrected':
+        # Non-default AOCS mode → separate dir for A/B.
+        out_dir = os.path.join(_root, 'results',
+                               f'diag_cooperative_arms_{aocs_mode}')
     elif abs(alpha_torso_lin - 500.0) > 1e-6:
         out_dir = os.path.join(_root, 'results',
                                'diag_cooperative_arms',
@@ -454,6 +466,13 @@ if __name__ == '__main__':
                         help='Robot/structure mass ratio; scales structure '
                              'mass+inertia by 0.01/ratio (default 0.01 = no-op; '
                              '0.14 = spec T12 14%%, structure 507.857 kg)')
+    parser.add_argument('--aocs_mode', type=str, default='legacy_corrected',
+                        choices=['legacy_corrected', 'legacy_pd_numerical',
+                                 'legacy_pd_model', 'H_est'],
+                        help='AOCS controller (default legacy_corrected). '
+                             'legacy_pd_* add a PD regulator on ω_s; they '
+                             'differ in how ω̇_s is sourced (finite-diff vs '
+                             'model-based).')
     args = parser.parse_args()
 
     with open(MJCF, 'r') as f:
@@ -465,7 +484,7 @@ if __name__ == '__main__':
         _mutate_mjcf(damping=0.0, armature=0.05, anchor_dx=args.anchor_dx,
                      mass_ratio=args.mass_ratio)
         main(args.legacy, args.alpha_torso_lin, args.anchor_dx,
-             args.mass_ratio)
+             args.mass_ratio, args.aocs_mode)
     finally:
         with open(MJCF, 'w') as f:
             f.write(original)
