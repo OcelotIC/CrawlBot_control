@@ -251,7 +251,12 @@ def compute_aocs_command(
 ) -> np.ndarray:
     """Compute AOCS wheel torque command.
 
-    τ_w = -Ḣ_est - K_ω · ω_s - K_h · (h_w - h_w*)
+    τ_w = -Ḣ_est + K_ω · ω_s - K_h · (h_w - h_w*)
+
+    Damping sign derivation: Newton-Euler about the structure CoM gives
+    I_s · ω̇_s = -Ḣ_s - τ_w (wheel reaction). For ω_s>0 to brake
+    (ω̇_s<0), we need τ_w > -Ḣ_s, i.e. the damping contribution
+    must ADD positive — so +K_ω·ω_s, NOT the negated form.
 
     Parameters
     ----------
@@ -278,7 +283,7 @@ def compute_aocs_command(
     if hw_target is None:
         hw_target = np.zeros(3)
 
-    tau_w = -H_dot_est - K_omega * omega_s - K_h * (hw_current - hw_target)
+    tau_w = -H_dot_est + K_omega * omega_s - K_h * (hw_current - hw_target)
     tau_w = np.clip(tau_w, -tau_w_max, tau_w_max)
     return tau_w
 
@@ -503,4 +508,127 @@ def compute_aocs_command_legacy_pd_model(
     pd_term = K_omega * omega_s + K_d * omega_dot_est
 
     tau_w = -H_dot_est + K_hw * hw_error + pd_term
+    return np.clip(tau_w, -tau_w_max, tau_w_max)
+
+
+def compute_aocs_command_legacy_pid_numerical(
+    L_com: np.ndarray,
+    L_com_prev: np.ndarray,
+    r_com: np.ndarray,
+    v_com: np.ndarray,
+    v_com_prev: np.ndarray,
+    omega_s: np.ndarray,
+    omega_s_prev: np.ndarray,
+    theta_s: np.ndarray,
+    hw_current: np.ndarray,
+    dt: float,
+    robot_mass: float,
+    K_hw: float = 2.0,
+    K_omega: float = 50.0,
+    K_d: float = 25.0,
+    K_theta: float = 1.0,
+    hw_min: np.ndarray = None,
+    hw_max: np.ndarray = None,
+    tau_w_max: float = 5.0,
+) -> np.ndarray:
+    """Legacy-corrected AOCS + PID on attitude (numerical ω̇_s).
+
+    Extends ``compute_aocs_command_legacy_pd_numerical`` with an
+    attitude-tracking P term that drives the structure back to its
+    reference orientation (θ_s = 0), recovering the irreversible net
+    per-traversal rotation the PD-only mode cannot undo.
+
+        τ_w = -Ḣ_s_est + K_hw·hw_error
+              + K_θ·θ_s + K_ω·ω_s + K_d·ω̇_s_num
+
+    Sign on K_θ is positive (same derivation as K_ω, K_d): Newton-Euler
+    about structure CoM with τ_w on wheels giving -τ_w reaction on the
+    structure. For θ_s > 0 to decrease, need negative angular
+    acceleration ⇒ τ_w > -Ḣ_s ⇒ K_θ contribution adds positive.
+
+    Parameters
+    ----------
+    theta_s : (3,) structure attitude error vector [rad], in body frame.
+        Computed in sim_loop as log3(R_init.T @ R_now). Small-angle
+        approximation: θ_s ≈ axis × angle of the rotation from reference
+        to current.
+    K_theta : float, attitude-error gain [Nm/rad]. Default 1.0 sized
+        for slow rotate-back (~60 s time constant) with the existing
+        K_ω = 50: ζ ≈ K_ω / (2·sqrt(K_θ·I_s)) for the SISO PD.
+    Other parameters: see ``compute_aocs_command_legacy_pd_numerical``.
+
+    Notes
+    -----
+    The attitude term is bounded by wheel **momentum** capacity, not
+    torque capacity: rotating the structure back by Δθ requires the
+    wheels to transiently carry |h_w| = I_s·ω_max ≤ h_w_max, capping
+    the rotate-back speed at ω_max = h_w_max/I_s. For h_w_max = 5 Nms
+    and I_s ≈ 1500 kg·m², that's ~3.3 mrad/s — slow but feasible for
+    typical per-traversal rotation (~2° = 35 mrad → ~10 s minimum).
+    """
+    if hw_min is None:
+        hw_min = -np.full(3, np.inf)
+    if hw_max is None:
+        hw_max = np.full(3, np.inf)
+
+    L_dot_est = (L_com - L_com_prev) / dt
+    dv_com_est = (v_com - v_com_prev) / dt
+    orbital = np.cross(r_com, robot_mass * dv_com_est)
+    hw_error = np.clip(hw_current, hw_min, hw_max) - hw_current
+
+    omega_dot_est = (omega_s - omega_s_prev) / dt
+    pid_term = K_theta * theta_s + K_omega * omega_s + K_d * omega_dot_est
+
+    tau_w = -L_dot_est - orbital + K_hw * hw_error + pid_term
+    return np.clip(tau_w, -tau_w_max, tau_w_max)
+
+
+def compute_aocs_command_legacy_pid_model(
+    L_com: np.ndarray,
+    L_com_prev: np.ndarray,
+    r_com: np.ndarray,
+    v_com: np.ndarray,
+    v_com_prev: np.ndarray,
+    omega_s: np.ndarray,
+    theta_s: np.ndarray,
+    tau_w_prev: np.ndarray,
+    I_struct: np.ndarray,
+    hw_current: np.ndarray,
+    dt: float,
+    robot_mass: float,
+    K_hw: float = 2.0,
+    K_omega: float = 50.0,
+    K_d: float = 25.0,
+    K_theta: float = 1.0,
+    hw_min: np.ndarray = None,
+    hw_max: np.ndarray = None,
+    tau_w_max: float = 5.0,
+) -> np.ndarray:
+    """Legacy-corrected AOCS + PID on attitude (model-based ω̇_s).
+
+    Extends ``compute_aocs_command_legacy_pd_model`` with the
+    attitude-tracking P term (see legacy_pid_numerical for the
+    derivation and wheel-capacity ceiling).
+
+        τ_w = -Ḣ_s_est + K_hw·hw_error
+              + K_θ·θ_s + K_ω·ω_s + K_d·ω̇_s_model
+
+    Parameters: see ``compute_aocs_command_legacy_pd_model`` and
+    ``compute_aocs_command_legacy_pid_numerical``.
+    """
+    if hw_min is None:
+        hw_min = -np.full(3, np.inf)
+    if hw_max is None:
+        hw_max = np.full(3, np.inf)
+
+    L_dot_est = (L_com - L_com_prev) / dt
+    dv_com_est = (v_com - v_com_prev) / dt
+    orbital = np.cross(r_com, robot_mass * dv_com_est)
+    H_dot_est = L_dot_est + orbital
+    hw_error = np.clip(hw_current, hw_min, hw_max) - hw_current
+
+    omega_dot_est = (-H_dot_est - tau_w_prev) / np.maximum(I_struct, 1e-9)
+    pid_term = K_theta * theta_s + K_omega * omega_s + K_d * omega_dot_est
+
+    tau_w = -H_dot_est + K_hw * hw_error + pid_term
     return np.clip(tau_w, -tau_w_max, tau_w_max)

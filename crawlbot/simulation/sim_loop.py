@@ -210,6 +210,10 @@ class SimulationLoop:
                                 'structure')
         self._struct_I = self.mj_model.body_inertia[sid].copy() \
             if sid >= 0 else np.array([597.0, 1493.0, 1777.0])
+        # Cache initial structure attitude (wxyz quaternion) for the
+        # legacy_pid_* AOCS modes: θ_s = log3(R_init.T @ R_now) gives
+        # the small-angle attitude error in body frame.
+        self._struct_quat_init = self.mj_data.qpos[3:7].copy()
         mujoco.mj_forward(self.mj_model, self.mj_data)
 
         # Read anchor sites in world frame and convert to structure-local frame
@@ -2629,6 +2633,67 @@ class SimulationLoop:
                         K_d=cfg.aocs_K_d,
                         hw_min=cfg.hw_min, hw_max=cfg.hw_max,
                         tau_w_max=cfg.aocs_tau_w_max)
+                elif cfg.aocs_mode in ('legacy_pid_numerical',
+                                       'legacy_pid_model'):
+                    # legacy_pd_* + attitude-tracking P term (drives
+                    # the structure back to its initial orientation).
+                    #
+                    # Geometric SO(3) attitude error (Lee–McClamroch):
+                    #   e_R = ½(R_init^T R_now − R_now^T R_init)^∨
+                    # where (·)^∨ extracts the 3-vector from a skew-
+                    # symmetric matrix. Properties vs log3:
+                    #   (1) frame-consistent with ω_s (both implicitly
+                    #       in current body frame at small angles, with
+                    #       only third-order discrepancy from R_now T R_init)
+                    #   (2) bounded |e_R| ≤ |sin θ| ≤ 1 — graceful
+                    #       saturation under any disturbance
+                    #   (3) no singularity at θ = π (log3 would have one)
+                    # For our sub-3° drift regime, e_R ≈ θ_s to within
+                    # 1% — the K_θ=10 result on log3 transfers directly.
+                    # Local import: see note at the H_est branch above.
+                    import pinocchio as _pin
+                    qw, qx, qy, qz = self._struct_quat_init
+                    R_init = _pin.Quaternion(qw, qx, qy, qz).toRotationMatrix()
+                    qw, qx, qy, qz = self.mj_data.qpos[3:7]
+                    R_now = _pin.Quaternion(qw, qx, qy, qz).toRotationMatrix()
+                    R_err = R_init.T @ R_now
+                    # vee of (R_err − R_err^T) / 2 — geometric SO(3) error.
+                    theta_s = 0.5 * np.array([
+                        R_err[2, 1] - R_err[1, 2],
+                        R_err[0, 2] - R_err[2, 0],
+                        R_err[1, 0] - R_err[0, 1],
+                    ])
+                    if cfg.aocs_mode == 'legacy_pid_numerical':
+                        from crawlbot.aocs.force_estimator import (
+                            compute_aocs_command_legacy_pid_numerical)
+                        tau_w_cmd = compute_aocs_command_legacy_pid_numerical(
+                            L_com=rs.L_com, L_com_prev=_L_com_qp_prev,
+                            r_com=rs.r_com, v_com=rs.v_com,
+                            v_com_prev=_v_com_qp_prev,
+                            omega_s=omega_s, omega_s_prev=_omega_s_last,
+                            theta_s=theta_s,
+                            hw_current=hw_phys, dt=cfg.dt_qp,
+                            robot_mass=self.robot._total_mass,
+                            K_hw=cfg.aocs_K_hw, K_omega=cfg.aocs_K_omega,
+                            K_d=cfg.aocs_K_d, K_theta=cfg.aocs_K_theta,
+                            hw_min=cfg.hw_min, hw_max=cfg.hw_max,
+                            tau_w_max=cfg.aocs_tau_w_max)
+                    else:
+                        from crawlbot.aocs.force_estimator import (
+                            compute_aocs_command_legacy_pid_model)
+                        tau_w_cmd = compute_aocs_command_legacy_pid_model(
+                            L_com=rs.L_com, L_com_prev=_L_com_qp_prev,
+                            r_com=rs.r_com, v_com=rs.v_com,
+                            v_com_prev=_v_com_qp_prev,
+                            omega_s=omega_s, theta_s=theta_s,
+                            tau_w_prev=tau_w_last,
+                            I_struct=self._struct_I,
+                            hw_current=hw_phys, dt=cfg.dt_qp,
+                            robot_mass=self.robot._total_mass,
+                            K_hw=cfg.aocs_K_hw, K_omega=cfg.aocs_K_omega,
+                            K_d=cfg.aocs_K_d, K_theta=cfg.aocs_K_theta,
+                            hw_min=cfg.hw_min, hw_max=cfg.hw_max,
+                            tau_w_max=cfg.aocs_tau_w_max)
                 else:
                     # Legacy AOCS: L_dot feedforward only (spin component).
                     # Desaturation sign matches compute_aocs_command_legacy_corrected

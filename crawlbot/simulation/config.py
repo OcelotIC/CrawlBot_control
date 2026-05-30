@@ -68,19 +68,25 @@ class SimConfig:
     aocs_tau_w_max: float = 5.0   # Max wheel torque [Nm]
     rwa_I_w: float = 0.01         # Wheel spin inertia [kg·m²]
 
-    # Mode: 'legacy' | 'legacy_corrected' | 'legacy_pd_numerical'
-    #     | 'legacy_pd_model' | 'H_est' | 'nmpc_plan'
-    # The two legacy_pd_* variants extend legacy_corrected with a PD
-    # regulator on ω_s. They differ in how ω̇_s is sourced:
-    #   legacy_pd_numerical — one-step finite difference of measured ω_s
-    #   legacy_pd_model     — Newton-Euler on the structure body using
-    #                         the previous τ_w_cmd and current Ḣ_s_est
+    # Mode: 'legacy' | 'legacy_corrected'
+    #     | 'legacy_pd_numerical'  | 'legacy_pd_model'
+    #     | 'legacy_pid_numerical' | 'legacy_pid_model'
+    #     | 'H_est' | 'nmpc_plan'
+    # The legacy_pd_*  variants extend legacy_corrected with a PD on ω_s.
+    # The legacy_pid_* variants further add an attitude-tracking P term
+    # on θ_s (drives the structure back to its reference orientation,
+    # recovering the per-traversal irreversible net rotation).
+    # They differ in how ω̇_s is sourced:
+    #   numerical — one-step finite difference of measured ω_s
+    #   model     — Newton-Euler on the structure body using the
+    #               previous τ_w_cmd and current Ḣ_s_est
     aocs_mode: str = 'legacy'
     aocs_use_H_estimator: bool = False     # use aocs_mode to select
     aocs_use_legacy_corrected: bool = False  # M4: add r_com × m·dv_com term
     aocs_filter_tau: float = 0.016
-    aocs_K_omega: float = 50.0  # Nm·s/rad — ω_s damping (legacy_pd_*, H_est)
-    aocs_K_d: float = 25.0      # Nm·s²/rad — ω̇_s damping (legacy_pd_* only)
+    aocs_K_omega: float = 50.0  # Nm·s/rad — ω_s damping (PD/PID, H_est)
+    aocs_K_d: float = 25.0      # Nm·s²/rad — ω̇_s damping (PD/PID only)
+    aocs_K_theta: float = 1.0   # Nm/rad — θ_s tracking (PID only)
     aocs_K_h: float = 0.5
     aocs_hw_target: np.ndarray = field(default_factory=lambda: np.zeros(3))
 

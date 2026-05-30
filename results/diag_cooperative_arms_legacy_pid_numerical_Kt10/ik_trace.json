@@ -1,0 +1,102 @@
+[
+  {
+    "step_ab_end": [
+      2,
+      3
+    ],
+    "mode": "fixed_rotation",
+    "theta_deg": 4.9329179998925175e-17,
+    "dp_mm": 125.53224872849825,
+    "w_fixed": 0.02423274351018772,
+    "w_sigma_min_fixed": 0.02696188496804012,
+    "traj_drift": NaN,
+    "traj_w_worst": NaN,
+    "traj_w_end": NaN,
+    "traj_ik_elapsed_s": NaN,
+    "mid_wp_used": false,
+    "mid_w_worst": NaN,
+    "mid_wp_p_t": null,
+    "path_feasibility_w_min": null,
+    "path_feasibility_all_ok": null
+  },
+  {
+    "step_ab_end": [
+      3,
+      3
+    ],
+    "mode": "fixed_rotation",
+    "theta_deg": 1.7618024797498158e-15,
+    "dp_mm": 562.8562886634091,
+    "w_fixed": 0.02358176148979428,
+    "w_sigma_min_fixed": 0.022663049495184252,
+    "traj_drift": NaN,
+    "traj_w_worst": NaN,
+    "traj_w_end": NaN,
+    "traj_ik_elapsed_s": NaN,
+    "mid_wp_used": false,
+    "mid_w_worst": NaN,
+    "mid_wp_p_t": null,
+    "path_feasibility_w_min": null,
+    "path_feasibility_all_ok": null
+  },
+  {
+    "step_ab_end": [
+      3,
+      4
+    ],
+    "mode": "fixed_rotation",
+    "theta_deg": 5.000993878893273e-16,
+    "dp_mm": 211.24811838441033,
+    "w_fixed": 0.011489131802246175,
+    "w_sigma_min_fixed": 0.015440022397110384,
+    "traj_drift": NaN,
+    "traj_w_worst": NaN,
+    "traj_w_end": NaN,
+    "traj_ik_elapsed_s": NaN,
+    "mid_wp_used": false,
+    "mid_w_worst": NaN,
+    "mid_wp_p_t": null,
+    "path_feasibility_w_min": null,
+    "path_feasibility_all_ok": null
+  },
+  {
+    "step_ab_end": [
+      4,
+      4
+    ],
+    "mode": "fixed_rotation",
+    "theta_deg": 2.3305615158025844e-17,
+    "dp_mm": 563.110740216127,
+    "w_fixed": 0.014208067057223729,
+    "w_sigma_min_fixed": 0.045465963239154764,
+    "traj_drift": NaN,
+    "traj_w_worst": NaN,
+    "traj_w_end": NaN,
+    "traj_ik_elapsed_s": NaN,
+    "mid_wp_used": false,
+    "mid_w_worst": NaN,
+    "mid_wp_p_t": null,
+    "path_feasibility_w_min": null,
+    "path_feasibility_all_ok": null
+  },
+  {
+    "step_ab_end": [
+      4,
+      5
+    ],
+    "mode": "fixed_rotation",
+    "theta_deg": 1.0066908302577168e-15,
+    "dp_mm": 174.34548327718903,
+    "w_fixed": 0.021780005232812136,
+    "w_sigma_min_fixed": 0.04271426854889002,
+    "traj_drift": NaN,
+    "traj_w_worst": NaN,
+    "traj_w_end": NaN,
+    "traj_ik_elapsed_s": NaN,
+    "mid_wp_used": false,
+    "mid_w_worst": NaN,
+    "mid_wp_p_t": null,
+    "path_feasibility_w_min": null,
+    "path_feasibility_all_ok": null
+  }
+]

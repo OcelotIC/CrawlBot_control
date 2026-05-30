@@ -240,7 +240,15 @@ class TestAOCSCommand:
         assert np.all(np.abs(tau_w) <= 5.0 + 1e-15)
 
     def test_aocs_command_damping(self):
-        """Non-zero omega_s adds -K_omega * omega_s damping."""
+        """Non-zero omega_s adds +K_omega * omega_s damping.
+
+        Sign convention (Newton-Euler about structure CoM):
+            I_s · ω̇_s = -Ḣ_s - τ_w
+        For ω_s>0 to brake (ω̇_s<0), τ_w must EXCEED -Ḣ_s — the
+        damping contribution adds positive. Prior versions of this
+        formula used -K_ω·ω_s (wrong sign) — never exposed because
+        all earlier tests used ω_s=0.
+        """
         H_dot_est = np.zeros(3)
         omega_s = np.array([0.1, 0.0, 0.0])
         hw = np.zeros(3)
@@ -249,11 +257,41 @@ class TestAOCSCommand:
             H_dot_est, omega_s, hw, K_omega=50.0, K_h=0.0, tau_w_max=100.0,
         )
 
-        # Expected: -K_omega * omega_s = -50 * 0.1 = -5.0 in x
+        # Expected: +K_omega * omega_s = +50 * 0.1 = +5.0 in x
         np.testing.assert_allclose(
-            tau_w[0], -5.0, atol=1e-15,
-            err_msg="Damping contribution should be -K_omega * omega_s",
+            tau_w[0], +5.0, atol=1e-15,
+            err_msg="Damping must be +K_omega * omega_s (positive sign)",
         )
+
+    def test_aocs_command_damping_physical_consistency(self):
+        """Damping term must produce a torque that REDUCES ω_s.
+
+        Setup: ω_s positive about z, no disturbance, no desat.
+        Reaction on structure from wheels is -τ_w (Newton's 3rd).
+        For braking: I_s · ω̇_s = -τ_w < 0 → τ_w > 0.
+        """
+        H_dot_est = np.zeros(3)
+        hw = np.zeros(3)
+        # ω_s positive in all three axes
+        for axis in range(3):
+            omega_s = np.zeros(3)
+            omega_s[axis] = 0.05
+            tau_w = compute_aocs_command(
+                H_dot_est, omega_s, hw,
+                K_omega=50.0, K_h=0.0, tau_w_max=100.0,
+            )
+            assert tau_w[axis] > 0, (
+                f"axis {axis}: τ_w={tau_w[axis]} should be POSITIVE to brake "
+                f"positive ω_s (Newton-Euler about struct CoM)")
+            # And opposite sign reverses it.
+            omega_s[axis] = -0.05
+            tau_w = compute_aocs_command(
+                H_dot_est, omega_s, hw,
+                K_omega=50.0, K_h=0.0, tau_w_max=100.0,
+            )
+            assert tau_w[axis] < 0, (
+                f"axis {axis}: τ_w={tau_w[axis]} should be NEGATIVE to brake "
+                f"negative ω_s")
 
     def test_aocs_command_desaturation(self):
         """Non-zero hw with K_h > 0 adds desaturation term."""
@@ -285,9 +323,93 @@ class TestAOCSCommand:
             hw_target=hw_target, K_omega=50.0, K_h=0.5, tau_w_max=100.0,
         )
 
-        # Expected x: -1.0 - 5.0 - 1.0 = -7.0
-        expected_x = -1.0 - 50.0 * 0.1 - 0.5 * 2.0
+        # Expected x: -Ḣ + K_ω·ω - K_h·(hw - hw*)
+        #           = -1.0 + 50·0.1 - 0.5·2.0 = -1.0 + 5.0 - 1.0 = +3.0
+        expected_x = -1.0 + 50.0 * 0.1 - 0.5 * 2.0
         np.testing.assert_allclose(
             tau_w[0], expected_x, atol=1e-15,
-            err_msg="Combined command should sum all terms",
+            err_msg="Combined command: τ_w = -Ḣ + K_ω·ω - K_h·(hw-hw*)",
         )
+
+
+# ---------------------------------------------------------------------------
+# legacy_pid_* attitude-tracking sign convention
+# ---------------------------------------------------------------------------
+
+class TestAOCSCommandLegacyPID:
+    """Sign convention for the new attitude-tracking modes.
+
+    Same Newton-Euler derivation as the K_omega term: for θ_s > 0 to
+    decrease, need negative angular acceleration ⇒ τ_w > -Ḣ_s ⇒ K_θ
+    contribution must add POSITIVE.
+    """
+
+    def _make_inputs(self, theta_z=0.0):
+        """Minimal AOCS inputs: at-rest robot, single nonzero θ_s_z."""
+        z = np.zeros(3)
+        return dict(
+            L_com=z.copy(), L_com_prev=z.copy(),
+            r_com=z.copy(), v_com=z.copy(), v_com_prev=z.copy(),
+            omega_s=z.copy(),
+            theta_s=np.array([0.0, 0.0, theta_z]),
+            hw_current=z.copy(),
+            dt=0.01, robot_mass=71.0,
+            K_hw=0.0, K_omega=0.0, K_d=0.0, K_theta=10.0,
+            tau_w_max=100.0,
+        )
+
+    def test_pid_numerical_theta_sign(self):
+        """θ_s > 0 ⇒ τ_w > 0 (positive damping). Numerical mode."""
+        from crawlbot.aocs.force_estimator import (
+            compute_aocs_command_legacy_pid_numerical)
+        inputs = self._make_inputs(theta_z=+0.05)
+        inputs['omega_s_prev'] = inputs['omega_s'].copy()
+        tau_w = compute_aocs_command_legacy_pid_numerical(**inputs)
+        assert tau_w[2] > 0, f"τ_w_z={tau_w[2]} should be POSITIVE for θ_z>0"
+
+        inputs = self._make_inputs(theta_z=-0.05)
+        inputs['omega_s_prev'] = inputs['omega_s'].copy()
+        tau_w = compute_aocs_command_legacy_pid_numerical(**inputs)
+        assert tau_w[2] < 0, f"τ_w_z={tau_w[2]} should be NEGATIVE for θ_z<0"
+
+    def test_pid_model_theta_sign(self):
+        """θ_s > 0 ⇒ τ_w > 0 (positive damping). Model mode."""
+        from crawlbot.aocs.force_estimator import (
+            compute_aocs_command_legacy_pid_model)
+        inputs = self._make_inputs(theta_z=+0.05)
+        inputs['tau_w_prev'] = np.zeros(3)
+        inputs['I_struct'] = np.array([597., 1493., 1777.])
+        tau_w = compute_aocs_command_legacy_pid_model(**inputs)
+        assert tau_w[2] > 0, f"τ_w_z={tau_w[2]} should be POSITIVE for θ_z>0"
+
+        inputs = self._make_inputs(theta_z=-0.05)
+        inputs['tau_w_prev'] = np.zeros(3)
+        inputs['I_struct'] = np.array([597., 1493., 1777.])
+        tau_w = compute_aocs_command_legacy_pid_model(**inputs)
+        assert tau_w[2] < 0, f"τ_w_z={tau_w[2]} should be NEGATIVE for θ_z<0"
+
+    def test_pid_reduces_to_pd_when_K_theta_zero(self):
+        """K_theta=0 should match the corresponding PD function exactly."""
+        from crawlbot.aocs.force_estimator import (
+            compute_aocs_command_legacy_pid_numerical,
+            compute_aocs_command_legacy_pd_numerical)
+        z = np.zeros(3)
+        # Use a non-trivial state so any sign error would show up
+        rng = np.random.default_rng(0)
+        common = dict(
+            L_com=rng.standard_normal(3), L_com_prev=rng.standard_normal(3),
+            r_com=rng.standard_normal(3),
+            v_com=rng.standard_normal(3), v_com_prev=rng.standard_normal(3),
+            omega_s=rng.standard_normal(3) * 0.01,
+            omega_s_prev=rng.standard_normal(3) * 0.01,
+            hw_current=rng.standard_normal(3) * 0.5,
+            dt=0.01, robot_mass=71.0,
+            K_hw=2.0, K_omega=50.0, K_d=25.0,
+            tau_w_max=100.0,
+        )
+        pd = compute_aocs_command_legacy_pd_numerical(**common)
+        pid = compute_aocs_command_legacy_pid_numerical(
+            theta_s=z.copy(), K_theta=0.0, **common)
+        np.testing.assert_allclose(
+            pd, pid, atol=1e-15,
+            err_msg="PID with K_theta=0 must match PD exactly")
