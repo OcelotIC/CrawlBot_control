@@ -559,6 +559,8 @@ A/B at default $K_\omega = 50$:
 At $K_\theta=10$ with the original (arbitrary) $K_\omega=50$, the
 per-traversal drift drops from 1.95° → 0.045° — a 43× reduction.
 
+![§12.3 K_θ=10 (K_ω=50 default): attitude curve actively decays during settle (green window) from 1.418° to 0.045°, vs §11's PD-only that stayed flat at 1.95°.](../../results/diag_cooperative_arms_legacy_pid_numerical_Kt10/settle.png)
+
 ### 12.4 Gain tuning — pole placement beats arbitrary
 
 The original $K_\omega=50$ was inherited from `H_est` without
@@ -624,6 +626,12 @@ the peak with margin and the integral with breathing room. The
 architecture's *actual* requirement at 1% mass ratio is between 1.5
 and 2 Nm — well under the 5 Nm spec (≥2.5× margin).
 
+![§12.5 τ_w_max=0.5 Nm — catastrophic peak failure. Step 0 docks (0.6mm); step 1 TIMEOUT at 65.7° EE orientation. Post-traversal: ω_s, h_w, attitude all GROW — AOCS saturated, divergent.](../../results/diag_cooperative_arms_legacy_pid_numerical_Kt36.3_Kw355.4_Tw0.5/settle.png)
+
+![§12.5 τ_w_max=1.0 Nm — graceful integral failure. Steps 0-2 dock, h_w climbs monotonically to 4.24 Nms (85% of box) by step 3 → no headroom left → step 3 TIMEOUT at 13.8mm (only 1.75° ori — different mode than 0.5Nm). τ_w saturates 68.7% of ticks.](../../results/diag_cooperative_arms_legacy_pid_numerical_Kt36.3_Kw355.4_Tw1/settle.png)
+
+![§12.5 τ_w_max=2.0 Nm — works at the edge. All 5 dock; τ_w saturates 3.9% of ticks (~0.6s); ω_s/h_w decay cleanly in settle; 0.006° irreversible drift.](../../results/diag_cooperative_arms_legacy_pid_numerical_Kt36.3_Kw355.4_Tw2/settle.png)
+
 ### 12.6 Wheel-sizing confound: gains held fixed; FD-artifact spikes
 
 Two confounds documented but not resolved on this branch:
@@ -651,6 +659,8 @@ Together these mean the 1.5–2 Nm wheel-torque floor is an **upper
 bound** on the physical requirement, not the actual physical limit.
 Both are tractable follow-ups (a 'nmpc_plan' mode would smooth the
 feedforward; per-$\tau_{w,max}$ gain re-tuning is a one-line config).
+
+![§12.6 Ḣ feedforward source diagnostic at τ_w_max=2 Nm: ‖Ḣ_FF‖ (top) median ≈ 0 but peak 700 Nm — clear FD/discontinuity artifact (the orange shaded swing phases are when the spikes happen). Middle: per-axis |τ_w| with saturation marks (red); the 60 saturation ticks are 92% swing-distributed, 8% dock-aligned. The 700 Nm spikes have no physical basis at this scale; they are the AOCS commanding wheel torque against numerical derivative noise.](../../results/diag_cooperative_arms_legacy_pid_numerical_Kt36.3_Kw355.4_Tw2/hdot_feedforward.png)
 
 ### 12.7 Sidebar: `H_est` K_ω sign bug — fixed
 
@@ -685,8 +695,6 @@ irreversible attitude drift is **0.012°** — budget (5°) breached after
 fundamentally scaling-limited at 1% mass ratio. Open items: the
 mapping-cascade transient (§6c) and the analytical Ḣ_FF (above).
 
-![Settle with pole-placement gains: irreversible drift 0.012°/traversal.](../../results/diag_cooperative_arms_legacy_pid_numerical_Kt36.3_Kw355.4/settle.png)
-
-![Wheel-sizing bracket τ_w ∈ {0.5, 1, 2, 5} Nm — failure modes split into peak (0.5 Nm) and integral (1 Nm).](../../results/diag_cooperative_arms_legacy_pid_numerical_Kt36.3_Kw355.4_Tw2/settle.png)
+![§12.8 verdict: pole-placement gains (K_θ=36.3, K_ω=355.4) at τ_w_max=5 Nm. Transient peak 0.61° (was 1.95° with PD only in §11); settle decay clean to 0.012° irreversible. This is the operating point for the campaign result.](../../results/diag_cooperative_arms_legacy_pid_numerical_Kt36.3_Kw355.4/settle.png)
 
 Repro: `MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/diag_cooperative_arms.py --aocs_mode legacy_pid_numerical --settle_seconds 120 --K_theta 36.3 --K_omega 355.4` (then `--tau_w_max 0.5/1/2` for the bracket).
