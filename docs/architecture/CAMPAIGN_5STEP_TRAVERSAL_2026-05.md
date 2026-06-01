@@ -510,3 +510,183 @@ the layers this campaign covers.
 
 Repro: `MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/diag_cooperative_arms.py --aocs_mode legacy_pd_numerical --settle_seconds 120`
 then `python3 scripts/diag_settle.py diag_cooperative_arms_legacy_pd_numerical`.
+
+## 12. AOCS attitude recovery + wheel-sizing study (`branch claude/aocs-sign-fix-and-settle`, PR #20)
+
+§11 left the long-duration scaling question with a 1.95° irreversible
+rotation per traversal under PD-only AOCS — mission-ending after ~2
+traversals. This section closes that loop and characterises the
+controller's wheel-torque envelope.
+
+### 12.1 PID attitude tracking — closes the irreversible drift
+
+`legacy_corrected` has feedforward+desaturation only; once the wheels
+saturate during the QP-output mapping spike, $\omega_s$ leaks through
+and there's no mechanism to recover the attitude. Conservation about
+the structure CoM constrains *rates*, not *attitude* — $\int\omega_s\,dt$
+over the gait is non-zero and the AOCS has no term to undo it.
+
+Added two new AOCS modes (`crawlbot/aocs/force_estimator.py:374–510`):
+`legacy_pid_numerical` and `legacy_pid_model`, each extending the
+existing PD-on-$\omega_s$ with a P term on the structure attitude
+error $\theta_s$. Selected via `cfg.aocs_mode`; opt-in CLI flag
+`--aocs_mode` on the canonical runner. Defaults preserve canonical
+behaviour.
+
+### 12.2 Attitude error representation — geometric Lee–McClamroch SO(3)
+
+After a sign-check derivation, the attitude error is computed as the
+**geometric SO(3) form**:
+$$e_R = \tfrac{1}{2}\bigl(R_{init}^\top R_{now} - R_{now}^\top R_{init}\bigr)^{\!\vee}$$
+
+over Euler angles (gimbal-locked) and raw quaternion error (sign
+ambiguity). Properties: frame-consistent with $\omega_s$, bounded by
+$|\sin\theta|\le 1$ (graceful saturation), no singularity at $\theta=\pi$.
+Verified equivalent to the $\log_3$ alternative within 0.02% at the
+operating regime (~2° rotations).
+
+### 12.3 Gain sweep — K_θ moves the dial
+
+A/B at default $K_\omega = 50$:
+
+| $K_\theta$ | reversible | irreversible | %  | budget breach @ N traversals |
+|---|---|---|---|---|
+| 0 (PD only) | 0.029° | 1.950° | 98.5% | ~2 |
+| 1 (initial) | 0.612° | 1.304° | 68%   | ~3 |
+| 5           | 1.466° | 0.213° | 13%   | ~23 |
+| 10          | 1.445° | 0.045° | 3%    | ~111 |
+
+At $K_\theta=10$ with the original (arbitrary) $K_\omega=50$, the
+per-traversal drift drops from 1.95° → 0.045° — a 43× reduction.
+
+### 12.4 Gain tuning — pole placement beats arbitrary
+
+The original $K_\omega=50$ was inherited from `H_est` without
+verification. Auditing the closed-loop $(I_s\,\ddot\theta + K_\omega
+\dot\theta + K_\theta\theta = \text{disturbance})$ reveals that on the
+worst axis (z, $I_s=1777$), the damping ratio was $\zeta\approx 0.19$
+— badly underdamped, ~280 s settling time. The 120 s window only
+worked because we waited several time constants.
+
+Pole-placement design: target $T_s = 30$ s (5% criterion), $\zeta=0.7$,
+sized for the worst-axis inertia:
+$$\omega_n = \frac{3}{\zeta\,T_s} = 0.143\text{ rad/s},\quad
+K_\theta = I_s\omega_n^2 = 36.3,\quad K_\omega = 2\zeta\omega_n I_s = 355.4$$
+
+Per-axis check (single scalar gain set):
+| axis | $I_s$ | $\omega_n$ | $\zeta$ | $T_s$ [s] |
+|---|---|---|---|---|
+| x | 597  | 0.247 | 1.21 (overdamped) | 10.1 |
+| y | 1493 | 0.156 | 0.76 | 25.2 |
+| z | 1777 | 0.143 | 0.70 | 30.0 |
+
+All axes at $\zeta\ge 0.7$, since sized for the largest $I_s$.
+
+A/B vs the arbitrary gains at $K_\theta=10, K_\omega=50$:
+
+| metric | arbitrary | **pole-placement** | Δ |
+|---|---|---|---|
+| transient peak \|angle\| | 1.149° | **0.61°** | −47% |
+| irreversible drift | 0.045° | **0.012°** | −73% |
+| budget breach @ | ~111 traversals | **~405** | 4× |
+| max ‖hw_phys‖ | 3.93 Nms | 4.17 Nms | +6% (<5 box) |
+| step-4 dock | 4.95 mm | 4.65 mm | tighter |
+
+The mechanism: higher $K_\omega$ brakes $\omega_s$ *during* the
+disturbance, so the structure never rotates as far in the first place
+(0.61° peak vs 1.15°) — not just faster recovery in settle. Modest
+wheel-torque cost, well within the 5 Nm box.
+
+### 12.5 Wheel-sizing study — peak vs integral failure modes
+
+CLI flag `--tau_w_max` sets both the NMPC `|Ḣ_s|` budget and the
+AOCS clip together (decentralized contract consistent). Pole-placement
+gains held fixed across the sweep:
+
+| $\tau_{w,max}$ | docks | irrev. drift | $\tau_w$ sat % | failure mode |
+|---|---|---|---|---|
+| 5 Nm (spec) | 5/5 | 0.012° | rare | comfortable |
+| **2 Nm**    | 5/5 | 0.006° | **3.9%** (0.6 s) | works at edge |
+| 1 Nm        | 3/5 | 0.507° | 68.7% | **integral** — $h_w$ loads to 85% of box by step 3 |
+| 0.5 Nm      | 1/5 | divergent | constant | **peak** — mapping spike exceeds clip instantly (65° EE error) |
+
+Two distinct failure modes:
+- **Peak** (0.5 Nm fails this): the QP-output mapping-cascade spike
+  exceeds the AOCS clip instantly, $\omega_s$ explodes in real-time,
+  swing target leaves the workspace. Failure within a single step.
+- **Integral** (1 Nm fails this): wheel momentum accumulates
+  monotonically through the gait (4.24 Nms by step 3 = 85% of $\pm 5$
+  Nms box); subsequent docks have no remaining wheel headroom. Failure
+  deferred to later steps.
+
+The 5 Nm spec covers both modes with margin. The 2 Nm point covers
+the peak with margin and the integral with breathing room. The
+architecture's *actual* requirement at 1% mass ratio is between 1.5
+and 2 Nm — well under the 5 Nm spec (≥2.5× margin).
+
+### 12.6 Wheel-sizing confound: gains held fixed; FD-artifact spikes
+
+Two confounds documented but not resolved on this branch:
+
+1. **Gains were not re-tuned per $\tau_{w,max}$.** The pole-placement
+   gains ($K_\omega = 355.4$) were derived for the 5 Nm spec; at the
+   peak measured $\omega_s = 10$ mrad/s the controller commands
+   $K_\omega \cdot \omega_s \approx 3.55$ Nm. At the 1 Nm and 2 Nm
+   clips this exceeds the actuator limit *by design*. The 1 Nm
+   "integral failure" therefore conflates physical limit with
+   gain-actuator mismatch.
+
+2. **Ḣ feedforward is finite-difference, not analytical**
+   (`scripts/diag_hdot_feedforward.py`, post-PR-#20 diagnostic). The
+   `legacy_*` AOCS modes compute
+   `L̇_com_est = (L_com − L_com_prev)/dt` and `dv_com_est = …` at
+   $dt_{qp} = 0.01$ s with no filtering. The resulting $\|\dot H_{FF}\|$
+   has median ≈ 0 but **peak 700 Nm** — clear numerical-derivative
+   artifacts at kinematic discontinuities (joint-velocity steps at
+   contact transitions, F-SAT mapping jitter). The implemented
+   `aocs_mode='nmpc_plan'` listed in `config.py:71` is not wired —
+   no analytical $\dot H$ from the NMPC plan exists in the codebase.
+
+Together these mean the 1.5–2 Nm wheel-torque floor is an **upper
+bound** on the physical requirement, not the actual physical limit.
+Both are tractable follow-ups (a 'nmpc_plan' mode would smooth the
+feedforward; per-$\tau_{w,max}$ gain re-tuning is a one-line config).
+
+### 12.7 Sidebar: `H_est` K_ω sign bug — fixed
+
+While building the new PID modes, discovered that `H_est` (an
+alternative AOCS mode, not the canonical) computes
+`τ_w = -Ḣ_est − K_ω·ω_s − K_h·(h_w − h_w*)`. Newton-Euler about the
+structure CoM demands `+K_ω·ω_s`, not `-K_ω·ω_s`. The bug was never
+exposed because all earlier AOCS tests use $\omega_s=0$.
+
+Fixed at `crawlbot/aocs/force_estimator.py:281`; added
+`test_aocs_command_damping_physical_consistency` — a physical-sign
+test (τ_w must oppose $\omega_s$ on all three axes for both
+perturbation signs) that would have caught the original bug.
+
+`H_est` remains not-the-canonical-mode; the canonical chain is
+`legacy_corrected` → `legacy_pd_*` → `legacy_pid_*`.
+
+### 12.8 Test plan + verdict
+
+- `pytest tests/ -q`: **216 passed**, 1 deselected (pre-existing FK
+  red). Was 213; +3 PID sign/equivalence tests; +1 damping
+  physical-consistency test.
+- All wheel-sizing sweep runs are reproducible from the canonical
+  runner with the appropriate CLI flags.
+- Pole-placement gains are derived (not tuned by hand) and the design
+  spec ($T_s$, $\zeta$, axis) is recorded in the commit message.
+
+**Verdict for long-duration scaling**: with the corrected wheel-feasibility
+NMPC constraint (PR #19) + PID AOCS + pole-placement gains, the per-traversal
+irreversible attitude drift is **0.012°** — budget (5°) breached after
+~405 traversals (~2000 steps). The architecture is no longer
+fundamentally scaling-limited at 1% mass ratio. Open items: the
+mapping-cascade transient (§6c) and the analytical Ḣ_FF (above).
+
+![Settle with pole-placement gains: irreversible drift 0.012°/traversal.](../../results/diag_cooperative_arms_legacy_pid_numerical_Kt36.3_Kw355.4/settle.png)
+
+![Wheel-sizing bracket τ_w ∈ {0.5, 1, 2, 5} Nm — failure modes split into peak (0.5 Nm) and integral (1 Nm).](../../results/diag_cooperative_arms_legacy_pid_numerical_Kt36.3_Kw355.4_Tw2/settle.png)
+
+Repro: `MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/diag_cooperative_arms.py --aocs_mode legacy_pid_numerical --settle_seconds 120 --K_theta 36.3 --K_omega 355.4` (then `--tau_w_max 0.5/1/2` for the bracket).
