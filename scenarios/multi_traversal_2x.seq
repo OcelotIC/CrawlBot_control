@@ -1,0 +1,27 @@
+# Sign-symmetry probe — 5 steps forward, then 5 steps reverse.
+# Final state = initial state (anchor_3a, anchor_3b), so any per-
+# traversal angular-momentum leak should either:
+#   (a) cancel: h_w residual after settle ≈ h_w(single-forward) − h_w(single-reverse) ≈ 0
+#   (b) accumulate: h_w residual after settle ≈ 2 × h_w(single-forward)
+# Distinguishes a numerical-integration leak (sign-symmetric → cancels)
+# from a systematic gait-induced leak (accumulates).
+#
+# The swing-arm pattern is mirrored so the reverse traversal exercises
+# the same arm at the same step ordinal (b, a, b, a, b → b, a, b, a, b
+# but on the way home).
+
+START anchor_3a anchor_3b
+
+# Forward traversal: (3a,3b) → ... → (5a,6b)
+DOCK  anchor_4b
+DOCK  anchor_4a
+DOCK  anchor_5b
+DOCK  anchor_5a
+DOCK  anchor_6b
+
+# Reverse traversal: (5a,6b) → ... → (3a,3b)
+DOCK  anchor_5b
+DOCK  anchor_4a
+DOCK  anchor_4b
+DOCK  anchor_3a
+DOCK  anchor_3b
