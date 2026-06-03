@@ -1,0 +1,6 @@
+# Canonical 3-step forward traversal — same gait as the original
+# `plan_traversal(start_a=2, start_b=2, n_steps=3)`.
+START anchor_3a anchor_3b
+DOCK  anchor_4b
+DOCK  anchor_4a
+DOCK  anchor_5b

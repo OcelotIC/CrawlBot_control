@@ -187,8 +187,14 @@ class SimulationLoop:
 
     # ── Setup ────────────────────────────────────────────────────────────
 
-    def setup(self, n_steps: int = 3, start_a: int = 2, start_b: int = 2):
-        """Initialize all components."""
+    def setup(self, n_steps: int = 3, start_a: int = 2, start_b: int = 2,
+              sequence_path: str = None):
+        """Initialize all components.
+
+        If ``sequence_path`` is provided, the gait plan is built from
+        that ``.seq`` file (see ``crawlbot.planning.sequence_loader``)
+        and ``n_steps`` / ``start_a`` / ``start_b`` are ignored.
+        """
         cfg = self.cfg
 
         # MuJoCo
@@ -236,8 +242,20 @@ class SimulationLoop:
         self.sched = ContactScheduler(
             anchors_a=anchors_a_local, anchors_b=anchors_b_local,
             dt_ds=0.5, dt_ss=0.0)
-        self.plan = self.sched.plan_traversal(
-            start_a=start_a, start_b=start_b, n_steps=n_steps)
+        if sequence_path is not None:
+            from crawlbot.planning.sequence_loader import (
+                load_sequence, plan_from_sequence)
+            seq = load_sequence(sequence_path,
+                                n_anchors=len(anchors_a_local))
+            self.plan = plan_from_sequence(self.sched, seq)
+            start_a = seq.start_a
+            start_b = seq.start_b
+            n_steps = len(seq.swing_targets)
+            self._sequence_path = sequence_path
+        else:
+            self.plan = self.sched.plan_traversal(
+                start_a=start_a, start_b=start_b, n_steps=n_steps)
+            self._sequence_path = None
 
         # Swing planner (anchors already in structure frame — no transforms needed)
         self.swing_planner = SwingPlanner(

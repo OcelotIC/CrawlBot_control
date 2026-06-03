@@ -1,0 +1,9 @@
+# Canonical 5-step forward traversal — same gait as the original
+# `plan_traversal(start_a=2, start_b=2, n_steps=5)`. Start at the
+# centre anchor pair, alternate swing arm starting with B.
+START anchor_3a anchor_3b
+DOCK  anchor_4b
+DOCK  anchor_4a
+DOCK  anchor_5b
+DOCK  anchor_5a
+DOCK  anchor_6b

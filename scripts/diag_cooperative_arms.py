@@ -240,7 +240,8 @@ def _nmpc_table(step_log, out_path):
 def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
          mass_ratio: float = 0.01, aocs_mode: str = 'legacy_corrected',
          settle_seconds: float = 20.0, K_theta: float = 1.0,
-         K_omega: float = 50.0, tau_w_max: float = 5.0):
+         K_omega: float = 50.0, tau_w_max: float = 5.0,
+         scenario: str = None):
     cfg = r_single._make_m7_config()
     cfg.gait_anchor_dx = anchor_dx
     # Sweet-spot config carry-over (these are also already the defaults
@@ -329,7 +330,14 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
         -0.751390, -0.251893,  1.332349])
     cfg.ik_w_posture = 0.2
 
-    if legacy:
+    if scenario is not None:
+        # Route to a per-scenario subdir, using the file stem as the
+        # tag. E.g. scenarios/canonical_3step.seq → diag_cooperative_arms_3step.
+        _stem = os.path.splitext(os.path.basename(scenario))[0]
+        _stem = _stem.replace('canonical_', '')
+        out_dir = os.path.join(_root, 'results',
+                               f'diag_cooperative_arms_{_stem}')
+    elif legacy:
         out_dir = os.path.join(_root, 'results',
                                'diag_cooperative_arms_legacy')
     elif abs(mass_ratio - 0.01) > 1e-9:
@@ -362,7 +370,10 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     URDF = os.path.join(_root, 'models', 'VISPA_crawling_fixed.urdf')
 
     sim = SimulationLoop(mjcf_path=MJCF, urdf_path=URDF, config=cfg)
-    sim.setup(n_steps=5, start_a=2, start_b=2)
+    if scenario is not None:
+        sim.setup(sequence_path=scenario)
+    else:
+        sim.setup(n_steps=5, start_a=2, start_b=2)
     sim._debug_l_com_ref_trace_limit = 5
     sim._debug_physics_trace_limit = 400
     sim._debug_physics_sample_every = 2
@@ -407,7 +418,7 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
         json.dump(sim._step_q_end_log, f, indent=2, default=_json_default)
 
     text_metrics = _step_metrics_table(
-        log, sim._step2_diag_log, 5,
+        log, sim._step2_diag_log, len(sim.plan.phases) // 2,
         os.path.join(out_dir, 'step_metrics.txt'))
     print('\n=== Per-step outcomes ===\n' + text_metrics)
 
@@ -531,6 +542,12 @@ if __name__ == '__main__':
                              'AND cfg.aocs_tau_w_max (AOCS command clip) '
                              'so the two contracts stay in lock-step. '
                              'Use to stress-test wheel sizing.')
+    parser.add_argument('--scenario', type=str, default=None,
+                        help='Path to a locomotion-sequence .seq file '
+                             '(see scenarios/). When set, overrides the '
+                             'default 5-step plan with the file-defined '
+                             'gait. Anchor names use MJCF site names '
+                             '(e.g. anchor_4b).')
     args = parser.parse_args()
 
     with open(MJCF, 'r') as f:
@@ -543,7 +560,8 @@ if __name__ == '__main__':
                      mass_ratio=args.mass_ratio)
         main(args.legacy, args.alpha_torso_lin, args.anchor_dx,
              args.mass_ratio, args.aocs_mode, args.settle_seconds,
-             args.K_theta, args.K_omega, args.tau_w_max)
+             args.K_theta, args.K_omega, args.tau_w_max,
+             scenario=args.scenario)
     finally:
         with open(MJCF, 'w') as f:
             f.write(original)
