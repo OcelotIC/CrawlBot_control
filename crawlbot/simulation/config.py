@@ -98,6 +98,15 @@ class SimConfig:
     # unchanged in SS and in legacy DS configurations.
     aocs_use_wrench_ff_in_ds: bool = False
 
+    # Trailing-DS settle: hold the torso at the *actual welded state* at
+    # the last SS dock instead of the dock-configuration IK target. The
+    # IK target solves "both tools at anchors" which is over-determined
+    # once both welds are active and yields a torso pose that is offset
+    # from the physical welded equilibrium (the 3.86° persistent ori
+    # error). Freezing at current state collapses the WBC's torso 6D
+    # task error and stops the QP from pushing on the welds.
+    ds_torso_ref_from_state: bool = False
+
     # Diagnostic: zero wheel torque during DS (Mode B still runs in SS).
     aocs_off_in_ds: bool = False
 

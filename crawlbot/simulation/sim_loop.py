@@ -1889,10 +1889,15 @@ class SimulationLoop:
                     pq, pv = mujoco_to_pinocchio(
                         self.mj_data.qpos, self.mj_data.qvel)
                     rs_hold = self.robot.update(pq, pv)
-                    if _abort_ds and cfg.diag_freeze_torso_ref_on_abort:
-                        # H_DS2 diagnostic override — freeze the hold target
-                        # at the actual torso pose at the last SS sample,
-                        # bypassing the both-tools-at-anchors IK.
+                    # Stage 3 (DS memo §6.3, §7.4): when on, hold at the
+                    # actual welded state, not the dock-IK target. The
+                    # dock-IK is the documented source of the persistent
+                    # ~3.86° torso ori error (it solves both-tools-at-
+                    # anchors, over-determined once welds are active).
+                    _use_state = (cfg.ds_torso_ref_from_state
+                                  or (_abort_ds
+                                      and cfg.diag_freeze_torso_ref_on_abort))
+                    if _use_state:
                         self.torso_planner.set_hold(
                             rs_hold.oMf_torso.translation.copy(),
                             rs_hold.oMf_torso.rotation.copy(),

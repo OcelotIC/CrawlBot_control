@@ -290,6 +290,10 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     # See AOCS code path; AOCS uses tau_struct_ff = −Σ(r_Ci × f_i + τ_i)
     # from λ_qp when this is on and phase=='DS'.
     cfg.aocs_use_wrench_ff_in_ds = True
+    # Stage 3 — trailing-DS torso reference uses the actual welded
+    # state instead of the both-tools-at-anchors IK that gave the
+    # persistent ~3.86° torso ori error.
+    cfg.ds_torso_ref_from_state = True
     # alpha_torso_ang stays at default 500 (set by _make_m7_config).
     # 5 evenly-spaced snapshots per SS for the offline renderer.
     # FRAMES_PER_STEP=0 disables capture entirely (e.g. for tests).
