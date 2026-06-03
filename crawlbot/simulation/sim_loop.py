@@ -782,6 +782,7 @@ class SimulationLoop:
             alpha_posture=ap, alpha_wrench=aw,
             alpha_reaction=ar_react,
             alpha_torque=1e0, alpha_reg=1e-2,
+            alpha_lambda_int=cfg.ss_alpha_lambda_int,
             Kp_com=np.diag([kpc]*3), Kd_com=np.diag([kdc]*3),
             # M7: torso P1 task uses uniform PD gains across all 6
             # dimensions. The legacy 0.6x angular scaling was a

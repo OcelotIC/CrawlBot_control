@@ -295,6 +295,13 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     # state instead of the both-tools-at-anchors IK that gave the
     # persistent ~3.86° torso ori error.
     cfg.ds_torso_ref_from_state = True
+    # DS internal-stress regularization on λ (welded grasp matrix).
+    # In DS the QP's 12-D contact-wrench has a 6-D internal-stress
+    # null space — combinations producing zero net wrench on the robot
+    # but a couple on the structure. Penalize the projection onto that
+    # null space at P4 to keep λ minimum-net-wrench. SS path unchanged
+    # (single contact ⇒ no internal-stress subspace).
+    cfg.ss_alpha_lambda_int = 1.0
     # alpha_torso_ang stays at default 500 (set by _make_m7_config).
     # 5 evenly-spaced snapshots per SS for the offline renderer.
     # FRAMES_PER_STEP=0 disables capture entirely (e.g. for tests).

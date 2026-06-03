@@ -235,6 +235,9 @@ class SimConfig:
     ss_alpha_posture: float = 2e1
     ss_alpha_wrench: float = 1e-2  # pure regularisation; 1e2 was penalising contact forces (the only actuation path through the stance weld) and attenuating the torso task 7x (see scripts/test_qp_tracking.py)
     ss_alpha_reaction: float = 0.0   # Reaction null-space (0 = disabled)
+    ss_alpha_lambda_int: float = 0.0  # Internal-stress regularization on
+    # the welded-loop λ in DS (both contacts active). No effect in SS
+    # (single contact has no internal-stress null space). 0 ⇒ legacy.
 
     # ── QP gains — Single-support ──────────────────────────────
     ss_Kp_com: float = 3.0

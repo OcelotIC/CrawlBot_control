@@ -83,6 +83,12 @@ class WholeBodyQPConfig:
     alpha_torque: float = 1e0     # Joint torque minimization
     alpha_reaction: float = 0.0   # Reaction null-space (minimize base disturbance from swing arm)
     alpha_reg: float = 1e-2       # Acceleration regularization (lowest)
+    alpha_lambda_int: float = 0.0  # Internal-stress regularization (DS only).
+    # ‖(I − G⁺G)·λ‖² where G (6×12) maps λ → net wrench on the structure.
+    # When >0 and both contacts active, drives the QP to pick the
+    # minimum-net-wrench λ — equivalent to zero internal preload on
+    # the welded loop. No effect in SS (only one contact ⇒ rank-6 λ,
+    # null space is empty). Default 0 ⇒ bit-identical legacy.
 
     # ── M2 stack: torso P1 + EE null-space P2 + posture P3 + soft CoM ──
     use_m2_stack: bool = False    # Enable M2 reworked task stack (§5.6-5.7)
@@ -965,6 +971,47 @@ class WholeBodyQP:
                         float(np.linalg.norm(delta_lambda)))
 
         qp.add_task(A_wrench, b_wrench, cfg.alpha_wrench, priority=4)
+
+        # --- Task 3c: DS internal-stress regularization ---
+        # In DS both grippers are welded → contact-wrench space is 12-D
+        # while only 6-D acts on the robot CoM dynamics. The remaining
+        # 6-D subspace is internal stress: combinations of (f_A, τ_A,
+        # f_B, τ_B) producing zero net wrench on the robot but a
+        # non-zero couple on the structure body. The QP has no other
+        # cost on this subspace (α_wrench=0.01 with λ_ref weak), so
+        # it picks an arbitrary internal-stress component; that
+        # arbitrariness is the suspected driver of the welded-redundancy
+        # drift observed in trailing-DS settle.
+        #
+        # G (6×12) maps λ → net wrench on the structure body (about
+        # struct CoM ≈ world origin at small struct rotation, which is
+        # our regime). (I − G⁺G) projects onto the 6-D internal-stress
+        # null space. We minimize the projection at low priority.
+        #
+        # Gated on cfg.alpha_lambda_int > 0 AND exactly two active
+        # contacts. In SS there's no internal-stress subspace (rank
+        # of G_struct is 6 = dim(λ)).
+        if (cfg.alpha_lambda_int > 0.0
+                and contact_config.nc == 2
+                and contact_config.active_contacts[0]
+                and contact_config.active_contacts[1]):
+            r_CA = contact_config.r_contact_A
+            r_CB = contact_config.r_contact_B
+            G = np.zeros((6, 12))
+            G[0:3, 0:3] = np.eye(3)     # f_A → net force
+            G[0:3, 6:9] = np.eye(3)     # f_B → net force
+            G[3:6, 0:3] = skew(r_CA)    # r_CA × f_A → torque about origin
+            G[3:6, 3:6] = np.eye(3)     # τ_A → torque
+            G[3:6, 6:9] = skew(r_CB)    # r_CB × f_B → torque about origin
+            G[3:6, 9:12] = np.eye(3)    # τ_B → torque
+            G_pinv = np.linalg.pinv(G, rcond=1e-8)
+            P_int = np.eye(12) - G_pinv @ G  # projector onto internal-stress
+
+            A_lint = np.zeros((12, n))
+            A_lint[:, idx['lambda'][0]: idx['lambda'][1]] = P_int
+            b_lint = np.zeros(12)
+            qp.add_task(A_lint, b_lint,
+                        cfg.alpha_lambda_int, priority=4)
 
         # --- Task 3b: Reaction null-space (minimize base disturbance from swing arm) ---
         # Penalizes ||H_bt @ qdd_swing||² where H_bt is the base-swing coupling.
