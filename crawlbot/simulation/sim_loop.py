@@ -2571,6 +2571,29 @@ class SimulationLoop:
                 transport_mag_last = float(
                     np.linalg.norm(np.cross(omega_s, H_rO_diag)))
 
+                # DS-only per-contact wrench feedforward (legacy_pid_* only):
+                # τ_w_FF = −Σ_i (r_Ci × f_i + τ_i) from λ_qp. Captures the
+                # internal-stress couple at the welded loop that the FD on
+                # L_com misses. r_Ci taken in struct body frame; λ_qp in
+                # world frame — equivalent at small structure-frame rotation
+                # (the regime we operate in; <5° transient).
+                tau_struct_ff_aocs = None
+                if (cfg.aocs_use_wrench_ff_in_ds
+                        and phase == 'DS'
+                        and cfg.aocs_mode in ('legacy_pid_numerical',
+                                              'legacy_pid_model')):
+                    _r_C = (self.sched.anchors_a[stance_a],
+                            self.sched.anchors_b[stance_b])
+                    _lam = np.asarray(lambda_qp_sol, dtype=float).ravel()
+                    _ff = np.zeros(3)
+                    for _ci in range(2):
+                        if not cc_nmpc.active_contacts[_ci]:
+                            continue
+                        _f = _lam[6 * _ci: 6 * _ci + 3]
+                        _tq = _lam[6 * _ci + 3: 6 * _ci + 6]
+                        _ff -= np.cross(_r_C[_ci], _f) + _tq
+                    tau_struct_ff_aocs = _ff
+
                 if cfg.aocs_off_in_ds and phase == 'DS':
                     tau_w_cmd = np.zeros(3)
                 elif cfg.aocs_mode == 'H_est' or cfg.aocs_use_H_estimator:
@@ -2677,7 +2700,8 @@ class SimulationLoop:
                             K_hw=cfg.aocs_K_hw, K_omega=cfg.aocs_K_omega,
                             K_d=cfg.aocs_K_d, K_theta=cfg.aocs_K_theta,
                             hw_min=cfg.hw_min, hw_max=cfg.hw_max,
-                            tau_w_max=cfg.aocs_tau_w_max)
+                            tau_w_max=cfg.aocs_tau_w_max,
+                            tau_struct_ff=tau_struct_ff_aocs)
                     else:
                         from crawlbot.aocs.force_estimator import (
                             compute_aocs_command_legacy_pid_model)
@@ -2693,7 +2717,8 @@ class SimulationLoop:
                             K_hw=cfg.aocs_K_hw, K_omega=cfg.aocs_K_omega,
                             K_d=cfg.aocs_K_d, K_theta=cfg.aocs_K_theta,
                             hw_min=cfg.hw_min, hw_max=cfg.hw_max,
-                            tau_w_max=cfg.aocs_tau_w_max)
+                            tau_w_max=cfg.aocs_tau_w_max,
+                            tau_struct_ff=tau_struct_ff_aocs)
                 else:
                     # Legacy AOCS: L_dot feedforward only (spin component).
                     # Desaturation sign matches compute_aocs_command_legacy_corrected

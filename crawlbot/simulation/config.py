@@ -90,6 +90,14 @@ class SimConfig:
     aocs_K_h: float = 0.5
     aocs_hw_target: np.ndarray = field(default_factory=lambda: np.zeros(3))
 
+    # DS-only: route the per-contact wrench feedforward through the AOCS
+    # instead of the FD-based Ḣ. In DS the welded loop carries internal
+    # stress whose couple on the structure is invisible to L_com (the
+    # FD-on-centroidal-momentum feedforward) but recoverable from λ_qp
+    # via −Σ_i (r_Ci × f_i + τ_i). Off by default ⇒ legacy AOCS behaviour
+    # unchanged in SS and in legacy DS configurations.
+    aocs_use_wrench_ff_in_ds: bool = False
+
     # Diagnostic: zero wheel torque during DS (Mode B still runs in SS).
     aocs_off_in_ds: bool = False
 

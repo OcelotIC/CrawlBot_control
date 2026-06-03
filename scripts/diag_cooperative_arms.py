@@ -285,6 +285,11 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
         cfg.aocs_mode = aocs_mode
         cfg.aocs_use_legacy_corrected = False
         cfg.aocs_use_H_estimator = (aocs_mode == 'H_est')
+    # Per-contact wrench feedforward in DS for legacy_pid_* modes — the
+    # FD-on-L_com Ḣ-FF misses the welded-loop internal-stress couple.
+    # See AOCS code path; AOCS uses tau_struct_ff = −Σ(r_Ci × f_i + τ_i)
+    # from λ_qp when this is on and phase=='DS'.
+    cfg.aocs_use_wrench_ff_in_ds = True
     # alpha_torso_ang stays at default 500 (set by _make_m7_config).
     # 5 evenly-spaced snapshots per SS for the offline renderer.
     # FRAMES_PER_STEP=0 disables capture entirely (e.g. for tests).
