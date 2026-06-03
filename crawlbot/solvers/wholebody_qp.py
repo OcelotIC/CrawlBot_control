@@ -743,7 +743,11 @@ class WholeBodyQP:
         b_ee = None
         A_ee_proj = None
         b_ee_res = None
-        if J_ee is not None and p_ee_ref is not None:
+        # The EE 6D task is the SWING arm — meaningless during DS where
+        # both arms are welded. Drop entirely in settle_mode per the DS
+        # task-stack rework (DS_ACTIVE_CONTROL_MEMO_2026-06.md §5).
+        # Stage 2 of that memo's rollout: WBC task-stack swap only.
+        if J_ee is not None and p_ee_ref is not None and not settle_mode:
             jdq_ee = Jdot_dq_ee if Jdot_dq_ee is not None else np.zeros(6)
 
             v_ee_actual = J_ee @ dq_robot  # (6,): [lin(3), ang(3)]
