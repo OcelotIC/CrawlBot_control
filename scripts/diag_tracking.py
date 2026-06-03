@@ -179,11 +179,19 @@ def main():
     # Position panel uses d_grip_swing — distance from the swing EE to its
     # target dock anchor. This converges toward zero as the EE reaches the
     # hotdock (the "tracking-to-target" view).
-    ax[0, 0].plot(t, d_grip_swing * 1000, 'C0', lw=0.9)
+    #
+    # NOTE: d_grip_swing is logged every tick but is only meaningful during
+    # SS (when an arm is actually swinging). During the trailing-DS settle
+    # the runner passes target_anchor=0 as a placeholder (sim_loop.py:1929),
+    # producing a constant ~4 m sentinel-like value (distance from the
+    # welded gripper at the far-rail anchor to anchor_0 on the opposite
+    # end). We mask SS-only here so the curve shows the actual convergence.
+    d_grip_ss = np.where(ss, d_grip_swing * 1000, np.nan)
+    ax[0, 0].plot(t, d_grip_ss, 'C0', lw=0.9)
     ax[0, 0].set_ylabel('d_grip [mm]')
-    ax[0, 0].set_title(f'Swing EE distance to target dock  '
-                       f'(SS-min {d_grip_swing[ss].min()*1000:.2f} mm at dock; '
-                       f'SS-peak {d_grip_swing[ss].max()*1000:.0f} mm)')
+    ax[0, 0].set_title(f'Swing EE → target dock  (SS-only; min '
+                       f'{d_grip_swing[ss].min()*1000:.2f} mm at dock, '
+                       f'peak {d_grip_swing[ss].max()*1000:.0f} mm)')
 
     ax[1, 0].plot(t, e_ee_ori, 'C0', lw=0.9)
     ax[1, 0].set_ylabel('Δori [deg]')
