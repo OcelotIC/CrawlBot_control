@@ -98,7 +98,12 @@ def main():
     dock_t = [e['t'] for e in sl['dock_events']]
 
     # EE-side
-    e_ee_pos = np.array(sl['e_ee_pos'])
+    # d_grip_swing = distance from the swing EE to its TARGET dock anchor
+    # (the hotdock the EE is converging to). This is the "tracking" signal
+    # the user wants: it shows the EE approaching the dock, decreasing
+    # monotonically through the swing rather than the noisier reference-
+    # trajectory error e_ee_pos.
+    d_grip_swing = np.array(sl['d_grip_swing'])
     e_ee_ori = np.array(sl['e_ee_ori'])
     p_ee_ref = np.array(sl['p_ee_ref'])
     q_ee_ref = np.array(sl['q_ee_ref'])
@@ -138,13 +143,14 @@ def main():
     # SS-only peaks (when tracking actually matters)
     ss = ph == 'SS'
     print(f'  SS-phase peak tracking errors:')
-    print(f'    swing EE  pos: peak {e_ee_pos[ss].max() * 1000:.2f} mm,  '
-          f'median {np.median(e_ee_pos[ss]) * 1000:.2f} mm')
-    print(f'    swing EE  ori: peak {e_ee_ori[ss].max():.3f} deg, '
+    print(f'    swing EE→target  : peak {d_grip_swing[ss].max() * 1000:.2f} mm, '
+          f'median {np.median(d_grip_swing[ss]) * 1000:.2f} mm, '
+          f'at-dock {d_grip_swing[ss].min() * 1000:.2f} mm (min)')
+    print(f'    swing EE  ori (vs ref): peak {e_ee_ori[ss].max():.3f} deg, '
           f'median {np.median(e_ee_ori[ss]):.3f} deg')
-    print(f'    torso     pos: peak {e_torso_pos[ss].max():.2f} mm,  '
+    print(f'    torso     pos (vs ref): peak {e_torso_pos[ss].max():.2f} mm, '
           f'median {np.median(e_torso_pos[ss]):.2f} mm')
-    print(f'    torso     ori: peak {e_torso_ori[ss].max():.3f} deg, '
+    print(f'    torso     ori (vs ref): peak {e_torso_ori[ss].max():.3f} deg, '
           f'median {np.median(e_torso_ori[ss]):.3f} deg')
     print()
     print(f'  SS-phase peak speeds:')
@@ -170,10 +176,14 @@ def main():
         a.grid(alpha=0.3)
 
     # Column 0: swing EE
-    ax[0, 0].plot(t, e_ee_pos * 1000, 'C0', lw=0.9)
-    ax[0, 0].set_ylabel('|Δp| [mm]')
-    ax[0, 0].set_title(f'Swing EE position error  (SS-peak '
-                       f'{e_ee_pos[ss].max()*1000:.1f} mm)')
+    # Position panel uses d_grip_swing — distance from the swing EE to its
+    # target dock anchor. This converges toward zero as the EE reaches the
+    # hotdock (the "tracking-to-target" view).
+    ax[0, 0].plot(t, d_grip_swing * 1000, 'C0', lw=0.9)
+    ax[0, 0].set_ylabel('d_grip [mm]')
+    ax[0, 0].set_title(f'Swing EE distance to target dock  '
+                       f'(SS-min {d_grip_swing[ss].min()*1000:.2f} mm at dock; '
+                       f'SS-peak {d_grip_swing[ss].max()*1000:.0f} mm)')
 
     ax[1, 0].plot(t, e_ee_ori, 'C0', lw=0.9)
     ax[1, 0].set_ylabel('Δori [deg]')
