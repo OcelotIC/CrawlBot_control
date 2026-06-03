@@ -641,9 +641,14 @@ class WholeBodyQP:
             # angular 3D subset — matching the inside-tube branch.
             # Stance-arm thrust still flows passively via the dynamics
             # equality (no explicit cost on stance thrust).
+            #
+            # In settle_mode the EE task is dropped (DS memo §5), so the
+            # angular/linear split has no co-equal partner. Fall through
+            # to the legacy full-6D-at-P1 branch instead — that is the
+            # actual "torso 6D as the only task" DS architecture.
             _coop_A_lin = None
             _coop_b_lin = None
-            if cfg.cooperative_arms_mode:
+            if cfg.cooperative_arms_mode and not settle_mode:
                 A_torso_ang = A_torso_full[3:, :]
                 b_torso_ang = b_torso_full[3:]
                 _coop_A_lin = A_torso_full[:3, :]
