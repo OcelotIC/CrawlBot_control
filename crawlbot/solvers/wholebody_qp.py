@@ -90,6 +90,17 @@ class WholeBodyQPConfig:
     # the welded loop. No effect in SS (only one contact ⇒ rank-6 λ,
     # null space is empty). Default 0 ⇒ bit-identical legacy.
 
+    # DS centroidal-control mode: when True and settle_mode is True,
+    # replaces the joint-vel-damping cost task (P1, weight 1000) with
+    # CoM 3D + torso angular 3D tracking tasks at P1, plus posture at
+    # P3. Energy dissipation is handled by the passivity *inequality*
+    # (not a cost), which the sim_loop activates concurrently. Default
+    # False ⇒ legacy behavior (joint-vel damping cost).
+    ds_centroidal_mode: bool = False
+    ds_alpha_com: float = 1e2
+    ds_alpha_torso_ori: float = 2e2
+    ds_alpha_posture: float = 5e1
+
     # ── M2 stack: torso P1 + EE null-space P2 + posture P3 + soft CoM ──
     use_m2_stack: bool = False    # Enable M2 reworked task stack (§5.6-5.7)
     alpha_com_soft: float = 5.0   # Soft CoM residual weight (1-10 per spec)
@@ -314,6 +325,7 @@ class WholeBodyQP:
         # M2 passivity constraint: enforce dq_j^T*tau_q + 2*alpha*T <= 0
         # Intended to be ON during DS phase only (see §3.6, §5.7).
         passivity_active: bool = False,
+        ds_centroidal_active: bool = False,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, QPSolveInfo]:
         """Solve the whole-body QP.
 
@@ -864,10 +876,14 @@ class WholeBodyQP:
 
         # --- Task 3: Posture regulation ---
         # q̈_posture = Kp_post (q_nom - q) + Kd_post (0 - dq)
-        # Skipped in settle_mode: the settle task (P1) already dampens
-        # all joint velocities, and at weight_ratio=1 the posture PD
-        # would interfere with that dissipation (T10 regression).
-        if not settle_mode:
+        # Skipped in settle_mode (legacy joint-vel-damping path) because
+        # the settle task already dampens velocities and posture would
+        # interfere (T10 regression). Re-enabled when ds_centroidal_mode
+        # since the joint-vel cost is gone — posture is needed to
+        # constrain the 2 arm-null-space DOFs.
+        _posture_in_ds = (settle_mode and cfg.ds_centroidal_mode
+                          and ds_centroidal_active)
+        if (not settle_mode) or _posture_in_ds:
             qdd_posture = (cfg.Kp_posture * (self._q_nominal - q) -
                            cfg.Kd_posture * dq)
 
@@ -910,11 +926,15 @@ class WholeBodyQP:
                 N_combo = np.eye(n) - A_combo_pinv @ A_combo
                 A_posture_proj = A_posture @ N_combo
                 b_posture_res = b_posture - A_posture @ A_combo_pinv @ b_combo
+                _post_w = (cfg.ds_alpha_posture if _posture_in_ds
+                           else cfg.alpha_posture)
                 qp.add_task(A_posture_proj, b_posture_res,
-                            cfg.alpha_posture, priority=3)
+                            _post_w, priority=3)
             else:
+                _post_w = (cfg.ds_alpha_posture if _posture_in_ds
+                           else cfg.alpha_posture)
                 qp.add_task(A_posture, b_posture,
-                            cfg.alpha_posture, priority=3)
+                            _post_w, priority=3)
 
         # --- Task 3b: DS joint-space settle (damp all velocities to zero) ---
         # In settle mode, torso/CoM tasks are skipped (they conflict with
@@ -922,11 +942,50 @@ class WholeBodyQP:
         # to zero via pure damping. No position term — with 8 DOF remaining
         # (6 base + 2 redundant from 7-DOF arms) and welds constraining the
         # EEs, the system can only stop at the current configuration.
-        if settle_mode:
+        #
+        # When cfg.ds_centroidal_mode is True, this cost task is REPLACED
+        # by CoM + torso-ori tracking at P1 (below), with energy
+        # dissipation handled by the passivity inequality (sim_loop
+        # activates passivity_active=True concurrently).
+        if settle_mode and not (cfg.ds_centroidal_mode and ds_centroidal_active):
             A_settle = np.zeros((nq, n))
             A_settle[:, idx['qdd'][0]: idx['qdd'][1]] = np.eye(nq)
             b_settle = -cfg.Kd_settle * dq
             qp.add_task(A_settle, b_settle, cfg.alpha_settle, priority=1)
+
+        # --- Centroidal-DS tasks (cfg.ds_centroidal_mode + settle_mode) ---
+        # 6-D centroidal tracking during DS: CoM 3D + torso angular 3D.
+        # The captured Stage 3 reference (r_torso_ref, R_torso_ref, r_com_ref)
+        # becomes load-bearing here. Energy dissipation is enforced by
+        # the passivity inequality (added below if passivity_active).
+        # The NMPC's planned a_com_ff is already in a_com_des.
+        if settle_mode and cfg.ds_centroidal_mode and ds_centroidal_active:
+            # CoM 3D task — reuses a_com_des / A_com computed earlier
+            # (always-on at the top of the task block).
+            qp.add_task(A_com, b_com, cfg.ds_alpha_com, priority=1)
+
+            # Torso angular 3D task — reuse the angular rows of the
+            # 6D torso target. Note torso_task_active is gated False
+            # by settle_mode, so a_torso_des / A_torso_full aren't
+            # computed; recompute the angular part here.
+            if (J_torso is not None and R_torso is not None
+                    and R_torso_ref is not None):
+                e_ori = pin.log3(R_torso.T @ R_torso_ref)
+                v_torso_actual = J_torso @ dq_robot  # (6,)
+                v_ref_t = (v_torso_ref if v_torso_ref is not None
+                           else np.zeros(6))
+                a_torso_ang_des = (
+                    np.diag(cfg.Kp_torso)[3:, 3:] @ e_ori
+                    + np.diag(cfg.Kd_torso)[3:, 3:] @ (
+                        v_ref_t[3:] - v_torso_actual[3:]))
+                jdq = (Jdot_dq_torso[3:] if Jdot_dq_torso is not None
+                       else np.zeros(3))
+                A_torso_ang = np.zeros((3, n))
+                A_torso_ang[:, idx['qdd_t'][0]: idx['qdd_t'][1]] = J_torso[3:, :6]
+                A_torso_ang[:, idx['qdd'][0]: idx['qdd'][1]] = J_torso[3:, 6:]
+                b_torso_ang = a_torso_ang_des - jdq
+                qp.add_task(A_torso_ang, b_torso_ang,
+                            cfg.ds_alpha_torso_ori, priority=1)
 
         # --- Task 3: Contact wrench tracking ---
         A_wrench = np.zeros((self._dim_lambda, n))

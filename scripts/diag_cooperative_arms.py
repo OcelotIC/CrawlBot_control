@@ -302,6 +302,11 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     # null space at P4 to keep λ minimum-net-wrench. SS path unchanged
     # (single contact ⇒ no internal-stress subspace).
     cfg.ss_alpha_lambda_int = 1.0
+    # DS centroidal-control mode: replace the joint-vel-damping cost
+    # with CoM + torso-ori tracking at P1, posture at P3, passivity
+    # inequality for energy dissipation. Closes the 8-DOF welded
+    # redundancy properly during trailing-DS settle.
+    cfg.ds_centroidal_mode = True
     # alpha_torso_ang stays at default 500 (set by _make_m7_config).
     # 5 evenly-spaced snapshots per SS for the offline renderer.
     # FRAMES_PER_STEP=0 disables capture entirely (e.g. for tests).

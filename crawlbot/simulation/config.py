@@ -239,6 +239,14 @@ class SimConfig:
     # the welded-loop λ in DS (both contacts active). No effect in SS
     # (single contact has no internal-stress null space). 0 ⇒ legacy.
 
+    # DS centroidal-control mode (replaces joint-vel-damping cost with
+    # CoM + torso-ori tracking at P1, posture at P3, passivity inequality
+    # for energy dissipation). Off by default ⇒ legacy joint-vel damping.
+    ds_centroidal_mode: bool = False
+    ds_alpha_com: float = 1e2
+    ds_alpha_torso_ori: float = 2e2
+    ds_alpha_posture: float = 5e1
+
     # ── QP gains — Single-support ──────────────────────────────
     ss_Kp_com: float = 3.0
     ss_Kd_com: float = 3.0

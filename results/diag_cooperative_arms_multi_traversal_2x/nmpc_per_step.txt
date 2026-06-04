@@ -1,13 +1,13 @@
 Step Phase    N iter_min iter_max iter_p95   t_max  t_mean fail  status_dist
 ----------------------------------------------------------------------------
-   0    SS   28       10       16       16    74.9    23.7    0  Solve_Succeeded:28
-   1    SS   85        6       14       12    33.5    16.5    0  Solve_Succeeded:85
-   2    SS   93       12       18       18    29.9    24.3    0  Solve_Succeeded:84, Solved_To_Acceptable_Level:9
-   3    SS   80        7       10       10    21.5    15.1    0  Solve_Succeeded:80
-   4    SS   41       12       19       18    28.8    23.0    0  Solve_Succeeded:40, Solved_To_Acceptable_Level:1
-   5    SS   61       10       19       17    30.4    21.1    0  Solve_Succeeded:61
-   6    SS   87        6       14       12    28.4    15.5    0  Solve_Succeeded:87
-   7    SS   67        7       11       11    22.1    16.3    0  Solve_Succeeded:67
-   8    SS   93        5        8        8    17.3    13.0    0  Solve_Succeeded:93
-   9    DS 1201        6       18       17    51.5    26.0    0  Solve_Succeeded:1136, Solved_To_Acceptable_Level:65
-   9    SS   67        6       14       13    23.5    17.4    0  Solve_Succeeded:67
+   0    SS   28       10       16       16    31.8    21.1    0  Solve_Succeeded:28
+   1    SS   85        6       14       12    35.0    16.5    0  Solve_Succeeded:85
+   2    SS   93       12       18       18    29.3    24.1    0  Solve_Succeeded:84, Solved_To_Acceptable_Level:9
+   3    SS   80        7       10       10    21.1    15.4    0  Solve_Succeeded:80
+   4    SS   41       12       19       18    29.3    23.4    0  Solve_Succeeded:40, Solved_To_Acceptable_Level:1
+   5    SS   61       10       19       17    32.9    20.7    0  Solve_Succeeded:61
+   6    SS   87        6       14       12    25.5    14.8    0  Solve_Succeeded:87
+   7    SS   67        7       11       11    18.8    15.7    0  Solve_Succeeded:67
+   8    SS   93        5        8        8    15.6    12.8    0  Solve_Succeeded:93
+   9    DS 1201        7       14        8    26.8    14.2    0  Solve_Succeeded:1201
+   9    SS   67        6       14       13    24.1    17.2    0  Solve_Succeeded:67

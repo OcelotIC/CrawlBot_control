@@ -783,6 +783,10 @@ class SimulationLoop:
             alpha_reaction=ar_react,
             alpha_torque=1e0, alpha_reg=1e-2,
             alpha_lambda_int=cfg.ss_alpha_lambda_int,
+            ds_centroidal_mode=cfg.ds_centroidal_mode,
+            ds_alpha_com=cfg.ds_alpha_com,
+            ds_alpha_torso_ori=cfg.ds_alpha_torso_ori,
+            ds_alpha_posture=cfg.ds_alpha_posture,
             Kp_com=np.diag([kpc]*3), Kd_com=np.diag([kdc]*3),
             # M7: torso P1 task uses uniform PD gains across all 6
             # dimensions. The legacy 0.6x angular scaling was a
@@ -1943,10 +1947,17 @@ class SimulationLoop:
                     # H_DS3 diagnostic override — disable the passivity
                     # inequality for trailing DS post-abort (_step reads this
                     # via the passivity_override kwarg).
-                    _pass_override = (
-                        False if (_abort_ds and cfg.diag_disable_passivity_on_abort)
-                        else None
-                    )
+                    # When ds_centroidal_mode is on, the trailing-DS
+                    # settle uses the passivity inequality for energy
+                    # dissipation (replacing the joint-vel-damping cost),
+                    # so we force it ON regardless of the abort flag.
+                    if cfg.ds_centroidal_mode:
+                        _pass_override = True
+                    else:
+                        _pass_override = (
+                            False if (_abort_ds and cfg.diag_disable_passivity_on_abort)
+                            else None
+                        )
 
                     while t < t_ds_settle:
                         hw, L_com_prev = self._step(
@@ -1954,7 +1965,8 @@ class SimulationLoop:
                             cc_ds, 0, last_sa, last_sb,
                             hw, L_com_prev, log, ss_end=t,
                             settle_mode=True,
-                            passivity_override=_pass_override)
+                            passivity_override=_pass_override,
+                            ds_centroidal_active=cfg.ds_centroidal_mode)
                         t += cfg.dt_nmpc
 
                     i += 1
@@ -1991,7 +2003,8 @@ class SimulationLoop:
               cc_ss, target_anchor, stance_a, stance_b,
               hw, L_com_prev, log, ss_end=None, settle_mode=False,
               passivity_hold: bool = False,
-              passivity_override=None):
+              passivity_override=None,
+              ds_centroidal_active: bool = False):
         """Single NMPC+QP step.  All quantities are in structure frame.
 
         Parameters
@@ -2440,6 +2453,7 @@ class SimulationLoop:
                     H_base_swing=H_bs, swing_v_slice=sw_slice,
                     settle_mode=settle_mode,
                     passivity_active=passivity_active,
+                    ds_centroidal_active=ds_centroidal_active,
                     **tkw, **ek)
             except Exception as _qp_exc:
                 # Surface QP failures (silent swallow -> zero torque is
