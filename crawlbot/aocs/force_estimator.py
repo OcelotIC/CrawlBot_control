@@ -530,6 +530,7 @@ def compute_aocs_command_legacy_pid_numerical(
     hw_min: np.ndarray = None,
     hw_max: np.ndarray = None,
     tau_w_max: float = 5.0,
+    tau_struct_ff: np.ndarray = None,
 ) -> np.ndarray:
     """Legacy-corrected AOCS + PID on attitude (numerical ω̇_s).
 
@@ -571,15 +572,26 @@ def compute_aocs_command_legacy_pid_numerical(
     if hw_max is None:
         hw_max = np.full(3, np.inf)
 
-    L_dot_est = (L_com - L_com_prev) / dt
-    dv_com_est = (v_com - v_com_prev) / dt
-    orbital = np.cross(r_com, robot_mass * dv_com_est)
     hw_error = np.clip(hw_current, hw_min, hw_max) - hw_current
-
     omega_dot_est = (omega_s - omega_s_prev) / dt
     pid_term = K_theta * theta_s + K_omega * omega_s + K_d * omega_dot_est
 
-    tau_w = -L_dot_est - orbital + K_hw * hw_error + pid_term
+    if tau_struct_ff is None:
+        # Kinematic feedforward via FD on robot centroidal momentum.
+        # Complete only when the robot is kinematically free at the
+        # contact (SS). In DS the welded loop carries internal stress
+        # that contributes a couple (r_CA−r_CB)×f on the structure
+        # invisible to L_com — see compute_aocs_command_wrench_ff below.
+        L_dot_est = (L_com - L_com_prev) / dt
+        dv_com_est = (v_com - v_com_prev) / dt
+        orbital = np.cross(r_com, robot_mass * dv_com_est)
+        ff_term = -L_dot_est - orbital
+    else:
+        # Direct wrench feedforward: τ_w = −Σ_i (r_Ci × f_i + τ_i),
+        # already signed and summed by the caller from λ_qp.
+        ff_term = tau_struct_ff
+
+    tau_w = ff_term + K_hw * hw_error + pid_term
     return np.clip(tau_w, -tau_w_max, tau_w_max)
 
 
@@ -603,6 +615,7 @@ def compute_aocs_command_legacy_pid_model(
     hw_min: np.ndarray = None,
     hw_max: np.ndarray = None,
     tau_w_max: float = 5.0,
+    tau_struct_ff: np.ndarray = None,
 ) -> np.ndarray:
     """Legacy-corrected AOCS + PID on attitude (model-based ω̇_s).
 
@@ -621,11 +634,20 @@ def compute_aocs_command_legacy_pid_model(
     if hw_max is None:
         hw_max = np.full(3, np.inf)
 
-    L_dot_est = (L_com - L_com_prev) / dt
-    dv_com_est = (v_com - v_com_prev) / dt
-    orbital = np.cross(r_com, robot_mass * dv_com_est)
-    H_dot_est = L_dot_est + orbital
     hw_error = np.clip(hw_current, hw_min, hw_max) - hw_current
+
+    if tau_struct_ff is None:
+        # FD-based Ḣ feedforward (kinematic; complete in SS only).
+        L_dot_est = (L_com - L_com_prev) / dt
+        dv_com_est = (v_com - v_com_prev) / dt
+        orbital = np.cross(r_com, robot_mass * dv_com_est)
+        H_dot_est = L_dot_est + orbital
+    else:
+        # Direct wrench feedforward (DS-correct): tau_struct_ff = -Ḣ_robot
+        # computed by the caller from λ_qp. The model-based ω̇ estimate
+        # uses H_dot_est = -tau_struct_ff (matches the SS conservation
+        # identity Ḣ_robot = -tau_struct_ff used in the FD branch).
+        H_dot_est = -tau_struct_ff
 
     omega_dot_est = (-H_dot_est - tau_w_prev) / np.maximum(I_struct, 1e-9)
     pid_term = K_theta * theta_s + K_omega * omega_s + K_d * omega_dot_est

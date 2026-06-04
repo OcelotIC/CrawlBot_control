@@ -240,7 +240,8 @@ def _nmpc_table(step_log, out_path):
 def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
          mass_ratio: float = 0.01, aocs_mode: str = 'legacy_corrected',
          settle_seconds: float = 20.0, K_theta: float = 1.0,
-         K_omega: float = 50.0, tau_w_max: float = 5.0):
+         K_omega: float = 50.0, tau_w_max: float = 5.0,
+         scenario: str = None, baseline_ds_rework: bool = False):
     cfg = r_single._make_m7_config()
     cfg.gait_anchor_dx = anchor_dx
     # Sweet-spot config carry-over (these are also already the defaults
@@ -285,10 +286,41 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
         cfg.aocs_mode = aocs_mode
         cfg.aocs_use_legacy_corrected = False
         cfg.aocs_use_H_estimator = (aocs_mode == 'H_est')
+    # Per-contact wrench feedforward in DS for legacy_pid_* modes — the
+    # FD-on-L_com Ḣ-FF misses the welded-loop internal-stress couple.
+    # See AOCS code path; AOCS uses tau_struct_ff = −Σ(r_Ci × f_i + τ_i)
+    # from λ_qp when this is on and phase=='DS'.
+    cfg.aocs_use_wrench_ff_in_ds = True
+    # Stage 3 — trailing-DS torso reference uses the actual welded
+    # state instead of the both-tools-at-anchors IK that gave the
+    # persistent ~3.86° torso ori error.
+    cfg.ds_torso_ref_from_state = True
+    # DS internal-stress regularization on λ (welded grasp matrix).
+    # In DS the QP's 12-D contact-wrench has a 6-D internal-stress
+    # null space — combinations producing zero net wrench on the robot
+    # but a couple on the structure. Penalize the projection onto that
+    # null space at P4 to keep λ minimum-net-wrench. SS path unchanged
+    # (single contact ⇒ no internal-stress subspace).
+    cfg.ss_alpha_lambda_int = 1.0
+    # DS centroidal-control mode: replace the joint-vel-damping cost
+    # with CoM + torso-ori tracking at P1, posture at P3, passivity
+    # inequality for energy dissipation. Closes the 8-DOF welded
+    # redundancy properly during trailing-DS settle.
+    cfg.ds_centroidal_mode = True
+
+    # --- DS-rework baseline override ----------------------------------
+    # When --baseline_ds_rework is set, flip every DS-rework feature
+    # OFF to reproduce the pre-rework behaviour. Used to generate the
+    # comparison baseline for the DS_REWORK_CENTROIDAL_2026-06 memo.
+    if baseline_ds_rework:
+        cfg.aocs_use_wrench_ff_in_ds = False
+        cfg.ds_torso_ref_from_state = False
+        cfg.ss_alpha_lambda_int = 0.0
+        cfg.ds_centroidal_mode = False
     # alpha_torso_ang stays at default 500 (set by _make_m7_config).
     # 5 evenly-spaced snapshots per SS for the offline renderer.
     # FRAMES_PER_STEP=0 disables capture entirely (e.g. for tests).
-    cfg.frames_per_step = int(os.environ.get('FRAMES_PER_STEP', '6'))
+    cfg.frames_per_step = int(os.environ.get('FRAMES_PER_STEP', '5'))
 
     # Startup-IK regularizers (canonical defaults applied at runner
     # level so other scripts/tests keep the legacy free-rotation IK):
@@ -320,7 +352,16 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
         -0.751390, -0.251893,  1.332349])
     cfg.ik_w_posture = 0.2
 
-    if legacy:
+    if scenario is not None:
+        # Route to a per-scenario subdir, using the file stem as the
+        # tag. E.g. scenarios/canonical_3step.seq → diag_cooperative_arms_3step.
+        _stem = os.path.splitext(os.path.basename(scenario))[0]
+        _stem = _stem.replace('canonical_', '')
+        if baseline_ds_rework:
+            _stem += '_baseline'
+        out_dir = os.path.join(_root, 'results',
+                               f'diag_cooperative_arms_{_stem}')
+    elif legacy:
         out_dir = os.path.join(_root, 'results',
                                'diag_cooperative_arms_legacy')
     elif abs(mass_ratio - 0.01) > 1e-9:
@@ -353,7 +394,10 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     URDF = os.path.join(_root, 'models', 'VISPA_crawling_fixed.urdf')
 
     sim = SimulationLoop(mjcf_path=MJCF, urdf_path=URDF, config=cfg)
-    sim.setup(n_steps=5, start_a=2, start_b=2)
+    if scenario is not None:
+        sim.setup(sequence_path=scenario)
+    else:
+        sim.setup(n_steps=5, start_a=2, start_b=2)
     sim._debug_l_com_ref_trace_limit = 5
     sim._debug_physics_trace_limit = 400
     sim._debug_physics_sample_every = 2
@@ -384,6 +428,29 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
 
     os.makedirs(out_dir, exist_ok=True)
     log.save(os.path.join(out_dir, 'sim_log.json'))
+    # Augment sim_log with the GaitPlan so the renderer can derive
+    # per-step swing targets / stance pairs for arbitrary scenarios
+    # (not just the canonical 5-step). Cheap append to the JSON.
+    try:
+        _slp = os.path.join(out_dir, 'sim_log.json')
+        with open(_slp) as _fh:
+            _sl = __import__('json').load(_fh)
+        _sl['gait_plan'] = {
+            'start_a': int(sim.plan.phases[0].anchor_a_idx),
+            'start_b': int(sim.plan.phases[0].anchor_b_idx),
+            'phases': [
+                {'phase': p.phase.name,
+                 'anchor_a_idx': int(p.anchor_a_idx),
+                 'anchor_b_idx': int(p.anchor_b_idx),
+                 'swing_arm': p.swing_arm,
+                 'swing_from_idx': int(p.swing_from_idx),
+                 'swing_to_idx': int(p.swing_to_idx)}
+                for p in sim.plan.phases],
+        }
+        with open(_slp, 'w') as _fh:
+            __import__('json').dump(_sl, _fh)
+    except Exception:
+        pass
     with open(os.path.join(out_dir, 'step_log.json'), 'w') as f:
         json.dump(sim._step2_diag_log, f, indent=2)
 
@@ -398,7 +465,7 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
         json.dump(sim._step_q_end_log, f, indent=2, default=_json_default)
 
     text_metrics = _step_metrics_table(
-        log, sim._step2_diag_log, 5,
+        log, sim._step2_diag_log, len(sim.plan.phases) // 2,
         os.path.join(out_dir, 'step_metrics.txt'))
     print('\n=== Per-step outcomes ===\n' + text_metrics)
 
@@ -463,7 +530,8 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
         print('[render] invoking scripts/render_traversal.py ...')
         r = subprocess.run(
             ['python3', os.path.join(_root, 'scripts',
-                                     'render_traversal.py')],
+                                     'render_traversal.py'),
+             os.path.join(out_dir, 'sim_log.json')],
             env=env, capture_output=True, text=True)
         # Print only the final line + any error so the parent log
         # stays compact (the renderer logs every frame on its own).
@@ -522,6 +590,17 @@ if __name__ == '__main__':
                              'AND cfg.aocs_tau_w_max (AOCS command clip) '
                              'so the two contracts stay in lock-step. '
                              'Use to stress-test wheel sizing.')
+    parser.add_argument('--scenario', type=str, default=None,
+                        help='Path to a locomotion-sequence .seq file '
+                             '(see scenarios/). When set, overrides the '
+                             'default 5-step plan with the file-defined '
+                             'gait. Anchor names use MJCF site names '
+                             '(e.g. anchor_4b).')
+    parser.add_argument('--baseline_ds_rework', action='store_true',
+                        help='Flip every DS-rework feature OFF '
+                             '(wrench-FF / Stage3 ref / internal-stress '
+                             '/ centroidal-DS). Reproduces pre-rework '
+                             'behaviour for comparison plotting.')
     args = parser.parse_args()
 
     with open(MJCF, 'r') as f:
@@ -534,7 +613,9 @@ if __name__ == '__main__':
                      mass_ratio=args.mass_ratio)
         main(args.legacy, args.alpha_torso_lin, args.anchor_dx,
              args.mass_ratio, args.aocs_mode, args.settle_seconds,
-             args.K_theta, args.K_omega, args.tau_w_max)
+             args.K_theta, args.K_omega, args.tau_w_max,
+             scenario=args.scenario,
+             baseline_ds_rework=args.baseline_ds_rework)
     finally:
         with open(MJCF, 'w') as f:
             f.write(original)

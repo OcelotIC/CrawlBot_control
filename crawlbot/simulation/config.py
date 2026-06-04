@@ -90,6 +90,23 @@ class SimConfig:
     aocs_K_h: float = 0.5
     aocs_hw_target: np.ndarray = field(default_factory=lambda: np.zeros(3))
 
+    # DS-only: route the per-contact wrench feedforward through the AOCS
+    # instead of the FD-based Ḣ. In DS the welded loop carries internal
+    # stress whose couple on the structure is invisible to L_com (the
+    # FD-on-centroidal-momentum feedforward) but recoverable from λ_qp
+    # via −Σ_i (r_Ci × f_i + τ_i). Off by default ⇒ legacy AOCS behaviour
+    # unchanged in SS and in legacy DS configurations.
+    aocs_use_wrench_ff_in_ds: bool = False
+
+    # Trailing-DS settle: hold the torso at the *actual welded state* at
+    # the last SS dock instead of the dock-configuration IK target. The
+    # IK target solves "both tools at anchors" which is over-determined
+    # once both welds are active and yields a torso pose that is offset
+    # from the physical welded equilibrium (the 3.86° persistent ori
+    # error). Freezing at current state collapses the WBC's torso 6D
+    # task error and stops the QP from pushing on the welds.
+    ds_torso_ref_from_state: bool = False
+
     # Diagnostic: zero wheel torque during DS (Mode B still runs in SS).
     aocs_off_in_ds: bool = False
 
@@ -218,6 +235,17 @@ class SimConfig:
     ss_alpha_posture: float = 2e1
     ss_alpha_wrench: float = 1e-2  # pure regularisation; 1e2 was penalising contact forces (the only actuation path through the stance weld) and attenuating the torso task 7x (see scripts/test_qp_tracking.py)
     ss_alpha_reaction: float = 0.0   # Reaction null-space (0 = disabled)
+    ss_alpha_lambda_int: float = 0.0  # Internal-stress regularization on
+    # the welded-loop λ in DS (both contacts active). No effect in SS
+    # (single contact has no internal-stress null space). 0 ⇒ legacy.
+
+    # DS centroidal-control mode (replaces joint-vel-damping cost with
+    # CoM + torso-ori tracking at P1, posture at P3, passivity inequality
+    # for energy dissipation). Off by default ⇒ legacy joint-vel damping.
+    ds_centroidal_mode: bool = False
+    ds_alpha_com: float = 1e2
+    ds_alpha_torso_ori: float = 2e2
+    ds_alpha_posture: float = 5e1
 
     # ── QP gains — Single-support ──────────────────────────────
     ss_Kp_com: float = 3.0

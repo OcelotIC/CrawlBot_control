@@ -187,8 +187,14 @@ class SimulationLoop:
 
     # ── Setup ────────────────────────────────────────────────────────────
 
-    def setup(self, n_steps: int = 3, start_a: int = 2, start_b: int = 2):
-        """Initialize all components."""
+    def setup(self, n_steps: int = 3, start_a: int = 2, start_b: int = 2,
+              sequence_path: str = None):
+        """Initialize all components.
+
+        If ``sequence_path`` is provided, the gait plan is built from
+        that ``.seq`` file (see ``crawlbot.planning.sequence_loader``)
+        and ``n_steps`` / ``start_a`` / ``start_b`` are ignored.
+        """
         cfg = self.cfg
 
         # MuJoCo
@@ -236,8 +242,20 @@ class SimulationLoop:
         self.sched = ContactScheduler(
             anchors_a=anchors_a_local, anchors_b=anchors_b_local,
             dt_ds=0.5, dt_ss=0.0)
-        self.plan = self.sched.plan_traversal(
-            start_a=start_a, start_b=start_b, n_steps=n_steps)
+        if sequence_path is not None:
+            from crawlbot.planning.sequence_loader import (
+                load_sequence, plan_from_sequence)
+            seq = load_sequence(sequence_path,
+                                n_anchors=len(anchors_a_local))
+            self.plan = plan_from_sequence(self.sched, seq)
+            start_a = seq.start_a
+            start_b = seq.start_b
+            n_steps = len(seq.swing_targets)
+            self._sequence_path = sequence_path
+        else:
+            self.plan = self.sched.plan_traversal(
+                start_a=start_a, start_b=start_b, n_steps=n_steps)
+            self._sequence_path = None
 
         # Swing planner (anchors already in structure frame — no transforms needed)
         self.swing_planner = SwingPlanner(
@@ -764,6 +782,11 @@ class SimulationLoop:
             alpha_posture=ap, alpha_wrench=aw,
             alpha_reaction=ar_react,
             alpha_torque=1e0, alpha_reg=1e-2,
+            alpha_lambda_int=cfg.ss_alpha_lambda_int,
+            ds_centroidal_mode=cfg.ds_centroidal_mode,
+            ds_alpha_com=cfg.ds_alpha_com,
+            ds_alpha_torso_ori=cfg.ds_alpha_torso_ori,
+            ds_alpha_posture=cfg.ds_alpha_posture,
             Kp_com=np.diag([kpc]*3), Kd_com=np.diag([kdc]*3),
             # M7: torso P1 task uses uniform PD gains across all 6
             # dimensions. The legacy 0.6x angular scaling was a
@@ -1889,10 +1912,15 @@ class SimulationLoop:
                     pq, pv = mujoco_to_pinocchio(
                         self.mj_data.qpos, self.mj_data.qvel)
                     rs_hold = self.robot.update(pq, pv)
-                    if _abort_ds and cfg.diag_freeze_torso_ref_on_abort:
-                        # H_DS2 diagnostic override — freeze the hold target
-                        # at the actual torso pose at the last SS sample,
-                        # bypassing the both-tools-at-anchors IK.
+                    # Stage 3 (DS memo §6.3, §7.4): when on, hold at the
+                    # actual welded state, not the dock-IK target. The
+                    # dock-IK is the documented source of the persistent
+                    # ~3.86° torso ori error (it solves both-tools-at-
+                    # anchors, over-determined once welds are active).
+                    _use_state = (cfg.ds_torso_ref_from_state
+                                  or (_abort_ds
+                                      and cfg.diag_freeze_torso_ref_on_abort))
+                    if _use_state:
                         self.torso_planner.set_hold(
                             rs_hold.oMf_torso.translation.copy(),
                             rs_hold.oMf_torso.rotation.copy(),
@@ -1919,10 +1947,17 @@ class SimulationLoop:
                     # H_DS3 diagnostic override — disable the passivity
                     # inequality for trailing DS post-abort (_step reads this
                     # via the passivity_override kwarg).
-                    _pass_override = (
-                        False if (_abort_ds and cfg.diag_disable_passivity_on_abort)
-                        else None
-                    )
+                    # When ds_centroidal_mode is on, the trailing-DS
+                    # settle uses the passivity inequality for energy
+                    # dissipation (replacing the joint-vel-damping cost),
+                    # so we force it ON regardless of the abort flag.
+                    if cfg.ds_centroidal_mode:
+                        _pass_override = True
+                    else:
+                        _pass_override = (
+                            False if (_abort_ds and cfg.diag_disable_passivity_on_abort)
+                            else None
+                        )
 
                     while t < t_ds_settle:
                         hw, L_com_prev = self._step(
@@ -1930,7 +1965,8 @@ class SimulationLoop:
                             cc_ds, 0, last_sa, last_sb,
                             hw, L_com_prev, log, ss_end=t,
                             settle_mode=True,
-                            passivity_override=_pass_override)
+                            passivity_override=_pass_override,
+                            ds_centroidal_active=cfg.ds_centroidal_mode)
                         t += cfg.dt_nmpc
 
                     i += 1
@@ -1967,7 +2003,8 @@ class SimulationLoop:
               cc_ss, target_anchor, stance_a, stance_b,
               hw, L_com_prev, log, ss_end=None, settle_mode=False,
               passivity_hold: bool = False,
-              passivity_override=None):
+              passivity_override=None,
+              ds_centroidal_active: bool = False):
         """Single NMPC+QP step.  All quantities are in structure frame.
 
         Parameters
@@ -2416,6 +2453,7 @@ class SimulationLoop:
                     H_base_swing=H_bs, swing_v_slice=sw_slice,
                     settle_mode=settle_mode,
                     passivity_active=passivity_active,
+                    ds_centroidal_active=ds_centroidal_active,
                     **tkw, **ek)
             except Exception as _qp_exc:
                 # Surface QP failures (silent swallow -> zero torque is
@@ -2571,6 +2609,29 @@ class SimulationLoop:
                 transport_mag_last = float(
                     np.linalg.norm(np.cross(omega_s, H_rO_diag)))
 
+                # DS-only per-contact wrench feedforward (legacy_pid_* only):
+                # τ_w_FF = −Σ_i (r_Ci × f_i + τ_i) from λ_qp. Captures the
+                # internal-stress couple at the welded loop that the FD on
+                # L_com misses. r_Ci taken in struct body frame; λ_qp in
+                # world frame — equivalent at small structure-frame rotation
+                # (the regime we operate in; <5° transient).
+                tau_struct_ff_aocs = None
+                if (cfg.aocs_use_wrench_ff_in_ds
+                        and phase == 'DS'
+                        and cfg.aocs_mode in ('legacy_pid_numerical',
+                                              'legacy_pid_model')):
+                    _r_C = (self.sched.anchors_a[stance_a],
+                            self.sched.anchors_b[stance_b])
+                    _lam = np.asarray(lambda_qp_sol, dtype=float).ravel()
+                    _ff = np.zeros(3)
+                    for _ci in range(2):
+                        if not cc_nmpc.active_contacts[_ci]:
+                            continue
+                        _f = _lam[6 * _ci: 6 * _ci + 3]
+                        _tq = _lam[6 * _ci + 3: 6 * _ci + 6]
+                        _ff -= np.cross(_r_C[_ci], _f) + _tq
+                    tau_struct_ff_aocs = _ff
+
                 if cfg.aocs_off_in_ds and phase == 'DS':
                     tau_w_cmd = np.zeros(3)
                 elif cfg.aocs_mode == 'H_est' or cfg.aocs_use_H_estimator:
@@ -2677,7 +2738,8 @@ class SimulationLoop:
                             K_hw=cfg.aocs_K_hw, K_omega=cfg.aocs_K_omega,
                             K_d=cfg.aocs_K_d, K_theta=cfg.aocs_K_theta,
                             hw_min=cfg.hw_min, hw_max=cfg.hw_max,
-                            tau_w_max=cfg.aocs_tau_w_max)
+                            tau_w_max=cfg.aocs_tau_w_max,
+                            tau_struct_ff=tau_struct_ff_aocs)
                     else:
                         from crawlbot.aocs.force_estimator import (
                             compute_aocs_command_legacy_pid_model)
@@ -2693,7 +2755,8 @@ class SimulationLoop:
                             K_hw=cfg.aocs_K_hw, K_omega=cfg.aocs_K_omega,
                             K_d=cfg.aocs_K_d, K_theta=cfg.aocs_K_theta,
                             hw_min=cfg.hw_min, hw_max=cfg.hw_max,
-                            tau_w_max=cfg.aocs_tau_w_max)
+                            tau_w_max=cfg.aocs_tau_w_max,
+                            tau_struct_ff=tau_struct_ff_aocs)
                 else:
                     # Legacy AOCS: L_dot feedforward only (spin component).
                     # Desaturation sign matches compute_aocs_command_legacy_corrected
