@@ -37,7 +37,8 @@ sys.path.insert(0, _root)
 from crawlbot.planning.contact_scheduler import ContactScheduler  # noqa: E402
 
 MJCF = os.path.join(_root, 'models', 'VISPA_crawling_rwa3.xml')
-SIMLOG = os.path.join(_root, 'results', 'diag_cooperative_arms', 'sim_log.json')
+_default_simlog = os.path.join(_root, 'results', 'diag_cooperative_arms', 'sim_log.json')
+SIMLOG = sys.argv[1] if len(sys.argv) > 1 else _default_simlog
 FRAMES_DIR = os.path.join(_root, 'results', 'frames')
 OVERVIEW_PNG = os.path.join(_root, 'results', 't15fk_traversal_overview.png')
 WIDTH, HEIGHT = 1280, 720
@@ -207,10 +208,33 @@ def main():
     #   step 0: swing=b, target_b=3 -> stance pair (a=2, b=3) afterward
     #   step 1: swing=a, target_a=3 -> stance pair (a=3, b=3) afterward
     #   step 2: swing=b, target_b=4 -> stance pair (a=3, b=4) afterward
-    plan_targets = {0: ('b', 3), 1: ('a', 3), 2: ('b', 4),
-                    3: ('a', 4), 4: ('b', 5)}
-    stance_pair_before = {0: (2, 2), 1: (2, 3), 2: (3, 3),
-                          3: (3, 4), 4: (4, 4)}
+    # Derive per-step swing target + pre-swing stance pair from the
+    # logged GaitPlan when available; fall back to the 5-step canonical
+    # gait for older logs. Each entry: step_idx → (swing_arm, target_idx).
+    gait_plan = log.get('gait_plan', None)
+    plan_targets = {}
+    stance_pair_before = {}
+    if gait_plan and 'phases' in gait_plan:
+        ia0, ib0 = gait_plan.get('start_a', 2), gait_plan.get('start_b', 2)
+        ia, ib = ia0, ib0
+        step_i = 0
+        for ph in gait_plan['phases']:
+            if ph.get('phase') == 'SINGLE_A':
+                plan_targets[step_i] = ('b', ph['swing_to_idx'])
+                stance_pair_before[step_i] = (ia, ib)
+                ib = ph['swing_to_idx']
+                step_i += 1
+            elif ph.get('phase') == 'SINGLE_B':
+                plan_targets[step_i] = ('a', ph['swing_to_idx'])
+                stance_pair_before[step_i] = (ia, ib)
+                ia = ph['swing_to_idx']
+                step_i += 1
+    if not plan_targets:
+        # Fallback to canonical 5-step
+        plan_targets = {0: ('b', 3), 1: ('a', 3), 2: ('b', 4),
+                        3: ('a', 4), 4: ('b', 5)}
+        stance_pair_before = {0: (2, 2), 1: (2, 3), 2: (3, 3),
+                              3: (3, 4), 4: (4, 4)}
 
     def anchor_pos(arm: str, idx: int) -> np.ndarray:
         lst = sched.anchors_a if arm == 'a' else sched.anchors_b

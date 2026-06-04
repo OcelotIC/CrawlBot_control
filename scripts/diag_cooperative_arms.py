@@ -310,7 +310,7 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     # alpha_torso_ang stays at default 500 (set by _make_m7_config).
     # 5 evenly-spaced snapshots per SS for the offline renderer.
     # FRAMES_PER_STEP=0 disables capture entirely (e.g. for tests).
-    cfg.frames_per_step = int(os.environ.get('FRAMES_PER_STEP', '6'))
+    cfg.frames_per_step = int(os.environ.get('FRAMES_PER_STEP', '5'))
 
     # Startup-IK regularizers (canonical defaults applied at runner
     # level so other scripts/tests keep the legacy free-rotation IK):
@@ -416,6 +416,29 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
 
     os.makedirs(out_dir, exist_ok=True)
     log.save(os.path.join(out_dir, 'sim_log.json'))
+    # Augment sim_log with the GaitPlan so the renderer can derive
+    # per-step swing targets / stance pairs for arbitrary scenarios
+    # (not just the canonical 5-step). Cheap append to the JSON.
+    try:
+        _slp = os.path.join(out_dir, 'sim_log.json')
+        with open(_slp) as _fh:
+            _sl = __import__('json').load(_fh)
+        _sl['gait_plan'] = {
+            'start_a': int(sim.plan.phases[0].anchor_a_idx),
+            'start_b': int(sim.plan.phases[0].anchor_b_idx),
+            'phases': [
+                {'phase': p.phase.name,
+                 'anchor_a_idx': int(p.anchor_a_idx),
+                 'anchor_b_idx': int(p.anchor_b_idx),
+                 'swing_arm': p.swing_arm,
+                 'swing_from_idx': int(p.swing_from_idx),
+                 'swing_to_idx': int(p.swing_to_idx)}
+                for p in sim.plan.phases],
+        }
+        with open(_slp, 'w') as _fh:
+            __import__('json').dump(_sl, _fh)
+    except Exception:
+        pass
     with open(os.path.join(out_dir, 'step_log.json'), 'w') as f:
         json.dump(sim._step2_diag_log, f, indent=2)
 
@@ -495,7 +518,8 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
         print('[render] invoking scripts/render_traversal.py ...')
         r = subprocess.run(
             ['python3', os.path.join(_root, 'scripts',
-                                     'render_traversal.py')],
+                                     'render_traversal.py'),
+             os.path.join(out_dir, 'sim_log.json')],
             env=env, capture_output=True, text=True)
         # Print only the final line + any error so the parent log
         # stays compact (the renderer logs every frame on its own).
