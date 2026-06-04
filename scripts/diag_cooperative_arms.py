@@ -241,7 +241,7 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
          mass_ratio: float = 0.01, aocs_mode: str = 'legacy_corrected',
          settle_seconds: float = 20.0, K_theta: float = 1.0,
          K_omega: float = 50.0, tau_w_max: float = 5.0,
-         scenario: str = None):
+         scenario: str = None, baseline_ds_rework: bool = False):
     cfg = r_single._make_m7_config()
     cfg.gait_anchor_dx = anchor_dx
     # Sweet-spot config carry-over (these are also already the defaults
@@ -307,6 +307,16 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     # inequality for energy dissipation. Closes the 8-DOF welded
     # redundancy properly during trailing-DS settle.
     cfg.ds_centroidal_mode = True
+
+    # --- DS-rework baseline override ----------------------------------
+    # When --baseline_ds_rework is set, flip every DS-rework feature
+    # OFF to reproduce the pre-rework behaviour. Used to generate the
+    # comparison baseline for the DS_REWORK_CENTROIDAL_2026-06 memo.
+    if baseline_ds_rework:
+        cfg.aocs_use_wrench_ff_in_ds = False
+        cfg.ds_torso_ref_from_state = False
+        cfg.ss_alpha_lambda_int = 0.0
+        cfg.ds_centroidal_mode = False
     # alpha_torso_ang stays at default 500 (set by _make_m7_config).
     # 5 evenly-spaced snapshots per SS for the offline renderer.
     # FRAMES_PER_STEP=0 disables capture entirely (e.g. for tests).
@@ -347,6 +357,8 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
         # tag. E.g. scenarios/canonical_3step.seq → diag_cooperative_arms_3step.
         _stem = os.path.splitext(os.path.basename(scenario))[0]
         _stem = _stem.replace('canonical_', '')
+        if baseline_ds_rework:
+            _stem += '_baseline'
         out_dir = os.path.join(_root, 'results',
                                f'diag_cooperative_arms_{_stem}')
     elif legacy:
@@ -584,6 +596,11 @@ if __name__ == '__main__':
                              'default 5-step plan with the file-defined '
                              'gait. Anchor names use MJCF site names '
                              '(e.g. anchor_4b).')
+    parser.add_argument('--baseline_ds_rework', action='store_true',
+                        help='Flip every DS-rework feature OFF '
+                             '(wrench-FF / Stage3 ref / internal-stress '
+                             '/ centroidal-DS). Reproduces pre-rework '
+                             'behaviour for comparison plotting.')
     args = parser.parse_args()
 
     with open(MJCF, 'r') as f:
@@ -597,7 +614,8 @@ if __name__ == '__main__':
         main(args.legacy, args.alpha_torso_lin, args.anchor_dx,
              args.mass_ratio, args.aocs_mode, args.settle_seconds,
              args.K_theta, args.K_omega, args.tau_w_max,
-             scenario=args.scenario)
+             scenario=args.scenario,
+             baseline_ds_rework=args.baseline_ds_rework)
     finally:
         with open(MJCF, 'w') as f:
             f.write(original)
