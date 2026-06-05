@@ -1,0 +1,77 @@
+# N=10 traversals with 30s DWELL between cycles —
+# models inter-traversal external AOCS desat (mag torquer / RCS).
+#
+# Same gait as multi_traversal_10x.seq; difference is a 30s settle
+# at the end of each cycle (after dock 9, 19, 29, 39) to let the
+# AOCS bring h_w back to ~zero before the next cycle starts. The
+# final cycle (49) is followed by the default trailing settle.
+#
+# Hypothesis: with brief inter-cycle desat the linear-extrapolation
+# mission scaling should hold; without (multi_traversal_10x.seq),
+# h_w accumulates and step 22 timed out.
+
+START anchor_3a anchor_3b
+
+# === Cycle 1 ===
+DOCK anchor_4b
+DOCK anchor_4a
+DOCK anchor_5b
+DOCK anchor_5a
+DOCK anchor_6b
+DOCK anchor_5b
+DOCK anchor_4a
+DOCK anchor_4b
+DOCK anchor_3a
+DOCK anchor_3b
+DWELL 30
+
+# === Cycle 2 ===
+DOCK anchor_4b
+DOCK anchor_4a
+DOCK anchor_5b
+DOCK anchor_5a
+DOCK anchor_6b
+DOCK anchor_5b
+DOCK anchor_4a
+DOCK anchor_4b
+DOCK anchor_3a
+DOCK anchor_3b
+DWELL 30
+
+# === Cycle 3 ===
+DOCK anchor_4b
+DOCK anchor_4a
+DOCK anchor_5b
+DOCK anchor_5a
+DOCK anchor_6b
+DOCK anchor_5b
+DOCK anchor_4a
+DOCK anchor_4b
+DOCK anchor_3a
+DOCK anchor_3b
+DWELL 30
+
+# === Cycle 4 ===
+DOCK anchor_4b
+DOCK anchor_4a
+DOCK anchor_5b
+DOCK anchor_5a
+DOCK anchor_6b
+DOCK anchor_5b
+DOCK anchor_4a
+DOCK anchor_4b
+DOCK anchor_3a
+DOCK anchor_3b
+DWELL 30
+
+# === Cycle 5 (final) ===
+DOCK anchor_4b
+DOCK anchor_4a
+DOCK anchor_5b
+DOCK anchor_5a
+DOCK anchor_6b
+DOCK anchor_5b
+DOCK anchor_4a
+DOCK anchor_4b
+DOCK anchor_3a
+DOCK anchor_3b

@@ -1600,6 +1600,46 @@ class SimulationLoop:
                             f"T: {ds_result['T_start']:.2e} → "
                             f"{ds_result['T_end']:.2e} J)")
 
+                    # ── 1b. DWELL (optional) — extended inter-step DS ─────
+                    # When the GaitPlan's DS phase has a duration much
+                    # longer than the natural energy-decay window, model
+                    # external AOCS desat by continuing to run the QP in
+                    # centroidal-DS settle mode for the remainder of the
+                    # planned duration. The Stage 3 captured reference is
+                    # set so the WBC holds the welded equilibrium.
+                    _dwell_target = gp.duration - dt_ds_elapsed
+                    if _dwell_target > 1.0 and cfg.ds_centroidal_mode:
+                        if verbose:
+                            print(f"  DWELL: continuing DS for "
+                                  f"{_dwell_target:.1f}s "
+                                  f"(centroidal-DS active, passivity on)")
+                        # Capture welded-state torso reference for the dwell.
+                        pq_d, pv_d = mujoco_to_pinocchio(
+                            self.mj_data.qpos, self.mj_data.qvel)
+                        rs_d = self.robot.update(pq_d, pv_d)
+                        self.torso_planner.set_hold(
+                            rs_d.oMf_torso.translation.copy(),
+                            rs_d.oMf_torso.rotation.copy(),
+                            r_com=rs_d.r_com.copy())
+                        t_dwell_end = t + _dwell_target
+                        # Use stance pair from the upcoming SS phase as the
+                        # contact config (both arms welded → DOUBLE).
+                        last_sa_d = stance_a
+                        last_sb_d = stance_b
+                        while t < t_dwell_end:
+                            hw, L_com_prev = self._step(
+                                t, 'DS', step_idx - 1,
+                                swing_arm, stance_arm,
+                                cc_ds, 0, last_sa_d, last_sb_d,
+                                hw, L_com_prev, log, ss_end=t,
+                                settle_mode=True,
+                                passivity_override=True,
+                                ds_centroidal_active=True)
+                            t += cfg.dt_nmpc
+                        if verbose:
+                            print(f"  DWELL end: t={t:.2f}s, "
+                                  f"‖h_w‖={np.linalg.norm(hw):.3f} Nms")
+
                     # ── 2. Planning handoff: pre-planner → T_step ────────
                     # Runs the coarse pre-planner (mandatory) to get
                     # T_step and a momentum-feasible CoM trajectory, and

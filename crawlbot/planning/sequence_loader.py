@@ -58,6 +58,7 @@ _ANCHOR_RE = re.compile(r'^anchor_(\d+)([ab])$')
 class SwingTarget:
     arm: str       # 'a' or 'b'
     anchor_idx: int  # 0-indexed into ContactScheduler.anchors_{a,b}
+    dwell_after: float = 0.0  # seconds; >0 ⇒ run a settle DS phase after this dock
 
 
 @dataclass
@@ -139,10 +140,34 @@ def load_sequence(path: str, n_anchors: int) -> LoadedSequence:
                 arm, idx = _parse_anchor_name(tokens[1])
                 targets.append(SwingTarget(arm=arm, anchor_idx=idx))
 
+            elif head == 'DWELL':
+                # Attach a dwell duration (seconds) to the most recent
+                # DOCK so the sim runs a settle DS phase after it
+                # (modelling external AOCS desat between traversals).
+                if start_a is None:
+                    raise ValueError(
+                        f"{path}:{ln_no}: DWELL before START")
+                if not targets:
+                    raise ValueError(
+                        f"{path}:{ln_no}: DWELL before any DOCK")
+                if len(tokens) != 2:
+                    raise ValueError(
+                        f"{path}:{ln_no}: DWELL needs exactly one duration "
+                        f"(seconds)")
+                try:
+                    dwell_s = float(tokens[1])
+                except ValueError:
+                    raise ValueError(
+                        f"{path}:{ln_no}: DWELL duration must be a number")
+                if dwell_s <= 0:
+                    raise ValueError(
+                        f"{path}:{ln_no}: DWELL duration must be > 0")
+                targets[-1].dwell_after = dwell_s
+
             else:
                 raise ValueError(
                     f"{path}:{ln_no}: unknown keyword {tokens[0]!r}; "
-                    f"expected START or DOCK")
+                    f"expected START, DOCK or DWELL")
 
     if start_a is None:
         raise ValueError(f"{path}: missing START line")
@@ -197,8 +222,9 @@ def plan_from_sequence(
                 anchor_a_idx=ia, anchor_b_idx=ib,
                 swing_arm='b', swing_from_idx=ib, swing_to_idx=st.anchor_idx))
             ib = st.anchor_idx
+            ds_dur = sched.dt_ds + max(0.0, float(st.dwell_after))
             phases.append(GaitPhase(
-                phase=ContactPhase.DOUBLE, duration=sched.dt_ds,
+                phase=ContactPhase.DOUBLE, duration=ds_dur,
                 anchor_a_idx=ia, anchor_b_idx=ib))
         else:  # 'a'
             if st.anchor_idx == ia:
@@ -210,8 +236,9 @@ def plan_from_sequence(
                 anchor_a_idx=ia, anchor_b_idx=ib,
                 swing_arm='a', swing_from_idx=ia, swing_to_idx=st.anchor_idx))
             ia = st.anchor_idx
+            ds_dur = sched.dt_ds + max(0.0, float(st.dwell_after))
             phases.append(GaitPhase(
-                phase=ContactPhase.DOUBLE, duration=sched.dt_ds,
+                phase=ContactPhase.DOUBLE, duration=ds_dur,
                 anchor_a_idx=ia, anchor_b_idx=ib))
 
     t_start, t_end = [], []
