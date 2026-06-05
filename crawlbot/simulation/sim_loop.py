@@ -1639,6 +1639,12 @@ class SimulationLoop:
                         if verbose:
                             print(f"  DWELL end: t={t:.2f}s, "
                                   f"‖h_w‖={np.linalg.norm(hw):.3f} Nms")
+                        # B-probe: reset NMPC warm-start after the long
+                        # dwell. The NMPC ran ~thousands of ticks during
+                        # the dwell with a static DS reference; carrying
+                        # that warm-state into SS planning is stale.
+                        self.nmpc.reset_warm_start()
+                        L_com_prev = None  # force AOCS FD to re-seed too
 
                     # ── 2. Planning handoff: pre-planner → T_step ────────
                     # Runs the coarse pre-planner (mandatory) to get
