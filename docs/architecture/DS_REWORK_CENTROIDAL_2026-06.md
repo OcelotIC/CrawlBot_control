@@ -21,6 +21,23 @@ The April-2026 patch chose to remove the conflict by disabling everything except
 
 The work documented here ran a **10-step forward+reverse traversal** (scenario `multi_traversal_2x.seq`) to probe whether the per-traversal angular-momentum residual `h_w(end)` accumulates over multiple traversals (it does *not* — it's sign-symmetric). That run surfaced an unexpected secondary finding: the *struct-frame torso pose* drifted **104° during the 120 s settle** even though all 10 welds remained active. This memo documents the root cause and the centroidal-control architecture that closes it.
 
+### AOCS modeling — the "momentum-exchange device" abstraction
+
+To keep this study independent of a specific actuator realization, the AOCS is modeled throughout as an **ideal 3-axis angular-momentum-exchange device**:
+
+| Quantity | Bound | Meaning |
+|---|---|---|
+| Stored momentum | `‖h_w‖_∞ ≤ h_w_max = 5 Nms` | Reservoir capacity (per axis) |
+| Output torque | `‖τ_w‖_∞ ≤ τ_w_max = 5 Nm` | Rate at which momentum can be exchanged |
+| Reaction (Newton-3) | `τ_w_struct = −τ_w` | What the structure feels |
+| Internal dynamics | `ḣ_w = τ_w` (ideal integrator) | First-order bookkeeping |
+
+This abstraction subsumes both reaction-wheel arrays (RWA — for which the bound is an axis-aligned cube of literal per-wheel storage) and control-moment-gyro arrays (CMG — for which the bound is interpreted as a conservative inner approximation of the geometry-dependent momentum envelope). In the CMG case, singularity-avoidance steering at the actuator layer (SR-pinv, null-motion gimbal management) is treated as a downstream concern not modeled here.
+
+For our scale (~71 kg robot, structure inertia ~1 500 kg·m²) the `(5 Nms, 5 Nm)` bound sits at the **mid-range CMG / top-tier RWA boundary** — torque this high at this momentum reservoir would be unusual for an off-the-shelf smallsat-class RWA (typical ~50–300 mNm) but well within CMG envelopes (e.g., Honeywell M50: 25 Nm / 50 Nms). The wheel-sizing study in campaign §12 (commit history) established that the canonical gait requires this magnitude of momentum-exchange authority; matching it to a specific actuator class is a mission-integration question, not a control-architecture one.
+
+What this means for the present work: every claim about `h_w`, `τ_w`, AOCS gains, and the trailing-DS settle in §§2–7 is a statement about the *momentum-exchange demand* of the cooperative-arms gait — independent of whether RW or CMG implements it. The bounds carry through unchanged.
+
 ---
 
 ## 2. What needs to be fixed
