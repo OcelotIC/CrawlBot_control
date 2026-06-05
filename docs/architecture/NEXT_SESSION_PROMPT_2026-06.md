@@ -1,5 +1,11 @@
 # Next Session Prompt — DS↔SS Smooth Handoff for Continuous Mission Operation
 
+> **Branch continuity:** This session continues on the existing branch
+> `claude/rework-controller-tasks-0MAgl`. Do **not** create a new branch.
+> All commits go there. Verify with `git branch --show-current` before
+> the first commit; if you land on a different branch, `git checkout
+> claude/rework-controller-tasks-0MAgl` first.
+
 ## Where we are
 
 **Branch:** `claude/rework-controller-tasks-0MAgl` (off main, post-merge of PR #23).
