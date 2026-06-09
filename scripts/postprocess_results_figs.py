@@ -81,28 +81,47 @@ def _load_anchors_struct_frame(struct_pos0, struct_quat0):
 def _gait_phase_for_tick(step_idx, phase, gait_plan_phases):
     """Resolve (step_idx, phase) -> gait_plan.phases[idx].
 
-    Convention (verified empirically against the canonical run):
-      - gait_plan.phases interleaves DOUBLE / SINGLE_X / DOUBLE / SINGLE_X / ...
-        starting with the initial DOUBLE and ending with the trailing DOUBLE
-        after the last SS step.
-      - The per-tick log only contains SS ticks (phase='SS') and the FINAL
-        trailing-DS settle ticks (phase='DS', step_idx = n_steps - 1).
-      - Inter-step DS settles run inside _run_ds_passivity_loop and are NOT
-        appended to the per-tick log; they appear only as summary entries in
-        sim_log['inter_step_settles'].
-
-    Mapping:
-      - phase='SS', step_idx=k → gait_plan.phases[2k+1]
-      - phase='DS' (trailing only) → gait_plan.phases[-1]
+    Convention (Phase-B: inter-step DS now per-tick logged):
+      - gait_plan.phases interleaves DOUBLE / SINGLE_X / DOUBLE / SINGLE_X /
+        ... starting with the initial DOUBLE and ending with the trailing
+        DOUBLE after the last SS step.
+      - Per-tick log convention:
+          phase='SS', step_idx=k        → SS phase = phases[2k+1]
+          phase='DS', step_idx=k (>=0)  → inter-step or trailing DS that
+                                          FOLLOWS SS step k = phases[2k+2]
+                                          (just-landed arm = phases[2k+1].swing_arm)
+          phase='DS', step_idx=-1       → initial DS (before any swing).
+                                          Mapped to phases[0]; just-landed arm
+                                          is undefined; d_ee skipped.
     """
     if phase == 'SS':
         idx = 2 * step_idx + 1
     elif phase == 'DS':
-        # Trailing DS (no inter-step DS in per-tick log for canonical run).
-        idx = len(gait_plan_phases) - 1
+        if step_idx < 0:
+            idx = 0   # initial DS
+        else:
+            idx = 2 * step_idx + 2   # post-step-k DS (inter-step OR trailing)
     else:
         raise ValueError(f'Unknown phase: {phase!r}')
-    return idx
+    # Clamp in case the trailing DS index lands at len(phases)-1 already.
+    return min(idx, len(gait_plan_phases) - 1)
+
+
+def _just_landed_for_tick(step_idx, phase, gait_plan_phases):
+    """Return (just_landed_arm, just_landed_anchor_idx) for a DS tick.
+
+    For DS rows with step_idx=k>=0, the just-landed arm is the swing arm of
+    SS phase k = phases[2k+1]; its welded anchor is swing_to_idx of that SS.
+    Returns ('', -1) for the initial DS (step_idx=-1) — d_ee is undefined.
+    For SS rows this should not be called; returns ('', -1) as a safe default.
+    """
+    if phase != 'DS' or step_idx < 0:
+        return '', -1
+    prior_ss_idx = 2 * step_idx + 1
+    if prior_ss_idx >= len(gait_plan_phases):
+        return '', -1
+    gp = gait_plan_phases[prior_ss_idx]
+    return gp.get('swing_arm', ''), int(gp.get('swing_to_idx', -1))
 
 
 def _format_xyz(v):
@@ -150,11 +169,19 @@ def main():
               f'anchor=({p["anchor_a_idx"]}a,{p["anchor_b_idx"]}b)  '
               f'swing_from={p["swing_from_idx"]}  swing_to={p["swing_to_idx"]}')
 
-    # Resolve per-tick: stance_a_idx, stance_b_idx, swing_to_idx
+    # Resolve per-tick:
+    #   stance_a_idx, stance_b_idx — anchor indices of the contact pair (from
+    #       the active GaitPhase; for DS rows the post-step welded pair, for
+    #       SS rows the during-swing stance pair).
+    #   swing_to_idx — for SS: the swing target of the active SS; for DS:
+    #       the swing_to of the JUST-PRIOR SS (= welded contact anchor of
+    #       the just-landed arm). -1 for initial DS.
+    #   just_landed_arm — for DS only; matches log.swing_arm in DS rows.
     stance_a_idx = np.full(n, -1, dtype=int)
     stance_b_idx = np.full(n, -1, dtype=int)
     swing_to_idx = np.full(n, -1, dtype=int)
     gait_phase_idx_per_tick = np.full(n, -1, dtype=int)
+    just_landed_arm = np.array([''] * n, dtype=object)
     for k in range(n):
         gp_idx = _gait_phase_for_tick(int(step_idx[k]), str(phase[k]),
                                        gait_phases)
@@ -162,7 +189,13 @@ def main():
         gait_phase_idx_per_tick[k] = gp_idx
         stance_a_idx[k] = gp['anchor_a_idx']
         stance_b_idx[k] = gp['anchor_b_idx']
-        swing_to_idx[k] = gp['swing_to_idx']
+        if phase[k] == 'SS':
+            swing_to_idx[k] = gp['swing_to_idx']
+        else:
+            arm_jl, sto_jl = _just_landed_for_tick(
+                int(step_idx[k]), str(phase[k]), gait_phases)
+            just_landed_arm[k] = arm_jl
+            swing_to_idx[k] = sto_jl
 
     # Stance sanity table at every step transition
     sanity_lines = []
@@ -251,33 +284,33 @@ def main():
     print(f'[3] e_pos_torso shape={e_pos_torso.shape}, per-axis '
           f'min={e_pos_torso.min(axis=0)}, max={e_pos_torso.max(axis=0)}')
 
-    # ── 4. Swing-EE position error toward FIXED docking target ───────────
-    # NOTE: target = sched.anchors_{a,b}[swing_to_idx] (fixed in R_s),
-    # NOT the moving quintic setpoint sr.p_ee.
+    # ── 4. EE position offset to FIXED docking anchor (R_s) ──────────────
+    # SS rows: distance to the SS swing target anchor (fixed in R_s).
+    # DS rows: distance from the JUST-LANDED arm to its welded contact anchor
+    #          (= swing_to_idx of the prior SS phase). Measured offset of how
+    #          seated the contact is — NOT zero, NOT a frozen last-SS value.
+    # Initial DS (step_idx=-1): no welded anchor defined; NaN.
     d_ee_to_target = np.zeros(n)
     p_target_per_tick = np.zeros((n, 3))
     for k in range(n):
         arm = str(swing_arm[k])
-        if swing_to_idx[k] < 0:
-            # DS phase — no active swing; report nan so the SS mask is the
-            # one and only filter on the figure.
+        if swing_to_idx[k] < 0 or arm not in ('a', 'b'):
             d_ee_to_target[k] = np.nan
             p_target_per_tick[k] = np.nan
             continue
         if arm == 'a':
             p_tgt = anchors_a[swing_to_idx[k]]
-        elif arm == 'b':
-            p_tgt = anchors_b[swing_to_idx[k]]
         else:
-            d_ee_to_target[k] = np.nan
-            p_target_per_tick[k] = np.nan
-            continue
+            p_tgt = anchors_b[swing_to_idx[k]]
         p_target_per_tick[k] = p_tgt
         d_ee_to_target[k] = float(np.linalg.norm(p_ee[k] - p_tgt))
     d_ee_finite = d_ee_to_target[np.isfinite(d_ee_to_target)]
+    n_ss = int((phase == 'SS').sum())
+    n_ds_inter = int((phase == 'DS').sum())
     print(f'[4] d_ee_to_target shape=({n},), '
           f'min={d_ee_finite.min():.6f} m, max={d_ee_finite.max():.4f} m '
-          f'({np.isfinite(d_ee_to_target).sum()} finite ticks)')
+          f'({np.isfinite(d_ee_to_target).sum()} finite ticks: '
+          f'{n_ss} SS + ~{int(np.isfinite(d_ee_to_target).sum()) - n_ss} DS)')
 
     # ── 5. Swing-EE orientation error toward target (identity in R_s) ────
     e_ori_ee_deg = np.zeros(n)
@@ -295,9 +328,25 @@ def main():
     print(f'[6] mask_ss: {int(mask_ss.sum())} SS ticks / {n} total '
           f'({100*mask_ss.sum()/n:.1f}%)')
 
+    # ── 7. Platform attitude vs initial (Phase B — every row) ────────────
+    # theta_s_deg = || log3(R_s0^T R_s(t)) || in degrees, computed from
+    # log.struct_quat. Defined across SS + inter-step DS + trailing DS.
+    qw0, qx0, qy0, qz0 = struct_quat[0]
+    R_s0 = pin.Quaternion(qw0, qx0, qy0, qz0).toRotationMatrix()
+    theta_s_deg = np.zeros(n)
+    for k in range(n):
+        qw, qx, qy, qz = struct_quat[k]
+        R_s = pin.Quaternion(qw, qx, qy, qz).toRotationMatrix()
+        omega = pin.log3(R_s0.T @ R_s)
+        theta_s_deg[k] = float(np.degrees(np.linalg.norm(omega)))
+    print(f'[7] theta_s_deg shape=({n},), '
+          f'min={theta_s_deg.min():.4e}, peak={theta_s_deg.max():.4f}, '
+          f'final={theta_s_deg[-1]:.4f}')
+
     # ── Export CSV ───────────────────────────────────────────────────────
     header = [
         't', 'phase', 'step_idx', 'mask_ss',
+        'theta_s_deg',
         'Hdot_s_x', 'Hdot_s_y', 'Hdot_s_z',
         'tau_w_x', 'tau_w_y', 'tau_w_z',
         'e_ori_torso_deg',
@@ -311,10 +360,16 @@ def main():
         w = csv.writer(f)
         w.writerow(header)
         for k in range(n):
+            # Phase-B: NMPC bypassed during inter-step DS → lambda_ref is
+            # the NaN sentinel; Hdot_s reconstruction is then NaN automatically.
+            hdot_str = [
+                f'{Hdot_s[k, i]:.9f}' if np.isfinite(Hdot_s[k, i]) else 'nan'
+                for i in range(3)]
             w.writerow([
                 f'{t[k]:.6f}', str(phase[k]), int(step_idx[k]),
                 int(mask_ss[k]),
-                f'{Hdot_s[k,0]:.9f}', f'{Hdot_s[k,1]:.9f}', f'{Hdot_s[k,2]:.9f}',
+                f'{theta_s_deg[k]:.9f}',
+                hdot_str[0], hdot_str[1], hdot_str[2],
                 f'{tau_w_cmd[k,0]:.9f}', f'{tau_w_cmd[k,1]:.9f}', f'{tau_w_cmd[k,2]:.9f}',
                 f'{e_ori_torso_deg_recomp[k]:.9f}',
                 f'{e_pos_torso[k,0]:.9f}', f'{e_pos_torso[k,1]:.9f}', f'{e_pos_torso[k,2]:.9f}',
@@ -393,31 +448,122 @@ def main():
             'peak_SS_segments': float(e_ori_ee_deg[mask_ss].max())
                 if mask_ss.any() else None,
         },
-        'Hdot_s_per_axis_peak_Nm': {
-            'x': float(np.abs(Hdot_s[:, 0]).max()),
-            'y': float(np.abs(Hdot_s[:, 1]).max()),
-            'z': float(np.abs(Hdot_s[:, 2]).max()),
+        # Hdot_s + tau_w over SS rows only (inter-step DS has NaN Hdot_s
+        # and zero tau_w by construction; they would dilute the denominators).
+        'Hdot_s_per_axis_peak_Nm_SS_only': {
+            'x': float(np.nanmax(np.abs(Hdot_s[mask_ss, 0]))),
+            'y': float(np.nanmax(np.abs(Hdot_s[mask_ss, 1]))),
+            'z': float(np.nanmax(np.abs(Hdot_s[mask_ss, 2]))),
         },
-        'Hdot_s_hits_bound': bool((np.abs(Hdot_s) >= TAU_W_MAX - 1e-6).any()),
-        'Hdot_s_at_clip_ticks': int(Hdot_s_at_clip),
-        'tau_w_per_axis_peak_Nm': {
-            'x': float(np.abs(tau_w_cmd[:, 0]).max()),
-            'y': float(np.abs(tau_w_cmd[:, 1]).max()),
-            'z': float(np.abs(tau_w_cmd[:, 2]).max()),
+        'Hdot_s_hits_bound_SS_only': bool(
+            (np.abs(Hdot_s[mask_ss]) >= TAU_W_MAX - 1e-6).any()),
+        'Hdot_s_per_axis_peak_Nm_full_run': {
+            'x': float(np.nanmax(np.abs(Hdot_s[:, 0]))),
+            'y': float(np.nanmax(np.abs(Hdot_s[:, 1]))),
+            'z': float(np.nanmax(np.abs(Hdot_s[:, 2]))),
         },
-        'tau_w_at_clip_ticks': int(tau_w_clip_ticks),
-        'tau_w_at_clip_fraction': float(tau_w_clip_ticks / n),
+        'tau_w_per_axis_peak_Nm_SS_only': {
+            'x': float(np.abs(tau_w_cmd[mask_ss, 0]).max()),
+            'y': float(np.abs(tau_w_cmd[mask_ss, 1]).max()),
+            'z': float(np.abs(tau_w_cmd[mask_ss, 2]).max()),
+        },
+        'tau_w_at_clip_ticks_SS_only': int(
+            (np.abs(tau_w_cmd[mask_ss]) >= TAU_W_MAX - 1e-6).any(axis=1).sum()),
+        'tau_w_at_clip_fraction_SS_only': float(
+            (np.abs(tau_w_cmd[mask_ss]) >= TAU_W_MAX - 1e-6).any(axis=1).sum()
+            / max(int(mask_ss.sum()), 1)),
         'stance_cross_check_max_d_grip_stance_mm': stance_max_mm,
         'tau_w_max_clip_Nm': TAU_W_MAX,
+        # Phase-B: platform attitude across the full run incl. wheels-off DS.
+        'theta_s_deg': {
+            'peak_full_run': float(theta_s_deg.max()),
+            'final': float(theta_s_deg[-1]),
+            'rms_full_run': _rms(theta_s_deg),
+        },
     }
     with open(JSON_OUT, 'w') as f:
         json.dump(metrics, f, indent=2)
     print(f'[json] wrote {JSON_OUT}')
 
+    # ── Phase-B: per-inter-step-DS attitude change + stance/arm sanity ──
+    # Identify DS segments and report start/end |theta_s| and peak within.
+    print()
+    print('=' * 78)
+    print('PHASE-B: per-DS-gap attitude (wheels-off inter-step DS)')
+    print('=' * 78)
+    sanity_ds_lines = []
+    sanity_ds_lines.append(
+        '  step_idx | DS regime    | just_landed | swing_to_idx '
+        '| p_anchor (xyz)             | t [s]          '
+        '| theta_s start | theta_s end | theta_s peak | d_ee first/last (mm)')
+    sanity_ds_lines.append('-' * 175)
+    # Detect DS segments
+    in_ds = (phase == 'DS')
+    transitions = np.diff(in_ds.astype(int))
+    starts = np.where(transitions == 1)[0] + 1
+    ends = np.where(transitions == -1)[0]
+    if in_ds[0]:
+        starts = np.concatenate([[0], starts])
+    if in_ds[-1]:
+        ends = np.concatenate([ends, [n - 1]])
+    per_ds_attitude = []
+    for s, e in zip(starts, ends):
+        seg_step = int(step_idx[s])
+        seg_arm = str(swing_arm[s])
+        seg_swing_to = int(swing_to_idx[s])
+        regime = (
+            'initial' if seg_step < 0 else
+            'trailing' if (seg_step == len(gait_phases) // 2 - 1) else
+            'inter-step')
+        att_seg = theta_s_deg[s: e + 1]
+        att_start = float(att_seg[0])
+        att_end = float(att_seg[-1])
+        att_peak = float(att_seg.max())
+        # d_ee first/last finite
+        d_seg = d_ee_to_target[s: e + 1]
+        d_finite = d_seg[np.isfinite(d_seg)]
+        d_first_mm = float(d_finite[0] * 1000) if d_finite.size > 0 else None
+        d_last_mm = float(d_finite[-1] * 1000) if d_finite.size > 0 else None
+        if seg_arm in ('a', 'b') and 0 <= seg_swing_to < len(anchors_a):
+            p_anch = (anchors_a[seg_swing_to] if seg_arm == 'a'
+                      else anchors_b[seg_swing_to])
+            p_anch_str = _format_xyz(p_anch)
+        else:
+            p_anch_str = 'n/a'
+        sanity_ds_lines.append(
+            f'  {seg_step:>8d} | {regime:>11s}  | {seg_arm!r:>10s}  | '
+            f'{seg_swing_to:>11d}  | {p_anch_str:>26s} | '
+            f't=[{t[s]:6.2f},{t[e]:6.2f}] | '
+            f'{att_start:>11.4f}°  | {att_end:>10.4f}°  | {att_peak:>11.4f}°  '
+            f'| {("nan" if d_first_mm is None else f"{d_first_mm:7.2f}")} / '
+            f'{("nan" if d_last_mm is None else f"{d_last_mm:7.2f}")}')
+        per_ds_attitude.append({
+            'step_idx': seg_step,
+            'regime': regime,
+            'just_landed_arm': seg_arm,
+            'swing_to_idx': seg_swing_to,
+            't_start': float(t[s]),
+            't_end': float(t[e]),
+            'theta_s_start_deg': att_start,
+            'theta_s_end_deg': att_end,
+            'theta_s_peak_deg': att_peak,
+            'theta_s_change_deg': att_end - att_start,
+            'd_ee_first_mm': d_first_mm,
+            'd_ee_last_mm': d_last_mm,
+        })
+    print('\n'.join(sanity_ds_lines))
+    metrics['per_ds_attitude'] = per_ds_attitude
+    # Update JSON with per-DS attitude
+    with open(JSON_OUT, 'w') as f:
+        json.dump(metrics, f, indent=2)
+
     # Print metrics nicely
     print('\n' + '=' * 78)
     print('METRICS SUMMARY')
     print('=' * 78)
+    print(f'  theta_s_deg         peak: {metrics["theta_s_deg"]["peak_full_run"]:.4f}   '
+          f'final: {metrics["theta_s_deg"]["final"]:.4f}   '
+          f'RMS: {metrics["theta_s_deg"]["rms_full_run"]:.4f}')
     print(f'  e_ori_torso_deg     RMS: {metrics["e_ori_torso_deg"]["rms_full_run"]:.4f}   '
           f'peak: {metrics["e_ori_torso_deg"]["peak"]:.4f}')
     print(f'  |e_pos_torso|       RMS: {metrics["e_pos_torso_norm_m"]["rms_full_run"]:.4e} m   '
@@ -437,15 +583,21 @@ def main():
               f'ori_recomp={ev["e_ori_ee_deg_recomp"]:.3f}°')
     print(f'  e_ori_ee_deg (SS)   RMS: {metrics["e_ori_ee_deg_SS_only"]["rms_SS_segments"]:.4f}   '
           f'peak: {metrics["e_ori_ee_deg_SS_only"]["peak_SS_segments"]:.4f}')
-    print(f'  Hdot_s per-axis peak (Nm):   x={metrics["Hdot_s_per_axis_peak_Nm"]["x"]:.4f}  '
-          f'y={metrics["Hdot_s_per_axis_peak_Nm"]["y"]:.4f}  '
-          f'z={metrics["Hdot_s_per_axis_peak_Nm"]["z"]:.4f}   '
-          f'(hits ±{TAU_W_MAX}? {metrics["Hdot_s_hits_bound"]})')
-    print(f'  tau_w per-axis peak (Nm):    x={metrics["tau_w_per_axis_peak_Nm"]["x"]:.4f}  '
-          f'y={metrics["tau_w_per_axis_peak_Nm"]["y"]:.4f}  '
-          f'z={metrics["tau_w_per_axis_peak_Nm"]["z"]:.4f}   '
-          f'at clip {metrics["tau_w_at_clip_ticks"]}/{n} ticks '
-          f'({100*metrics["tau_w_at_clip_fraction"]:.2f}%)')
+    print(f'  Hdot_s per-axis peak SS-only (Nm):   '
+          f'x={metrics["Hdot_s_per_axis_peak_Nm_SS_only"]["x"]:.4f}  '
+          f'y={metrics["Hdot_s_per_axis_peak_Nm_SS_only"]["y"]:.4f}  '
+          f'z={metrics["Hdot_s_per_axis_peak_Nm_SS_only"]["z"]:.4f}   '
+          f'(hits ±{TAU_W_MAX}? {metrics["Hdot_s_hits_bound_SS_only"]})')
+    print(f'  Hdot_s per-axis peak full-run (Nm):  '
+          f'x={metrics["Hdot_s_per_axis_peak_Nm_full_run"]["x"]:.4f}  '
+          f'y={metrics["Hdot_s_per_axis_peak_Nm_full_run"]["y"]:.4f}  '
+          f'z={metrics["Hdot_s_per_axis_peak_Nm_full_run"]["z"]:.4f}')
+    print(f'  tau_w per-axis peak SS-only (Nm):    '
+          f'x={metrics["tau_w_per_axis_peak_Nm_SS_only"]["x"]:.4f}  '
+          f'y={metrics["tau_w_per_axis_peak_Nm_SS_only"]["y"]:.4f}  '
+          f'z={metrics["tau_w_per_axis_peak_Nm_SS_only"]["z"]:.4f}   '
+          f'at clip {metrics["tau_w_at_clip_ticks_SS_only"]}/{int(mask_ss.sum())} SS ticks '
+          f'({100*metrics["tau_w_at_clip_fraction_SS_only"]:.2f}%)')
 
 
 if __name__ == '__main__':

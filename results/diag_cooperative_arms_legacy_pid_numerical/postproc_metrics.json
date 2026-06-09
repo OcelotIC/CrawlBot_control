@@ -1,20 +1,20 @@
 {
   "canonical_run": "/home/user/CrawlBot_control/results/diag_cooperative_arms_legacy_pid_numerical",
-  "n_ticks": 577,
-  "duration_s": 62.5700000000006,
-  "mask_ss_fraction": 0.6533795493934142,
+  "n_ticks": 1080,
+  "duration_s": 62.6700000000006,
+  "mask_ss_fraction": 0.3490740740740741,
   "e_ori_torso_deg": {
-    "rms_full_run": 0.5828534206199588,
-    "peak": 1.5531054117294083
+    "rms_full_run": 0.8094715792890197,
+    "peak": 5.156996396767626
   },
   "e_pos_torso_norm_m": {
-    "rms_full_run": 0.02721671363140276,
-    "peak": 0.24127131629323426
+    "rms_full_run": 0.2988280652777419,
+    "peak": 0.9024572084197149
   },
   "e_pos_torso_per_axis_peak_m": {
-    "x": 0.2070934087070757,
-    "y": 0.11638176814288381,
-    "z": 0.04259513105313645
+    "x": 0.6245229662327939,
+    "y": 0.8155960043850237,
+    "z": 0.3435802515158342
   },
   "d_ee_at_docks_mm": [
     {
@@ -22,7 +22,7 @@
       "t_dock": 2.91,
       "t_last_ss_tick": 2.8100000000000014,
       "d_mm_sim_log": 1.86,
-      "d_ee_to_target_mm_recomp": 1.8580295557296342,
+      "d_ee_to_target_mm_recomp": 1.8572980374908001,
       "ori_deg_sim_log": 0.17,
       "e_ori_ee_deg_recomp": 0.16649507672582348,
       "arm": "b",
@@ -33,7 +33,7 @@
       "t_dock": 13.44,
       "t_last_ss_tick": 13.339999999999973,
       "d_mm_sim_log": 4.94,
-      "d_ee_to_target_mm_recomp": 4.943101124865956,
+      "d_ee_to_target_mm_recomp": 4.943293030792041,
       "ori_deg_sim_log": 0.05,
       "e_ori_ee_deg_recomp": 0.051130604739002945,
       "arm": "a",
@@ -44,7 +44,7 @@
       "t_dock": 23.56,
       "t_last_ss_tick": 23.460000000000072,
       "d_mm_sim_log": 4.96,
-      "d_ee_to_target_mm_recomp": 4.963066943706959,
+      "d_ee_to_target_mm_recomp": 4.961582316426624,
       "ori_deg_sim_log": 0.04,
       "e_ori_ee_deg_recomp": 0.035102065883712,
       "arm": "b",
@@ -55,7 +55,7 @@
       "t_dock": 32.97,
       "t_last_ss_tick": 32.87000000000018,
       "d_mm_sim_log": 4.77,
-      "d_ee_to_target_mm_recomp": 4.7650315997001975,
+      "d_ee_to_target_mm_recomp": 4.766124922085452,
       "ori_deg_sim_log": 0.04,
       "e_ori_ee_deg_recomp": 0.03809730338794662,
       "arm": "a",
@@ -66,32 +66,127 @@
       "t_dock": 42.78,
       "t_last_ss_tick": 42.68000000000031,
       "d_mm_sim_log": 5.0,
-      "d_ee_to_target_mm_recomp": 5.001420356014943,
+      "d_ee_to_target_mm_recomp": 4.999061357489758,
       "ori_deg_sim_log": 0.01,
       "e_ori_ee_deg_recomp": 0.012499807716857988,
       "arm": "b",
       "anchor": 5
     }
   ],
-  "d_ee_final_m": null,
+  "d_ee_final_m": 2.8727372945715918e-08,
   "e_ori_ee_deg_SS_only": {
     "rms_SS_segments": 0.34886087341167193,
     "peak_SS_segments": 1.9846720376438964
   },
-  "Hdot_s_per_axis_peak_Nm": {
-    "x": 4.999995417866221,
-    "y": 4.9999891665626235,
-    "z": 6.081870146486942
+  "Hdot_s_per_axis_peak_Nm_SS_only": {
+    "x": 4.99999674693993,
+    "y": 4.999991450536333,
+    "z": 4.999999637610347
   },
-  "Hdot_s_hits_bound": true,
-  "Hdot_s_at_clip_ticks": 238,
-  "tau_w_per_axis_peak_Nm": {
+  "Hdot_s_hits_bound_SS_only": true,
+  "Hdot_s_per_axis_peak_Nm_full_run": {
+    "x": 4.99999674693993,
+    "y": 4.999991450536333,
+    "z": 6.081872013079633
+  },
+  "tau_w_per_axis_peak_Nm_SS_only": {
     "x": 5.0,
     "y": 5.0,
     "z": 5.0
   },
-  "tau_w_at_clip_ticks": 17,
-  "tau_w_at_clip_fraction": 0.029462738301559793,
+  "tau_w_at_clip_ticks_SS_only": 17,
+  "tau_w_at_clip_fraction_SS_only": 0.04509283819628647,
   "stance_cross_check_max_d_grip_stance_mm": 0.3798078149462754,
-  "tau_w_max_clip_Nm": 5.0
+  "tau_w_max_clip_Nm": 5.0,
+  "theta_s_deg": {
+    "peak_full_run": 1.8794860836938765,
+    "final": 1.6186236184633804,
+    "rms_full_run": 1.1371818724498755
+  },
+  "per_ds_attitude": [
+    {
+      "step_idx": -1,
+      "regime": "initial",
+      "just_landed_arm": "",
+      "swing_to_idx": -1,
+      "t_start": 0.01,
+      "t_end": 0.1,
+      "theta_s_start_deg": 2.9472728859084927e-30,
+      "theta_s_end_deg": 6.21962132162173e-11,
+      "theta_s_peak_deg": 6.21962132162173e-11,
+      "theta_s_change_deg": 6.21962132162173e-11,
+      "d_ee_first_mm": null,
+      "d_ee_last_mm": null
+    },
+    {
+      "step_idx": 0,
+      "regime": "inter-step",
+      "just_landed_arm": "b",
+      "swing_to_idx": 3,
+      "t_start": 2.9200000000000013,
+      "t_end": 5.130000000000002,
+      "theta_s_start_deg": 0.06803217369736046,
+      "theta_s_end_deg": 0.029717173694665387,
+      "theta_s_peak_deg": 0.07021961743112029,
+      "theta_s_change_deg": -0.038315000002695075,
+      "d_ee_first_mm": 1.6947660275737566,
+      "d_ee_last_mm": 0.00010924757945914784
+    },
+    {
+      "step_idx": 1,
+      "regime": "inter-step",
+      "just_landed_arm": "a",
+      "swing_to_idx": 3,
+      "t_start": 13.449999999999973,
+      "t_end": 14.249999999999973,
+      "theta_s_start_deg": 0.1818154434667469,
+      "theta_s_end_deg": 0.1761813051516223,
+      "theta_s_peak_deg": 0.1818154434667469,
+      "theta_s_change_deg": -0.005634138315124604,
+      "d_ee_first_mm": 4.483040718459758,
+      "d_ee_last_mm": 0.0053014913560302575
+    },
+    {
+      "step_idx": 2,
+      "regime": "inter-step",
+      "just_landed_arm": "b",
+      "swing_to_idx": 4,
+      "t_start": 23.570000000000075,
+      "t_end": 24.960000000000072,
+      "theta_s_start_deg": 1.0921081085614983,
+      "theta_s_end_deg": 1.177214900616401,
+      "theta_s_peak_deg": 1.177214900616401,
+      "theta_s_change_deg": 0.08510679205490268,
+      "d_ee_first_mm": 4.512913402613644,
+      "d_ee_last_mm": 0.0009371464548154129
+    },
+    {
+      "step_idx": 3,
+      "regime": "inter-step",
+      "just_landed_arm": "a",
+      "swing_to_idx": 4,
+      "t_start": 32.98000000000018,
+      "t_end": 33.470000000000184,
+      "theta_s_start_deg": 1.6506475241598881,
+      "theta_s_end_deg": 1.6363045664522373,
+      "theta_s_peak_deg": 1.6506475241598881,
+      "theta_s_change_deg": -0.014342957707650816,
+      "d_ee_first_mm": 4.3269144146250795,
+      "d_ee_last_mm": 0.004798483533385364
+    },
+    {
+      "step_idx": 4,
+      "regime": "trailing",
+      "just_landed_arm": "b",
+      "swing_to_idx": 5,
+      "t_start": 42.780000000000314,
+      "t_end": 62.6800000000006,
+      "theta_s_start_deg": 1.8344431081833774,
+      "theta_s_end_deg": 1.6186236184633804,
+      "theta_s_peak_deg": 1.8344431081833774,
+      "theta_s_change_deg": -0.21581948971999698,
+      "d_ee_first_mm": 0.18472085681996303,
+      "d_ee_last_mm": 2.8727372945715917e-05
+    }
+  ]
 }
