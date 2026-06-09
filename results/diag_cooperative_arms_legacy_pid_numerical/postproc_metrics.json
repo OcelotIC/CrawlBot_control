@@ -1,0 +1,97 @@
+{
+  "canonical_run": "/home/user/CrawlBot_control/results/diag_cooperative_arms_legacy_pid_numerical",
+  "n_ticks": 577,
+  "duration_s": 62.5700000000006,
+  "mask_ss_fraction": 0.6533795493934142,
+  "e_ori_torso_deg": {
+    "rms_full_run": 0.5828534206199588,
+    "peak": 1.5531054117294083
+  },
+  "e_pos_torso_norm_m": {
+    "rms_full_run": 0.02721671363140276,
+    "peak": 0.24127131629323426
+  },
+  "e_pos_torso_per_axis_peak_m": {
+    "x": 0.2070934087070757,
+    "y": 0.11638176814288381,
+    "z": 0.04259513105313645
+  },
+  "d_ee_at_docks_mm": [
+    {
+      "step_idx": 0,
+      "t_dock": 2.91,
+      "t_last_ss_tick": 2.8100000000000014,
+      "d_mm_sim_log": 1.86,
+      "d_ee_to_target_mm_recomp": 1.8580295557296342,
+      "ori_deg_sim_log": 0.17,
+      "e_ori_ee_deg_recomp": 0.16649507672582348,
+      "arm": "b",
+      "anchor": 3
+    },
+    {
+      "step_idx": 1,
+      "t_dock": 13.44,
+      "t_last_ss_tick": 13.339999999999973,
+      "d_mm_sim_log": 4.94,
+      "d_ee_to_target_mm_recomp": 4.943101124865956,
+      "ori_deg_sim_log": 0.05,
+      "e_ori_ee_deg_recomp": 0.051130604739002945,
+      "arm": "a",
+      "anchor": 3
+    },
+    {
+      "step_idx": 2,
+      "t_dock": 23.56,
+      "t_last_ss_tick": 23.460000000000072,
+      "d_mm_sim_log": 4.96,
+      "d_ee_to_target_mm_recomp": 4.963066943706959,
+      "ori_deg_sim_log": 0.04,
+      "e_ori_ee_deg_recomp": 0.035102065883712,
+      "arm": "b",
+      "anchor": 4
+    },
+    {
+      "step_idx": 3,
+      "t_dock": 32.97,
+      "t_last_ss_tick": 32.87000000000018,
+      "d_mm_sim_log": 4.77,
+      "d_ee_to_target_mm_recomp": 4.7650315997001975,
+      "ori_deg_sim_log": 0.04,
+      "e_ori_ee_deg_recomp": 0.03809730338794662,
+      "arm": "a",
+      "anchor": 4
+    },
+    {
+      "step_idx": 4,
+      "t_dock": 42.78,
+      "t_last_ss_tick": 42.68000000000031,
+      "d_mm_sim_log": 5.0,
+      "d_ee_to_target_mm_recomp": 5.001420356014943,
+      "ori_deg_sim_log": 0.01,
+      "e_ori_ee_deg_recomp": 0.012499807716857988,
+      "arm": "b",
+      "anchor": 5
+    }
+  ],
+  "d_ee_final_m": null,
+  "e_ori_ee_deg_SS_only": {
+    "rms_SS_segments": 0.34886087341167193,
+    "peak_SS_segments": 1.9846720376438964
+  },
+  "Hdot_s_per_axis_peak_Nm": {
+    "x": 4.999995417866221,
+    "y": 4.9999891665626235,
+    "z": 6.081870146486942
+  },
+  "Hdot_s_hits_bound": true,
+  "Hdot_s_at_clip_ticks": 238,
+  "tau_w_per_axis_peak_Nm": {
+    "x": 5.0,
+    "y": 5.0,
+    "z": 5.0
+  },
+  "tau_w_at_clip_ticks": 17,
+  "tau_w_at_clip_fraction": 0.029462738301559793,
+  "stance_cross_check_max_d_grip_stance_mm": 0.3798078149462754,
+  "tau_w_max_clip_Nm": 5.0
+}
