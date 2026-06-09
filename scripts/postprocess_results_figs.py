@@ -261,28 +261,98 @@ def main():
           f'({100*tau_w_clip_ticks/n:.2f}%)')
 
     # ── 2. Torso ORIENTATION error (geodesic angle) ──────────────────────
+    # SS rows: error vs the planner trajectory (the meaningful tracking
+    #          error during swing) — left as-is.
+    # DS rows: error vs the pose HELD AT DS ENTRY of that DS phase
+    #          (Phase B fix; the planner ref during DS is ill-defined
+    #          for tracking purposes). Computed per contiguous DS block.
     e_ori_torso_deg_recomp = np.zeros(n)
+    # Precompute R(t) once.
+    R_torso_per_tick = []
     for k in range(n):
         qw, qx, qy, qz = q_torso[k]
-        R_act = pin.Quaternion(qw, qx, qy, qz).toRotationMatrix()
+        R_torso_per_tick.append(
+            pin.Quaternion(qw, qx, qy, qz).toRotationMatrix())
         qw, qx, qy, qz = q_torso_ref[k]
         R_ref = pin.Quaternion(qw, qx, qy, qz).toRotationMatrix()
-        omega = pin.log3(R_act.T @ R_ref)
+        omega = pin.log3(R_torso_per_tick[k].T @ R_ref)
         e_ori_torso_deg_recomp[k] = float(np.degrees(np.linalg.norm(omega)))
-    cross_check_diff = np.max(np.abs(
-        e_ori_torso_deg_recomp - e_torso_ori_log))
-    print(f'\n[2] e_ori_torso_deg shape=({n},), '
-          f'min={e_ori_torso_deg_recomp.min():.4e}, '
-          f'max={e_ori_torso_deg_recomp.max():.4f}, '
+    # Cross-check SS rows against the logged scalar (SS path unchanged).
+    mask_ss = (phase == 'SS')
+    cross_check_diff = float(np.max(np.abs(
+        e_ori_torso_deg_recomp[mask_ss] - e_torso_ori_log[mask_ss])))
+    print(f'\n[2] e_ori_torso_deg (SS rows, vs planner): '
           f'cross-check vs logged scalar: max|diff|={cross_check_diff:.2e}')
     if cross_check_diff > 1e-3:
-        print(f'[warn] recomputed torso ori error diverges from logged by '
+        print(f'[warn] recomputed SS torso ori error diverges from logged by '
               f'{cross_check_diff:.4e} deg (exceeds 1e-3 deg tolerance)')
 
-    # ── 3. Torso POSITION error per component (R_s) ──────────────────────
-    e_pos_torso = p_torso - p_torso_ref      # (n, 3) in R_s
-    print(f'[3] e_pos_torso shape={e_pos_torso.shape}, per-axis '
-          f'min={e_pos_torso.min(axis=0)}, max={e_pos_torso.max(axis=0)}')
+    # ── 3. Torso POSITION error per component (R_s) — vs planner (SS) ────
+    e_pos_torso = p_torso - p_torso_ref      # (n, 3) in R_s — SS rows OK
+
+    # ── DS hold-deviation overlay (Phase B fix) ──────────────────────────
+    # For each contiguous DS block, override e_ori_torso_deg and
+    # e_pos_torso[k] with deviation from the pose held at the FIRST tick
+    # of that block. The planner ref during DS is NOT meaningful for
+    # tracking — the controller is holding the captured-state pose.
+    in_ds = (phase == 'DS')
+    trans_ds = np.diff(in_ds.astype(int))
+    ds_starts = np.where(trans_ds == 1)[0] + 1
+    ds_ends = np.where(trans_ds == -1)[0]
+    if in_ds[0]:
+        ds_starts = np.concatenate([[0], ds_starts])
+    if in_ds[-1]:
+        ds_ends = np.concatenate([ds_ends, [n - 1]])
+
+    per_ds_hold = []
+    for s_idx, e_idx in zip(ds_starts, ds_ends):
+        # DS-entry hold pose: actual pose at the first tick of this DS phase.
+        p_hold = p_torso[s_idx].copy()
+        R_hold = R_torso_per_tick[s_idx]
+        # Overwrite e_pos_torso (per-axis) and e_ori_torso_deg over [s_idx, e_idx].
+        for k in range(s_idx, e_idx + 1):
+            e_pos_torso[k] = p_torso[k] - p_hold
+            omega = pin.log3(R_torso_per_tick[k].T @ R_hold)
+            e_ori_torso_deg_recomp[k] = float(np.degrees(
+                np.linalg.norm(omega)))
+        # Per-DS-phase deviation metrics
+        dp_block = p_torso[s_idx: e_idx + 1] - p_hold
+        ori_block = e_ori_torso_deg_recomp[s_idx: e_idx + 1]
+        per_ds_hold.append({
+            'tick_first': int(s_idx),
+            'tick_last': int(e_idx),
+            't_start': float(t[s_idx]),
+            't_end': float(t[e_idx]),
+            'step_idx': int(step_idx[s_idx]),
+            'p_hold': p_hold.tolist(),
+            'q_hold': q_torso[s_idx].tolist(),
+            'max_abs_dp_per_axis_mm': [
+                float(np.abs(dp_block[:, 0]).max() * 1000),
+                float(np.abs(dp_block[:, 1]).max() * 1000),
+                float(np.abs(dp_block[:, 2]).max() * 1000),
+            ],
+            'max_norm_dp_mm': float(
+                np.linalg.norm(dp_block, axis=1).max() * 1000),
+            'max_ori_dev_deg': float(ori_block.max()),
+        })
+
+    # ── DS hold-deviation sanity print ───────────────────────────────────
+    print(f'\n[Phase-B DS hold-deviation] {len(per_ds_hold)} DS blocks:')
+    print(f'  ticks         | t [s]           | step | p_hold (xyz, R_s)       '
+          f'  | max |dp| per axis (mm)            | max |dp|₂ (mm) | max d_ori (deg)')
+    print('  ' + '-' * 165)
+    for h in per_ds_hold:
+        print(f'  [{h["tick_first"]:>4d}..{h["tick_last"]:>4d}] | '
+              f'[{h["t_start"]:>6.2f}..{h["t_end"]:>6.2f}] | '
+              f'{h["step_idx"]:>4d} | '
+              f'[{h["p_hold"][0]:+.3f},{h["p_hold"][1]:+.3f},{h["p_hold"][2]:+.3f}] | '
+              f'x={h["max_abs_dp_per_axis_mm"][0]:>6.2f} '
+              f'y={h["max_abs_dp_per_axis_mm"][1]:>6.2f} '
+              f'z={h["max_abs_dp_per_axis_mm"][2]:>6.2f}     | '
+              f'{h["max_norm_dp_mm"]:>10.3f}     | {h["max_ori_dev_deg"]:>11.4f}')
+
+    print(f'\n[3] e_pos_torso (SS=planner-tracking, DS=hold-dev) shape={e_pos_torso.shape}, '
+          f'per-axis min={e_pos_torso.min(axis=0)}, max={e_pos_torso.max(axis=0)}')
 
     # ── 4. EE position offset to FIXED docking anchor (R_s) ──────────────
     # SS rows: distance to the SS swing target anchor (fixed in R_s).
@@ -349,6 +419,11 @@ def main():
         'theta_s_deg',
         'Hdot_s_x', 'Hdot_s_y', 'Hdot_s_z',
         'tau_w_x', 'tau_w_y', 'tau_w_z',
+        # CAUTION: torso columns mean DIFFERENT things in SS vs DS.
+        #   SS rows: error vs the planner trajectory (tracking error).
+        #   DS rows: deviation from the pose held at DS entry (hold drift).
+        # The torso_ref_mode column tags each row to keep this unambiguous.
+        'torso_ref_mode',
         'e_ori_torso_deg',
         'e_pos_torso_x', 'e_pos_torso_y', 'e_pos_torso_z',
         'd_ee_to_target', 'e_ori_ee_deg',
@@ -365,12 +440,14 @@ def main():
             hdot_str = [
                 f'{Hdot_s[k, i]:.9f}' if np.isfinite(Hdot_s[k, i]) else 'nan'
                 for i in range(3)]
+            torso_mode = 'ds_hold' if phase[k] == 'DS' else 'planner_track'
             w.writerow([
                 f'{t[k]:.6f}', str(phase[k]), int(step_idx[k]),
                 int(mask_ss[k]),
                 f'{theta_s_deg[k]:.9f}',
                 hdot_str[0], hdot_str[1], hdot_str[2],
                 f'{tau_w_cmd[k,0]:.9f}', f'{tau_w_cmd[k,1]:.9f}', f'{tau_w_cmd[k,2]:.9f}',
+                torso_mode,
                 f'{e_ori_torso_deg_recomp[k]:.9f}',
                 f'{e_pos_torso[k,0]:.9f}', f'{e_pos_torso[k,1]:.9f}', f'{e_pos_torso[k,2]:.9f}',
                 f'{d_ee_to_target[k]:.9f}' if np.isfinite(d_ee_to_target[k]) else 'nan',
@@ -422,23 +499,59 @@ def main():
         x = x[mask]
         return float(np.sqrt(np.mean(x ** 2))) if x.size > 0 else None
 
+    # Torso tracking metric — SS rows only (vs planner; the meaningful one).
     metrics = {
         'canonical_run': str(LOG_DIR),
         'n_ticks': int(n),
         'duration_s': float(t[-1] - t[0]),
         'mask_ss_fraction': float(mask_ss.mean()),
-        'e_ori_torso_deg': {
-            'rms_full_run': _rms(e_ori_torso_deg_recomp),
-            'peak': float(e_ori_torso_deg_recomp.max()),
+        'torso_columns_legend': {
+            'SS_rows':
+                'torso error vs planner trajectory (the swing-time tracking '
+                'error). Reported via _SS suffix metrics below.',
+            'DS_rows':
+                'torso DEVIATION from the pose captured at DS-entry of each '
+                'contiguous DS block (planner ref is ill-defined for '
+                'tracking during DS). Reported via _DS_hold_deviation '
+                'metrics below.',
+            'csv_column_torso_ref_mode':
+                "'planner_track' on SS rows, 'ds_hold' on DS rows.",
         },
-        'e_pos_torso_norm_m': {
-            'rms_full_run': _rms(e_pos_torso_norm),
-            'peak': float(e_pos_torso_norm.max()),
+        'e_ori_torso_deg_SS_tracking': {
+            'rms_SS': _rms(e_ori_torso_deg_recomp, mask_ss),
+            'peak_SS': float(e_ori_torso_deg_recomp[mask_ss].max()),
         },
-        'e_pos_torso_per_axis_peak_m': {
-            'x': float(np.abs(e_pos_torso[:, 0]).max()),
-            'y': float(np.abs(e_pos_torso[:, 1]).max()),
-            'z': float(np.abs(e_pos_torso[:, 2]).max()),
+        'e_pos_torso_norm_m_SS_tracking': {
+            'rms_SS': _rms(e_pos_torso_norm[mask_ss]),
+            'peak_SS': float(e_pos_torso_norm[mask_ss].max()),
+        },
+        'e_pos_torso_per_axis_peak_m_SS_tracking': {
+            'x': float(np.abs(e_pos_torso[mask_ss, 0]).max()),
+            'y': float(np.abs(e_pos_torso[mask_ss, 1]).max()),
+            'z': float(np.abs(e_pos_torso[mask_ss, 2]).max()),
+        },
+        # DS hold-deviation — distinct quantity, distinct (small) magnitude.
+        'e_ori_torso_deg_DS_hold_deviation': {
+            'peak_over_all_DS_blocks': float(np.max(
+                [h['max_ori_dev_deg'] for h in per_ds_hold]))
+                if per_ds_hold else None,
+            'per_block_max_deg': [
+                {'step_idx': h['step_idx'], 'max_ori_dev_deg': h['max_ori_dev_deg']}
+                for h in per_ds_hold],
+        },
+        'e_pos_torso_DS_hold_deviation_mm': {
+            'peak_norm_mm': float(np.max(
+                [h['max_norm_dp_mm'] for h in per_ds_hold]))
+                if per_ds_hold else None,
+            'peak_per_axis_mm': {
+                'x': float(np.max([h['max_abs_dp_per_axis_mm'][0]
+                                   for h in per_ds_hold])) if per_ds_hold else None,
+                'y': float(np.max([h['max_abs_dp_per_axis_mm'][1]
+                                   for h in per_ds_hold])) if per_ds_hold else None,
+                'z': float(np.max([h['max_abs_dp_per_axis_mm'][2]
+                                   for h in per_ds_hold])) if per_ds_hold else None,
+            },
+            'per_block': per_ds_hold,
         },
         'd_ee_at_docks_mm': d_ee_at_docks,
         'd_ee_final_m': float(d_ee_to_target[-1])
@@ -564,13 +677,24 @@ def main():
     print(f'  theta_s_deg         peak: {metrics["theta_s_deg"]["peak_full_run"]:.4f}   '
           f'final: {metrics["theta_s_deg"]["final"]:.4f}   '
           f'RMS: {metrics["theta_s_deg"]["rms_full_run"]:.4f}')
-    print(f'  e_ori_torso_deg     RMS: {metrics["e_ori_torso_deg"]["rms_full_run"]:.4f}   '
-          f'peak: {metrics["e_ori_torso_deg"]["peak"]:.4f}')
-    print(f'  |e_pos_torso|       RMS: {metrics["e_pos_torso_norm_m"]["rms_full_run"]:.4e} m   '
-          f'peak: {metrics["e_pos_torso_norm_m"]["peak"]:.4e} m')
-    print(f'  e_pos_torso per-axis peak (m): x={metrics["e_pos_torso_per_axis_peak_m"]["x"]:.4f}  '
-          f'y={metrics["e_pos_torso_per_axis_peak_m"]["y"]:.4f}  '
-          f'z={metrics["e_pos_torso_per_axis_peak_m"]["z"]:.4f}')
+    print(f'  e_ori_torso_deg (SS tracking)   RMS: '
+          f'{metrics["e_ori_torso_deg_SS_tracking"]["rms_SS"]:.4f}   '
+          f'peak: {metrics["e_ori_torso_deg_SS_tracking"]["peak_SS"]:.4f}')
+    print(f'  |e_pos_torso| (SS tracking)     RMS: '
+          f'{metrics["e_pos_torso_norm_m_SS_tracking"]["rms_SS"]:.4e} m   '
+          f'peak: {metrics["e_pos_torso_norm_m_SS_tracking"]["peak_SS"]:.4e} m')
+    print(f'  e_pos_torso per-axis peak SS (m): '
+          f'x={metrics["e_pos_torso_per_axis_peak_m_SS_tracking"]["x"]:.4f}  '
+          f'y={metrics["e_pos_torso_per_axis_peak_m_SS_tracking"]["y"]:.4f}  '
+          f'z={metrics["e_pos_torso_per_axis_peak_m_SS_tracking"]["z"]:.4f}')
+    print(f'  e_ori_torso_deg (DS hold-dev)   peak across all DS blocks: '
+          f'{metrics["e_ori_torso_deg_DS_hold_deviation"]["peak_over_all_DS_blocks"]:.4f}')
+    print(f'  |e_pos_torso| (DS hold-dev)     peak across all DS blocks: '
+          f'{metrics["e_pos_torso_DS_hold_deviation_mm"]["peak_norm_mm"]:.3f} mm   '
+          f'per-axis [x/y/z mm]: '
+          f'{metrics["e_pos_torso_DS_hold_deviation_mm"]["peak_per_axis_mm"]["x"]:.2f} / '
+          f'{metrics["e_pos_torso_DS_hold_deviation_mm"]["peak_per_axis_mm"]["y"]:.2f} / '
+          f'{metrics["e_pos_torso_DS_hold_deviation_mm"]["peak_per_axis_mm"]["z"]:.2f}')
     print(f'  d_ee at docks (per step, mm)   '
           f'[sim-log "d_mm" | post-hoc R_s recomputed]:')
     for ev in d_ee_at_docks:
