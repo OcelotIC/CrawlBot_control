@@ -611,6 +611,17 @@ class SimulationLoop:
         t_log: Optional[list] = None,
         T_log: Optional[list] = None,
         t_log_step_offset: int = 0,
+        # Phase-B logging hooks (no control effect; logging-only).
+        # When `log_obj` is None, no per-tick log rows are written —
+        # the setup-Stage-2 settle call site keeps that behaviour.
+        # The inter-step DS call site passes log_obj=log + context so
+        # the loop emits per-tick rows schema-identical to the SS log.
+        log_obj=None,
+        log_step_idx: int = -1,
+        log_just_landed_arm: str = '',
+        log_anchor_a_idx: int = -1,
+        log_anchor_b_idx: int = -1,
+        log_t_abs: float = 0.0,
     ) -> dict:
         """Run the M2 QP in settle_mode + passivity_active until T<T_settle.
 
@@ -718,7 +729,10 @@ class SimulationLoop:
             Jc, Jdc = self.robot.get_contact_jacobians(True, True)
 
             try:
-                _, _, _, tau, _ = qp.solve(
+                # lambda_qp_sol captured for logging-only (was `_` before
+                # Phase B). No control change — value is not consumed
+                # downstream of this branch.
+                _, _, lambda_qp_sol, tau, _ = qp.solve(
                     q_t=rs.q_torso, dq_t=rs.dq_torso,
                     q=rs.q_joints, dq=rs.dq_joints,
                     r_com_ref=rs.r_com, v_com_ref=np.zeros(3),
@@ -744,11 +758,23 @@ class SimulationLoop:
             except Exception:
                 tau = -fallback_Kd * rs.dq_joints
                 tau = np.clip(tau, -cfg.tau_max, cfg.tau_max)
+                lambda_qp_sol = np.zeros(12)
 
             self.mj_data.ctrl[:n_j] = tau
             if self.has_rwa:
                 self.mj_data.ctrl[n_j:n_j + 3] = 0.0
             mujoco.mj_step(self.mj_model, self.mj_data)
+
+            # ── Phase-B per-tick logging (logging-only; no control change) ──
+            # Emit a row schema-identical to the SS log block. NaN sentinels
+            # for NMPC-side quantities (NMPC is bypassed in this loop).
+            if log_obj is not None:
+                t_abs_tick = log_t_abs + (k + 1) * dt
+                self._log_ds_tick(
+                    log_obj, t_abs_tick,
+                    log_step_idx, log_just_landed_arm,
+                    log_anchor_a_idx, log_anchor_b_idx,
+                    tau, lambda_qp_sol)
 
         n_steps_run = min(k + 1, max_steps) if max_steps > 0 else 0
         # Record final energy (no ctrl reset — caller manages the handoff)
@@ -765,6 +791,208 @@ class SimulationLoop:
             'lambda_min': lambda_min,
             'exit_reason': exit_reason,
         }
+
+    def _log_ds_tick(self, log, t_abs, step_idx, just_landed_arm,
+                     anchor_a_idx, anchor_b_idx, tau, lambda_qp_sol):
+        """Append one per-tick DS log row (logging-only; no control change).
+
+        Called from ``_run_ds_passivity_loop`` AFTER ``mj_step``. The row
+        has the SAME field set as the SS row written by ``_step`` so the
+        SimLog stays schema-consistent (every list grows by 1 per tick,
+        all lengths equal). NaN sentinels are used for NMPC-side fields
+        (NMPC is bypassed in this loop); zeros for the AOCS-side wheel
+        torque (wheels are commanded to zero at line ~754).
+
+        Phase-B guarantee: this method only reads MuJoCo / Pinocchio
+        state and appends to the log. It does not call qp.solve, does
+        not change ``self.mj_data.ctrl``, does not advance MuJoCo time,
+        does not mutate ``self.gmo`` / ``self.contact_sm`` / planner
+        state. Side-effect-free w.r.t. control.
+        """
+        cfg = self.cfg
+        nq = self.robot.n_joints
+
+        # Recompute Pinocchio state from current MuJoCo state.
+        # This duplicates the next iteration's top-of-loop computation
+        # by one tick; harmless (the next iteration recomputes anyway).
+        pq, pv = mujoco_to_pinocchio(self.mj_data.qpos, self.mj_data.qvel)
+        rs = self.robot.update(pq, pv)
+
+        # Torso planner reference at the absolute tick time. During
+        # inter-step DS the planner returns its hold/last-phase pose;
+        # this gives a defined p_ref/R_ref for tracking-error fields.
+        tref = self.torso_planner.reference_at(t_abs)
+        p_torso_ref = tref.p.copy()
+        R_torso_ref = tref.R.copy()
+        q_torso_ref = pin.Quaternion(R_torso_ref)
+        # Torso tracking error (geodesic angle).
+        R_err = R_torso_ref.T @ rs.oMf_torso.rotation
+        angle_err = np.arccos(np.clip((np.trace(R_err) - 1) / 2, -1, 1))
+
+        # End-effector data for the JUST-LANDED arm (the one whose
+        # contact tenure we are measuring). If '' (initial DS), default
+        # to arm A so the field is well-defined; the post-processor
+        # knows to drop initial-DS rows.
+        ee_arm = just_landed_arm if just_landed_arm in ('a', 'b') else 'a'
+        J_ee, _, oMf_ee = self._get_ee_data(rs, ee_arm)
+        # d_grip_swing = distance to the welded contact anchor (just-landed
+        # arm). For initial DS (anchor < 0), report NaN.
+        try:
+            if ee_arm == 'a' and anchor_a_idx >= 0:
+                d_swing = self._gripper_distance('a', anchor_a_idx)
+            elif ee_arm == 'b' and anchor_b_idx >= 0:
+                d_swing = self._gripper_distance('b', anchor_b_idx)
+            else:
+                d_swing = float('nan')
+        except Exception:
+            d_swing = float('nan')
+        # d_grip_stance: the OTHER arm (continuing stance).
+        try:
+            if ee_arm == 'a' and anchor_b_idx >= 0:
+                d_stance = self._gripper_distance('b', anchor_b_idx)
+            elif ee_arm == 'b' and anchor_a_idx >= 0:
+                d_stance = self._gripper_distance('a', anchor_a_idx)
+            else:
+                d_stance = float('nan')
+        except Exception:
+            d_stance = float('nan')
+
+        # Wheel momentum from MJ wheel state.
+        if self.has_rwa:
+            rw_vel = self.mj_data.qvel[6:9].copy()
+            hw = (cfg.rwa_I_w * rw_vel).copy()
+        else:
+            rw_vel = np.zeros(3)
+            hw = np.zeros(3)
+
+        # SS convention: tau_max_joint is the SCALAR max|tau| at this tick.
+
+        # ── Schema-identical append ───────────────────────────────────
+        log.t.append(float(t_abs))
+        log.phase.append('DS')
+        log.step_idx.append(int(step_idx))
+
+        # Torso tracking
+        log.p_torso.append(rs.oMf_torso.translation.copy())
+        log.p_torso_ref.append(p_torso_ref)
+        log.e_torso_pos.append(float(
+            np.linalg.norm(rs.oMf_torso.translation - p_torso_ref)))
+        log.e_torso_ori.append(float(np.degrees(angle_err)))
+        q_torso_actual = pin.Quaternion(rs.oMf_torso.rotation)
+        log.q_torso.append(np.array([q_torso_actual.w, q_torso_actual.x,
+                                      q_torso_actual.y, q_torso_actual.z]))
+        log.q_torso_ref.append(np.array([q_torso_ref.w, q_torso_ref.x,
+                                          q_torso_ref.y, q_torso_ref.z]))
+
+        # End-effector
+        log.d_grip_swing.append(float(d_swing))
+        log.d_grip_stance.append(float(d_stance))
+        log.swing_arm.append(just_landed_arm)
+        log.p_ee.append(oMf_ee.translation.copy())
+        # No swing planner reference in DS — anchor IS the target.
+        log.p_ee_ref.append(oMf_ee.translation.copy())
+        q_ee_a = pin.Quaternion(oMf_ee.rotation)
+        log.q_ee.append(np.array([q_ee_a.w, q_ee_a.x, q_ee_a.y, q_ee_a.z]))
+        log.q_ee_ref.append(np.array([q_ee_a.w, q_ee_a.x,
+                                       q_ee_a.y, q_ee_a.z]))
+
+        # Joint / EE / torso velocities
+        v_a = rs.J_tool_a @ rs.v
+        v_b = rs.J_tool_b @ rs.v
+        v_t = rs.J_torso @ rs.v
+        log.qvel_joints_a.append(rs.dq_joints[:nq // 2].copy())
+        log.qvel_joints_b.append(rs.dq_joints[nq // 2:].copy())
+        log.v_ee_a.append(v_a[:3].copy())
+        log.omega_ee_a.append(v_a[3:].copy())
+        log.v_ee_b.append(v_b[:3].copy())
+        log.omega_ee_b.append(v_b[3:].copy())
+        log.v_torso.append(v_t[:3].copy())
+        log.omega_torso.append(v_t[3:].copy())
+
+        # CoM (use measured as ref → e_com = 0)
+        log.r_com.append(rs.r_com.copy())
+        log.r_com_ref.append(rs.r_com.copy())
+        log.e_com.append(0.0)
+        log.v_com.append(rs.v_com.copy())
+        log.v_com_ref.append(np.zeros(3))
+
+        # Momentum (L_dot left as zeros — would require prior tick state)
+        log.L_com.append(rs.L_com.copy())
+        log.L_com_norm.append(float(np.linalg.norm(rs.L_com)))
+        log.L_com_ref.append(np.zeros(3))
+        log.L_dot.append(np.zeros(3))
+        log.L_dot_norm.append(0.0)
+        log.hw.append(hw.copy())
+
+        # RWA physical — wheels are OFF in this loop (ctrl[n_j:n_j+3]=0).
+        # tau_w = zeros is the actual commanded value.
+        log.hw_physical.append(hw.copy())
+        log.tau_w.append(np.zeros(3))
+        log.rw_speed.append(rw_vel.copy())
+
+        # EE tracking error (vs same-frame ref → 0).
+        log.e_ee_pos.append(0.0)
+        log.e_ee_ori.append(0.0)
+
+        # GMO / contact estimator: not updated in DS loop; report best-
+        # effort current state (the GMO object is stateful; reading it
+        # does NOT mutate). Fall back to zeros on any attribute error.
+        try:
+            log.gmo_residual_norm.append(float(np.linalg.norm(self.gmo.residual)))
+        except Exception:
+            log.gmo_residual_norm.append(0.0)
+        # gmo_swing_residual requires a v-slice; not tracked in DS.
+        log.gmo_swing_residual.append(0.0)
+        try:
+            log.gmo_contact_state.append(self.contact_sm.state.value)
+        except Exception:
+            log.gmo_contact_state.append(0)
+
+        # H_rO / H estimator diagnostics — H_estimator not advanced here.
+        try:
+            log.H_rO.append(self.H_estimator.H_rO.copy())
+            log.H_dot_est.append(self.H_estimator.H_dot.copy())
+        except Exception:
+            log.H_rO.append(np.zeros(3))
+            log.H_dot_est.append(np.zeros(3))
+        log.omega_struct.append(self.mj_data.qvel[3:6].copy())
+        log.qfrc_constraint_torque.append(np.zeros(3))
+
+        # Joint torques (clipped value commanded to MJ).
+        log.tau.append(tau.copy())
+        log.tau_max_joint.append(float(np.max(np.abs(tau))))
+
+        # Structure state.
+        log.struct_pos.append(self.mj_data.qpos[0:3].copy())
+        log.struct_quat.append(self.mj_data.qpos[3:7].copy())
+        # Euler (zyx) from quat — small-angle is fine for diag.
+        qw_s, qx_s, qy_s, qz_s = self.mj_data.qpos[3:7]
+        log.struct_euler_deg.append(np.degrees(np.array([
+            np.arctan2(2*(qw_s*qx_s + qy_s*qz_s), 1 - 2*(qx_s*qx_s + qy_s*qy_s)),
+            np.arcsin(np.clip(2*(qw_s*qy_s - qz_s*qx_s), -1, 1)),
+            np.arctan2(2*(qw_s*qz_s + qx_s*qy_s), 1 - 2*(qy_s*qy_s + qz_s*qz_s)),
+        ])))
+        log.omega_s.append(self.mj_data.qvel[3:6].copy())
+
+        # ── NMPC-bypassed sentinels ───────────────────────────────────
+        # lambda_ref: NaN sentinel — there is NO plan in this regime.
+        log.lambda_ref.append(np.full(12, np.nan))
+        log.lambda_ref_norm.append(float('nan'))
+        # QP-side wrenches: real values from this loop's QP solve.
+        log.lambda_qp.append(np.asarray(lambda_qp_sol, dtype=float).copy())
+        log.lambda_qp_norm.append(float(np.linalg.norm(lambda_qp_sol)))
+        log.nmpc_ok.append(False)  # not run; not a failure
+        log.qp_ok.append(True)
+        log.nmpc_time_ms.append(0.0)
+        log.qp_time_ms.append(0.0)
+        log.nmpc_status.append(3)  # 3 = BYPASSED sentinel (post-proc reads)
+        log.nmpc_cost.append(float('nan'))
+        log.nmpc_status_str.append('NMPC_BYPASSED')
+        log.nmpc_iterations.append(0)
+        log.transport_term_mag.append(0.0)
+
+        # Energy / passivity
+        log.T_kinetic.append(0.5 * float(rs.v @ rs.H @ rs.v))
 
     def _build_qp(self, ac, at, ae, ap, aw, ar_react,
                    kpc, kdc, kpt, kdt, kpe, kde,
@@ -1567,6 +1795,22 @@ class SimulationLoop:
                     t_ds_start_wall = t
                     min_steps_ds = max(
                         0, int(round(cfg.t_settle_inter_min / cfg.dt_qp)))
+                    # ── Phase-B logging context for inter-step DS ───────
+                    # just_landed_arm = swing arm of the PRIOR SS phase
+                    # (phases[i-1]); '' for the initial DS (i == 0). The
+                    # logged step_idx is the prior step that just finished
+                    # (= current step_idx − 1; −1 for the initial DS).
+                    _ds_log_just_landed = ''
+                    _ds_log_swing_to = -1
+                    if i > 0 and plan.phases[i - 1].swing_arm:
+                        _ds_log_just_landed = plan.phases[i - 1].swing_arm
+                        _ds_log_swing_to = plan.phases[i - 1].swing_to_idx
+                    _ds_log_step_idx = step_idx - 1
+                    # Anchor indices for the DS contact pair — the
+                    # _post-step_ welded positions (cc_ds was built from
+                    # the inter-step DOUBLE phase, line ~1555).
+                    _ds_anchor_a = phases[i].anchor_a_idx
+                    _ds_anchor_b = phases[i].anchor_b_idx
                     ds_result = self._run_ds_passivity_loop(
                         contact_config=cc_ds,
                         max_steps=cfg.n_ds_max_steps,
@@ -1575,6 +1819,13 @@ class SimulationLoop:
                         plateau_ratio=cfg.settle_plateau_ratio,
                         min_steps=min_steps_ds,
                         fallback_Kd=cfg.Kd_settle_damping,
+                        # Logging-only kwargs (no control effect):
+                        log_obj=log,
+                        log_step_idx=_ds_log_step_idx,
+                        log_just_landed_arm=_ds_log_just_landed,
+                        log_anchor_a_idx=_ds_anchor_a,
+                        log_anchor_b_idx=_ds_anchor_b,
+                        log_t_abs=t_ds_start_wall,
                     )
                     dt_ds_elapsed = ds_result['n_steps'] * cfg.dt_qp
                     t += dt_ds_elapsed
@@ -1599,6 +1850,52 @@ class SimulationLoop:
                             f"exit={ds_result['exit_reason']}, "
                             f"T: {ds_result['T_start']:.2e} → "
                             f"{ds_result['T_end']:.2e} J)")
+
+                    # ── 1b. DWELL (optional) — extended inter-step DS ─────
+                    # When the GaitPlan's DS phase has a duration much
+                    # longer than the natural energy-decay window, model
+                    # external AOCS desat by continuing to run the QP in
+                    # centroidal-DS settle mode for the remainder of the
+                    # planned duration. The Stage 3 captured reference is
+                    # set so the WBC holds the welded equilibrium.
+                    _dwell_target = gp.duration - dt_ds_elapsed
+                    if _dwell_target > 1.0 and cfg.ds_centroidal_mode:
+                        if verbose:
+                            print(f"  DWELL: continuing DS for "
+                                  f"{_dwell_target:.1f}s "
+                                  f"(centroidal-DS active, passivity on)")
+                        # Capture welded-state torso reference for the dwell.
+                        pq_d, pv_d = mujoco_to_pinocchio(
+                            self.mj_data.qpos, self.mj_data.qvel)
+                        rs_d = self.robot.update(pq_d, pv_d)
+                        self.torso_planner.set_hold(
+                            rs_d.oMf_torso.translation.copy(),
+                            rs_d.oMf_torso.rotation.copy(),
+                            r_com=rs_d.r_com.copy())
+                        t_dwell_end = t + _dwell_target
+                        # Use stance pair from the upcoming SS phase as the
+                        # contact config (both arms welded → DOUBLE).
+                        last_sa_d = stance_a
+                        last_sb_d = stance_b
+                        while t < t_dwell_end:
+                            hw, L_com_prev = self._step(
+                                t, 'DS', step_idx - 1,
+                                swing_arm, stance_arm,
+                                cc_ds, 0, last_sa_d, last_sb_d,
+                                hw, L_com_prev, log, ss_end=t,
+                                settle_mode=True,
+                                passivity_override=True,
+                                ds_centroidal_active=True)
+                            t += cfg.dt_nmpc
+                        if verbose:
+                            print(f"  DWELL end: t={t:.2f}s, "
+                                  f"‖h_w‖={np.linalg.norm(hw):.3f} Nms")
+                        # B-probe: reset NMPC warm-start after the long
+                        # dwell. The NMPC ran ~thousands of ticks during
+                        # the dwell with a static DS reference; carrying
+                        # that warm-state into SS planning is stale.
+                        self.nmpc.reset_warm_start()
+                        L_com_prev = None  # force AOCS FD to re-seed too
 
                     # ── 2. Planning handoff: pre-planner → T_step ────────
                     # Runs the coarse pre-planner (mandatory) to get
