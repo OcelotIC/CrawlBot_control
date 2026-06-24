@@ -241,7 +241,10 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
          mass_ratio: float = 0.01, aocs_mode: str = 'legacy_corrected',
          settle_seconds: float = 20.0, K_theta: float = 1.0,
          K_omega: float = 50.0, tau_w_max: float = 5.0,
-         scenario: str = None, baseline_ds_rework: bool = False):
+         scenario: str = None, baseline_ds_rework: bool = False,
+         out_dir_override: str = None,
+         ss_centroidal_momentum_task: bool = False,
+         ss_alpha_mom: float = 500.0, ss_alpha_tl_weak: float = 0.0):
     cfg = r_single._make_m7_config()
     cfg.gait_anchor_dx = anchor_dx
     # Sweet-spot config carry-over (these are also already the defaults
@@ -389,6 +392,17 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
                                f'dx_{anchor_dx:.2f}')
     else:
         out_dir = os.path.join(_root, 'results', 'diag_cooperative_arms')
+
+    # ── SS centroidal-momentum task (memo SS_CENTROIDAL_MOMENTUM_TASK_2026-06) ──
+    # Default OFF reproduces the canonical torso-linear P2 stack (bit-identical).
+    cfg.ss_centroidal_momentum_task = bool(ss_centroidal_momentum_task)
+    cfg.ss_alpha_mom = float(ss_alpha_mom)
+    cfg.ss_alpha_tl_weak = float(ss_alpha_tl_weak)
+    # Output-dir override (memo §7: new runs → new dirs; prior committed
+    # baselines stay read-only). Accepts a name under results/ or an abs path.
+    if out_dir_override is not None:
+        out_dir = (out_dir_override if os.path.isabs(out_dir_override)
+                   else os.path.join(_root, 'results', out_dir_override))
 
     from crawlbot.simulation.sim_loop import SimulationLoop
     URDF = os.path.join(_root, 'models', 'VISPA_crawling_fixed.urdf')
@@ -601,6 +615,19 @@ if __name__ == '__main__':
                              '(wrench-FF / Stage3 ref / internal-stress '
                              '/ centroidal-DS). Reproduces pre-rework '
                              'behaviour for comparison plotting.')
+    parser.add_argument('--out-dir', type=str, default=None,
+                        help='Override the auto-derived output directory '
+                             '(name under results/, or an absolute path). '
+                             'Use for SS-centroidal-momentum runs so prior '
+                             'committed baselines stay read-only (memo §7).')
+    parser.add_argument('--ss-centroidal-momentum-task', action='store_true',
+                        help='Enable the SS T-MOM linear task (replaces the '
+                             'torso-linear P2 channel). Default OFF = canonical.')
+    parser.add_argument('--ss-alpha-mom', type=float, default=500.0,
+                        help='T-MOM linear P2 weight (default 500).')
+    parser.add_argument('--ss-alpha-tl-weak', type=float, default=0.0,
+                        help='Variant-B weak torso-linear regulariser weight '
+                             '(0 = Variant A: torso-linear removed).')
     args = parser.parse_args()
 
     with open(MJCF, 'r') as f:
@@ -615,7 +642,11 @@ if __name__ == '__main__':
              args.mass_ratio, args.aocs_mode, args.settle_seconds,
              args.K_theta, args.K_omega, args.tau_w_max,
              scenario=args.scenario,
-             baseline_ds_rework=args.baseline_ds_rework)
+             baseline_ds_rework=args.baseline_ds_rework,
+             out_dir_override=args.out_dir,
+             ss_centroidal_momentum_task=args.ss_centroidal_momentum_task,
+             ss_alpha_mom=args.ss_alpha_mom,
+             ss_alpha_tl_weak=args.ss_alpha_tl_weak)
     finally:
         with open(MJCF, 'w') as f:
             f.write(original)

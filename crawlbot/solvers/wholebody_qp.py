@@ -128,6 +128,14 @@ class WholeBodyQPConfig:
     alpha_torso_ang: float = 5e2
     alpha_torso_lin: float = 5e2
 
+    # ── SS centroidal-momentum task (T-MOM) ──
+    # memo SS_CENTROIDAL_MOMENTUM_TASK_2026-06. When True (cooperative SS,
+    # non-settle), the linear CMM task replaces the torso-linear P2 channel
+    # at weight ss_alpha_mom. Default OFF = canonical torso-linear P2.
+    ss_centroidal_momentum_task: bool = False
+    ss_alpha_mom: float = 5e2
+    ss_alpha_tl_weak: float = 0.0
+
     # ── Stance-thrust inertial-coupling correction (experimental) ───
     # Adds (J_c_stance[:,:6])^{-T} · M_fj · ddq_j_prev to the stance
     # slot of the wrench reference, intending to feed-forward the
@@ -840,10 +848,37 @@ class WholeBodyQP:
         b_coop_lin_res = None
         if (cfg.cooperative_arms_mode and _coop_A_lin is not None
                 and N_torso is not None and A_torso_pinv is not None):
-            A_coop_lin_proj = _coop_A_lin @ N_torso
-            b_coop_lin_res = _coop_b_lin - _coop_A_lin @ A_torso_pinv @ b_torso
-            qp.add_task(A_coop_lin_proj, b_coop_lin_res,
-                        cfg.alpha_torso_lin, priority=2)
+            if cfg.ss_centroidal_momentum_task and not settle_mode:
+                # ── T-MOM v1 (memo SS_CENTROIDAL_MOMENTUM_TASK_2026-06 §2.1) ──
+                # The linear centroidal-momentum task REPLACES the torso-linear
+                # P2 channel. A_com/b_com (built above) is exactly that task in
+                # CoM-Jacobian form:  J_com·q̈ = a_com_des − J̇_com·q̇,  with
+                # J_com = [A_G]_lin/m and J̇_com·q̇ = [Ȧ_G]_lin·q̇/m, i.e.
+                # [A_G]_lin·q̈ + [Ȧ_G]_lin·q̇ = m·a_com_des up to the mass scalar
+                # (folded into α_mom). a_com_des = a_com_ff + Kp(r*−r̂) + Kd(v*−v̂)
+                # tracks the NMPC centroidal plan — no state-dependent reference
+                # (algebraic loop / F-SAT removed on this channel). Projected
+                # through the same N_torso (= N_torso_ang) as EE so the two P2
+                # tasks share a null-space frame.
+                A_mom_proj = A_com @ N_torso
+                b_mom_res = b_com - A_com @ A_torso_pinv @ b_torso
+                qp.add_task(A_mom_proj, b_mom_res,
+                            cfg.ss_alpha_mom, priority=2)
+                # Variant B: optional weak torso-linear regulariser (α_tl_weak>0
+                # ⇒ retain the quintic torso ref as a posture preference one
+                # order below α_mom). Variant A (default, α_tl_weak=0) leaves
+                # torso position a pure outcome of weld+P1+momentum+posture.
+                if cfg.ss_alpha_tl_weak > 0.0:
+                    A_coop_lin_proj = _coop_A_lin @ N_torso
+                    b_coop_lin_res = (_coop_b_lin
+                                      - _coop_A_lin @ A_torso_pinv @ b_torso)
+                    qp.add_task(A_coop_lin_proj, b_coop_lin_res,
+                                cfg.ss_alpha_tl_weak, priority=2)
+            else:
+                A_coop_lin_proj = _coop_A_lin @ N_torso
+                b_coop_lin_res = _coop_b_lin - _coop_A_lin @ A_torso_pinv @ b_torso
+                qp.add_task(A_coop_lin_proj, b_coop_lin_res,
+                            cfg.alpha_torso_lin, priority=2)
 
         # --- Task 2b: Soft CoM residual (M2 stack only) ---
         # Quadratic cost α_com_soft * ||J_com @ qdd - a_com_des||² with

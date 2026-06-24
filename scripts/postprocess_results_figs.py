@@ -25,7 +25,12 @@ import numpy as np
 import pinocchio as pin
 
 _root = Path(__file__).resolve().parent.parent
-LOG_DIR = _root / 'results' / 'diag_cooperative_arms_legacy_pid_numerical'
+# Run directory is overridable via SSMOM_RUN_DIR so this post-processor can
+# serve any run dir (SS-centroidal-momentum Phase-1+ baselines/variants).
+# Default = the canonical legacy_pid_numerical run (backward compatible).
+_RUN_DIR_NAME = os.environ.get('SSMOM_RUN_DIR',
+                               'diag_cooperative_arms_legacy_pid_numerical')
+LOG_DIR = _root / 'results' / _RUN_DIR_NAME
 LOG_PATH = LOG_DIR / 'sim_log.json'
 MJCF_PATH = _root / 'models' / 'VISPA_crawling_rwa3.xml'
 

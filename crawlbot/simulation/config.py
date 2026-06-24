@@ -239,6 +239,19 @@ class SimConfig:
     # the welded-loop λ in DS (both contacts active). No effect in SS
     # (single contact has no internal-stress null space). 0 ⇒ legacy.
 
+    # ── SS centroidal-momentum task (T-MOM) ─────────────────────
+    # memo: docs/architecture/SS_CENTROIDAL_MOMENTUM_TASK_2026-06.md
+    # When True, the linear centroidal-momentum task replaces the
+    # torso-linear channel at P2 (weight ss_alpha_mom): [A_G]_lin q̈ +
+    # [Ȧ_G]_lin q̇ = m·a_com_des, realised via the CoM Jacobian, with the
+    # NMPC centroidal plan as reference (no state-dependent mapping, no
+    # F-SAT). Kp/Kd reuse ss_Kp_com/ss_Kd_com. Default OFF = canonical
+    # torso-linear P2 (bit-identical to the pre-task baseline).
+    ss_centroidal_momentum_task: bool = False
+    ss_alpha_mom: float = 5e2        # T-MOM linear P2 weight (slot of torso-linear)
+    ss_alpha_tl_weak: float = 0.0    # Variant B weak torso-linear regulariser
+    #                                  (0 ⇒ Variant A: torso-linear removed)
+
     # DS centroidal-control mode (replaces joint-vel-damping cost with
     # CoM + torso-ori tracking at P1, posture at P3, passivity inequality
     # for energy dissipation). Off by default ⇒ legacy joint-vel damping.

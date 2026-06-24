@@ -1045,6 +1045,9 @@ class SimulationLoop:
             cooperative_arms_mode=cfg.cooperative_arms_mode,
             alpha_torso_ang=cfg.ss_alpha_torso_ang,
             alpha_torso_lin=cfg.ss_alpha_torso_lin,
+            ss_centroidal_momentum_task=cfg.ss_centroidal_momentum_task,
+            ss_alpha_mom=cfg.ss_alpha_mom,
+            ss_alpha_tl_weak=cfg.ss_alpha_tl_weak,
             stance_thrust_correction=cfg.stance_thrust_correction)
         qp = WholeBodyQP(c)
         qp.set_nominal_posture(self.q_dock_init[self.robot.joints_q_slice])
