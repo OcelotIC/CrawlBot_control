@@ -135,22 +135,52 @@ REPORTED as characterization, NOT pass/fail thresholds. [Result: PASSED at shipp
 ss_alpha_mom=500 — hold 1.6e-11, Ȧ_G·q̇ 1.5e-7, mass-factor 0.20→0.85 no offset, position
 tracking ≤1.45 mm under 2.5 mm tol, no reweighting.]
 
-### Phase 2.1 — single-step swing, variants A/B
-Scenario: canonical step 1 in isolation, variants A and B, flag ON.
-Metrics vs baseline single step: torso jitter (reference and realized), F-SAT activity on the legacy channel = N/A (channel off) — instead log T-MOM residual; CoM tracking error (r̂_com vs r*); EE docking distance/orientation at capture; realized Ḣ_s vs NMPC-planned Ḣ_s (fidelity, informative only in v1); QP solve time (<5 ms budget); joint-torque margins.
-STOP. Report per variant; kill a variant only with a diagnosed cause.
+### Phase 2.1 — two-task integration, single-step (stop-gate)
+Supersedes the abandoned α_mom A/B sweep. Formulation: the QP executes the NMPC plan via
+TWO parallel tasks, each fed by its own direct source, with NO mapping between them:
 
-**ss_alpha_mom is not frozen.** Phase 2.1 sweeps it (500 / 5000 / 30000); shipping 500
-(= alpha_torso_ang under weight_ratio=1) balanced torso-linear vs EE, but T-MOM replaces
-torso-linear with a CoM-accel task of different nature, so the 1:6 balance is reconsidered
-under swing, not inherited. **Ratio question (test, do not pre-decide architecture):**
-Phase 2.0 showed that at EQUAL weights the P1 torso-angular hold rightly refuses to rotate
-the torso to chase an instantaneous CoM-accel spike, so per-step CoM-accel fidelity is
-partial at shipping weight (position still tracks via feedback). This is a WEIGHT-BALANCE
-property, not necessarily architectural. Phase 2.1 tests whether sweeping ss_alpha_mom
-restores CoM authority under swing. ONLY IF the sweep fails to (CoM tracking inadequate at
-all tested weights, or torso-angular degrades unacceptably as α_mom rises) does the
-strict-P1-vs-strong-weighted-P2 architecture question arise — raised then, not now.
+- **Momentum task (T-MOM, linear rows only, v1):** reference = the NMPC plan (r_com*, v_com*,
+  a_com_ff). Drives `[A_G]_lin q̈ + [Ȧ_G]_lin q̇ = m·a_com_des`. Unchanged from Phase 2.0.
+- **Torso-pose task (6-D, NEW):** reference = the TorsoPlanner quintic DIRECTLY (position
+  p_t0→p_t1) + SLERP (orientation). Acts on J_torso. NO δ, no CoMToTorsoMapping — the quintic
+  is a fixed planner output (state-independent → no algebraic loop, F-SAT unnecessary).
+- **Swing-EE task:** unchanged, swing reference.
+
+**Hierarchy — FULLY WEIGHTED (strict-P1 abandoned).** Decision (lecture B): torso orientation
+is NO LONGER a strict null-space-projected P1 task. It becomes a component of the unified 6-D
+torso-pose task, weighted. Rationale: the state feedback IS the 6-D torso pose AND the arm
+joint angles, so the full configuration is reconstructible; orientation need not be
+sanctuarised in strict priority to be observed/regulated. Starting hierarchy: **momentum +
+swing-EE prioritised (highest weights), 6-D torso-pose just below (strong but yields the last
+margin under over-constraint), posture as redundancy resolution.** This is a starting point,
+not dogma — Phase 2.1 measures whether it holds. (Paper consequence if Phase 3 passes: VI-D is
+rewritten from the hybrid strict-P1/weighted-P2 scheme to a fully-weighted hierarchy; the paper
+already notes a formally-guaranteed strict-priority reformulation is future work, so no claimed
+guarantee is contradicted.)
+
+**DOF count:** momentum (6, of which v1 uses the 3 linear) + torso-pose (6) + swing-EE (6) =
+up to 18 constraints on nv=20. Tight. Compatibility is a TEST OUTCOME, not assumed.
+
+**Two-regime analysis frame (critical — avoids misreading a legitimate residual).** r_com* is
+derived from the same quintic the torso-pose task tracks, BUT the NMPC may DEVIATE r_com* from
+that quintic to satisfy the envelope constraint (the canonical run saturates τ_w,max on all
+three axes — the constraint is active). Two regimes:
+- **Envelope-not-binding:** NMPC leaves r_com* ≈ quintic projection → the two references are
+  consistent → torso should reach p_t1 (≤ few mm, baseline parity 1.69 mm).
+- **Envelope-binding:** NMPC deviates r_com* from the quintic → T-MOM tracks the deviated
+  r_com* while torso-pose tracks the un-deviated quintic → references diverge. Per the starting
+  hierarchy (momentum prioritised), the torso-pose YIELDS: the torso arrives at the pose
+  CONSISTENT WITH the deviated r_com*, NOT exactly at p_t1. The residual vs p_t1 in this regime
+  is the SIGNATURE OF THE ACTIVE CONSTRAINT — expected and correct, NOT a failure. Phase 2.1
+  MUST separate these regimes when interpreting torso arrival; a binding-regime residual is the
+  envelope shaping execution, which is a positive result (the constraint is visibly used, not
+  merely present).
+
+GATE to Phase 3: the two tasks are jointly realisable on the canonical single step; envelope
+fidelity (realized Ḣ_s vs planned) holds; under envelope-binding the torso-pose yields and the
+envelope is kept (correct hierarchy); docking succeeds. A failure stops here with a
+cascade-bisection diagnosis. The momentum/torso-pose WEIGHT RATIO is the new tuning knob
+(replaces the abandoned α_mom A/B), swept to locate the envelope-vs-pose trade-off.
 
 ### Phase 3 — canonical 5-step + GATE
 Scenario: canonical 5-step traversal, surviving variant(s).
@@ -168,7 +198,7 @@ Scenario: canonical 5-step traversal, surviving variant(s).
 
 ## 5. Explicitly out of scope (this branch)
 - L_com rows in T-MOM (v2, pre-registered follow-up).
-- F-SAT / CoMToTorsoMapping code removal (only channel deselection; removal is post-submission hygiene).
+- F-SAT / CoMToTorsoMapping **code** removal stays post-submission hygiene. NOTE (Phase-2.1 reformulation): SS torso guidance is now a full **6-D torso-pose task** on `J_torso` fed by the TorsoPlanner quintic+SLERP **directly** — the CoMToTorsoMapping δ path (live or planned) is **abandoned for SS** (not merely deselected), and the former "weak torso-linear regulariser (Variant B)" idea is superseded by this full torso-pose task. F-SAT is therefore unnecessary in SS (the quintic reference is state-independent). The δ-mapping code remains in the tree (used elsewhere / pending removal) but is off the SS path.
 - DS-side changes (centroidal-DS is already on main and is taken as-is).
 - DS→SS post-dwell launch transient (NEXT_SESSION Tier 1 — separate thread; NOTE: if Phase-2/3 diagnosis lands on reference discontinuities at SS start, coordinate with that thread before fixing).
 - Multi-traversal scenarios, mass ratios ≠ 1 %.
