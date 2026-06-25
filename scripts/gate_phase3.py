@@ -17,11 +17,16 @@ from crawlbot.core.robot_interface import RobotInterface
 ROOT = os.path.join(os.path.dirname(__file__), '..')
 RES = os.path.join(ROOT, 'results')
 BASE = 'ssmom_phase1_baseline_main_dcda974'
-WP = 'phase3_wp'
+WP = os.environ.get('SSMOM_WP_DIR', 'phase3_wp')   # iteration-B: override via env
+OFF_DIR = os.environ.get('SSMOM_OFF_DIR', 'phase3_off')
 TAU_W_MAX = 5.0
 HDOT_MAX = 5.0
 GATE_MM = 5.0
-OUT = os.path.join(RES, 'phase3_wp')
+# Corrected C5 (review decision): h_w peak ∞-norm ≤ 4.5 N·m·s (≤90% of ±5 budget),
+# NOT ≤ baseline (ill-founded — penalises better attitude regulation, see
+# INTERNAL_hw_torso_motion_diagnostic.md).
+C5_LIMIT = float(os.environ.get('SSMOM_C5_LIMIT', '4.5'))
+OUT = os.path.join(RES, WP)
 
 _robot = RobotInterface(os.path.join(ROOT, 'models', 'VISPA_crawling_fixed.urdf'),
                         gravity='zero')
@@ -119,11 +124,11 @@ def main():
     # ---- Criterion 5: stored momentum h_w peak ∞-norm ----
     hw_wp = float(np.max(np.abs(np.array(pl['hw']))))
     hw_base = float(np.max(np.abs(np.array(bl['hw']))))
-    R['c5'] = dict(hw_wp=hw_wp, hw_base=hw_base,
-                   verdict=hw_wp <= hw_base + 0.20)   # baseline + small margin
+    R['c5'] = dict(hw_wp=hw_wp, hw_base=hw_base, c5_limit=C5_LIMIT,
+                   verdict=hw_wp <= C5_LIMIT)   # corrected C5: ≤4.5 N·m·s (90% budget)
 
     # ---- Criterion 6: bit-identical OFF + test (from off run) ----
-    off_path = os.path.join(RES, 'phase3_off', 'OFF_RESULT.txt')
+    off_path = os.path.join(RES, OFF_DIR, 'OFF_RESULT.txt')
     R['c6'] = open(off_path).read().strip() if os.path.exists(off_path) else 'PENDING'
 
     # ---- Two-regime torso arrival (characterisation, NOT gate) ----
@@ -165,7 +170,7 @@ def main():
           f"(per-axis {[round(x,2) for x in hdot_ss]}; planned constraint unchanged)")
     print(f"           B15 τ_w-sat@100Hz: agg={b15_agg:.2f}%  per-step={ {k: round(v,1) for k,v in b15_step.items()} }")
     print(f"C4 attitude: {pf(R['c4']['verdict'])}  peak={R['c4']['peak']:.2f}≤1.9 final={R['c4']['final']:.2f}≤1.65")
-    print(f"C5 h_w∞    : {pf(R['c5']['verdict'])}  wp={hw_wp:.3f} base={hw_base:.3f}")
+    print(f"C5 h_w∞    : {pf(R['c5']['verdict'])}  wp={hw_wp:.3f} ≤{C5_LIMIT} (base={hw_base:.3f})")
     print(f"C6 OFF/test: {R['c6']}")
     print('---- two-regime torso arrival ----')
     for r in regime:
