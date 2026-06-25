@@ -1,0 +1,4 @@
+Iteration-B 5-step gate candidate
+HEAD: e8a563f7d878fe53aa8bf52a6ff5fc74a58cb3e2
+tree: dirty
+flags: --ss-two-task --ss-alpha-mom 5000 --alpha-torso-pose 24000 --ss-kp-torso 4 --ss-kd-torso 3.33 --aocs_mode legacy_pid_numerical --K_omega 50 --n-steps 5

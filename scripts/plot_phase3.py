@@ -16,7 +16,7 @@ import matplotlib.pyplot as plt
 ROOT = os.path.join(os.path.dirname(__file__), '..')
 RES = os.path.join(ROOT, 'results')
 BASE = 'ssmom_phase1_baseline_main_dcda974'
-WP = 'phase3_wp'
+WP = os.environ.get('SSMOM_WP_DIR', 'phase3_wp')   # iteration-B: override via env
 OUT = os.path.join(RES, WP, 'phase3_plots')
 TAU_W_MAX = 5.0
 HW_MAX = 5.0
