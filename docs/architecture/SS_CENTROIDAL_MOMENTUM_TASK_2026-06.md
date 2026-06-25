@@ -96,7 +96,40 @@ Methodology per repo standard: standalone validation before integration; cascade
 3. Log run metadata in every result dir: `git rev-parse HEAD`, dirty/clean state, full config dump.
 4. STOP. Report: baseline comparison table, bit-identical proof, implementation notes, frame-consistency note.
 
-### Phase 2 — single-step standalone validation (stop-gate at end)
+### Phase 2.0 — standalone task validation (unit, no swing / no NMPC / no MuJoCo) (stop-gate)
+Purpose: prove the T-MOM linear task is correctly formulated and realized BEFORE
+exposing it to swing dynamics. A failure here is a formulation bug, isolated from
+any integration effect. Harness: the existing pure-Pinocchio path in
+`tests/test_reworked_qp.py` (`_make_m2_qp` / `_solve_qp_step` / `_integrate`),
+extended to enable `cooperative_arms_mode=True` + `ss_centroidal_momentum_task=True`,
+with `p_ee_ref=None` (EE task off) and a frozen nc=1 contact (`single_contact_config`
+/ `dock_state`). NMPC bypassed (`lambda_ref=0`); CoM references injected directly
+via the existing `r_com_ref/v_com_ref/a_com_ff` kwargs.
+
+Tests to add (Z1 analytical driver + Z2 realized-vs-commanded comparator):
+1. **Static hold.** r_com_ref = r_com(q0), v*=0, a_ff*=0 → assert ‖q̈‖≈0 and CoM
+   drift below tolerance over N steps. Catches a wrong PD sign or a reference that
+   depends on the controlled state.
+2. **Pure tracking, per axis.** Impose an analytical r_com_ref(t) (jerk-limited
+   step and sinusoid, one axis at a time, via the existing `septic()` shape
+   retargeted to CoM) → assert realized r_com tracks to tolerance AND the realized
+   task row `J_com·q̈ + J̇_com·q̇` reproduces the commanded `a_com_des` (checks that
+   Ȧ_G·q̇ is correctly assembled, not just A_G).
+3. **Mass-scalar sanity.** Verify the m factor folding into α_mom is handled as
+   intended: the effective CoM-task gain must not be off by a factor m≈71.
+4. **Variant B weak-reference coexistence.** With ss_alpha_tl_weak active, confirm
+   the weak torso-linear reference does not fight CoM tracking (test-2 tolerance
+   still met).
+
+Frame note: the QP is world-frame-native (J_com is the world CoM Jacobian); no
+world↔R_s transport term lives in the QP. Transport consistency is therefore NOT
+a Phase-2.0 concern — it is deferred to Phase 2.1, where R_s NMPC references meet
+the world-frame QP.
+
+GATE to Phase 2.1: all four tests pass. A failure stops here with a cascade-
+bisection diagnosis; no swing run until the task is proven in isolation.
+
+### Phase 2.1 — single-step swing, variants A/B
 Scenario: canonical step 1 in isolation, variants A and B, flag ON.
 Metrics vs baseline single step: torso jitter (reference and realized), F-SAT activity on the legacy channel = N/A (channel off) — instead log T-MOM residual; CoM tracking error (r̂_com vs r*); EE docking distance/orientation at capture; realized Ḣ_s vs NMPC-planned Ḣ_s (fidelity, informative only in v1); QP solve time (<5 ms budget); joint-torque margins.
 STOP. Report per variant; kill a variant only with a diagnosed cause.
