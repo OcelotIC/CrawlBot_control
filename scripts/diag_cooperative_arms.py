@@ -244,7 +244,8 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
          scenario: str = None, baseline_ds_rework: bool = False,
          out_dir_override: str = None,
          ss_centroidal_momentum_task: bool = False,
-         ss_alpha_mom: float = 500.0, ss_alpha_tl_weak: float = 0.0):
+         ss_alpha_mom: float = 500.0, ss_alpha_tl_weak: float = 0.0,
+         n_steps: int = 5):
     cfg = r_single._make_m7_config()
     cfg.gait_anchor_dx = anchor_dx
     # Sweet-spot config carry-over (these are also already the defaults
@@ -398,6 +399,9 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     cfg.ss_centroidal_momentum_task = bool(ss_centroidal_momentum_task)
     cfg.ss_alpha_mom = float(ss_alpha_mom)
     cfg.ss_alpha_tl_weak = float(ss_alpha_tl_weak)
+    # Phase-2.1: log τ_w + h_w at the 100 Hz QP rate during SS (harmless —
+    # adds separate buffers; the 10 Hz log + postproc CSV are unaffected).
+    cfg.log_hifreq_ss = True
     # Output-dir override (memo §7: new runs → new dirs; prior committed
     # baselines stay read-only). Accepts a name under results/ or an abs path.
     if out_dir_override is not None:
@@ -411,7 +415,7 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     if scenario is not None:
         sim.setup(sequence_path=scenario)
     else:
-        sim.setup(n_steps=5, start_a=2, start_b=2)
+        sim.setup(n_steps=n_steps, start_a=2, start_b=2)
     sim._debug_l_com_ref_trace_limit = 5
     sim._debug_physics_trace_limit = 400
     sim._debug_physics_sample_every = 2
@@ -628,6 +632,9 @@ if __name__ == '__main__':
     parser.add_argument('--ss-alpha-tl-weak', type=float, default=0.0,
                         help='Variant-B weak torso-linear regulariser weight '
                              '(0 = Variant A: torso-linear removed).')
+    parser.add_argument('--n-steps', type=int, default=5,
+                        help='Traversal steps (default 5; use 1 for the '
+                             'Phase-2.1 single-step swing).')
     args = parser.parse_args()
 
     with open(MJCF, 'r') as f:
@@ -646,7 +653,8 @@ if __name__ == '__main__':
              out_dir_override=args.out_dir,
              ss_centroidal_momentum_task=args.ss_centroidal_momentum_task,
              ss_alpha_mom=args.ss_alpha_mom,
-             ss_alpha_tl_weak=args.ss_alpha_tl_weak)
+             ss_alpha_tl_weak=args.ss_alpha_tl_weak,
+             n_steps=args.n_steps)
     finally:
         with open(MJCF, 'w') as f:
             f.write(original)

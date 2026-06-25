@@ -3118,6 +3118,16 @@ class SimulationLoop:
             # the box, and actively generates the maximum corrective
             # wrench it can.
 
+            # Phase-2.1: optional 100 Hz (QP-rate) SS logging of reaction-wheel
+            # torque + stored momentum. Gated (default OFF) ⇒ no behavioural
+            # change; tau_w_last (init 2495, updated this tick at the AOCS block
+            # when has_rwa), hw, tq, phase are all in scope.
+            if cfg.log_hifreq_ss and phase == 'SS':
+                log.t_ss_hifreq.append(float(tq))
+                log.tau_w_ss_hifreq.append(
+                    np.asarray(tau_w_last, dtype=float).copy())
+                log.hw_ss_hifreq.append(np.asarray(hw, dtype=float).copy())
+
         t_qp_ms = (time.perf_counter() - t_qp_start) * 1000
 
         # Logging

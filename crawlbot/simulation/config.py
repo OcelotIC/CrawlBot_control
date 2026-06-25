@@ -251,6 +251,10 @@ class SimConfig:
     ss_alpha_mom: float = 5e2        # T-MOM linear P2 weight (slot of torso-linear)
     ss_alpha_tl_weak: float = 0.0    # Variant B weak torso-linear regulariser
     #                                  (0 ⇒ Variant A: torso-linear removed)
+    # Phase-2.1 instrumentation: log τ_w + h_w at the 100 Hz QP rate during SS
+    # (vs the default 10 Hz per-NMPC-step cadence). Default OFF ⇒ no behavioural
+    # change, flag-OFF bit-identical preserved. Only populates extra buffers.
+    log_hifreq_ss: bool = False
 
     # DS centroidal-control mode (replaces joint-vel-damping cost with
     # CoM + torso-ori tracking at P1, posture at P3, passivity inequality
