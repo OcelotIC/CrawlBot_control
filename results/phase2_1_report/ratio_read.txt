@@ -1,0 +1,12 @@
+
+## Ratio read (CoM authority vs torso-angular cost)
+-- Variant A --
+ alpha_mom  docked   d_final  CoM_pk_mm  torso_ori
+       500   False     47.41    140.192      8.507
+      5000    True      2.79    126.579      0.764
+     30000    True      3.58    112.995      0.667
+-- Variant B --
+ alpha_mom  docked   d_final  CoM_pk_mm  torso_ori
+       500    True      3.73    138.931      1.052
+      5000    True      2.83    125.747      0.753
+     30000    True      3.60    112.646      0.658
