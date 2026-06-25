@@ -246,7 +246,9 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
          ss_centroidal_momentum_task: bool = False,
          ss_alpha_mom: float = 500.0, ss_alpha_tl_weak: float = 0.0,
          n_steps: int = 5, ss_two_task: bool = False,
-         alpha_torso_pose: float = 1e3):
+         alpha_torso_pose: float = 1e3,
+         ss_alpha_ee: float = 3e3, ss_alpha_posture: float = 2e1,
+         ss_alpha_wrench: float = 1e-2):
     cfg = r_single._make_m7_config()
     cfg.gait_anchor_dx = anchor_dx
     # Sweet-spot config carry-over (these are also already the defaults
@@ -406,6 +408,12 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     # Phase-2.1 reformulation: two-task fully-weighted SS stack.
     cfg.ss_two_task_mode = bool(ss_two_task)
     cfg.alpha_torso_pose = float(alpha_torso_pose)
+    # Expose the remaining SS-stack weights for tuning. Defaults equal the
+    # config values (ss_alpha_ee=3e3, ss_alpha_posture=2e1, ss_alpha_wrench=1e-2),
+    # so a run with no weight flags is behaviour-identical to before.
+    cfg.ss_alpha_ee = float(ss_alpha_ee)
+    cfg.ss_alpha_posture = float(ss_alpha_posture)
+    cfg.ss_alpha_wrench = float(ss_alpha_wrench)
     # Output-dir override (memo §7: new runs → new dirs; prior committed
     # baselines stay read-only). Accepts a name under results/ or an abs path.
     if out_dir_override is not None:
@@ -642,9 +650,19 @@ if __name__ == '__main__':
     parser.add_argument('--ss-two-task', action='store_true',
                         help='Phase-2.1 two-task fully-weighted SS stack '
                              '(T-MOM + 6D torso-pose + EE + posture, no δ).')
-    parser.add_argument('--alpha-torso-pose', type=float, default=1e3,
+    parser.add_argument('--alpha-torso-pose', '--ss-alpha-torso-pose',
+                        dest='alpha_torso_pose', type=float, default=1e3,
                         help='6-D torso-pose task weight in two-task mode '
-                             '(ss_alpha_mom:alpha_torso_pose is the knob).')
+                             '(ss_alpha_mom:alpha_torso_pose is the knob). '
+                             'Alias: --ss-alpha-torso-pose.')
+    # Remaining SS-stack weights, exposed for tuning. Defaults = config values
+    # ⇒ a run with no weight flags reproduces the prior behaviour exactly.
+    parser.add_argument('--ss-alpha-ee', type=float, default=3e3,
+                        help='SS swing-EE task weight (default 3000 = config).')
+    parser.add_argument('--ss-alpha-posture', type=float, default=2e1,
+                        help='SS posture task weight (default 20 = config).')
+    parser.add_argument('--ss-alpha-wrench', type=float, default=1e-2,
+                        help='SS wrench-reg weight (default 0.01 = config).')
     args = parser.parse_args()
 
     with open(MJCF, 'r') as f:
@@ -666,7 +684,10 @@ if __name__ == '__main__':
              ss_alpha_tl_weak=args.ss_alpha_tl_weak,
              n_steps=args.n_steps,
              ss_two_task=args.ss_two_task,
-             alpha_torso_pose=args.alpha_torso_pose)
+             alpha_torso_pose=args.alpha_torso_pose,
+             ss_alpha_ee=args.ss_alpha_ee,
+             ss_alpha_posture=args.ss_alpha_posture,
+             ss_alpha_wrench=args.ss_alpha_wrench)
     finally:
         with open(MJCF, 'w') as f:
             f.write(original)
