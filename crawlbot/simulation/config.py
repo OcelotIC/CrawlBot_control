@@ -256,6 +256,15 @@ class SimConfig:
     # change, flag-OFF bit-identical preserved. Only populates extra buffers.
     log_hifreq_ss: bool = False
 
+    # Phase-2.1 reformulation: two-task fully-weighted SS stack — T-MOM linear
+    # (ss_alpha_mom) + a 6-D torso-pose task on J_torso (alpha_torso_pose, fed
+    # by the TorsoPlanner quintic+SLERP DIRECTLY, no δ-mapping) + swing-EE +
+    # posture, NO null-space projection (strict-P1 abandoned). The
+    # ss_alpha_mom : alpha_torso_pose ratio is the tuning knob. Default OFF ⇒
+    # legacy cooperative/strict-P1 path unchanged (bit-identical).
+    ss_two_task_mode: bool = False
+    alpha_torso_pose: float = 1e3    # 6-D torso-pose task weight (two-task mode)
+
     # DS centroidal-control mode (replaces joint-vel-damping cost with
     # CoM + torso-ori tracking at P1, posture at P3, passivity inequality
     # for energy dissipation). Off by default ⇒ legacy joint-vel damping.

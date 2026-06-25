@@ -136,6 +136,15 @@ class WholeBodyQPConfig:
     ss_alpha_mom: float = 5e2
     ss_alpha_tl_weak: float = 0.0
 
+    # ── SS two-task fully-weighted stack (Phase-2.1 reformulation) ──
+    # When True (+ not settle): T-MOM linear (ss_alpha_mom) + 6-D torso-pose on
+    # J_torso (alpha_torso_pose, TorsoPlanner quintic+SLERP reference, NO δ) +
+    # swing-EE (alpha_ee) + posture (alpha_posture), all weighted with NO
+    # null-space projection (strict-P1 abandoned). Supersedes the cooperative
+    # split. Default OFF = legacy path (bit-identical).
+    ss_two_task_mode: bool = False
+    alpha_torso_pose: float = 1e3
+
     # ── Stance-thrust inertial-coupling correction (experimental) ───
     # Adds (J_c_stance[:,:6])^{-T} · M_fj · ddq_j_prev to the stance
     # slot of the wrench reference, intending to feed-forward the
@@ -609,8 +618,64 @@ class WholeBodyQP:
         A_com[:, idx['qdd'][0]: idx['qdd'][1]] = J_com[:, 6:]
         b_com = a_com_des - Jdot_dq_com
 
+        # ── Phase-2.1 two-task fully-weighted stack ──────────────────────
+        # T-MOM linear (ss_alpha_mom) + 6-D torso-pose on J_torso
+        # (alpha_torso_pose; TorsoPlanner quintic+SLERP reference, NO δ) +
+        # swing-EE (alpha_ee) + posture (alpha_posture). All WEIGHTED with NO
+        # null-space projection (strict-P1 abandoned, lecture B). Supersedes
+        # the cooperative split; the legacy torso/EE/CoM/posture blocks below
+        # are gated off via `_two_task`. weight_ratio=1 ⇒ the α's set the
+        # hierarchy directly (momentum+EE high, torso-pose just below, posture
+        # low). Constraints (dynamics, contact, momentum box) added earlier.
+        _two_task = cfg.ss_two_task_mode and not settle_mode
+        if _two_task:
+            # (1) Momentum task — linear CMM rows (CoM-Jacobian form).
+            qp.add_task(A_com, b_com, cfg.ss_alpha_mom, priority=2)
+            # (2) 6-D torso-pose task on J_torso (position + orientation).
+            if J_torso is not None and p_torso_ref is not None:
+                Kp_t = np.diag(cfg.Kp_torso); Kd_t = np.diag(cfg.Kd_torso)
+                v_t_act = J_torso @ dq_robot
+                p_t = p_torso if p_torso is not None else np.zeros(3)
+                R_t = R_torso if R_torso is not None else np.eye(3)
+                R_rt = R_torso_ref if R_torso_ref is not None else np.eye(3)
+                e6 = np.concatenate([p_torso_ref - p_t, pin.log3(R_t.T @ R_rt)])
+                v_rt = v_torso_ref if v_torso_ref is not None else np.zeros(6)
+                a_ft = a_torso_ff if a_torso_ff is not None else np.zeros(6)
+                a_t_des = a_ft + Kp_t @ e6 + Kd_t @ (v_rt - v_t_act)
+                jdq_t = (Jdot_dq_torso if Jdot_dq_torso is not None
+                         else np.zeros(6))
+                A_tp = np.zeros((6, n))
+                A_tp[:, idx['qdd_t'][0]: idx['qdd_t'][1]] = J_torso[:, :6]
+                A_tp[:, idx['qdd'][0]: idx['qdd'][1]] = J_torso[:, 6:]
+                qp.add_task(A_tp, a_t_des - jdq_t,
+                            cfg.alpha_torso_pose, priority=2)
+            # (3) Swing-EE 6-D task (direct, no projection).
+            if J_ee is not None and p_ee_ref is not None:
+                jdq_ee = Jdot_dq_ee if Jdot_dq_ee is not None else np.zeros(6)
+                v_ee_act = J_ee @ dq_robot
+                p_ea = p_ee if p_ee is not None else np.zeros(3)
+                R_ea = R_ee if R_ee is not None else np.eye(3)
+                R_er = R_ee_ref if R_ee_ref is not None else np.eye(3)
+                e6e = np.concatenate([p_ee_ref - p_ea, pin.log3(R_ea.T @ R_er)])
+                Kp_e = np.diag(np.concatenate([cfg.Kp_ee, cfg.Kp_ee_ang]))
+                Kd_e = np.diag(np.concatenate([cfg.Kd_ee, cfg.Kd_ee_ang]))
+                v_re = v_ee_ref if v_ee_ref is not None else np.zeros(6)
+                a_fe = a_ee_ff if a_ee_ff is not None else np.zeros(6)
+                a_e_des = a_fe + Kp_e @ e6e + Kd_e @ (v_re - v_ee_act)
+                A_ee2 = np.zeros((6, n))
+                A_ee2[:, idx['qdd_t'][0]: idx['qdd_t'][1]] = J_ee[:, :6]
+                A_ee2[:, idx['qdd'][0]: idx['qdd'][1]] = J_ee[:, 6:]
+                qp.add_task(A_ee2, a_e_des - jdq_ee, cfg.alpha_ee, priority=2)
+            # (4) Posture — redundancy resolution (low weight, unprojected).
+            A_post = np.zeros((nq, n))
+            A_post[:, idx['qdd'][0]: idx['qdd'][1]] = np.eye(nq)
+            qp.add_task(A_post,
+                        cfg.Kp_posture * (self._q_nominal - q) - cfg.Kd_posture * dq,
+                        cfg.alpha_posture, priority=3)
+
         # --- Task 1: Legacy CoM tracking (skipped in M2 stack) ---
-        if cfg.alpha_com > 0 and not settle_mode and not cfg.use_m2_stack:
+        if (cfg.alpha_com > 0 and not settle_mode and not cfg.use_m2_stack
+                and not _two_task):
             qp.add_task(A_com, b_com, cfg.alpha_com, priority=1)
 
         # --- Task 1b: Torso 6D tracking (primary P1 task in M2 stack) ---
@@ -622,6 +687,7 @@ class WholeBodyQP:
             and J_torso is not None
             and p_torso_ref is not None
             and not settle_mode
+            and not _two_task
         )
         A_torso = None
         b_torso = None
@@ -778,7 +844,8 @@ class WholeBodyQP:
         # both arms are welded. Drop entirely in settle_mode per the DS
         # task-stack rework (DS_ACTIVE_CONTROL_MEMO_2026-06.md §5).
         # Stage 2 of that memo's rollout: WBC task-stack swap only.
-        if J_ee is not None and p_ee_ref is not None and not settle_mode:
+        if (J_ee is not None and p_ee_ref is not None and not settle_mode
+                and not _two_task):
             jdq_ee = Jdot_dq_ee if Jdot_dq_ee is not None else np.zeros(6)
 
             v_ee_actual = J_ee @ dq_robot  # (6,): [lin(3), ang(3)]
@@ -892,7 +959,8 @@ class WholeBodyQP:
         # mass ratio, we null-space project it into N(A_torso) ∩ N(A_ee)
         # — same as the posture task — so it never degrades the torso
         # or EE targets.
-        if cfg.use_m2_stack and cfg.alpha_com_soft > 0 and not settle_mode:
+        if (cfg.use_m2_stack and cfg.alpha_com_soft > 0 and not settle_mode
+                and not _two_task):
             if A_torso is not None:
                 if A_ee is not None:
                     A_combo_com = np.vstack([A_torso, A_ee])
@@ -918,7 +986,7 @@ class WholeBodyQP:
         # constrain the 2 arm-null-space DOFs.
         _posture_in_ds = (settle_mode and cfg.ds_centroidal_mode
                           and ds_centroidal_active)
-        if (not settle_mode) or _posture_in_ds:
+        if ((not settle_mode) or _posture_in_ds) and not _two_task:
             qdd_posture = (cfg.Kp_posture * (self._q_nominal - q) -
                            cfg.Kd_posture * dq)
 

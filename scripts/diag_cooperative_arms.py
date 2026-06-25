@@ -245,7 +245,8 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
          out_dir_override: str = None,
          ss_centroidal_momentum_task: bool = False,
          ss_alpha_mom: float = 500.0, ss_alpha_tl_weak: float = 0.0,
-         n_steps: int = 5):
+         n_steps: int = 5, ss_two_task: bool = False,
+         alpha_torso_pose: float = 1e3):
     cfg = r_single._make_m7_config()
     cfg.gait_anchor_dx = anchor_dx
     # Sweet-spot config carry-over (these are also already the defaults
@@ -402,6 +403,9 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     # Phase-2.1: log τ_w + h_w at the 100 Hz QP rate during SS (harmless —
     # adds separate buffers; the 10 Hz log + postproc CSV are unaffected).
     cfg.log_hifreq_ss = True
+    # Phase-2.1 reformulation: two-task fully-weighted SS stack.
+    cfg.ss_two_task_mode = bool(ss_two_task)
+    cfg.alpha_torso_pose = float(alpha_torso_pose)
     # Output-dir override (memo §7: new runs → new dirs; prior committed
     # baselines stay read-only). Accepts a name under results/ or an abs path.
     if out_dir_override is not None:
@@ -635,6 +639,12 @@ if __name__ == '__main__':
     parser.add_argument('--n-steps', type=int, default=5,
                         help='Traversal steps (default 5; use 1 for the '
                              'Phase-2.1 single-step swing).')
+    parser.add_argument('--ss-two-task', action='store_true',
+                        help='Phase-2.1 two-task fully-weighted SS stack '
+                             '(T-MOM + 6D torso-pose + EE + posture, no δ).')
+    parser.add_argument('--alpha-torso-pose', type=float, default=1e3,
+                        help='6-D torso-pose task weight in two-task mode '
+                             '(ss_alpha_mom:alpha_torso_pose is the knob).')
     args = parser.parse_args()
 
     with open(MJCF, 'r') as f:
@@ -654,7 +664,9 @@ if __name__ == '__main__':
              ss_centroidal_momentum_task=args.ss_centroidal_momentum_task,
              ss_alpha_mom=args.ss_alpha_mom,
              ss_alpha_tl_weak=args.ss_alpha_tl_weak,
-             n_steps=args.n_steps)
+             n_steps=args.n_steps,
+             ss_two_task=args.ss_two_task,
+             alpha_torso_pose=args.alpha_torso_pose)
     finally:
         with open(MJCF, 'w') as f:
             f.write(original)
