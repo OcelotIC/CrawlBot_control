@@ -248,7 +248,8 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
          n_steps: int = 5, ss_two_task: bool = False,
          alpha_torso_pose: float = 5000.0,
          ss_alpha_ee: float = 3e3, ss_alpha_posture: float = 2e1,
-         ss_alpha_wrench: float = 1e-2):
+         ss_alpha_wrench: float = 1e-2,
+         ss_kp_torso: float = 6.0, ss_kd_torso: float = 5.0):
     cfg = r_single._make_m7_config()
     cfg.gait_anchor_dx = anchor_dx
     # Sweet-spot config carry-over (these are also already the defaults
@@ -414,6 +415,12 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     cfg.ss_alpha_ee = float(ss_alpha_ee)
     cfg.ss_alpha_posture = float(ss_alpha_posture)
     cfg.ss_alpha_wrench = float(ss_alpha_wrench)
+    # SS torso-pose gains (task AGGRESSIVENESS, distinct from weight PRIORITY):
+    # a_t_des = a_ff + Kp·e6 + Kd·(v_ref-v_act). Lowering Kp softens the
+    # commanded torso accel ⇒ smoother (less wheel-saturating) tracking at a
+    # given weight. Defaults equal config (6.0/5.0) ⇒ no-flag = prior behaviour.
+    cfg.ss_Kp_torso = float(ss_kp_torso)
+    cfg.ss_Kd_torso = float(ss_kd_torso)
     # Output-dir override (memo §7: new runs → new dirs; prior committed
     # baselines stay read-only). Accepts a name under results/ or an abs path.
     if out_dir_override is not None:
@@ -664,6 +671,12 @@ if __name__ == '__main__':
                         help='SS posture task weight (default 20 = config).')
     parser.add_argument('--ss-alpha-wrench', type=float, default=1e-2,
                         help='SS wrench-reg weight (default 0.01 = config).')
+    # SS torso-pose GAINS (aggressiveness, separate from the weight knob).
+    parser.add_argument('--ss-kp-torso', type=float, default=6.0,
+                        help='SS torso-pose proportional gain (default 6.0 = '
+                             'config). Lower ⇒ softer commanded torso accel.')
+    parser.add_argument('--ss-kd-torso', type=float, default=5.0,
+                        help='SS torso-pose derivative gain (default 5.0 = config).')
     args = parser.parse_args()
 
     with open(MJCF, 'r') as f:
@@ -688,7 +701,9 @@ if __name__ == '__main__':
              alpha_torso_pose=args.alpha_torso_pose,
              ss_alpha_ee=args.ss_alpha_ee,
              ss_alpha_posture=args.ss_alpha_posture,
-             ss_alpha_wrench=args.ss_alpha_wrench)
+             ss_alpha_wrench=args.ss_alpha_wrench,
+             ss_kp_torso=args.ss_kp_torso,
+             ss_kd_torso=args.ss_kd_torso)
     finally:
         with open(MJCF, 'w') as f:
             f.write(original)
