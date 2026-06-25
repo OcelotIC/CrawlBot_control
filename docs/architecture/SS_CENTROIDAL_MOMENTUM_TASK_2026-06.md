@@ -185,6 +185,13 @@ cascade-bisection diagnosis. The momentum/torso-pose WEIGHT RATIO is the new tun
 ### Phase 3 — canonical 5-step + GATE
 Scenario: canonical 5-step traversal, surviving variant(s).
 
+**Working point (Phase-2.2 outcome):** ss_alpha_mom=5000, alpha_torso_pose=20000,
+ss_Kp_torso=3 (ss_Kd_torso=2.5), ss_alpha_ee=3000, ss_alpha_posture=20. Chosen as the
+envelope-clean Pareto point (single-step arrival 8.2% of torso travel at 1.5% τ_w-sat),
+strictly dominating the prior balanced 5k:5k default. Note: 8.2% is a NON-binding-regime,
+favourable-step (step 1) figure; multi-step saturated swings will show a larger,
+constraint-justified torso residual (see two-regime reading below).
+
 **GATE criteria (all required, defined before running):**
 1. 5/5 docks, **per-step capture margin ≥ canonical baseline margin** (baseline: 1.86/4.94/4.96/4.77/5.00 mm against the 5 mm gate);
 2. torso tracking ≤ baseline (orientation RMS ≤ 0.68°, position peak ≤ 17.6 mm — or justified equivalence);
@@ -192,6 +199,14 @@ Scenario: canonical 5-step traversal, surviving variant(s).
 4. platform attitude peak ≤ ~1.9°, final ≤ ~1.65° (parity with baseline);
 5. h_w peak ≤ baseline + margin (3.38 N·m·s reference);
 6. flag OFF bit-identical to Phase-1 baseline (re-verified at the Phase-3 commit).
+
+**Torso arrival is NOT a gate criterion** — it is a characterisation metric, read per
+regime. In envelope-NOT-binding intervals the torso reaches its planned pose (~8% on the
+favourable step). In envelope-BINDING intervals (saturated swing) the torso-pose YIELDS
+(per the momentum-prioritised hierarchy) and arrives at the pose consistent with the
+NMPC-deviated r_com*, NOT at the geometric p_t1; the larger residual there is the SIGNATURE
+OF THE ACTIVE CONSTRAINT — expected and correct, NOT a regression. The report must SEPARATE
+the two regimes when presenting torso arrival.
 
 **Gate PASS →** select variant (tie-break A), freeze commit, trigger paper-regeneration track: full paper-vs-code audit on the new commit (5bca42c-audit standard), regenerate Section VII from new CSVs, rewrite VI-C/VI-D and Fig. 1 (mapping/F-SAT removed from the description; momentum task described; DS section updated to centroidal-DS), THEN run F-ABL on this commit.
 **Gate FAIL →** paper ships on `5bca42c` as planned; this branch continues post-submission with the failure diagnosis as input. No "almost passing, one more week" middle path: a miss is a documented diagnosis, then the submission proceeds.
