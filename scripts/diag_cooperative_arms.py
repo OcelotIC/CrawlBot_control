@@ -244,9 +244,9 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
          scenario: str = None, baseline_ds_rework: bool = False,
          out_dir_override: str = None,
          ss_centroidal_momentum_task: bool = False,
-         ss_alpha_mom: float = 500.0, ss_alpha_tl_weak: float = 0.0,
+         ss_alpha_mom: float = 5000.0, ss_alpha_tl_weak: float = 0.0,
          n_steps: int = 5, ss_two_task: bool = False,
-         alpha_torso_pose: float = 1e3,
+         alpha_torso_pose: float = 5000.0,
          ss_alpha_ee: float = 3e3, ss_alpha_posture: float = 2e1,
          ss_alpha_wrench: float = 1e-2):
     cfg = r_single._make_m7_config()
@@ -639,8 +639,8 @@ if __name__ == '__main__':
     parser.add_argument('--ss-centroidal-momentum-task', action='store_true',
                         help='Enable the SS T-MOM linear task (replaces the '
                              'torso-linear P2 channel). Default OFF = canonical.')
-    parser.add_argument('--ss-alpha-mom', type=float, default=500.0,
-                        help='T-MOM linear P2 weight (default 500).')
+    parser.add_argument('--ss-alpha-mom', type=float, default=5000.0,
+                        help='T-MOM linear weight (default 5000 = working point).')
     parser.add_argument('--ss-alpha-tl-weak', type=float, default=0.0,
                         help='Variant-B weak torso-linear regulariser weight '
                              '(0 = Variant A: torso-linear removed).')
@@ -651,9 +651,10 @@ if __name__ == '__main__':
                         help='Phase-2.1 two-task fully-weighted SS stack '
                              '(T-MOM + 6D torso-pose + EE + posture, no δ).')
     parser.add_argument('--alpha-torso-pose', '--ss-alpha-torso-pose',
-                        dest='alpha_torso_pose', type=float, default=1e3,
+                        dest='alpha_torso_pose', type=float, default=5000.0,
                         help='6-D torso-pose task weight in two-task mode '
-                             '(ss_alpha_mom:alpha_torso_pose is the knob). '
+                             '(default 5000 = working point; '
+                             'ss_alpha_mom:alpha_torso_pose is the knob). '
                              'Alias: --ss-alpha-torso-pose.')
     # Remaining SS-stack weights, exposed for tuning. Defaults = config values
     # ⇒ a run with no weight flags reproduces the prior behaviour exactly.

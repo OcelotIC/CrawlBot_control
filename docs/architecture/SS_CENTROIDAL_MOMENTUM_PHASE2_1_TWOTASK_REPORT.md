@@ -106,24 +106,24 @@ at the intended weighting).
    review-session knobs, if tighter arrival is wanted: torso-pose → position + weak-orientation, or
    momentum-linear de-weight — named, not implemented (per addendum Step C).
 
-## 11. SS QP weights exposed as CLI flags (behavior-preserving)
+## 11. SS QP weights exposed as CLI flags + working-point defaults corrected
 
-`diag_cooperative_arms.py` now exposes the SS-stack weights: `--ss-alpha-mom`,
-`--alpha-torso-pose` (alias `--ss-alpha-torso-pose`), `--ss-alpha-ee`, `--ss-alpha-posture`,
-`--ss-alpha-wrench` (all `type=float`). **Each default equals the committed config value**
-(ss_alpha_mom=500, alpha_torso_pose=1000, ss_alpha_ee=3000, ss_alpha_posture=20,
-ss_alpha_wrench=0.01); `ss_alpha_torso_ang/lin` are NOT exposed (dead in two-task mode).
-**Bit-identical verified:** the explicit balanced invocation
-(`--ss-two-task --ss-alpha-mom 5000 --alpha-torso-pose 5000 --n-steps 1`) reproduces `20e6031`
-exactly — all physical log arrays Δ=0, docks 4.95 mm, only wall-clock timers differ. The change
-is **diag-only** (no `crawlbot/` edit) so flag-OFF + `test_reworked_qp` are unaffected.
+The 5k:5k working point was carried only in the explicit flags of run `20e6031`; the committed
+config defaults were the pre-sweep values (ss_alpha_mom=500, alpha_torso_pose=1000). Both are now
+**corrected to the validated working point** (`config.py`: `ss_alpha_mom=5e3`,
+`alpha_torso_pose=5e3`), and `diag_cooperative_arms.py` exposes the SS-stack weights as CLI flags,
+each defaulting to its (now-corrected) config value: `--ss-alpha-mom` (5000),
+`--alpha-torso-pose` / `--ss-alpha-torso-pose` (5000), `--ss-alpha-ee` (3000),
+`--ss-alpha-posture` (20), `--ss-alpha-wrench` (0.01). `ss_alpha_torso_ang/lin` are NOT exposed
+(dead in two-task mode — the two-task QP path reads none of them).
 
-**⚑ Discrepancy flagged (brief vs config):** the brief stated the working point
-(ss_alpha_mom=5000, alpha_torso_pose=5000) as the *config default* and expected a NO-flag
-two-task run to reproduce the balanced run. The committed config defaults are actually
-**500/1000** — the 5k:5k working point was set by *explicit flags* in the sweep, not the default.
-Per the brief's overriding constraint ("MUST NOT change the working point or any default
-behavior" / "changes no default"), the mom/torso-pose defaults were **kept at 500/1000**; a
-no-flag two-task run is therefore 500/1000 (unchanged), NOT the working point. Promoting them to
-5k:5k (so no-flag = working point) is a one-line default change, deliberately NOT made here —
-flagged for the review session.
+**Two distinct bit-identical checks (both PASS):**
+- **A — flag-OFF unchanged.** The two-task weights are not read when `ss_two_task_mode=False`
+  (every two-task gate is `… and not _two_task`), so changing their defaults does not touch the
+  OFF path. A flag-OFF single-step run is byte-identical to the Phase-1 baseline
+  (`phase2_1_baseline_1step`); `test_reworked_qp` 8/8.
+- **B — two-task no-flag now reproduces the working point.** With the corrected defaults, a
+  `--ss-two-task --n-steps 1` run with NO weight flags is bit-identical to the balanced run
+  `20e6031` (all physical log arrays Δ=0, docks 4.95 mm; only wall-clock timers differ). This is
+  the **intended correction** of the working-point debt — the old no-flag two-task behaviour was
+  500/1000 — NOT a regression.

@@ -248,7 +248,7 @@ class SimConfig:
     # F-SAT). Kp/Kd reuse ss_Kp_com/ss_Kd_com. Default OFF = canonical
     # torso-linear P2 (bit-identical to the pre-task baseline).
     ss_centroidal_momentum_task: bool = False
-    ss_alpha_mom: float = 5e2        # T-MOM linear P2 weight (slot of torso-linear)
+    ss_alpha_mom: float = 5e3        # T-MOM linear weight — validated two-task working point (was 5e2 pre-sweep)
     ss_alpha_tl_weak: float = 0.0    # Variant B weak torso-linear regulariser
     #                                  (0 ⇒ Variant A: torso-linear removed)
     # Phase-2.1 instrumentation: log τ_w + h_w at the 100 Hz QP rate during SS
@@ -263,7 +263,7 @@ class SimConfig:
     # ss_alpha_mom : alpha_torso_pose ratio is the tuning knob. Default OFF ⇒
     # legacy cooperative/strict-P1 path unchanged (bit-identical).
     ss_two_task_mode: bool = False
-    alpha_torso_pose: float = 1e3    # 6-D torso-pose task weight (two-task mode)
+    alpha_torso_pose: float = 5e3    # 6-D torso-pose weight — validated two-task working point (was 1e3 pre-sweep)
 
     # DS centroidal-control mode (replaces joint-vel-damping cost with
     # CoM + torso-ori tracking at P1, posture at P3, passivity inequality
