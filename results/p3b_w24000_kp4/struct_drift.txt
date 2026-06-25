@@ -1,0 +1,3 @@
+Structure drift over run
+  max ||struct_pos − struct_pos[0]||:   1.97 mm
+  max ||omega_s||:                      1.89 mrad/s

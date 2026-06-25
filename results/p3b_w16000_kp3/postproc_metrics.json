@@ -1,0 +1,170 @@
+{
+  "canonical_run": "/home/user/CrawlBot_control/results/p3b_w16000_kp3",
+  "n_ticks": 244,
+  "duration_s": 23.400000000000066,
+  "mask_ss_fraction": 0.13934426229508196,
+  "torso_columns_legend": {
+    "SS_rows": "torso error vs planner trajectory (the swing-time tracking error). Reported via _SS suffix metrics below.",
+    "DS_rows": "torso DEVIATION from the pose captured at DS-entry of each contiguous DS block (planner ref is ill-defined for tracking during DS). Reported via _DS_hold_deviation metrics below.",
+    "csv_column_torso_ref_mode": "'planner_track' on SS rows, 'ds_hold' on DS rows."
+  },
+  "e_ori_torso_deg_SS_tracking": {
+    "rms_SS": 0.023617718149663732,
+    "peak_SS": 0.038924144399861055
+  },
+  "e_pos_torso_norm_m_SS_tracking": {
+    "rms_SS": 0.009290108071868405,
+    "peak_SS": 0.0137060555295477
+  },
+  "e_pos_torso_per_axis_peak_m_SS_tracking": {
+    "x": 0.01354988642819066,
+    "y": 0.008563223301448875,
+    "z": 0.0011696950725224586
+  },
+  "e_ori_torso_deg_DS_hold_deviation": {
+    "peak_over_all_DS_blocks": 0.17050311229770054,
+    "per_block_max_deg": [
+      {
+        "step_idx": -1,
+        "max_ori_dev_deg": 8.005606490547103e-09
+      },
+      {
+        "step_idx": 0,
+        "max_ori_dev_deg": 0.17050311229770054
+      }
+    ]
+  },
+  "e_pos_torso_DS_hold_deviation_mm": {
+    "peak_norm_mm": 9.623167436264222,
+    "peak_per_axis_mm": {
+      "x": 7.118324866677073,
+      "y": 6.591873787035296,
+      "z": 0.35881176344115806
+    },
+    "per_block": [
+      {
+        "tick_first": 0,
+        "tick_last": 9,
+        "t_start": 0.01,
+        "t_end": 0.1,
+        "step_idx": -1,
+        "p_hold": [
+          0.17659213298982235,
+          -0.8155960043732688,
+          -0.34358025151576577
+        ],
+        "q_hold": [
+          0.9989875231434698,
+          -1.86761285743446e-14,
+          -9.798539810006727e-15,
+          -0.04498809402136753
+        ],
+        "max_abs_dp_per_axis_mm": [
+          4.579164825102566e-08,
+          4.477773707378674e-08,
+          8.372746940210618e-10
+        ],
+        "max_norm_dp_mm": 6.404627601779055e-08,
+        "max_ori_dev_deg": 8.005606490547103e-09
+      },
+      {
+        "tick_first": 44,
+        "tick_last": 243,
+        "t_start": 3.510000000000002,
+        "t_end": 23.410000000000068,
+        "step_idx": 0,
+        "p_hold": [
+          0.2987509717648478,
+          -0.7543658409689601,
+          -0.335264509279049
+        ],
+        "q_hold": [
+          0.9989732008857574,
+          -0.0003107619887559983,
+          0.0002906449161951431,
+          -0.04530301165025667
+        ],
+        "max_abs_dp_per_axis_mm": [
+          7.118324866677073,
+          6.591873787035296,
+          0.35881176344115806
+        ],
+        "max_norm_dp_mm": 9.623167436264222,
+        "max_ori_dev_deg": 0.17050311229770054
+      }
+    ]
+  },
+  "d_ee_at_docks_mm": [
+    {
+      "step_idx": 0,
+      "t_dock": 3.51,
+      "t_last_ss_tick": 3.410000000000002,
+      "d_mm_sim_log": 4.98,
+      "d_ee_to_target_mm_recomp": 4.9818803724317515,
+      "ori_deg_sim_log": 0.09,
+      "e_ori_ee_deg_recomp": 0.08897140667404851,
+      "arm": "b",
+      "anchor": 3
+    }
+  ],
+  "d_ee_final_m": 2.196309239289966e-08,
+  "e_ori_ee_deg_SS_only": {
+    "rms_SS_segments": 0.08847118807178972,
+    "peak_SS_segments": 0.12663729580724614
+  },
+  "Hdot_s_per_axis_peak_Nm_SS_only": {
+    "x": 2.5851379398899215,
+    "y": 2.251037574811209,
+    "z": 4.999996375155166
+  },
+  "Hdot_s_hits_bound_SS_only": false,
+  "Hdot_s_per_axis_peak_Nm_full_run": {
+    "x": 2.5851379398899215,
+    "y": 2.251037574811209,
+    "z": 4.999996375155166
+  },
+  "tau_w_per_axis_peak_Nm_SS_only": {
+    "x": 1.2072369864987533,
+    "y": 3.2596071375682487,
+    "z": 4.715650993201175
+  },
+  "tau_w_at_clip_ticks_SS_only": 0,
+  "tau_w_at_clip_fraction_SS_only": 0.0,
+  "stance_cross_check_max_d_grip_stance_mm": 0.03827713589369385,
+  "tau_w_max_clip_Nm": 5.0,
+  "theta_s_deg": {
+    "peak_full_run": 0.1601094763278047,
+    "final": 0.027079351732026656,
+    "rms_full_run": 0.07879731312048392
+  },
+  "per_ds_attitude": [
+    {
+      "step_idx": -1,
+      "regime": "initial",
+      "just_landed_arm": "",
+      "swing_to_idx": -1,
+      "t_start": 0.01,
+      "t_end": 0.1,
+      "theta_s_start_deg": 2.9472728859084927e-30,
+      "theta_s_end_deg": 6.21962132162173e-11,
+      "theta_s_peak_deg": 6.21962132162173e-11,
+      "theta_s_change_deg": 6.21962132162173e-11,
+      "d_ee_first_mm": null,
+      "d_ee_last_mm": null
+    },
+    {
+      "step_idx": 0,
+      "regime": "trailing",
+      "just_landed_arm": "b",
+      "swing_to_idx": 3,
+      "t_start": 3.510000000000002,
+      "t_end": 23.410000000000068,
+      "theta_s_start_deg": 0.15022255778905966,
+      "theta_s_end_deg": 0.027079351732026656,
+      "theta_s_peak_deg": 0.15022255778905966,
+      "theta_s_change_deg": -0.123143206057033,
+      "d_ee_first_mm": 0.20573121614704312,
+      "d_ee_last_mm": 2.196309239289966e-05
+    }
+  ]
+}
