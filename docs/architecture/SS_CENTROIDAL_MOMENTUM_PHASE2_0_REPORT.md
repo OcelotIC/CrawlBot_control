@@ -69,33 +69,42 @@ strong P2 T-MOM task:
 
 ---
 
-## 4. Achieved results vs tolerances (run at SHIPPING `ss_alpha_mom=500`)
+## 4. Gate basis and achieved results (run at SHIPPING `ss_alpha_mom=500`)
 
-| Test | Metric | Tolerance | Achieved | Status |
-|------|--------|-----------|----------|--------|
-| 1 Static hold | peak \|q̈\| | < 1e-2 | **1.6e-11** | ✓ |
-| 1 | peak CoM drift | < 0.2 mm | **0.0000 mm** | ✓ |
-| 1 | task-row residual (a_com_des reproduced at rest) | < 1e-6 | **2.8e-11** | ✓ |
-| 2 | J̇_com·q̇ FD rel error (Ȧ_G·q̇ assembly) | < 1e-3 | **1.5e-7** | ✓ |
-| 2 | peak CoM tracking (worst of 6 axis×profile) | < 2.5 mm | **1.45 mm** (x/y/z 0.82–1.45) | ✓ |
-| 3 | mass ratio: monotone & top∈[0.6,1.4], all∈(0.05,2.0) | — | **[0.198, 0.662, 0.853]** | ✓ |
-| 4 | Variant-B CoM tracking (ss_α_tl_weak=50) | < 2.5 mm | **1.37 mm** | ✓ |
+**Gate (per the review decision): TASK-INTRINSIC only —** (i) formulation correctness and
+(ii) authority monotonicity. Per-step tracking error and accel-residual are **REPORTED as
+characterization, NOT pass/fail thresholds** (their representative value is only meaningful
+under swing — Phase 2.1). Tests 2 & 4 keep a generous **divergence/sign guard** (50 mm),
+not a fidelity gate.
 
-**Tolerance rationale (stated per brief):**
-- *Hold 0.2 mm / 1e-2*: from exact rest + ref=current + zero gravity the equilibrium is
-  `q̈=τ=0`; any motion is a wrong PD sign or state-dependent reference.
-- *Track 2.5 mm*: closed-loop tracking of a **moderate** jerk-limited reference (10 mm
-  septic step / 6 mm sinusoid — peak demand within the linear task's null-space authority
-  at the shipping weight). Every gross formulation error (sign→divergence, mass-factor→
-  metres-or-zero, missing J̇→drift) is ≫1 cm; 2.5 mm catches them while absorbing PD lag +
-  Euler error at dt=2 ms.
-- *J̇ rel 1e-3*: independent finite-difference, weight-free.
-- *Mass sweep*: a mass-scalar bug offsets the ratio by a **fixed** ~71 or ~1/71
-  regardless of weight; correct form converges toward unity — so the test checks the
-  *trajectory* of the ratio, not a single point (no reweighting-to-pass).
+| # | Metric | Role | Criterion | Achieved | Status |
+|---|--------|------|-----------|----------|--------|
+| 1 | peak \|q̈\| | **gate** (formulation) | < 1e-2 | **1.6e-11** | ✓ |
+| 1 | peak CoM drift | **gate** | < 0.2 mm | **0.0000 mm** | ✓ |
+| 1 | task-row residual (a_com_des reproduced at rest) | **gate** | < 1e-6 | **2.8e-11** | ✓ |
+| 2 | J̇_com·q̇ FD rel error (Ȧ_G·q̇ assembly) | **gate** (formulation) | < 1e-3 | **1.5e-7** | ✓ |
+| 3 | mass ratio monotone-with-authority, top∈[0.6,1.4], all∈(0.05,2.0) | **gate** (monotonicity) | see §3 | **[0.198,0.662,0.853]** | ✓ |
+| 2 | peak CoM tracking (worst of 6 axis×profile) | *reported* | (char.) | **1.45 mm** (axes 0.82–1.45) | — |
+| 2/4 | divergence guard | guard | < 50 mm | 1.45 / 1.37 mm | ✓ |
+| 4 | Variant-B vs Variant-A tracking | *reported* + coexist | B ≤ 1.5·A | A 1.32 / B 1.37 mm (×1.04) | ✓ |
 
-Plots: `results/phase2_0_tmom/t_mom_step_x.png`, `t_mom_sine_x.png` (commanded vs
-realized CoM + task residual over time).
+**Authority characterization (reported — feeds the Phase-2.1 weight sweep):** CoM tracking
+tightens and the realized/commanded accel ratio rises monotonically toward unity as
+`ss_alpha_mom` is raised (α_wrench=1e-2 throughout):
+
+| ss_alpha_mom | step track [mm] | sine track [mm] | accel ratio (rest, ‖f‖→m·a) |
+|---|---|---|---|
+| 500 (shipping) | 4.93 | 4.35 | 0.198 |
+| 2000 | 1.55 | 2.17 | — |
+| 5000 | 0.83 | 1.60 | 0.662 |
+| 10000 | 0.59 | 1.40 | — |
+| 30000 | 0.45 | 1.26 | 0.853 |
+
+(The §4 per-axis 0.82–1.45 mm row uses the *moderate* 10 mm/6 mm references; this table uses
+the 30 mm/15 mm aggressive references to expose the authority knob. No wall — a continuous
+weight knob, confirming the limitation is authority, not formulation.)
+
+Plots: `results/phase2_0_tmom/t_mom_step_x.png`, `t_mom_sine_x.png`.
 
 ---
 
@@ -125,5 +134,24 @@ baseline **by construction**.
 
 ## 7. Gate
 
-**Phase 2.0 GATE: PASS.** Per the stop-gate, **Phase 2.1 (single-step swing) has NOT been
-started** — awaiting review.
+**Phase 2.0 GATE: PASS** on task-intrinsic grounds — (i) formulation correctness (static
+hold exact, Ȧ_G·q̇ FD 1.5e-7, mass-factor with no m-offset) and (ii) authority monotonicity
+(realized/commanded rises monotonically toward unity with `ss_alpha_mom`). Per-step tracking
+and accel-residual are reported characterization, not thresholds (review decision). Per the
+stop-gate, **Phase 2.1 has NOT been started** at the time of this report.
+
+## 8. Carry-forwards to Phase 2.1 (decisions recorded; do not act on here)
+
+1. **`ss_alpha_mom` is NOT frozen at 500.** Phase 2.1 will **sweep** it (500 / 5000 / 30000).
+   Rationale: 500 (= `alpha_torso_ang` under `weight_ratio=1`) balanced torso-linear vs EE,
+   but T-MOM replaces torso-linear with a CoM-*acceleration* task of different nature, so the
+   1:6 balance is reconsidered under swing, not inherited.
+2. **Ratio question (open for Phase 2.1 — do not pre-decide architecture).** The standalone
+   shows that at equal P1/P2 weights the strict-P1 torso-angular hold (via null-space
+   projection) rightly refuses to rotate the torso to chase an instantaneous CoM-accel spike,
+   so per-step CoM-accel fidelity is partial at the shipping weight (position still tracks via
+   feedback). This is a **weight-balance** property, expected to relax under swing (torso not
+   frozen; P1 constrains orientation only, swing-arm columns add coordination DOF). **Only if**
+   the Phase-2.1 sweep fails to restore CoM authority (inadequate at all weights, or
+   torso-angular degrades unacceptably as α_mom rises) does the strict-P1-vs-strong-weighted-P2
+   **architecture** question arise — to be raised then, not now.

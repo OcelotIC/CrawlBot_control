@@ -559,33 +559,39 @@ class TestT10DSPassivity:
 
 TMOM_OUTPUT_DIR = 'results/phase2_0_tmom'
 
-# Tolerances (from first principles + the alpha_wrench/r_com diagnosis;
-# achieved errors are printed by every test). Tests run at the SHIPPING weight
-# ss_alpha_mom=500 (no reweighting) with alpha_wrench=1e-2 (the only harness
-# correction: with no NMPC lambda_ref the default 1e2 penalises the contact
-# force that is the sole means of CoM acceleration through the stance weld —
-# documented in scripts/test_qp_tracking.py:147).
-#  HOLD    : exact rest + ref=current + zero gravity ⇒ equilibrium qdd=tau=0 and
-#            the task row a_com_des=0 is reproduced exactly. Any motion/residual
-#            is spurious (wrong PD sign / state-dependent reference).
-#  TRACK   : closed-loop (PD+ff) tracking of a MODERATE jerk-limited reference
-#            (peak demand within the linear task's null-space authority at the
-#            shipping weight). 2.5 mm catches every gross formulation error
-#            (sign→divergence, mass-factor→metres or ~0, missing J̇→drift, all
-#            ≫cm) while absorbing PD lag + Euler error at dt=2 ms.
-#  JDOT    : independent finite-difference validation of J̇_com·q̇ (Ȧ_G·q̇) — the
-#            decisive "task row uses Ȧ_G·q̇, not just A_G" check, weight-free.
-#  MASS    : realized/commanded CoM-accel ratio vs task authority must converge
-#            monotonically toward unity (correct CoM-Jacobian = A_G/m form) and
-#            never sit at a fixed m≈71 or 1/m offset (a mass-scalar bug).
+# Phase-2.0 gate (per Idriss's review decision): gate on TASK-INTRINSIC
+# properties only — (1) formulation correctness and (2) authority MONOTONICITY —
+# NOT on an absolute realization threshold. Instantaneous CoM-accel authority at
+# the shipping weight in this isolated held-torso / single-contact / EE-off setup
+# is expected stack-priority behaviour; its representative value is only
+# measurable under swing (Phase 2.1). So mm-tracking and accel-residual% are
+# REPORTED as characterization (the ss_alpha_mom sweep feeds the 2.1 weight
+# decision); tests 2 & 4 keep only a generous DIVERGENCE/sign guard.
+#
+# Tests run at the SHIPPING weight ss_alpha_mom=500 with alpha_wrench=1e-2 (the
+# only harness correction: with no NMPC lambda_ref the default 1e2 penalises the
+# contact force that is the sole means of CoM acceleration through the stance
+# weld — documented in scripts/test_qp_tracking.py:147).
+#  HOLD  (gate, formulation): exact rest + ref=current + zero gravity ⇒
+#         equilibrium qdd=tau=0 and the task row a_com_des=0 is reproduced
+#         exactly. Any motion/residual ⇒ wrong PD sign / state-dependent ref.
+#  JDOT  (gate, formulation): finite-difference validation of J̇_com·q̇ (Ȧ_G·q̇) —
+#         decisive "task row uses Ȧ_G·q̇, not just A_G" check, weight-free.
+#  MASS  (gate, monotonicity): realized/commanded CoM-accel ratio must rise
+#         MONOTONICALLY with task authority and tend toward unity (correct
+#         CoM-Jacobian = A_G/m form), never a fixed m≈71 or 1/m offset.
+#  DIVERGE (sign/divergence guard, NOT a fidelity gate): a wrong-sign or
+#         mass-factor formulation bug diverges the CoM ≫ cm; this bounds it well
+#         above the achieved ~1.5 mm characterization without gating fidelity.
 TOL_HOLD_QDD = 1e-2
 TOL_HOLD_DRIFT = 2e-4
 TOL_HOLD_ACCEL = 1e-6
-TOL_TRACK = 2.5e-3
 TOL_JDOT_REL = 1e-3
+TOL_DIVERGE = 5e-2                   # 50 mm — sign/divergence guard only
 MASS_SWEEP = (5e2, 5e3, 3e4)        # ss_alpha_mom authority sweep
 TOL_MASS_TOP_LO, TOL_MASS_TOP_HI = 0.60, 1.40   # ratio at the top weight
 TOL_MASS_ANY_LO, TOL_MASS_ANY_HI = 0.05, 2.00   # excludes 71x and 1/71x
+TOL_VARIANTB_FACTOR = 1.5           # Variant B ≤ this × Variant A (coexistence)
 
 # Moderate per-axis references (peak demand within shipping-weight authority).
 _STEP_AMP, _STEP_T = 0.010, 3.0     # 10 mm jerk-limited septic step
@@ -675,8 +681,7 @@ def _plot_tmom_tracking(tlog, rcmd, rreal, resid, axis, profile, out_dir):
     axes[0].set_title(f'Phase 2.0 T-MOM — {profile} on {ax_name}: CoM tracking')
     axes[1].plot(tlog, (rreal[:, axis]-rcmd[:, axis])*1000, 'k')
     axes[1].set_ylabel(f'CoM {ax_name} err [mm]')
-    axes[1].axhline(TOL_TRACK*1000, color='r', ls=':', lw=0.8)
-    axes[1].axhline(-TOL_TRACK*1000, color='r', ls=':', lw=0.8)
+    axes[1].set_title('tracking error (reported characterization, not gated)')
     axes[2].plot(tlog, resid, 'k')
     axes[2].set_ylabel('task resid [m/s²]'); axes[2].set_xlabel('Time [s]')
     axes[2].set_title('‖J_com·q̈ + J̇_com·q̇ − a_com_des‖')
@@ -803,11 +808,16 @@ class TestPhase20TMOM:
                                         out['resid'], axis, profile,
                                         TMOM_OUTPUT_DIR)
                 worst_track = max(worst_track, out['peak_track'])
-                assert out['peak_track'] < TOL_TRACK, (
-                    f"{profile}/{'xyz'[axis]}: peak CoM track "
-                    f"{out['peak_track']*1000:.3f} mm >= {TOL_TRACK*1000:.1f} mm")
+                # NOT a fidelity gate: tracking is reported characterization
+                # (memo §4 Phase-2.0 gate = formulation + authority monotonicity).
+                # Only guard against divergence / wrong-sign formulation bugs.
+                assert out['peak_track'] < TOL_DIVERGE, (
+                    f"{profile}/{'xyz'[axis]}: CoM diverged "
+                    f"{out['peak_track']*1000:.1f} mm >= {TOL_DIVERGE*1000:.0f} mm "
+                    f"(wrong-sign / mass-factor formulation bug)")
         print(f"[T-MOM/2 SUMMARY] worst CoM track={worst_track*1000:.4f} mm "
-              f"(tol {TOL_TRACK*1000:.1f} mm)")
+              f"(reported; gate = J̇ assembly above + divergence guard "
+              f"{TOL_DIVERGE*1000:.0f} mm)")
 
     # -- Test 3: mass-scalar sanity (authority sweep) -------------------
     def test_mass_scalar_sanity(self, robot, dock_state):
@@ -841,23 +851,34 @@ class TestPhase20TMOM:
         assert all(TOL_MASS_ANY_LO < r < TOL_MASS_ANY_HI for r in ratios), (
             f"mass-scalar: a ratio left ({TOL_MASS_ANY_LO},{TOL_MASS_ANY_HI}) — "
             f"fixed m≈71 or 1/71 offset suspected: {ratios}")
-        assert ratios[-1] > ratios[0], (
-            f"mass-scalar: ratio not increasing with authority {ratios} — "
-            f"task not realizing the CoM command")
+        # Authority-monotonicity gate: ratio rises monotonically with weight
+        # (a continuous knob, no wall) and tends toward unity — proving the
+        # CoM-Jacobian form realizes the command as authority is granted.
+        assert all(ratios[i] < ratios[i + 1] for i in range(len(ratios) - 1)), (
+            f"mass-scalar: ratio not monotonically increasing with authority "
+            f"{ratios} — task not realizing the CoM command")
         assert TOL_MASS_TOP_LO < ratios[-1] < TOL_MASS_TOP_HI, (
             f"mass-scalar: top-authority ratio {ratios[-1]:.3f} not converging "
             f"to unity [{TOL_MASS_TOP_LO},{TOL_MASS_TOP_HI}] (wrong mass form)")
 
     # -- Test 4: Variant B weak-reference coexistence -------------------
     def test_variant_b_weak_reference_coexistence(self, robot, dock_state):
-        # Representative case from test 2 (step on x) but with a weak
-        # torso-linear regulariser active; CoM tracking must still hold.
+        # Same case (step on x); compare Variant A (ss_alpha_tl_weak=0) vs
+        # Variant B (weak torso-linear regulariser ON). Coexistence is a
+        # RELATIVE property: the weak torso-linear ref must not materially fight
+        # CoM tracking — B's tracking ≈ A's, not an absolute threshold.
         ref = lambda t, r0: _com_step_reference(t, _STEP_T, r0, _STEP_AMP, 0)
         n = int(round((_STEP_T + 0.6) / _TMOM_DT))
-        out = self._run(robot, dock_state, ref_fn=ref, n_steps=n,
-                        ss_alpha_tl_weak=5e1)
-        print(f"\n[T-MOM/4 variant-B] peak CoM track={out['peak_track']*1000:.4f} mm "
-              f"(ss_alpha_tl_weak=50, ss_alpha_mom=500)")
-        assert out['peak_track'] < TOL_TRACK, (
-            f"variant B: weak torso-linear ref degraded CoM tracking to "
-            f"{out['peak_track']*1000:.3f} mm >= {TOL_TRACK*1000:.1f} mm")
+        out_a = self._run(robot, dock_state, ref_fn=ref, n_steps=n,
+                          ss_alpha_tl_weak=0.0)
+        out_b = self._run(robot, dock_state, ref_fn=ref, n_steps=n,
+                          ss_alpha_tl_weak=5e1)
+        ta, tb = out_a['peak_track'], out_b['peak_track']
+        print(f"\n[T-MOM/4 variant-B] CoM track A(tl_weak=0)={ta*1000:.4f} mm  "
+              f"B(tl_weak=50)={tb*1000:.4f} mm  ratio={tb/max(ta,1e-9):.3f}")
+        assert tb < TOL_DIVERGE, (
+            f"variant B: CoM diverged {tb*1000:.1f} mm >= {TOL_DIVERGE*1000:.0f} mm")
+        assert tb <= TOL_VARIANTB_FACTOR * ta + 5e-4, (
+            f"variant B: weak torso-linear ref degraded CoM tracking "
+            f"{tb*1000:.3f} mm vs A {ta*1000:.3f} mm "
+            f"(> {TOL_VARIANTB_FACTOR}x + 0.5 mm) — task coexistence failed")
