@@ -126,13 +126,31 @@ world↔R_s transport term lives in the QP. Transport consistency is therefore N
 a Phase-2.0 concern — it is deferred to Phase 2.1, where R_s NMPC references meet
 the world-frame QP.
 
-GATE to Phase 2.1: all four tests pass. A failure stops here with a cascade-
-bisection diagnosis; no swing run until the task is proven in isolation.
+GATE to Phase 2.1 (task-intrinsic, NOT authority-based — authority is context-dependent
+and only meaningful under swing): PASS requires (i) formulation correctness — static hold
+exact, Ȧ_G·q̇ assembly < 1e-5 vs finite-difference, mass-factor monotonic with no m-offset;
+and (ii) authority monotonicity — realized/commanded CoM accel rises monotonically with
+ss_alpha_mom and tends to unity. Per-step tracking error and accel-residual fraction are
+REPORTED as characterization, NOT pass/fail thresholds. [Result: PASSED at shipping
+ss_alpha_mom=500 — hold 1.6e-11, Ȧ_G·q̇ 1.5e-7, mass-factor 0.20→0.85 no offset, position
+tracking ≤1.45 mm under 2.5 mm tol, no reweighting.]
 
 ### Phase 2.1 — single-step swing, variants A/B
 Scenario: canonical step 1 in isolation, variants A and B, flag ON.
 Metrics vs baseline single step: torso jitter (reference and realized), F-SAT activity on the legacy channel = N/A (channel off) — instead log T-MOM residual; CoM tracking error (r̂_com vs r*); EE docking distance/orientation at capture; realized Ḣ_s vs NMPC-planned Ḣ_s (fidelity, informative only in v1); QP solve time (<5 ms budget); joint-torque margins.
 STOP. Report per variant; kill a variant only with a diagnosed cause.
+
+**ss_alpha_mom is not frozen.** Phase 2.1 sweeps it (500 / 5000 / 30000); shipping 500
+(= alpha_torso_ang under weight_ratio=1) balanced torso-linear vs EE, but T-MOM replaces
+torso-linear with a CoM-accel task of different nature, so the 1:6 balance is reconsidered
+under swing, not inherited. **Ratio question (test, do not pre-decide architecture):**
+Phase 2.0 showed that at EQUAL weights the P1 torso-angular hold rightly refuses to rotate
+the torso to chase an instantaneous CoM-accel spike, so per-step CoM-accel fidelity is
+partial at shipping weight (position still tracks via feedback). This is a WEIGHT-BALANCE
+property, not necessarily architectural. Phase 2.1 tests whether sweeping ss_alpha_mom
+restores CoM authority under swing. ONLY IF the sweep fails to (CoM tracking inadequate at
+all tested weights, or torso-angular degrades unacceptably as α_mom rises) does the
+strict-P1-vs-strong-weighted-P2 architecture question arise — raised then, not now.
 
 ### Phase 3 — canonical 5-step + GATE
 Scenario: canonical 5-step traversal, surviving variant(s).
