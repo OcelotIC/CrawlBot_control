@@ -994,6 +994,44 @@ class SimulationLoop:
         # Energy / passivity
         log.T_kinetic.append(0.5 * float(rs.v @ rs.H @ rs.v))
 
+        # Dock-leak instrument (DS site).
+        self._log_subtree_angmom(log)
+
+    def _log_subtree_angmom(self, log):
+        """Append per-tick total-system angular momentum + active weld count.
+
+        Diagnostic instrument for the dock-leak study (J1 A'.1 ground truth).
+        Recomputes the MuJoCo CoM kinematics from the CURRENT ``mj_data``
+        state — identical sequence to ``scripts/audit_J1_partAprime.py`` —
+        and reads ``subtree_angmom[0]`` (whole-system angular momentum about
+        the system CoM, world frame). For the free system this must remain
+        ≈0; the leak shows up here.
+
+        Side-effect-free w.r.t. control: ``mj_kinematics/comPos/comVel/
+        subtreeVel`` write only diagnostic buffers (subtree_*, cvel, cinert),
+        never qpos/qvel/ctrl/qfrc_applied, and every one is recomputed from
+        scratch by the next ``mj_step``. The physical trajectory is therefore
+        bit-identical to the un-instrumented run (verified externally by
+        comparing the shared log fields against the frozen canonical run).
+        """
+        H_sys = self._compute_H_sys()
+        log.H_sys.append(H_sys)
+        log.n_weld.append(int(self.mj_data.eq_active.sum()))
+
+    def _compute_H_sys(self):
+        """Return MuJoCo-direct total-system angular momentum about the system
+        CoM (world frame), ``subtree_angmom[0]``, from the CURRENT mj_data.
+
+        Pure read-out: the kinematics chain writes only diagnostic buffers
+        (never qpos/qvel/ctrl), so it cannot perturb the trajectory. Same
+        sequence as ``scripts/audit_J1_partAprime.py``.
+        """
+        mujoco.mj_kinematics(self.mj_model, self.mj_data)
+        mujoco.mj_comPos(self.mj_model, self.mj_data)
+        mujoco.mj_comVel(self.mj_model, self.mj_data)
+        mujoco.mj_subtreeVel(self.mj_model, self.mj_data)
+        return self.mj_data.subtree_angmom[0].copy()
+
     def _build_qp(self, ac, at, ae, ap, aw, ar_react,
                    kpc, kdc, kpt, kdt, kpe, kde,
                    kpe_ang=5.0, kde_ang=3.0):
@@ -2118,8 +2156,29 @@ class SimulationLoop:
 
                     # ── 6. Post-dock: activate weld + inelastic impact ───
                     if docked:
+                        # ── Dock-leak probe P0: pre-activation baseline ──
+                        # H_sys + gap geometry BEFORE the weld is activated
+                        # (last SS state). Read-only; see _compute_H_sys.
+                        _dp_H0 = self._compute_H_sys()
+                        _dp_com = self.mj_data.subtree_com[0].copy()
+                        _g_sid = self._site_ids.get(f'gripper_{swing_arm}', -1)
+                        _a_sid = self._site_ids.get(
+                            f'anchor_{target_idx+1}{swing_arm}', -1)
+                        if _g_sid >= 0 and _a_sid >= 0:
+                            _dp_gap_vec = (self.mj_data.site_xpos[_g_sid]
+                                           - self.mj_data.site_xpos[_a_sid]).copy()
+                            _dp_grip = self.mj_data.site_xpos[_g_sid].copy()
+                        else:
+                            _dp_gap_vec = np.full(3, np.nan)
+                            _dp_grip = np.full(3, np.nan)
+                        _dp_speed = self._gripper_speed(swing_arm)
+
                         self._activate_weld(swing_arm, target_idx)
                         mujoco.mj_forward(self.mj_model, self.mj_data)
+                        # ── Dock-leak probe P1: weld active, no Δqvel yet ──
+                        _dp_H1 = self._compute_H_sys()
+                        _dp_qfrc_c = self.mj_data.qfrc_constraint.copy()
+                        _dp_H2 = _dp_H1.copy()  # default if impact skipped
                         self.nmpc.reset_warm_start()
                         # Option A: capture the SS-exit torso position
                         # and weld time for the post-dock DS blend. The
@@ -2158,6 +2217,29 @@ class SimulationLoop:
                             off_v = 3 if self.has_rwa else 0
                             self.mj_data.qvel[6+off_v:] = mj_qvel_post[6+off_v:]
                             mujoco.mj_forward(self.mj_model, self.mj_data)
+                            # ── Dock-leak probe P2: after impact Δqvel ──
+                            _dp_H2 = self._compute_H_sys()
+
+                        # ── Record the per-dock attribution probe ──────────
+                        # H0→H1: weld-activation (constraint add, no Δqvel).
+                        # H1→H2: inelastic impact velocity projection.
+                        # H2→H3: gap-closing stabilization (H3 = first DS tick,
+                        # joined from the per-tick H_sys list in post-proc).
+                        log.dock_probe.append({
+                            'step': int(step_idx),
+                            'arm': swing_arm,
+                            'anchor': int(target_idx),
+                            't': float(t),
+                            'gap': float(np.linalg.norm(_dp_gap_vec)),
+                            'gap_vec': _dp_gap_vec.tolist(),
+                            'grip_pos': _dp_grip.tolist(),
+                            'com': _dp_com.tolist(),
+                            'approach_speed': float(_dp_speed),
+                            'H0': _dp_H0.tolist(),
+                            'H1': _dp_H1.tolist(),
+                            'H2': _dp_H2.tolist(),
+                            'qfrc_constraint': _dp_qfrc_c.tolist(),
+                        })
 
                     # Post-dock energy-based settling is now handled by
                     # the *next* step's DS block (above). One shared
@@ -3314,6 +3396,10 @@ class SimulationLoop:
         v_rel = rs_f.v[:rs_f.H.shape[0]]
         T_kin = 0.5 * float(v_rel @ rs_f.H @ v_rel)
         log.T_kinetic.append(T_kin)
+
+        # Dock-leak instrument (SS site). Same helper as the DS path so the
+        # H_sys / n_weld lists stay schema-consistent (one entry per tick).
+        self._log_subtree_angmom(log)
 
         return hw, rs_f.L_com.copy()
 

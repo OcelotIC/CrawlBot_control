@@ -182,6 +182,30 @@ class SimLog:
     # Energy / passivity
     T_kinetic: list = field(default_factory=list)       # 0.5 * dq^T H dq
 
+    # ── Dock-leak diagnostic instrument (diag/dock-leak branch only) ──────
+    # Per-tick MuJoCo-direct TOTAL system angular momentum about the system
+    # CoM (world frame): subtree_angmom[0], computed via mj_subtreeVel right
+    # after the physics step. This is the validated J1 A'.1 ground truth. For
+    # a free system released from rest it MUST stay ≈0; the canonical plant
+    # leaks ~0.203 N·m·s, injected at the DS welds. n_weld = number of active
+    # weld equality constraints (eq_active.sum()) at the same tick — segments
+    # SS (1 weld) from DS (2 welds) and pinpoints the engagement transient.
+    # Logging-only: reads mj_data, appends; never touches qpos/qvel/ctrl, so
+    # the physical trajectory is bit-identical to the un-instrumented run.
+    H_sys: list = field(default_factory=list)           # (3,) N·m·s, world
+    n_weld: list = field(default_factory=list)          # int, active welds
+
+    # Per-dock attribution probe (dock-leak study). One dict per dock event,
+    # capturing H_sys at three sub-events between the last SS tick and the
+    # first DS tick, to attribute the per-tick leak to its sub-mechanism:
+    #   H0 = before _activate_weld           (last SS state; H-baseline)
+    #   H1 = after weld activate + mj_forward (constraint added, no Δqvel)
+    #   H2 = after inelastic impact projection + mj_forward (Δqvel applied)
+    #   (H3 = first DS tick's H_sys, read from the per-tick H_sys list)
+    # Plus geometry for the direction check (c): gap vector (gripper−anchor,
+    # world), |gap|, system CoM, and the weld generalized constraint force.
+    dock_probe: list = field(default_factory=list)
+
     # Setup-phase settling (populated by _settle_setup)
     settling_t: list = field(default_factory=list)      # (n,) time [s]
     settling_T: list = field(default_factory=list)      # (n,) kinetic energy [J]

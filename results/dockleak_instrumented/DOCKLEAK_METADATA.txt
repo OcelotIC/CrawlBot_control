@@ -1,0 +1,7 @@
+Dock-leak instrumented re-run (Part 1)
+HEAD: 21cec74667fd3f95190c0e85e329115f045f0d86
+branch: diag/dock-leak
+tree: dirty
+flags: --ss-two-task --ss-alpha-mom 5000 --alpha-torso-pose 24000 --ss-kp-torso 3 --ss-kd-torso 2.5 --aocs_mode legacy_pid_numerical --K_omega 50 --n-steps 5
+instrument: per-tick H_sys=subtree_angmom[0] (world), n_weld=eq_active.sum()
+canonical (frozen) reference: results/p3b_gate_w24000_kp3/
