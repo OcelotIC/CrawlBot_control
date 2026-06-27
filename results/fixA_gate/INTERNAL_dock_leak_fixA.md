@@ -127,3 +127,40 @@ impact-map change, and `test_reworked_qp` is 8/8 (QP untouched).
    (i) accept the C6(a) by-design change (update the C6 definition for an always-on plant fix vs a gated
    feature); (ii) whether to also address the residual 0.0040 gap-couple via the weld-`solref`/zero-gap
    path; (iii) merge timing (Fix A now vs fold into the J2 dock rework).
+
+---
+
+## 7. C6(a) re-baseline (Fix A merge — Phase 1, branch-only)
+
+Per Idriss's merge directive, C6(a) is re-baselined from the historical **dcda974** plant to the
+**Fix-A-corrected** plant: the always-on impact-map correction intentionally retires
+"byte-identical-to-dcda974", so C6(a) now verifies **`ss_two_task` feature-gating on the corrected
+plant** (OFF recovers the Fix-A baseline). Surgical change — only the two reference sites + a new frozen
+reference:
+- new reference `results/ssmom_phase1_baseline_fixA/` = Fix-A plant, `ss_two_task` OFF,
+  `legacy_pid_numerical`, 5 steps (+ postproc), generated on branch HEAD;
+- `scripts/gate_phase3.py:19` `BASE` → `ssmom_phase1_baseline_fixA` (also moves C1's per-step-margin and
+  C2's pos/ori limits onto the corrected-plant OFF baseline);
+- `scripts/run_phase3_gate.sh` byte-identical comparison → `ssmom_phase1_baseline_fixA/sim_log.json`.
+
+**Re-gated six criteria (vs the Fix-A OFF baseline), branch HEAD:**
+
+| # | criterion | Fix A | verdict |
+|---|-----------|-------|---------|
+| C1 | docking 5/5 <5 mm | [4.94,4.51,4.91,4.61,4.84]; worst margin 0.06 ≥ base 0.06 | ✅ PASS |
+| C2 | torso pos / ori RMS | 16.0 ≤ **17.7**; 0.089 ≤ **0.673** | ✅ PASS |
+| C3 | envelope ‖Ḣ_s‖∞ | 5.00 ≤ 5; B15 11.92 % | ✅ PASS |
+| C4 | θ_s peak / final | 0.59 ≤ 1.9; 0.10 ≤ 1.65 | ✅ PASS |
+| C5 | h_w peak ∞-norm | 4.373 ≤ 4.5 | ✅ PASS |
+| C6a | OFF vs Fix-A baseline | **BIT-IDENTICAL (Δ=0)** | ✅ PASS (restored) |
+| C6b | test_reworked_qp | 8/8 | ✅ PASS |
+
+**Clean 6/6** — C6(a) restored to Δ=0 (the fresh OFF run is byte-identical to the frozen Fix-A reference:
+determinism + feature-gating intact on the corrected plant), C1–C5 unchanged from §4 and all pass (C2
+limits shifted negligibly, 17.6→17.7 / 0.681→0.673, as the OFF run uses the same baseline controller).
+The historical dcda974-plant-invariance semantic of C6(a) is **intentionally retired** (the plant was
+deliberately corrected); no deeper C6 restructuring done (surgical, per directive).
+
+**STOP — Phase-1 stop-gate cleared on the branch.** The re-baseline is committed + pushed to
+`fix/dock-impact-map` (branch only). **Phase 2 (merge → main + tag canonical) is HELD for Idriss's
+explicit go** — it is the one-off authorized canonical mutation, not performed here.

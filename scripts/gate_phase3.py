@@ -16,7 +16,14 @@ from crawlbot.core.robot_interface import RobotInterface
 
 ROOT = os.path.join(os.path.dirname(__file__), '..')
 RES = os.path.join(ROOT, 'results')
-BASE = 'ssmom_phase1_baseline_main_dcda974'
+# C6(a) re-baseline (Fix A merge, dock-leak Part 3): the OFF/gate reference is
+# the Fix-A-CORRECTED plant's flag-OFF run, NOT the historical dcda974 plant.
+# Fix A is an always-on plant correction (full-DOF momentum-consistent dock
+# impact map), so "byte-identical to dcda974" is intentionally RETIRED — C6(a)
+# now verifies ss_two_task feature-gating on the corrected plant (OFF recovers
+# the Fix-A baseline). C2's pos/ori limits are likewise taken vs the corrected-
+# plant OFF baseline. See results/fixA_gate/INTERNAL_dock_leak_fixA.md §4.
+BASE = 'ssmom_phase1_baseline_fixA'
 WP = os.environ.get('SSMOM_WP_DIR', 'phase3_wp')   # iteration-B: override via env
 OFF_DIR = os.environ.get('SSMOM_OFF_DIR', 'phase3_off')
 TAU_W_MAX = 5.0
