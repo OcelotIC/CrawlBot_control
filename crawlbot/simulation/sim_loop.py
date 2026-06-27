@@ -2132,32 +2132,68 @@ class SimulationLoop:
                             self._ds_ramp_p_start = (
                                 self._ss_entry_p_torso.copy())
 
-                        # Inelastic impact: project velocity onto new
-                        # constraint manifold.
-                        pq_dock, pv_dock = mujoco_to_pinocchio(
-                            self.mj_data.qpos, self.mj_data.qvel)
-                        rs_dock = self.robot.update(pq_dock, pv_dock)
-                        Jc_both, _ = self.robot.get_contact_jacobians(True, True)
-                        if Jc_both is not None:
-                            v_pre = Jc_both @ pv_dock
-                            MiJcT = np.linalg.solve(rs_dock.H, Jc_both.T)
-                            Lambda_inv = Jc_both @ MiJcT
-                            impulse = np.linalg.solve(Lambda_inv, v_pre)
-                            pv_post = pv_dock - MiJcT @ impulse
-
-                            dv = np.linalg.norm(pv_post - pv_dock)
+                        # ── Inelastic impact: FULL-DOF momentum-consistent ──
+                        # Fix A (dock-leak Part 3). The previous map projected in
+                        # the robot-only Pinocchio space (structure as fixed
+                        # base) and wrote back only qvel[6+off:] via the
+                        # setup-only pinocchio_to_mujoco conversion — a one-sided
+                        # impulse that injected ~0.2 N·m·s of spurious system
+                        # angular momentum at the docks (dock-leak Parts 1–2:
+                        # the conversion also drops the structure-coupling terms
+                        # since it assumes v_struct≈0, false at a dock). Replace
+                        # with the full-DOF projection validated offline in
+                        # Part-2 A.1 (leak 0.3565→0.0011 over the 5 docks),
+                        # computed ENTIRELY in MuJoCo DOF (no Pinocchio round-
+                        # trip) and written back to ALL qvel, so the constraint
+                        # impulse is a full action-reaction pair and conserves
+                        # subtree_angmom to the O(gap·f) couple residual. The
+                        # weld is already active above, so every active
+                        # gripper↔anchor relation is in the constraint set.
+                        nv = self.mj_model.nv
+                        M_full = np.zeros((nv, nv))
+                        mujoco.mj_fullM(self.mj_model, self.mj_data, M_full)
+                        # Full-DOF weld constraint Jacobian: relative twist of
+                        # each welded gripper↔anchor site pair over ALL qvel
+                        # (incl. structure base + wheels) — the same relative-
+                        # site weld relation Part-2 A.1 validated. Active welds
+                        # are read from eq_active (exact welded pairs).
+                        inv_weld = {eq: key for key, eq in self._weld_map.items()}
+                        rows = []
+                        for eq_id in range(self.mj_model.neq):
+                            if not self.mj_data.eq_active[eq_id] or eq_id not in inv_weld:
+                                continue
+                            arm, a_idx = inv_weld[eq_id]
+                            gsid = self._site_ids.get(f'gripper_{arm}', -1)
+                            asid = self._site_ids.get(f'anchor_{a_idx + 1}{arm}', -1)
+                            if gsid < 0 or asid < 0:
+                                continue
+                            jpg = np.zeros((3, nv)); jrg = np.zeros((3, nv))
+                            jpa = np.zeros((3, nv)); jra = np.zeros((3, nv))
+                            mujoco.mj_jacSite(self.mj_model, self.mj_data, jpg, jrg, gsid)
+                            mujoco.mj_jacSite(self.mj_model, self.mj_data, jpa, jra, asid)
+                            rows.append(jpg - jpa)   # relative linear twist
+                            rows.append(jrg - jra)   # relative angular twist
+                        if rows:
+                            J = np.vstack(rows)        # (6·n_weld) × nv
+                            v_minus = self.mj_data.qvel.copy()
+                            v_pre = J @ v_minus
+                            MiJT = np.linalg.solve(M_full, J.T)
+                            impulse = np.linalg.solve(J @ MiJT, v_pre)
+                            v_plus = v_minus - MiJT @ impulse
                             if verbose:
-                                print(f"  Impact: ||dv||={dv:.4f}, "
-                                      f"||Jc@v_pre||={np.linalg.norm(v_pre):.4f}")
-
-                            _, mj_qvel_post = pinocchio_to_mujoco(
-                                pq_dock, pv_post,
-                                struct_pos=self.mj_data.qpos[0:3],
-                                struct_quat=self.mj_data.qpos[3:7],
-                                rwa=self.has_rwa)
-                            off_v = 3 if self.has_rwa else 0
-                            self.mj_data.qvel[6+off_v:] = mj_qvel_post[6+off_v:]
+                                mujoco.mj_subtreeVel(self.mj_model, self.mj_data)
+                                H_pre = float(np.linalg.norm(
+                                    self.mj_data.subtree_angmom[0]))
+                            self.mj_data.qvel[:] = v_plus   # write back ALL DOFs
                             mujoco.mj_forward(self.mj_model, self.mj_data)
+                            if verbose:
+                                mujoco.mj_subtreeVel(self.mj_model, self.mj_data)
+                                H_post = float(np.linalg.norm(
+                                    self.mj_data.subtree_angmom[0]))
+                                print(f"  Impact(fullDOF): ||dv||="
+                                      f"{np.linalg.norm(v_plus - v_minus):.4f}, "
+                                      f"||J·v-||={np.linalg.norm(v_pre):.4f}, "
+                                      f"|H_sys| {H_pre:.4f}->{H_post:.4f}")
 
                     # Post-dock energy-based settling is now handled by
                     # the *next* step's DS block (above). One shared

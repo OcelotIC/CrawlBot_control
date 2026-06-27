@@ -1,0 +1,6 @@
+Fix-A (full-DOF impact map) 5-step gate
+HEAD: 21cec74667fd3f95190c0e85e329115f045f0d86
+branch: fix/dock-impact-map
+tree: dirty
+flags: --ss-two-task --ss-alpha-mom 5000 --alpha-torso-pose 24000 --ss-kp-torso 3 --ss-kd-torso 2.5 --aocs_mode legacy_pid_numerical --K_omega 50 --n-steps 5
+change vs canonical: ONLY the inelastic-impact block (Fix A full-DOF map)
