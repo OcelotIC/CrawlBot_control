@@ -132,6 +132,21 @@ class SimLog:
     tau_w_ss_hifreq: list = field(default_factory=list)
     hw_ss_hifreq: list = field(default_factory=list)
 
+    # J1 Lemma-2 (centroidal reduction identity) SS test — per QP-substep
+    # (100 Hz), SS only, gated by log_hifreq_ss. All MuJoCo-direct in the
+    # INERTIAL/world frame, reduced about O_s = structure CoM (xipos[struct]).
+    # LHS Ḣ_R/Os is the FD of HR_Os_hf; RHS τ_contact is the plant-realized weld
+    # wrench (weld_f/weld_m at p_grip, reduced about r_Os). NOT the structure-
+    # relative logged L_com, NOT lambda_qp (the QP command). Diagnostic only.
+    t_l2_hf: list = field(default_factory=list)        # substep time [s]
+    HR_Os_hf: list = field(default_factory=list)       # (3,) robot-subtree angmom about O_s, world
+    weld_f_hf: list = field(default_factory=list)      # (3,) plant weld force, world (at gripper site)
+    weld_m_hf: list = field(default_factory=list)      # (3,) plant weld pure moment, world
+    p_grip_hf: list = field(default_factory=list)      # (3,) welded gripper site, world
+    r_Os_hf: list = field(default_factory=list)        # (3,) structure CoM O_s, world
+    nefc_hf: list = field(default_factory=list)        # int, active constraint rows
+    l2_resid_hf: list = field(default_factory=list)    # rel residual of weld-wrench reconstruction
+
     # EE tracking error (vs planned trajectory, not just target distance)
     e_ee_pos: list = field(default_factory=list)
     e_ee_ori: list = field(default_factory=list)

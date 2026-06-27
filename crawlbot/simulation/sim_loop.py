@@ -3170,6 +3170,7 @@ class SimulationLoop:
                 log.tau_w_ss_hifreq.append(
                     np.asarray(tau_w_last, dtype=float).copy())
                 log.hw_ss_hifreq.append(np.asarray(hw, dtype=float).copy())
+                self._log_lemma2_ss(log, tq)
 
         t_qp_ms = (time.perf_counter() - t_qp_start) * 1000
 
@@ -3352,6 +3353,82 @@ class SimulationLoop:
         log.T_kinetic.append(T_kin)
 
         return hw, rs_f.L_com.copy()
+
+    def _log_lemma2_ss(self, log, tq):
+        """J1 Lemma-2 (centroidal reduction identity) SS instrument. READ-ONLY.
+
+        Per QP-substep in SS (gated by log_hifreq_ss), captures the two sides of
+        the inertial reduction identity Ḣ_R/Os = −τ_contact, both MuJoCo-direct
+        in the world frame, reduced about O_s = structure CoM:
+
+          LHS  HR_Os : robot-subtree (torso+arms) angular momentum about O_s
+                       = subtree_angmom[torso] + (r_comR − O_s) × (m_R·v_comR).
+          RHS  weld  : the PLANT-realized stance-weld wrench (force weld_f at the
+                       gripper site + pure moment weld_m), reconstructed from the
+                       realized generalized constraint force qfrc_constraint via
+                       the world relative-site weld Jacobian J=[J_grip−J_anchor].
+                       NOT lambda_qp (the QP command).
+
+        Side-effect-free: mj_subtreeVel / mj_jacSite write only diagnostic
+        buffers (never qpos/qvel/ctrl); the next mj_step recomputes everything.
+        l2_resid_hf reports how well the single-weld Jacobian explains
+        qfrc_constraint (small ⇒ the weld is the only active constraint ⇒ the
+        reconstructed wrench is clean)."""
+        m, d = self.mj_model, self.mj_data
+        if not hasattr(self, '_l2_torso_id'):
+            self._l2_torso_id = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, 'torso')
+            self._l2_struct_id = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, 'structure')
+
+            def _is_desc(b, anc):
+                while b != 0:
+                    if b == anc:
+                        return True
+                    b = m.body_parentid[b]
+                return False
+            self._l2_mR = float(sum(m.body_mass[b] for b in range(m.nbody)
+                                    if _is_desc(b, self._l2_torso_id)))
+            self._l2_inv_weld = {eq: key for key, eq in self._weld_map.items()}
+        tid, sid = self._l2_torso_id, self._l2_struct_id
+
+        # LHS — robot-subtree angular momentum about O_s (inertial/world).
+        mujoco.mj_subtreeVel(m, d)
+        r_Os = d.xipos[sid].copy()
+        H_R_Os = (d.subtree_angmom[tid].copy()
+                  + np.cross(d.subtree_com[tid] - r_Os,
+                             self._l2_mR * d.subtree_linvel[tid]))
+
+        # RHS — plant-realized weld wrench from qfrc_constraint (the active SS
+        # weld, world relative-site Jacobian).
+        nv = m.nv
+        f_w = np.full(3, np.nan); m_w = np.full(3, np.nan)
+        p_grip = np.full(3, np.nan); resid = float('nan')
+        active = [eq for eq in range(m.neq)
+                  if d.eq_active[eq] and eq in self._l2_inv_weld]
+        if len(active) == 1:
+            arm, a_idx = self._l2_inv_weld[active[0]]
+            gsid = self._site_ids.get(f'gripper_{arm}', -1)
+            asid = self._site_ids.get(f'anchor_{a_idx + 1}{arm}', -1)
+            if gsid >= 0 and asid >= 0:
+                jpg = np.zeros((3, nv)); jrg = np.zeros((3, nv))
+                jpa = np.zeros((3, nv)); jra = np.zeros((3, nv))
+                mujoco.mj_jacSite(m, d, jpg, jrg, gsid)
+                mujoco.mj_jacSite(m, d, jpa, jra, asid)
+                J = np.vstack([jpg - jpa, jrg - jra])      # 6 x nv, world
+                qc = d.qfrc_constraint.copy()
+                lam, *_ = np.linalg.lstsq(J.T, qc, rcond=None)
+                f_w, m_w = lam[0:3].copy(), lam[3:6].copy()
+                resid = float(np.linalg.norm(J.T @ lam - qc)
+                              / (np.linalg.norm(qc) + 1e-12))
+                p_grip = d.site_xpos[gsid].copy()
+
+        log.t_l2_hf.append(float(tq))
+        log.HR_Os_hf.append(H_R_Os)
+        log.weld_f_hf.append(f_w)
+        log.weld_m_hf.append(m_w)
+        log.p_grip_hf.append(p_grip)
+        log.r_Os_hf.append(r_Os)
+        log.nefc_hf.append(int(d.nefc))
+        log.l2_resid_hf.append(resid)
 
     def _get_ee_data(self, rs, arm):
         """Return (J_ee, Jdq_ee, oMf_ee) for the given arm."""

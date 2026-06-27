@@ -1,0 +1,5 @@
+Lemma-2 SS instrumented re-run
+HEAD: ae0673eb2533a38abe73f79fae71fb78e9ff7d42
+branch: diag/lemma2-ss
+flags: same as fixA_gate (canonical Fix-A WP)
+instrument: per-QP-substep SS HR_Os (robot-subtree angmom about O_s, world) + plant weld wrench (qfrc_constraint via world relative-site Jacobian)
