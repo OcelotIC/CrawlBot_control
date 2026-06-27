@@ -1,5 +1,5 @@
 {
-  "canonical_run": "/home/user/CrawlBot_control/results/phase3_off",
+  "canonical_run": "/home/user/CrawlBot_control/results/ssmom_phase1_baseline_fixA",
   "n_ticks": 1084,
   "duration_s": 62.890000000000605,
   "mask_ss_fraction": 0.3496309963099631,

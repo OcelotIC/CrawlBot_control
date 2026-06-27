@@ -34,10 +34,14 @@ FRAMES_PER_STEP=0 MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/diag_cooperati
 echo "  diag exit=$? dt=$((SECONDS-t0))s"
 SSMOM_RUN_DIR=phase3_off MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/postprocess_results_figs.py \
   > "$SP/phase3_off_postproc.log" 2>&1
-echo "=== byte-identical: phase3_off vs dcda974 (Phase-1 baseline) ==="
+# C6(a) re-baseline (Fix A merge): compare the flag-OFF run to the Fix-A-
+# CORRECTED plant baseline, NOT the historical dcda974 plant. Fix A is an
+# always-on plant correction, so dcda974-invariance is intentionally retired;
+# C6(a) now checks ss_two_task feature-gating on the corrected plant.
+echo "=== byte-identical: phase3_off vs ssmom_phase1_baseline_fixA (Fix-A plant) ==="
 MUJOCO_GL=disabled PYTHONPATH=. python3 -c "
 import json,numpy as np
-a=json.load(open('results/ssmom_phase1_baseline_main_dcda974/sim_log.json'))
+a=json.load(open('results/ssmom_phase1_baseline_fixA/sim_log.json'))
 b=json.load(open('results/phase3_off/sim_log.json'))
 skip={'qp_time_ms','nmpc_time_ms','t_ss_hifreq','tau_w_ss_hifreq','hw_ss_hifreq'}
 worst=0.0; nz=[]
@@ -52,7 +56,7 @@ for k in set(a)&set(b):
         if m>0: nz.append((k,round(m,6)))
 verdict='BIT-IDENTICAL' if worst==0 else 'DIFFERS'
 open('results/phase3_off/OFF_RESULT.txt','w').write(
-  'flag-OFF vs dcda974 (AOCS=legacy_pid_numerical): %s ; worst|delta|=%.2e ; nonzero=%s'%(verdict,worst,nz or 'NONE'))
+  'flag-OFF vs ssmom_phase1_baseline_fixA (Fix-A plant, AOCS=legacy_pid_numerical): %s ; worst|delta|=%.2e ; nonzero=%s'%(verdict,worst,nz or 'NONE'))
 print('  ', open('results/phase3_off/OFF_RESULT.txt').read())
 "
 echo "=== test_reworked_qp ==="

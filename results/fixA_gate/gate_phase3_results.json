@@ -3,9 +3,9 @@
     "base_d": [
       1.86,
       4.94,
-      4.96,
-      4.77,
-      5.0
+      4.87,
+      4.92,
+      4.94
     ],
     "wp_d": [
       4.94,
@@ -17,9 +17,9 @@
     "base_marg": [
       3.1399999999999997,
       0.05999999999999961,
-      0.040000000000000036,
-      0.23000000000000043,
-      0.0
+      0.1299999999999999,
+      0.08000000000000007,
+      0.05999999999999961
     ],
     "wp_marg": [
       0.05999999999999961,
@@ -32,18 +32,18 @@
     "per_step_marg_ok": [
       false,
       true,
-      true,
+      false,
       true,
       true
     ],
     "worst_marg_wp": 0.05999999999999961,
-    "worst_marg_base": 0.0,
+    "worst_marg_base": 0.05999999999999961,
     "verdict": true
   },
   "c2": {
-    "base_ori_rms": 0.6807195728305288,
+    "base_ori_rms": 0.6732932159395186,
     "wp_ori_rms": 0.08924991235962786,
-    "base_pos_peak_mm": 17.622687757274363,
+    "base_pos_peak_mm": 17.683966097008007,
     "wp_pos_peak_mm": 16.02671662065462,
     "verdict": true
   },
@@ -54,8 +54,8 @@
       4.999993619868695
     ],
     "hdot_ss_peak_base": [
-      4.99999674693993,
-      4.999991450536333,
+      4.999996478808372,
+      4.999987389598156,
       4.999999637610347
     ],
     "realized_hdot_ss_peak": 4.999993619868695,
@@ -69,22 +69,22 @@
       "4": 46.38888888888889
     },
     "tau_w_clip_frac_f3f4_SS": 0.12075471698113208,
-    "tau_w_clip_frac_f3f4_SS_base": 0.04509283819628647
+    "tau_w_clip_frac_f3f4_SS_base": 0.047493403693931395
   },
   "c4": {
     "peak": 0.593257263163585,
     "final": 0.10299484519685861,
-    "peak_base": 1.8794860836938765,
-    "final_base": 1.6186236184633804,
+    "peak_base": 1.8661019614711396,
+    "final_base": 1.5898202358209348,
     "verdict": true
   },
   "c5": {
     "hw_wp": 4.373455563943233,
-    "hw_base": 3.379182967563731,
+    "hw_base": 3.3870238791009024,
     "c5_limit": 4.5,
     "verdict": true
   },
-  "c6": "flag-OFF vs dcda974 (AOCS=legacy_pid_numerical): BIT-IDENTICAL ; worst|delta|=0.00e+00 ; nonzero=NONEtest_reworked_qp: 8 passed, 1 warning in 105.75s (0:01:45)",
+  "c6": "flag-OFF vs ssmom_phase1_baseline_fixA (Fix-A plant, AOCS=legacy_pid_numerical): BIT-IDENTICAL ; worst|delta|=0.00e+00 ; nonzero=NONEtest_reworked_qp: 8 passed, 1 warning in 87.15s (0:01:27)",
   "two_regime": [
     {
       "step": 0,
