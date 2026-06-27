@@ -171,3 +171,90 @@ so the free system *must* conserve H about its CoM — the 0.203 N·m·s is pure
    mechanism differs from the hypothesised one, which changes the fix surface (impact map,
    not weld parameters). **Deferring the fix to the reviewer's go**, with the
    full-DOF/momentum-consistent impact map as the recommended candidate, re-gated 6/6.
+
+---
+
+# PART 2 (REDIRECTED) — full-DOF confirmatory test
+
+**Mode:** READ-ONLY, static evaluation on the 5 logged pre-activation dock snapshots — the
+impact projection is recomputed two ways and compared. No re-run, no `sim_loop.py` change.
+**Tooling:** `scripts/audit_dock_leak_part2.py`, `plot_dock_leak_part2.py`. Figure:
+`dockleak_plots/dock_leak_part2.png`. **Snapshot fidelity:** `subtree_angmom[0]` of each
+`dock_stepN` snapshot equals the Part-1 probe H0 to <1e-6 (the snapshots are the exact
+pre-impact states the in-plant map acts on).
+
+## ✅ Test A — DISCRIMINATOR CONFIRMED: full-DOF conserves, current partial leaks
+
+Both maps recomputed from identical pre-impact `qpos/qvel`; `Δ = ‖subtree_angmom[0] after −
+before‖`:
+
+| dock | gap [mm] | **A.2 current partial** | Part-1 leak | **A.1 full-DOF** | reduction |
+|---|---|---|---|---|---|
+| 0 | 0.005 | 0.0409 | 0.0409 | 0.0004 | 111× |
+| 1 | 0.003 | 0.0480 | 0.0480 | 0.0001 | 956× |
+| 2 | 0.005 | 0.0491 | 0.0491 | 0.0003 | 146× |
+| 3 | 0.002 | 0.1456 | 0.1456 | 0.0001 | 2276× |
+| 4 | 0.006 | 0.0729 | 0.0729 | 0.0003 | 252× |
+| **Σ** | | **0.3565** | 0.3565 | **0.0011** | |
+
+- **A.2 reproduces the Part-1 leak bit-for-bit** (Σ = 0.3565) — the offline re-projection is
+  an exact replica of the in-plant map (robot-only Pinocchio `H`/`Jc`, write back only
+  `qvel[6+off:]`).
+- **A.1 (full MuJoCo `mj_fullM` + relative-site weld Jacobian over all DOFs, write back all
+  DOFs) collapses the leak 110×–2276×** to Σ = 0.0011 — matching the Part-1 gap-stabilisation
+  residual (0.0022). This residual is the expected **O(gap×f) couple** (a full action-reaction
+  impulse pair across a 2–6 mm gap is not *exactly* torque-free), not the one-sided defect.
+- **Discriminator met:** A.1 ≪ A.2 **and** A.2 reproduces the observed leak ⇒ the root cause is
+  the partial/structure-fixed-base impact map; the full-DOF momentum-consistent map (**Fix A**)
+  removes it down to the gap couple.
+
+## Test B — the lever is VELOCITY, not gap (and the partial map has two velocity defects)
+
+**B.1 — decompose the partial map** (`Δ` vs the pre-impact H0; `ΔH_impulse = ‖after − no-impulse‖`):
+
+| dock | ΔH_full | ΔH_no-impulse (conversion only) | ΔH_impulse |
+|---|---|---|---|
+| 0 | 0.0409 | 0.0140 | 0.0443 |
+| 1 | 0.0480 | 0.0635 | 0.0202 |
+| 2 | 0.0491 | 0.0736 | 0.1071 |
+| 3 | 0.1456 | 0.1951 | 0.0518 |
+| 4 | 0.0729 | 0.2060 | 0.1618 |
+
+The partial map injects **even with the impulse removed** (Σ conversion-only = 0.55): the
+`pinocchio_to_mujoco` write-back is documented as *"assumes v_struct ≈ 0"*, but at a dock
+`v_struct ≠ 0`, so it drops the structure-coupling terms (`v_s + ω_s×Δp`) when mapping the
+torso velocity back to world. So the net leak is the **partial cancellation of two
+velocity-driven defects** — the one-sided impulse and the lossy structure-relative conversion
+(they are ~antiparallel, `cos ≈ −0.95` at dock 4). **Both are eliminated by the full-DOF,
+MuJoCo-native map** (A.1) — which is why a half-fix that only widens the write-back but keeps
+the Pinocchio conversion would be insufficient; Fix A sidesteps the conversion entirely.
+
+**B.2 — velocity scaling (gap held fixed):** scale the pre-impact velocity by α and recompute
+the partial-map injection:
+
+| dock | gap [mm] | α=1.0 | α=0.5 | α=0.25 | α=0.0 |
+|---|---|---|---|---|---|
+| 0 | 0.005 | 0.0409 | 0.0205 | 0.0102 | 0.0000 |
+| 3 | 0.002 | 0.1456 | 0.0728 | 0.0364 | 0.0000 |
+| 4 | 0.006 | 0.0729 | 0.0364 | 0.0182 | 0.0000 |
+
+ΔH is **exactly linear in approach velocity** and **→ 0 at zero approach velocity**, while the
+(fixed, nonzero) gap is unchanged. This is the corrected null test (Part 1 already refuted the
+zero-*gap* null: `corr(‖ΔH‖, gap) = −0.40`). **The lever is the pre-impact velocity.** This
+validates **Fix C** (null the approach velocity before `eq_active = 1` — a soft-dock) as a
+momentum-consistent target, alongside Fix A.
+
+## Part 2 verdict (STOP — Part 3 gated on paper-timing decision)
+
+1. **Root cause confirmed at high confidence (Test A):** the leak is the structure-fixed-base /
+   partial-write-back impact map; the full-DOF momentum-consistent map conserves
+   `subtree_angmom[0]` to the O(gap×f) residual (0.0011, ~0.3 % of the leak).
+2. **Refinement (Test B.1):** the partial map carries *two* velocity-driven defects — the
+   one-sided impulse **and** the setup-only `pinocchio_to_mujoco` conversion used at nonzero
+   `v_struct`. Both vanish under the full-DOF map.
+3. **Lever is velocity, not gap (Test B.2):** ΔH ∝ approach velocity, zero at zero velocity.
+   Two fixes are validated: **Fix A** (full-DOF conservative impact map) and **Fix C** (soft-dock
+   = null approach velocity before welding).
+4. **Did NOT proceed to Part 3.** No `sim_loop.py` impact-map edit, no re-gate. The Fix-A-now
+   vs fold-into-J2-dock-rework choice depends on the paper-timing decision — **awaiting explicit
+   go.**
