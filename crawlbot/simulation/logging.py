@@ -124,6 +124,14 @@ class SimLog:
     tau_w: list = field(default_factory=list)
     rw_speed: list = field(default_factory=list)
 
+    # Phase-2.1: optional 100 Hz (QP-rate) SS logging of reaction-wheel torque
+    # + stored wheel momentum. Populated ONLY when cfg.log_hifreq_ss is True;
+    # empty by default ⇒ no effect on the existing 10 Hz logs and flag-OFF
+    # bit-identical behaviour. Resolves the SS τ_w/h_w cadence ambiguity.
+    t_ss_hifreq: list = field(default_factory=list)
+    tau_w_ss_hifreq: list = field(default_factory=list)
+    hw_ss_hifreq: list = field(default_factory=list)
+
     # EE tracking error (vs planned trajectory, not just target distance)
     e_ee_pos: list = field(default_factory=list)
     e_ee_ori: list = field(default_factory=list)

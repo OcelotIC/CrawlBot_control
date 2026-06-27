@@ -1,0 +1,386 @@
+{
+  "canonical_run": "/home/user/CrawlBot_control/results/p3b_gate_w24000_kp4",
+  "n_ticks": 911,
+  "duration_s": 50.81000000000043,
+  "mask_ss_fraction": 0.2897914379802415,
+  "torso_columns_legend": {
+    "SS_rows": "torso error vs planner trajectory (the swing-time tracking error). Reported via _SS suffix metrics below.",
+    "DS_rows": "torso DEVIATION from the pose captured at DS-entry of each contiguous DS block (planner ref is ill-defined for tracking during DS). Reported via _DS_hold_deviation metrics below.",
+    "csv_column_torso_ref_mode": "'planner_track' on SS rows, 'ds_hold' on DS rows."
+  },
+  "e_ori_torso_deg_SS_tracking": {
+    "rms_SS": 0.07031531569086566,
+    "peak_SS": 0.29771209679815624
+  },
+  "e_pos_torso_norm_m_SS_tracking": {
+    "rms_SS": 0.007431225477452291,
+    "peak_SS": 0.01340631891014425
+  },
+  "e_pos_torso_per_axis_peak_m_SS_tracking": {
+    "x": 0.013382317200520744,
+    "y": 0.012108495924883833,
+    "z": 0.0012389405178351298
+  },
+  "e_ori_torso_deg_DS_hold_deviation": {
+    "peak_over_all_DS_blocks": 0.24793213038576448,
+    "per_block_max_deg": [
+      {
+        "step_idx": -1,
+        "max_ori_dev_deg": 8.005606490547103e-09
+      },
+      {
+        "step_idx": 0,
+        "max_ori_dev_deg": 0.24793213038576448
+      },
+      {
+        "step_idx": 1,
+        "max_ori_dev_deg": 0.18007563111158478
+      },
+      {
+        "step_idx": 2,
+        "max_ori_dev_deg": 0.24363271175640153
+      },
+      {
+        "step_idx": 3,
+        "max_ori_dev_deg": 0.1578742394848631
+      },
+      {
+        "step_idx": 4,
+        "max_ori_dev_deg": 0.15420957582779798
+      }
+    ]
+  },
+  "e_pos_torso_DS_hold_deviation_mm": {
+    "peak_norm_mm": 5.9632539514313425,
+    "peak_per_axis_mm": {
+      "x": 4.047947369070326,
+      "y": 4.154916589527935,
+      "z": 1.7946221731146017
+    },
+    "per_block": [
+      {
+        "tick_first": 0,
+        "tick_last": 9,
+        "t_start": 0.01,
+        "t_end": 0.1,
+        "step_idx": -1,
+        "p_hold": [
+          0.17659213298982235,
+          -0.8155960043732688,
+          -0.34358025151576577
+        ],
+        "q_hold": [
+          0.9989875231434698,
+          -1.86761285743446e-14,
+          -9.798539810006727e-15,
+          -0.04498809402136753
+        ],
+        "max_abs_dp_per_axis_mm": [
+          4.579164825102566e-08,
+          4.477773707378674e-08,
+          8.372746940210618e-10
+        ],
+        "max_norm_dp_mm": 6.404627601779055e-08,
+        "max_ori_dev_deg": 8.005606490547103e-09
+      },
+      {
+        "tick_first": 42,
+        "tick_last": 212,
+        "t_start": 3.3200000000000016,
+        "t_end": 5.020000000000001,
+        "step_idx": 0,
+        "p_hold": [
+          0.2941882966391053,
+          -0.7561891543414515,
+          -0.3356111929322925
+        ],
+        "q_hold": [
+          0.9989783528473714,
+          -2.0128371000053776e-05,
+          9.306695881242139e-05,
+          -0.045191165903777225
+        ],
+        "max_abs_dp_per_axis_mm": [
+          4.047947369070326,
+          4.154916589527935,
+          1.5396557917389253
+        ],
+        "max_norm_dp_mm": 5.9632539514313425,
+        "max_ori_dev_deg": 0.24793213038576448
+      },
+      {
+        "tick_first": 297,
+        "tick_last": 346,
+        "t_start": 13.439999999999973,
+        "t_end": 13.929999999999973,
+        "step_idx": 1,
+        "p_hold": [
+          0.9514369939561192,
+          -0.7743080093978633,
+          -0.3365926368947121
+        ],
+        "q_hold": [
+          0.9988904585435037,
+          -0.0004172056132836246,
+          2.4650578814730598e-05,
+          -0.047092219766901824
+        ],
+        "max_abs_dp_per_axis_mm": [
+          1.3654660464469393,
+          2.0894668738953293,
+          0.29538423464542385
+        ],
+        "max_norm_dp_mm": 2.510899295642142,
+        "max_ori_dev_deg": 0.18007563111158478
+      },
+      {
+        "tick_first": 380,
+        "tick_last": 545,
+        "t_start": 17.249999999999986,
+        "t_end": 18.899999999999984,
+        "step_idx": 2,
+        "p_hold": [
+          1.069160899929428,
+          -0.7004119920764819,
+          -0.32869979601157223
+        ],
+        "q_hold": [
+          0.9988385274890373,
+          -0.0013812944912191746,
+          0.001160034045187724,
+          -0.04814916769866464
+        ],
+        "max_abs_dp_per_axis_mm": [
+          3.7351964530421,
+          4.114212249716975,
+          1.2252192599671585
+        ],
+        "max_norm_dp_mm": 5.672089424246361,
+        "max_ori_dev_deg": 0.24363271175640153
+      },
+      {
+        "tick_first": 626,
+        "tick_last": 675,
+        "t_start": 26.920000000000098,
+        "t_end": 27.410000000000096,
+        "step_idx": 3,
+        "p_hold": [
+          1.6951228477856373,
+          -0.702049694726153,
+          -0.32427945612576664
+        ],
+        "q_hold": [
+          0.9987434115493623,
+          -0.001714297489015545,
+          0.0010992336302137681,
+          -0.050074452131664955
+        ],
+        "max_abs_dp_per_axis_mm": [
+          1.7437599349838795,
+          2.7157839513607396,
+          0.36291386310610685
+        ],
+        "max_norm_dp_mm": 3.24637799062728,
+        "max_ori_dev_deg": 0.1578742394848631
+      },
+      {
+        "tick_first": 711,
+        "tick_last": 910,
+        "t_start": 30.920000000000147,
+        "t_end": 50.82000000000043,
+        "step_idx": 4,
+        "p_hold": [
+          1.8251223607217146,
+          -0.6268593191843086,
+          -0.31951213709864357
+        ],
+        "q_hold": [
+          0.9986712981143159,
+          -0.002390466745003441,
+          0.00241366340785649,
+          -0.051420795602186965
+        ],
+        "max_abs_dp_per_axis_mm": [
+          1.6981949726275758,
+          2.597592440002794,
+          1.7946221731146017
+        ],
+        "max_norm_dp_mm": 3.5022031845407344,
+        "max_ori_dev_deg": 0.15420957582779798
+      }
+    ]
+  },
+  "d_ee_at_docks_mm": [
+    {
+      "step_idx": 0,
+      "t_dock": 3.31,
+      "t_last_ss_tick": 3.2100000000000017,
+      "d_mm_sim_log": 4.77,
+      "d_ee_to_target_mm_recomp": 4.7722076292026365,
+      "ori_deg_sim_log": 0.11,
+      "e_ori_ee_deg_recomp": 0.10588709319839912,
+      "arm": "b",
+      "anchor": 3
+    },
+    {
+      "step_idx": 1,
+      "t_dock": 13.43,
+      "t_last_ss_tick": 13.329999999999973,
+      "d_mm_sim_log": 4.45,
+      "d_ee_to_target_mm_recomp": 4.450865562866442,
+      "ori_deg_sim_log": 0.01,
+      "e_ori_ee_deg_recomp": 0.01260430450945328,
+      "arm": "a",
+      "anchor": 3
+    },
+    {
+      "step_idx": 2,
+      "t_dock": 17.24,
+      "t_last_ss_tick": 17.139999999999983,
+      "d_mm_sim_log": 4.82,
+      "d_ee_to_target_mm_recomp": 4.815575365768214,
+      "ori_deg_sim_log": 0.11,
+      "e_ori_ee_deg_recomp": 0.10966323083987144,
+      "arm": "b",
+      "anchor": 4
+    },
+    {
+      "step_idx": 3,
+      "t_dock": 26.91,
+      "t_last_ss_tick": 26.810000000000095,
+      "d_mm_sim_log": 4.95,
+      "d_ee_to_target_mm_recomp": 4.951058295291981,
+      "ori_deg_sim_log": 0.02,
+      "e_ori_ee_deg_recomp": 0.01842276116751154,
+      "arm": "a",
+      "anchor": 4
+    },
+    {
+      "step_idx": 4,
+      "t_dock": 30.92,
+      "t_last_ss_tick": 30.820000000000146,
+      "d_mm_sim_log": 4.73,
+      "d_ee_to_target_mm_recomp": 4.728095120545887,
+      "ori_deg_sim_log": 0.11,
+      "e_ori_ee_deg_recomp": 0.1052919669384804,
+      "arm": "b",
+      "anchor": 5
+    }
+  ],
+  "d_ee_final_m": 4.69950248700538e-09,
+  "e_ori_ee_deg_SS_only": {
+    "rms_SS_segments": 0.3737439718719971,
+    "peak_SS_segments": 1.6653309477084517
+  },
+  "Hdot_s_per_axis_peak_Nm_SS_only": {
+    "x": 3.2496665255239074,
+    "y": 4.7015318285190695,
+    "z": 4.999993980016447
+  },
+  "Hdot_s_hits_bound_SS_only": false,
+  "Hdot_s_per_axis_peak_Nm_full_run": {
+    "x": 3.2496665255239074,
+    "y": 4.7015318285190695,
+    "z": 4.999993980016447
+  },
+  "tau_w_per_axis_peak_Nm_SS_only": {
+    "x": 1.3334173203002528,
+    "y": 3.9973435124996097,
+    "z": 5.0
+  },
+  "tau_w_at_clip_ticks_SS_only": 36,
+  "tau_w_at_clip_fraction_SS_only": 0.13636363636363635,
+  "stance_cross_check_max_d_grip_stance_mm": 0.0418648138922396,
+  "tau_w_max_clip_Nm": 5.0,
+  "theta_s_deg": {
+    "peak_full_run": 0.5873115711945643,
+    "final": 0.10943413394332478,
+    "rms_full_run": 0.3308239273089585
+  },
+  "per_ds_attitude": [
+    {
+      "step_idx": -1,
+      "regime": "initial",
+      "just_landed_arm": "",
+      "swing_to_idx": -1,
+      "t_start": 0.01,
+      "t_end": 0.1,
+      "theta_s_start_deg": 2.9472728859084927e-30,
+      "theta_s_end_deg": 6.21962132162173e-11,
+      "theta_s_peak_deg": 6.21962132162173e-11,
+      "theta_s_change_deg": 6.21962132162173e-11,
+      "d_ee_first_mm": null,
+      "d_ee_last_mm": null
+    },
+    {
+      "step_idx": 0,
+      "regime": "inter-step",
+      "just_landed_arm": "b",
+      "swing_to_idx": 3,
+      "t_start": 3.3200000000000016,
+      "t_end": 5.020000000000001,
+      "theta_s_start_deg": 0.1503748410819873,
+      "theta_s_end_deg": 0.11205111520208504,
+      "theta_s_peak_deg": 0.1503748410819873,
+      "theta_s_change_deg": -0.03832372587990225,
+      "d_ee_first_mm": 4.335985973101813,
+      "d_ee_last_mm": 0.00031327504133164596
+    },
+    {
+      "step_idx": 1,
+      "regime": "inter-step",
+      "just_landed_arm": "a",
+      "swing_to_idx": 3,
+      "t_start": 13.439999999999973,
+      "t_end": 13.929999999999973,
+      "theta_s_start_deg": 0.37821679750949044,
+      "theta_s_end_deg": 0.35652351847466635,
+      "theta_s_peak_deg": 0.37821679750949044,
+      "theta_s_change_deg": -0.021693279034824098,
+      "d_ee_first_mm": 4.04301783568892,
+      "d_ee_last_mm": 0.006787284064724041
+    },
+    {
+      "step_idx": 2,
+      "regime": "inter-step",
+      "just_landed_arm": "b",
+      "swing_to_idx": 4,
+      "t_start": 17.249999999999986,
+      "t_end": 18.899999999999984,
+      "theta_s_start_deg": 0.4507840609254147,
+      "theta_s_end_deg": 0.3654124533119871,
+      "theta_s_peak_deg": 0.4507840609254147,
+      "theta_s_change_deg": -0.0853716076134276,
+      "d_ee_first_mm": 4.37260609965155,
+      "d_ee_last_mm": 0.00040804164669835675
+    },
+    {
+      "step_idx": 3,
+      "regime": "inter-step",
+      "just_landed_arm": "a",
+      "swing_to_idx": 4,
+      "t_start": 26.920000000000098,
+      "t_end": 27.410000000000096,
+      "theta_s_start_deg": 0.4489051710774658,
+      "theta_s_end_deg": 0.41960017126390703,
+      "theta_s_peak_deg": 0.4489051710774658,
+      "theta_s_change_deg": -0.029304999813558774,
+      "d_ee_first_mm": 4.492916507575287,
+      "d_ee_last_mm": 0.006585560846616793
+    },
+    {
+      "step_idx": 4,
+      "regime": "trailing",
+      "just_landed_arm": "b",
+      "swing_to_idx": 5,
+      "t_start": 30.920000000000147,
+      "t_end": 50.82000000000043,
+      "theta_s_start_deg": 0.543858314871928,
+      "theta_s_end_deg": 0.10943413394332478,
+      "theta_s_peak_deg": 0.543858314871928,
+      "theta_s_change_deg": -0.43442418092860324,
+      "d_ee_first_mm": 0.1932745494403659,
+      "d_ee_last_mm": 4.69950248700538e-06
+    }
+  ]
+}

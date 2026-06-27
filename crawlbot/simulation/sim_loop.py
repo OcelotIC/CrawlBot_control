@@ -1045,6 +1045,11 @@ class SimulationLoop:
             cooperative_arms_mode=cfg.cooperative_arms_mode,
             alpha_torso_ang=cfg.ss_alpha_torso_ang,
             alpha_torso_lin=cfg.ss_alpha_torso_lin,
+            ss_centroidal_momentum_task=cfg.ss_centroidal_momentum_task,
+            ss_alpha_mom=cfg.ss_alpha_mom,
+            ss_alpha_tl_weak=cfg.ss_alpha_tl_weak,
+            ss_two_task_mode=cfg.ss_two_task_mode,
+            alpha_torso_pose=cfg.alpha_torso_pose,
             stance_thrust_correction=cfg.stance_thrust_correction)
         qp = WholeBodyQP(c)
         qp.set_nominal_posture(self.q_dock_init[self.robot.joints_q_slice])
@@ -2555,7 +2560,12 @@ class SimulationLoop:
                 p_torso_ref_used = self._ss_entry_p_torso.copy()
                 v_torso_ref_used = np.concatenate([np.zeros(3), tr.v[3:6]])
                 a_torso_ff_used = np.concatenate([np.zeros(3), tr.a[3:6]])
-            elif phase in ('SS', 'DS') and self.mapping is not None and cfg.use_m2_stack:
+            elif (phase in ('SS', 'DS') and self.mapping is not None
+                    and cfg.use_m2_stack
+                    and not (cfg.ss_two_task_mode and phase == 'SS')):
+                # Phase-2.1 two-task: in SS the torso-pose task is fed the RAW
+                # TorsoPlanner quintic+SLERP (the `else` branch below, tr.p/v/a)
+                # — NO CoMToTorsoMapping δ. (DS still uses the mapping.)
                 af_for_mapping = np.zeros(3) if self._diag_pure_pd else af
                 # Planned-vs-current diag (commit 64479ab) confirmed
                 # q_current is the right q-source for the δ term. But
@@ -3114,6 +3124,16 @@ class SimulationLoop:
             # the QP stays feasible even when physical hw is beyond
             # the box, and actively generates the maximum corrective
             # wrench it can.
+
+            # Phase-2.1: optional 100 Hz (QP-rate) SS logging of reaction-wheel
+            # torque + stored momentum. Gated (default OFF) ⇒ no behavioural
+            # change; tau_w_last (init 2495, updated this tick at the AOCS block
+            # when has_rwa), hw, tq, phase are all in scope.
+            if cfg.log_hifreq_ss and phase == 'SS':
+                log.t_ss_hifreq.append(float(tq))
+                log.tau_w_ss_hifreq.append(
+                    np.asarray(tau_w_last, dtype=float).copy())
+                log.hw_ss_hifreq.append(np.asarray(hw, dtype=float).copy())
 
         t_qp_ms = (time.perf_counter() - t_qp_start) * 1000
 

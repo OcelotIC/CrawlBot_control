@@ -1,7 +1,7 @@
 # SS Centroidal-Momentum Task — Formulation & Validation Plan
 
 **Status:** Phase 0 — formulation (no code)
-**Target branch:** `feat/ss-centroidal-momentum-task` (off `main` @ `63bea1f`)
+**Target branch:** `feat/ss-centroidal-momentum-task` (off `main` @ `dcda974` — the commit that added this memo; supersedes the `63bea1f` referenced in §4, which predates this memo's own commit)
 **Companion memo:** `DS_REWORK_CENTROIDAL_2026-06.md` (this work unifies SS with the DS architecture established there)
 **Decision record:** L_com rows EXCLUDED in v1 (prudent variant, Idriss arbitration 2026-06-12). TorsoPlanner-linear retention decided by A/B comparison (Phase 2/3).
 **Paper impact:** gated. If the Phase-3 gate passes, the IEEE Access manuscript is regenerated on this architecture (new audit required). If it fails, the paper ships on `5bca42c` unchanged and this work becomes revision material.
@@ -96,13 +96,101 @@ Methodology per repo standard: standalone validation before integration; cascade
 3. Log run metadata in every result dir: `git rev-parse HEAD`, dirty/clean state, full config dump.
 4. STOP. Report: baseline comparison table, bit-identical proof, implementation notes, frame-consistency note.
 
-### Phase 2 — single-step standalone validation (stop-gate at end)
-Scenario: canonical step 1 in isolation, variants A and B, flag ON.
-Metrics vs baseline single step: torso jitter (reference and realized), F-SAT activity on the legacy channel = N/A (channel off) — instead log T-MOM residual; CoM tracking error (r̂_com vs r*); EE docking distance/orientation at capture; realized Ḣ_s vs NMPC-planned Ḣ_s (fidelity, informative only in v1); QP solve time (<5 ms budget); joint-torque margins.
-STOP. Report per variant; kill a variant only with a diagnosed cause.
+### Phase 2.0 — standalone task validation (unit, no swing / no NMPC / no MuJoCo) (stop-gate)
+Purpose: prove the T-MOM linear task is correctly formulated and realized BEFORE
+exposing it to swing dynamics. A failure here is a formulation bug, isolated from
+any integration effect. Harness: the existing pure-Pinocchio path in
+`tests/test_reworked_qp.py` (`_make_m2_qp` / `_solve_qp_step` / `_integrate`),
+extended to enable `cooperative_arms_mode=True` + `ss_centroidal_momentum_task=True`,
+with `p_ee_ref=None` (EE task off) and a frozen nc=1 contact (`single_contact_config`
+/ `dock_state`). NMPC bypassed (`lambda_ref=0`); CoM references injected directly
+via the existing `r_com_ref/v_com_ref/a_com_ff` kwargs.
+
+Tests to add (Z1 analytical driver + Z2 realized-vs-commanded comparator):
+1. **Static hold.** r_com_ref = r_com(q0), v*=0, a_ff*=0 → assert ‖q̈‖≈0 and CoM
+   drift below tolerance over N steps. Catches a wrong PD sign or a reference that
+   depends on the controlled state.
+2. **Pure tracking, per axis.** Impose an analytical r_com_ref(t) (jerk-limited
+   step and sinusoid, one axis at a time, via the existing `septic()` shape
+   retargeted to CoM) → assert realized r_com tracks to tolerance AND the realized
+   task row `J_com·q̈ + J̇_com·q̇` reproduces the commanded `a_com_des` (checks that
+   Ȧ_G·q̇ is correctly assembled, not just A_G).
+3. **Mass-scalar sanity.** Verify the m factor folding into α_mom is handled as
+   intended: the effective CoM-task gain must not be off by a factor m≈71.
+4. **Variant B weak-reference coexistence.** With ss_alpha_tl_weak active, confirm
+   the weak torso-linear reference does not fight CoM tracking (test-2 tolerance
+   still met).
+
+Frame note: the QP is world-frame-native (J_com is the world CoM Jacobian); no
+world↔R_s transport term lives in the QP. Transport consistency is therefore NOT
+a Phase-2.0 concern — it is deferred to Phase 2.1, where R_s NMPC references meet
+the world-frame QP.
+
+GATE to Phase 2.1 (task-intrinsic, NOT authority-based — authority is context-dependent
+and only meaningful under swing): PASS requires (i) formulation correctness — static hold
+exact, Ȧ_G·q̇ assembly < 1e-5 vs finite-difference, mass-factor monotonic with no m-offset;
+and (ii) authority monotonicity — realized/commanded CoM accel rises monotonically with
+ss_alpha_mom and tends to unity. Per-step tracking error and accel-residual fraction are
+REPORTED as characterization, NOT pass/fail thresholds. [Result: PASSED at shipping
+ss_alpha_mom=500 — hold 1.6e-11, Ȧ_G·q̇ 1.5e-7, mass-factor 0.20→0.85 no offset, position
+tracking ≤1.45 mm under 2.5 mm tol, no reweighting.]
+
+### Phase 2.1 — two-task integration, single-step (stop-gate)
+Supersedes the abandoned α_mom A/B sweep. Formulation: the QP executes the NMPC plan via
+TWO parallel tasks, each fed by its own direct source, with NO mapping between them:
+
+- **Momentum task (T-MOM, linear rows only, v1):** reference = the NMPC plan (r_com*, v_com*,
+  a_com_ff). Drives `[A_G]_lin q̈ + [Ȧ_G]_lin q̇ = m·a_com_des`. Unchanged from Phase 2.0.
+- **Torso-pose task (6-D, NEW):** reference = the TorsoPlanner quintic DIRECTLY (position
+  p_t0→p_t1) + SLERP (orientation). Acts on J_torso. NO δ, no CoMToTorsoMapping — the quintic
+  is a fixed planner output (state-independent → no algebraic loop, F-SAT unnecessary).
+- **Swing-EE task:** unchanged, swing reference.
+
+**Hierarchy — FULLY WEIGHTED (strict-P1 abandoned).** Decision (lecture B): torso orientation
+is NO LONGER a strict null-space-projected P1 task. It becomes a component of the unified 6-D
+torso-pose task, weighted. Rationale: the state feedback IS the 6-D torso pose AND the arm
+joint angles, so the full configuration is reconstructible; orientation need not be
+sanctuarised in strict priority to be observed/regulated. Starting hierarchy: **momentum +
+swing-EE prioritised (highest weights), 6-D torso-pose just below (strong but yields the last
+margin under over-constraint), posture as redundancy resolution.** This is a starting point,
+not dogma — Phase 2.1 measures whether it holds. (Paper consequence if Phase 3 passes: VI-D is
+rewritten from the hybrid strict-P1/weighted-P2 scheme to a fully-weighted hierarchy; the paper
+already notes a formally-guaranteed strict-priority reformulation is future work, so no claimed
+guarantee is contradicted.)
+
+**DOF count:** momentum (6, of which v1 uses the 3 linear) + torso-pose (6) + swing-EE (6) =
+up to 18 constraints on nv=20. Tight. Compatibility is a TEST OUTCOME, not assumed.
+
+**Two-regime analysis frame (critical — avoids misreading a legitimate residual).** r_com* is
+derived from the same quintic the torso-pose task tracks, BUT the NMPC may DEVIATE r_com* from
+that quintic to satisfy the envelope constraint (the canonical run saturates τ_w,max on all
+three axes — the constraint is active). Two regimes:
+- **Envelope-not-binding:** NMPC leaves r_com* ≈ quintic projection → the two references are
+  consistent → torso should reach p_t1 (≤ few mm, baseline parity 1.69 mm).
+- **Envelope-binding:** NMPC deviates r_com* from the quintic → T-MOM tracks the deviated
+  r_com* while torso-pose tracks the un-deviated quintic → references diverge. Per the starting
+  hierarchy (momentum prioritised), the torso-pose YIELDS: the torso arrives at the pose
+  CONSISTENT WITH the deviated r_com*, NOT exactly at p_t1. The residual vs p_t1 in this regime
+  is the SIGNATURE OF THE ACTIVE CONSTRAINT — expected and correct, NOT a failure. Phase 2.1
+  MUST separate these regimes when interpreting torso arrival; a binding-regime residual is the
+  envelope shaping execution, which is a positive result (the constraint is visibly used, not
+  merely present).
+
+GATE to Phase 3: the two tasks are jointly realisable on the canonical single step; envelope
+fidelity (realized Ḣ_s vs planned) holds; under envelope-binding the torso-pose yields and the
+envelope is kept (correct hierarchy); docking succeeds. A failure stops here with a
+cascade-bisection diagnosis. The momentum/torso-pose WEIGHT RATIO is the new tuning knob
+(replaces the abandoned α_mom A/B), swept to locate the envelope-vs-pose trade-off.
 
 ### Phase 3 — canonical 5-step + GATE
 Scenario: canonical 5-step traversal, surviving variant(s).
+
+**Working point (Phase-2.2 outcome):** ss_alpha_mom=5000, alpha_torso_pose=20000,
+ss_Kp_torso=3 (ss_Kd_torso=2.5), ss_alpha_ee=3000, ss_alpha_posture=20. Chosen as the
+envelope-clean Pareto point (single-step arrival 8.2% of torso travel at 1.5% τ_w-sat),
+strictly dominating the prior balanced 5k:5k default. Note: 8.2% is a NON-binding-regime,
+favourable-step (step 1) figure; multi-step saturated swings will show a larger,
+constraint-justified torso residual (see two-regime reading below).
 
 **GATE criteria (all required, defined before running):**
 1. 5/5 docks, **per-step capture margin ≥ canonical baseline margin** (baseline: 1.86/4.94/4.96/4.77/5.00 mm against the 5 mm gate);
@@ -112,17 +200,48 @@ Scenario: canonical 5-step traversal, surviving variant(s).
 5. h_w peak ≤ baseline + margin (3.38 N·m·s reference);
 6. flag OFF bit-identical to Phase-1 baseline (re-verified at the Phase-3 commit).
 
+**Torso arrival is NOT a gate criterion** — it is a characterisation metric, read per
+regime. In envelope-NOT-binding intervals the torso reaches its planned pose (~8% on the
+favourable step). In envelope-BINDING intervals (saturated swing) the torso-pose YIELDS
+(per the momentum-prioritised hierarchy) and arrives at the pose consistent with the
+NMPC-deviated r_com*, NOT at the geometric p_t1; the larger residual there is the SIGNATURE
+OF THE ACTIVE CONSTRAINT — expected and correct, NOT a regression. The report must SEPARATE
+the two regimes when presenting torso arrival.
+
 **Gate PASS →** select variant (tie-break A), freeze commit, trigger paper-regeneration track: full paper-vs-code audit on the new commit (5bca42c-audit standard), regenerate Section VII from new CSVs, rewrite VI-C/VI-D and Fig. 1 (mapping/F-SAT removed from the description; momentum task described; DS section updated to centroidal-DS), THEN run F-ABL on this commit.
 **Gate FAIL →** paper ships on `5bca42c` as planned; this branch continues post-submission with the failure diagnosis as input. No "almost passing, one more week" middle path: a miss is a documented diagnosis, then the submission proceeds.
 
 ## 5. Explicitly out of scope (this branch)
 - L_com rows in T-MOM (v2, pre-registered follow-up).
-- F-SAT / CoMToTorsoMapping code removal (only channel deselection; removal is post-submission hygiene).
+- F-SAT / CoMToTorsoMapping **code** removal stays post-submission hygiene. NOTE (Phase-2.1 reformulation): SS torso guidance is now a full **6-D torso-pose task** on `J_torso` fed by the TorsoPlanner quintic+SLERP **directly** — the CoMToTorsoMapping δ path (live or planned) is **abandoned for SS** (not merely deselected), and the former "weak torso-linear regulariser (Variant B)" idea is superseded by this full torso-pose task. F-SAT is therefore unnecessary in SS (the quintic reference is state-independent). The δ-mapping code remains in the tree (used elsewhere / pending removal) but is off the SS path.
 - DS-side changes (centroidal-DS is already on main and is taken as-is).
 - DS→SS post-dwell launch transient (NEXT_SESSION Tier 1 — separate thread; NOTE: if Phase-2/3 diagnosis lands on reference discontinuities at SS start, coordinate with that thread before fixing).
 - Multi-traversal scenarios, mass ratios ≠ 1 %.
 
-## 6. Claude Code session rules (binding for every phase)
+## 6. Plotting rules (binding — no phase report without its plot set)
+
+Every phase report MUST include a standard diagnostic plot set. Numbers alone are not sufficient for review; the curves are how results are appreciated and anomalies spotted.
+
+**General rules:**
+- All plots generated by a committed script (`scripts/plot_ssmom_phaseN.py` or extension of `postprocess_results_figs.py`) reading the run's logged data — never hand-made, always re-runnable.
+- Saved as PNG into the run's result directory; the report embeds or links them.
+- **Overlay convention:** baseline (Phase-1.1 main-HEAD run) in grey/dashed, candidate variant(s) in color, same axes — every comparison plot superposes, never side-by-side panels only.
+- SS phases shaded (same convention as paper Figs. 2–5); per-axis curves labeled x/y/z; constraint limits as dashed horizontals where applicable.
+- Identical y-scales between variants A and B for the same quantity.
+
+**Phase-1.1 (baseline re-establishment) plot set:** the four paper-style figures regenerated on main HEAD (torso tracking ori+pos; swing-EE ori+distance; platform attitude |θ_s|; Ḣ_s and τ_w per axis with ±5 N·m), overlaid on the 5bca42c canonical curves from `postproc_F3F4.csv`. Purpose: any main-vs-5bca42c deviation must be *visible*, not just tabulated.
+
+**Phase-2 (single step) plot set, per variant, overlaid on baseline:**
+1. CoM tracking: r̂_com vs r*_com per axis, and the error;
+2. T-MOM residual ‖[A_G]_lin q̈ + [Ȧ_G]_lin q̇ − m·a_com_des‖ over the step;
+3. torso position per axis (realized vs reference where one exists) — the jitter plot; include the baseline's mapped-reference jitter for contrast;
+4. swing-EE distance + orientation error to target (docking approach);
+5. realized Ḣ_s vs NMPC-planned Ḣ_s per axis (fidelity, informative in v1);
+6. joint torques vs ±20 N·m bounds; QP solve time histogram.
+
+**Phase-3 (5-step, gate) plot set:** the full paper figure set (Figs. 2–5 equivalents) for the candidate, each overlaid on baseline, plus a per-step docking-margin bar chart (candidate vs baseline vs the 5 mm gate) and the h_w per-axis trajectory vs ±5 N·m·s. Every gate criterion must be readable off at least one plot.
+
+## 7. Claude Code session rules (binding for every phase)
 - Work only on `feat/ss-centroidal-momentum-task`; verify with `git branch --show-current` before first commit; push, never merge.
 - Stop-gates between phases are mandatory; findings are relayed to the review session before the next phase begins.
 - No commit before the phase's verification step passes; commit messages reference this memo.

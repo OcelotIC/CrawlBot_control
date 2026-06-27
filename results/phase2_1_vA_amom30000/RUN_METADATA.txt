@@ -1,0 +1,6 @@
+Phase 2.1 single-step swing run
+HEAD at run: f43bec3 (clean)
+driver: scripts/diag_cooperative_arms.py --n-steps 1 (start_a=start_b=2)
+variant: A   ss_alpha_mom=30000   ss_alpha_tl_weak=0
+aocs_mode=legacy_corrected K_omega=50 tau_w_max=5 (diag defaults), log_hifreq_ss=True
+config dump: see sim_log.json 'environment' field (versions + pip freeze)

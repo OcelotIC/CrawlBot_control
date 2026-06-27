@@ -1,0 +1,6 @@
+Phase 2.1 two-task single-step swing run
+HEAD at run: d526bf0 (clean)
+driver: diag_cooperative_arms.py --ss-two-task --n-steps 1 (start_a=start_b=2)
+ss_alpha_mom=5000  alpha_torso_pose=5000  (EE + posture at config defaults)
+aocs_mode=legacy_corrected K_omega=50 tau_w_max=5, log_hifreq_ss=True
+config dump: see sim_log.json 'environment' field

@@ -241,7 +241,15 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
          mass_ratio: float = 0.01, aocs_mode: str = 'legacy_corrected',
          settle_seconds: float = 20.0, K_theta: float = 1.0,
          K_omega: float = 50.0, tau_w_max: float = 5.0,
-         scenario: str = None, baseline_ds_rework: bool = False):
+         scenario: str = None, baseline_ds_rework: bool = False,
+         out_dir_override: str = None,
+         ss_centroidal_momentum_task: bool = False,
+         ss_alpha_mom: float = 5000.0, ss_alpha_tl_weak: float = 0.0,
+         n_steps: int = 5, ss_two_task: bool = False,
+         alpha_torso_pose: float = 5000.0,
+         ss_alpha_ee: float = 3e3, ss_alpha_posture: float = 2e1,
+         ss_alpha_wrench: float = 1e-2,
+         ss_kp_torso: float = 6.0, ss_kd_torso: float = 5.0):
     cfg = r_single._make_m7_config()
     cfg.gait_anchor_dx = anchor_dx
     # Sweet-spot config carry-over (these are also already the defaults
@@ -390,6 +398,35 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     else:
         out_dir = os.path.join(_root, 'results', 'diag_cooperative_arms')
 
+    # ── SS centroidal-momentum task (memo SS_CENTROIDAL_MOMENTUM_TASK_2026-06) ──
+    # Default OFF reproduces the canonical torso-linear P2 stack (bit-identical).
+    cfg.ss_centroidal_momentum_task = bool(ss_centroidal_momentum_task)
+    cfg.ss_alpha_mom = float(ss_alpha_mom)
+    cfg.ss_alpha_tl_weak = float(ss_alpha_tl_weak)
+    # Phase-2.1: log τ_w + h_w at the 100 Hz QP rate during SS (harmless —
+    # adds separate buffers; the 10 Hz log + postproc CSV are unaffected).
+    cfg.log_hifreq_ss = True
+    # Phase-2.1 reformulation: two-task fully-weighted SS stack.
+    cfg.ss_two_task_mode = bool(ss_two_task)
+    cfg.alpha_torso_pose = float(alpha_torso_pose)
+    # Expose the remaining SS-stack weights for tuning. Defaults equal the
+    # config values (ss_alpha_ee=3e3, ss_alpha_posture=2e1, ss_alpha_wrench=1e-2),
+    # so a run with no weight flags is behaviour-identical to before.
+    cfg.ss_alpha_ee = float(ss_alpha_ee)
+    cfg.ss_alpha_posture = float(ss_alpha_posture)
+    cfg.ss_alpha_wrench = float(ss_alpha_wrench)
+    # SS torso-pose gains (task AGGRESSIVENESS, distinct from weight PRIORITY):
+    # a_t_des = a_ff + Kp·e6 + Kd·(v_ref-v_act). Lowering Kp softens the
+    # commanded torso accel ⇒ smoother (less wheel-saturating) tracking at a
+    # given weight. Defaults equal config (6.0/5.0) ⇒ no-flag = prior behaviour.
+    cfg.ss_Kp_torso = float(ss_kp_torso)
+    cfg.ss_Kd_torso = float(ss_kd_torso)
+    # Output-dir override (memo §7: new runs → new dirs; prior committed
+    # baselines stay read-only). Accepts a name under results/ or an abs path.
+    if out_dir_override is not None:
+        out_dir = (out_dir_override if os.path.isabs(out_dir_override)
+                   else os.path.join(_root, 'results', out_dir_override))
+
     from crawlbot.simulation.sim_loop import SimulationLoop
     URDF = os.path.join(_root, 'models', 'VISPA_crawling_fixed.urdf')
 
@@ -397,7 +434,7 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     if scenario is not None:
         sim.setup(sequence_path=scenario)
     else:
-        sim.setup(n_steps=5, start_a=2, start_b=2)
+        sim.setup(n_steps=n_steps, start_a=2, start_b=2)
     sim._debug_l_com_ref_trace_limit = 5
     sim._debug_physics_trace_limit = 400
     sim._debug_physics_sample_every = 2
@@ -601,6 +638,45 @@ if __name__ == '__main__':
                              '(wrench-FF / Stage3 ref / internal-stress '
                              '/ centroidal-DS). Reproduces pre-rework '
                              'behaviour for comparison plotting.')
+    parser.add_argument('--out-dir', type=str, default=None,
+                        help='Override the auto-derived output directory '
+                             '(name under results/, or an absolute path). '
+                             'Use for SS-centroidal-momentum runs so prior '
+                             'committed baselines stay read-only (memo §7).')
+    parser.add_argument('--ss-centroidal-momentum-task', action='store_true',
+                        help='Enable the SS T-MOM linear task (replaces the '
+                             'torso-linear P2 channel). Default OFF = canonical.')
+    parser.add_argument('--ss-alpha-mom', type=float, default=5000.0,
+                        help='T-MOM linear weight (default 5000 = working point).')
+    parser.add_argument('--ss-alpha-tl-weak', type=float, default=0.0,
+                        help='Variant-B weak torso-linear regulariser weight '
+                             '(0 = Variant A: torso-linear removed).')
+    parser.add_argument('--n-steps', type=int, default=5,
+                        help='Traversal steps (default 5; use 1 for the '
+                             'Phase-2.1 single-step swing).')
+    parser.add_argument('--ss-two-task', action='store_true',
+                        help='Phase-2.1 two-task fully-weighted SS stack '
+                             '(T-MOM + 6D torso-pose + EE + posture, no δ).')
+    parser.add_argument('--alpha-torso-pose', '--ss-alpha-torso-pose',
+                        dest='alpha_torso_pose', type=float, default=5000.0,
+                        help='6-D torso-pose task weight in two-task mode '
+                             '(default 5000 = working point; '
+                             'ss_alpha_mom:alpha_torso_pose is the knob). '
+                             'Alias: --ss-alpha-torso-pose.')
+    # Remaining SS-stack weights, exposed for tuning. Defaults = config values
+    # ⇒ a run with no weight flags reproduces the prior behaviour exactly.
+    parser.add_argument('--ss-alpha-ee', type=float, default=3e3,
+                        help='SS swing-EE task weight (default 3000 = config).')
+    parser.add_argument('--ss-alpha-posture', type=float, default=2e1,
+                        help='SS posture task weight (default 20 = config).')
+    parser.add_argument('--ss-alpha-wrench', type=float, default=1e-2,
+                        help='SS wrench-reg weight (default 0.01 = config).')
+    # SS torso-pose GAINS (aggressiveness, separate from the weight knob).
+    parser.add_argument('--ss-kp-torso', type=float, default=6.0,
+                        help='SS torso-pose proportional gain (default 6.0 = '
+                             'config). Lower ⇒ softer commanded torso accel.')
+    parser.add_argument('--ss-kd-torso', type=float, default=5.0,
+                        help='SS torso-pose derivative gain (default 5.0 = config).')
     args = parser.parse_args()
 
     with open(MJCF, 'r') as f:
@@ -615,7 +691,19 @@ if __name__ == '__main__':
              args.mass_ratio, args.aocs_mode, args.settle_seconds,
              args.K_theta, args.K_omega, args.tau_w_max,
              scenario=args.scenario,
-             baseline_ds_rework=args.baseline_ds_rework)
+             baseline_ds_rework=args.baseline_ds_rework,
+             out_dir_override=args.out_dir,
+             ss_centroidal_momentum_task=args.ss_centroidal_momentum_task,
+             ss_alpha_mom=args.ss_alpha_mom,
+             ss_alpha_tl_weak=args.ss_alpha_tl_weak,
+             n_steps=args.n_steps,
+             ss_two_task=args.ss_two_task,
+             alpha_torso_pose=args.alpha_torso_pose,
+             ss_alpha_ee=args.ss_alpha_ee,
+             ss_alpha_posture=args.ss_alpha_posture,
+             ss_alpha_wrench=args.ss_alpha_wrench,
+             ss_kp_torso=args.ss_kp_torso,
+             ss_kd_torso=args.ss_kd_torso)
     finally:
         with open(MJCF, 'w') as f:
             f.write(original)
