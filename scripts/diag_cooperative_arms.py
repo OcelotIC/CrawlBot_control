@@ -250,7 +250,8 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
          ss_alpha_ee: float = 3e3, ss_alpha_posture: float = 2e1,
          ss_alpha_wrench: float = 1e-2,
          ss_kp_torso: float = 6.0, ss_kd_torso: float = 5.0,
-         dock_twist_max: float = None, dock_gate_linear: bool = False):
+         dock_twist_max: float = None, dock_gate_linear: bool = False,
+         weld_radius: float = None):
     cfg = r_single._make_m7_config()
     cfg.gait_anchor_dx = anchor_dx
     # Sweet-spot config carry-over (these are also already the defaults
@@ -430,6 +431,10 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
         cfg.dock_twist_max = float(dock_twist_max)
     if dock_gate_linear:
         cfg.dock_use_6d_twist = False
+    # Fix C ε_pos: dock position tolerance (the gap-couple knob). Default
+    # None ⇒ config weld_radius (0.005 m).
+    if weld_radius is not None:
+        cfg.weld_radius = float(weld_radius)
     # Output-dir override (memo §7: new runs → new dirs; prior committed
     # baselines stay read-only). Accepts a name under results/ or an abs path.
     if out_dir_override is not None:
@@ -693,6 +698,9 @@ if __name__ == '__main__':
     parser.add_argument('--dock-gate-linear', action='store_true',
                         help='Fix C A/B: use the legacy LINEAR _gripper_speed '
                              'dock gate instead of the 6-D twist gate.')
+    parser.add_argument('--weld-radius', type=float, default=None,
+                        help='Fix C ε_pos: dock position tolerance [m] '
+                             '(default = config 0.005). The gap-couple knob.')
     args = parser.parse_args()
 
     with open(MJCF, 'r') as f:
@@ -721,7 +729,8 @@ if __name__ == '__main__':
              ss_kp_torso=args.ss_kp_torso,
              ss_kd_torso=args.ss_kd_torso,
              dock_twist_max=args.dock_twist_max,
-             dock_gate_linear=args.dock_gate_linear)
+             dock_gate_linear=args.dock_gate_linear,
+             weld_radius=args.weld_radius)
     finally:
         with open(MJCF, 'w') as f:
             f.write(original)
