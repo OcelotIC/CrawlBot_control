@@ -251,7 +251,8 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
          ss_alpha_wrench: float = 1e-2,
          ss_kp_torso: float = 6.0, ss_kd_torso: float = 5.0,
          dock_twist_max: float = None, dock_gate_linear: bool = False,
-         weld_radius: float = None):
+         weld_radius: float = None,
+         ds_mobile_com_magnitude: float = None, dt_ds: float = None):
     cfg = r_single._make_m7_config()
     cfg.gait_anchor_dx = anchor_dx
     # Sweet-spot config carry-over (these are also already the defaults
@@ -435,6 +436,12 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     # None ⇒ config weld_radius (0.005 m).
     if weld_radius is not None:
         cfg.weld_radius = float(weld_radius)
+    # α (J2 #2): CoM-mobile DS. dt_ds lengthens the DS so the DWELL fires;
+    # ds_mobile_com_magnitude translates the CoM toward the next anchor.
+    if dt_ds is not None:
+        cfg.dt_ds = float(dt_ds)
+    if ds_mobile_com_magnitude is not None:
+        cfg.ds_mobile_com_magnitude = float(ds_mobile_com_magnitude)
     # Output-dir override (memo §7: new runs → new dirs; prior committed
     # baselines stay read-only). Accepts a name under results/ or an abs path.
     if out_dir_override is not None:
@@ -701,6 +708,13 @@ if __name__ == '__main__':
     parser.add_argument('--weld-radius', type=float, default=None,
                         help='Fix C ε_pos: dock position tolerance [m] '
                              '(default = config 0.005). The gap-couple knob.')
+    # α (J2 #2): CoM-mobile DS.
+    parser.add_argument('--ds-mobile-com-magnitude', type=float, default=None,
+                        help='α (J2 #2): translate the CoM this far [m] toward '
+                             'the next anchor during the DWELL (0=hold).')
+    parser.add_argument('--dt-ds', type=float, default=None,
+                        help='α (J2 #2): DS phase duration [s] (default 0.5; '
+                             '>~1.5 triggers the DWELL where moving-CoM runs).')
     args = parser.parse_args()
 
     with open(MJCF, 'r') as f:
@@ -730,7 +744,9 @@ if __name__ == '__main__':
              ss_kd_torso=args.ss_kd_torso,
              dock_twist_max=args.dock_twist_max,
              dock_gate_linear=args.dock_gate_linear,
-             weld_radius=args.weld_radius)
+             weld_radius=args.weld_radius,
+             ds_mobile_com_magnitude=args.ds_mobile_com_magnitude,
+             dt_ds=args.dt_ds)
     finally:
         with open(MJCF, 'w') as f:
             f.write(original)

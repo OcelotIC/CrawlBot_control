@@ -207,6 +207,13 @@ class SimLog:
     # logs (default_factory []).
     dock_gate_trace: list = field(default_factory=list)
 
+    # α (J2 #2): per-tick CoM-mobile DS conflict trace (DWELL only, gated on
+    # cfg.ds_mobile_com_magnitude>0). Each dict: {t, com_err, pass_resid,
+    # Hdot_inf, qp_ok, nmpc_status}. pass_resid≈0 ⇒ passivity binding;
+    # Hdot_inf→τ_w_max ⇒ envelope binding; qp_ok False / nmpc_status 2 ⇒
+    # feasibility loss. Empty by default.
+    ds_mobile_trace: list = field(default_factory=list)
+
     # M7: aborted steps (pre-planner infeasible or dock timeout).
     # Each dict carries: step_idx, t, reason ('preplanner_infeasible'
     # | 'dock_timeout'), and — for dock_timeout — d_mm, ori_deg.

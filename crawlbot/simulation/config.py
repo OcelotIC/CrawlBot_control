@@ -281,6 +281,22 @@ class SimConfig:
     ss_two_task_mode: bool = False
     alpha_torso_pose: float = 5e3    # 6-D torso-pose weight — validated two-task working point (was 1e3 pre-sweep)
 
+    # α (J2 #2): CoM-mobile DS. ───────────────────────────────────────
+    # dt_ds = DS phase nominal duration in the gait plan. The canonical
+    # 0.5 s lets the energy-settle finish but NEVER triggers the DWELL
+    # (the centroidal-DS, NMPC-driven inter-step window, gated >1.0 s).
+    # A longer dt_ds routes the inter-step DS through the DWELL, where the
+    # CoM-3D task tracks the planner's per-tick CoM reference. Default 0.5
+    # ⇒ unchanged behaviour / DWELL dormant (flag-OFF bit-identical).
+    dt_ds: float = 0.5
+    # During the DWELL, translate the CoM this far [m] toward the next
+    # swing arm's target anchor (held orientation, posture at q_nominal),
+    # via the existing add_phase machinery — NOT a mode flag. The CoM-3D
+    # task tracks the moving target; the torso-ori task holds; the posture
+    # task holds q_nominal. 0.0 = hold (default; unchanged). >0 exercises
+    # the moving-CoM-under-strict-passivity conflict (J2 #2).
+    ds_mobile_com_magnitude: float = 0.0
+
     # DS centroidal-control mode (replaces joint-vel-damping cost with
     # CoM + torso-ori tracking at P1, posture at P3, passivity inequality
     # for energy dissipation). Off by default ⇒ legacy joint-vel damping.

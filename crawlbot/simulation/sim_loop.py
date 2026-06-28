@@ -241,7 +241,7 @@ class SimulationLoop:
         # timeline queries, but the actual DS exit is energy-based.
         self.sched = ContactScheduler(
             anchors_a=anchors_a_local, anchors_b=anchors_b_local,
-            dt_ds=0.5, dt_ss=0.0)
+            dt_ds=self.cfg.dt_ds, dt_ss=0.0)
         if sequence_path is not None:
             from crawlbot.planning.sequence_loader import (
                 load_sequence, plan_from_sequence)
@@ -1938,11 +1938,39 @@ class SimulationLoop:
                         pq_d, pv_d = mujoco_to_pinocchio(
                             self.mj_data.qpos, self.mj_data.qvel)
                         rs_d = self.robot.update(pq_d, pv_d)
-                        self.torso_planner.set_hold(
-                            rs_d.oMf_torso.translation.copy(),
-                            rs_d.oMf_torso.rotation.copy(),
-                            r_com=rs_d.r_com.copy())
                         t_dwell_end = t + _dwell_target
+                        if cfg.ds_mobile_com_magnitude > 0.0:
+                            # α (J2 #2): CoM-mobile DS. Translate the CoM toward
+                            # the next swing arm's target anchor (held ori +
+                            # posture) via the existing trajectory machinery —
+                            # NOT a mode. set_hold is the degenerate constant
+                            # case; here the CoM content is non-constant.
+                            p0 = rs_d.oMf_torso.translation.copy()
+                            R0 = rs_d.oMf_torso.rotation.copy()
+                            com0 = rs_d.r_com.copy()
+                            anchors = (self.sched.anchors_a if swing_arm == 'a'
+                                       else self.sched.anchors_b)
+                            anchor_next = np.asarray(anchors[target_idx],
+                                                     dtype=float)
+                            dirvec = anchor_next - com0
+                            nrm = float(np.linalg.norm(dirvec))
+                            offset = (cfg.ds_mobile_com_magnitude * dirvec / nrm
+                                      if nrm > 1e-6 else np.zeros(3))
+                            # CoM + torso position translate by `offset`
+                            # (constant δ_com ⇒ r_com(t)=p(t)+R·δ translates);
+                            # orientation held (R0 at both waypoints).
+                            self.torso_planner.set_from_waypoints(
+                                t, t_dwell_end,
+                                [(p0, R0), (p0 + offset, R0)],
+                                [com0, com0 + offset])
+                            if verbose:
+                                print(f"  DS-mobile: CoM +{nrm and cfg.ds_mobile_com_magnitude:.3f}m "
+                                      f"toward anchor {swing_arm}{target_idx}")
+                        else:
+                            self.torso_planner.set_hold(
+                                rs_d.oMf_torso.translation.copy(),
+                                rs_d.oMf_torso.rotation.copy(),
+                                r_com=rs_d.r_com.copy())
                         # Use stance pair from the upcoming SS phase as the
                         # contact config (both arms welded → DOUBLE).
                         last_sa_d = stance_a
@@ -1960,6 +1988,10 @@ class SimulationLoop:
                         if verbose:
                             print(f"  DWELL end: t={t:.2f}s, "
                                   f"‖h_w‖={np.linalg.norm(hw):.3f} Nms")
+                        # α (J2 #2): drop the (possibly moving) dwell phase so
+                        # the next SS plans fresh and no stale phase leaks into
+                        # reference_at during the transition.
+                        self.torso_planner.clear_phases()
                         # B-probe: reset NMPC warm-start after the long
                         # dwell. The NMPC ran ~thousands of ticks during
                         # the dwell with a static DS reference; carrying
@@ -2862,6 +2894,43 @@ class SimulationLoop:
                 qdd_t_qp = np.zeros(6)
                 qdd_qp = np.zeros(self.robot.model.nv)
                 qp_ok = False
+
+            # α (J2 #2): CoM-mobile DS conflict trace (gated; DWELL ticks).
+            # Disentangles which constraint binds during the moving-CoM DS:
+            #   pass_resid = dqⱼᵀτ_q + 2α·T_kin  (≈0 ⇒ passivity binding),
+            #   Hdot_inf   = ‖Σ r_Cj×f_j + τ_j‖∞ from the QP wrench
+            #               (→ τ_w_max ⇒ envelope binding),
+            #   com_err    = ‖r_com − cref_r‖  (tracking),
+            #   qp_ok / nmpc_status  (feasibility).
+            if (cfg.ds_mobile_com_magnitude > 0.0 and settle_mode
+                    and ds_centroidal_active):
+                dqj = rs.dq_joints
+                T_kin = 0.5 * float(dqj @ rs.H[6:, 6:] @ dqj)
+                pass_resid = float(dqj @ tau + 2.0 * cfg.alpha_passivity * T_kin)
+                lam = np.asarray(lambda_qp_sol, dtype=float)
+                rCa = np.asarray(self.sched.anchors_a[stance_a], dtype=float)
+                rCb = np.asarray(self.sched.anchors_b[stance_b], dtype=float)
+                Hdot = (np.cross(rCa, lam[0:3]) + lam[3:6]
+                        + np.cross(rCb, lam[6:9]) + lam[9:12])
+                # Next swing arm's Jacobian manipulability (byproduct: does
+                # "rapprocher" improve conditioning?). Arm-block of the tool
+                # Jacobian; sqrt(det(J Jᵀ)).
+                J_sw = (np.asarray(rs.J_tool_a) if swing_arm == 'a'
+                        else np.asarray(rs.J_tool_b))
+                sl_sw = (self.robot.arm_a_v_slice if swing_arm == 'a'
+                         else self.robot.arm_b_v_slice)
+                J_arm = J_sw[:, sl_sw]
+                JJt = J_arm @ J_arm.T
+                manip = float(np.sqrt(max(np.linalg.det(JJt), 0.0)))
+                log.ds_mobile_trace.append({
+                    't': round(float(t), 3),
+                    'com_err': float(np.linalg.norm(
+                        rs.r_com - np.asarray(cref_r, dtype=float))),
+                    'pass_resid': pass_resid,
+                    'Hdot_inf': float(np.max(np.abs(Hdot))),
+                    'swing_manip': manip,
+                    'qp_ok': bool(qp_ok),
+                    'nmpc_status': int(nmpc_status_code)})
 
             # ── Diagnostic B + C: per-cycle log of (c_ref, r_b_ref,
             # p_torso_actual, a_torso_des, a_torso_qp, δ(q_planned),
