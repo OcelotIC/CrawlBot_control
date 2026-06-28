@@ -1,0 +1,242 @@
+{
+  "label": "latest-features canonical 5-step (exact box + AOCS-on + c_curr-on)",
+  "run_config": {
+    "qp_envelope_exact": true,
+    "aocs_active_in_interstep": true,
+    "interstep_hw_refresh": true,
+    "aocs_mode": "legacy_pid_numerical",
+    "n_steps": 5
+  },
+  "tau_w_max_Nm": 5.0,
+  "hw_max_Nms": 5.0,
+  "dt_s_median": 0.09999999999999964,
+  "dt_s_min": 0.00999999999999801,
+  "dt_note": "mixed-cadence log: SS/_step rows ~0.1 s (dt_nmpc), inter-step DS rows ~0.01 s (dt_qp). Use the t_s column for the time axis; Hdot_s FD uses the actual t.",
+  "n_ticks": 773,
+  "n_steps": 5,
+  "robot_mass_kg": 71.056,
+  "structure_mass_kg": 7110.0,
+  "Ltot_definition": "subtree_angmom[0] (total system angular momentum about the system CoM, world frame), recomputed at snapshots via mj_subtreeVel \u2014 identical to the Fix-A conservation check (audit_fixC_residual.py). Not per-tick (needs full state).",
+  "Hdot_s_definition": "exact origin-referenced \u1e22_s = \u03a3_j (r_Cj\u00d7f_j + \u03c4_j) from the planned wrench (lambda_ref) + structure-frame anchors \u2014 the NMPC envelope-constraint quantity, read from postproc_F3F4.csv (identical to the C3 metric \u2016\u1e22_s\u2016\u221e_SS=5.0 at the binding). proxy = exact \u2212 r_com\u00d7\u03a3f (lever from the robot CoM, orbital omitted; the FLAG-2 proxy). Defined on SS/_step rows; NaN (blank) on inter-step DS.",
+  "swing_dist_definition": "d_grip_swing = \u2016gripper_site \u2212 target_anchor\u2016 via _gripper_distance \u2014 the same gripper/anchor site pair as Fix C dock gate; meaningful when swing_active=1.",
+  "dock_events": [
+    {
+      "step_index": 0,
+      "tick": 42,
+      "t": 3.31,
+      "dock_distance_mm": 4.94,
+      "arm": "b",
+      "anchor": 3
+    },
+    {
+      "step_index": 1,
+      "tick": 227,
+      "t": 12.73,
+      "dock_distance_mm": 4.44,
+      "arm": "a",
+      "anchor": 3
+    },
+    {
+      "step_index": 2,
+      "tick": 313,
+      "t": 16.84,
+      "dock_distance_mm": 4.99,
+      "arm": "b",
+      "anchor": 4
+    },
+    {
+      "step_index": 3,
+      "tick": 492,
+      "t": 25.84,
+      "dock_distance_mm": 4.64,
+      "arm": "a",
+      "anchor": 4
+    },
+    {
+      "step_index": 4,
+      "tick": 573,
+      "t": 29.45,
+      "dock_distance_mm": 4.73,
+      "arm": "b",
+      "anchor": 5
+    }
+  ],
+  "phase_segments": [
+    {
+      "phase": "DS_interstep",
+      "step_index": -1,
+      "tick_start": 0,
+      "tick_end": 9
+    },
+    {
+      "phase": "SS",
+      "step_index": 0,
+      "tick_start": 10,
+      "tick_end": 41
+    },
+    {
+      "phase": "DS_interstep",
+      "step_index": 0,
+      "tick_start": 42,
+      "tick_end": 142
+    },
+    {
+      "phase": "SS",
+      "step_index": 1,
+      "tick_start": 143,
+      "tick_end": 226
+    },
+    {
+      "phase": "DS_interstep",
+      "step_index": 1,
+      "tick_start": 227,
+      "tick_end": 276
+    },
+    {
+      "phase": "SS",
+      "step_index": 2,
+      "tick_start": 277,
+      "tick_end": 312
+    },
+    {
+      "phase": "DS_interstep",
+      "step_index": 2,
+      "tick_start": 313,
+      "tick_end": 411
+    },
+    {
+      "phase": "SS",
+      "step_index": 3,
+      "tick_start": 412,
+      "tick_end": 491
+    },
+    {
+      "phase": "DS_interstep",
+      "step_index": 3,
+      "tick_start": 492,
+      "tick_end": 541
+    },
+    {
+      "phase": "SS",
+      "step_index": 4,
+      "tick_start": 542,
+      "tick_end": 572
+    },
+    {
+      "phase": "DS_terminal",
+      "step_index": 4,
+      "tick_start": 573,
+      "tick_end": 772
+    }
+  ],
+  "conservation_snapshots": [
+    {
+      "label": "initial",
+      "t": 0.0,
+      "Ltot_x": 0.0,
+      "Ltot_y": 0.0,
+      "Ltot_z": 0.0,
+      "Ltot_norm": 0.0,
+      "tick": 0
+    },
+    {
+      "label": "release_step0",
+      "t": 0.11,
+      "Ltot_x": 2.7267524992152214e-18,
+      "Ltot_y": 2.98515007409668e-17,
+      "Ltot_z": 1.095638399403387e-17,
+      "Ltot_norm": 3.1915350944406664e-17,
+      "tick": 10
+    },
+    {
+      "label": "dock_step0",
+      "t": 3.31,
+      "Ltot_x": -2.8895645205182278e-06,
+      "Ltot_y": 8.760494912035742e-06,
+      "Ltot_z": -1.316043605888986e-06,
+      "Ltot_norm": 9.318144933120709e-06,
+      "tick": 42
+    },
+    {
+      "label": "release_step1",
+      "t": 4.33,
+      "Ltot_x": -0.0010092060925061402,
+      "Ltot_y": 0.0001649996650681372,
+      "Ltot_z": 0.0009132228795369647,
+      "Ltot_norm": 0.0013710207344653455,
+      "tick": 143
+    },
+    {
+      "label": "dock_step1",
+      "t": 12.73,
+      "Ltot_x": -0.0010091988347923873,
+      "Ltot_y": 0.00016533192489338693,
+      "Ltot_z": 0.0009136123654925913,
+      "Ltot_norm": 0.0013713148755542008,
+      "tick": 227
+    },
+    {
+      "label": "release_step2",
+      "t": 13.24,
+      "Ltot_x": -0.0014299305508697739,
+      "Ltot_y": 0.00028790999140974514,
+      "Ltot_z": 0.0007175401378678808,
+      "Ltot_norm": 0.001625563715427898,
+      "tick": 277
+    },
+    {
+      "label": "dock_step2",
+      "t": 16.84,
+      "Ltot_x": -0.0014305295427467486,
+      "Ltot_y": 0.0002919230090507603,
+      "Ltot_z": 0.0007140625496625259,
+      "Ltot_norm": 0.001625275096934368,
+      "tick": 313
+    },
+    {
+      "label": "release_step3",
+      "t": 17.84,
+      "Ltot_x": -0.001809460295463972,
+      "Ltot_y": 0.00043641151905244696,
+      "Ltot_z": 0.0011328185980466513,
+      "Ltot_norm": 0.00217896295308172,
+      "tick": 412
+    },
+    {
+      "label": "dock_step3",
+      "t": 25.84,
+      "Ltot_x": -0.001809454439768368,
+      "Ltot_y": 0.00043679344048481636,
+      "Ltot_z": 0.0011332473298470062,
+      "Ltot_norm": 0.0021792575317876937,
+      "tick": 492
+    },
+    {
+      "label": "release_step4",
+      "t": 26.35,
+      "Ltot_x": -0.0022323346466423255,
+      "Ltot_y": 0.0005288110370043905,
+      "Ltot_z": 0.0010174028779146626,
+      "Ltot_norm": 0.0025095951273953363,
+      "tick": 542
+    },
+    {
+      "label": "dock_step4",
+      "t": 29.45,
+      "Ltot_x": -0.002231718554105899,
+      "Ltot_y": 0.0005296523047331201,
+      "Ltot_z": 0.0010106874355558862,
+      "Ltot_norm": 0.002506509198275595,
+      "tick": 573
+    },
+    {
+      "label": "final",
+      "t": 49.45,
+      "Ltot_x": -0.0025208456612148527,
+      "Ltot_y": 0.000455353380707397,
+      "Ltot_z": 0.001536141322003221,
+      "Ltot_norm": 0.0029869281394357657,
+      "tick": 772
+    }
+  ]
+}
