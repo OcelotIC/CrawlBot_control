@@ -141,6 +141,20 @@ class SimConfig:
     # the QP, the passivity constraint, or the envelope box.
     aocs_active_in_interstep: bool = True
 
+    # c_curr (J2): refresh the inter-step QP's hw_current parameter to the
+    # LIVE wheel momentum each tick, instead of freezing it at loop entry.
+    # With the AOCS active in the inter-step loop the wheels move during a
+    # settle, so the entry-frozen hw_current goes stale and the QP's
+    # momentum-safety box (b = hw_max − hw_current) loses C5 margin. The
+    # _step QP already refreshes hw_current per tick; this brings the
+    # inter-step loop in line. Per the non-co-integration audit this is a
+    # PARAMETER refresh (a fresh numeric value frozen at solve, h_w never a
+    # decision variable) — architecturally identical to c_simple(k)'s
+    # per-MPC-step refresh, NOT a co-solve. Default True (corrected,
+    # _step-consistent). When False the entry-frozen value is used
+    # (byte-identical to the pre-c_curr inter-step loop).
+    interstep_hw_refresh: bool = True
+
     # When True, the gait-phase loop breaks out of the multi-step
     # traversal as soon as a step ABORTs (dock_timeout or
     # preplanner_infeasible). Subsequent steps would only observe

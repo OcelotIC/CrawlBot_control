@@ -737,6 +737,22 @@ class SimulationLoop:
 
             Jc, Jdc = self.robot.get_contact_jacobians(True, True)
 
+            # c_curr (J2): refresh the QP's hw_current parameter to the LIVE
+            # wheel momentum this tick. With the AOCS active in this loop the
+            # wheels move, so the entry-frozen hw_current goes stale and the
+            # QP momentum-safety box loses C5 margin. Reading qvel[6:9] here
+            # (same source as the _step per-tick refresh) and passing it as
+            # the frozen hw parameter mirrors c_simple(k): a fresh numeric
+            # value per solve, frozen during the solve, NOT a decision
+            # variable (non-co-integration audit — the QP decision vector
+            # {qdd_t, qdd, λ, τ_q, slack} is unchanged). Flag OFF ⇒ the
+            # entry-frozen value (byte-identical). At k=0 qvel is unchanged
+            # since entry ⇒ the first solve is identical either way.
+            if self.has_rwa and cfg.interstep_hw_refresh:
+                hw_for_qp = (cfg.rwa_I_w * self.mj_data.qvel[6:9]).copy()
+            else:
+                hw_for_qp = hw_current
+
             try:
                 # lambda_qp_sol captured for logging-only (was `_` before
                 # Phase B). No control change — value is not consumed
@@ -750,7 +766,7 @@ class SimulationLoop:
                     J_com=rs.J_com, Jdot_dq_com=rs.Jdot_dq_com,
                     contact_config=cc_ds,
                     J_contacts=Jc, Jdot_dq_contacts=Jdc,
-                    hw_current=hw_current,
+                    hw_current=hw_for_qp,
                     hw_min=cfg.hw_min, hw_max=cfg.hw_max,
                     r_com=rs.r_com, L_com_current=rs.L_com,
                     J_torso=rs.J_torso,
