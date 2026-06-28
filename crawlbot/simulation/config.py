@@ -40,6 +40,22 @@ class SimConfig:
     # position-gated only — without this gate, docking at large ori
     # misalignment corrupts the next step's initial conditions.
     dock_ori_threshold_deg: float = 5.0
+    # ── Fix C (J2 #1): 6-D weld-relative dock gate ──────────────────
+    # The legacy gate's velocity term is the LINEAR EE speed only
+    # (_gripper_speed < dock_vel_max). Fix C replaces it with the full
+    # 6-D weld-relative twist ‖Jc·v⁻‖ < dock_twist_max, where Jc is the
+    # relative-site weld Jacobian [jpg-jpa; jrg-jra] (reused from the
+    # Fix-A impact block) and v⁻ is the pre-weld qvel. This is the
+    # quantity the inelastic impact map mishandles, so gating it (not
+    # just linear speed) makes the dock arrive with no weld-relative
+    # twist. Pose terms (weld_radius, dock_ori_threshold_deg) unchanged.
+    #   docked = (d < weld_radius) ∧ (ori < dock_ori_threshold_deg)
+    #            ∧ (‖Jc·v⁻‖ < dock_twist_max)
+    # dock_twist_max units are a mixed lin+ang twist norm
+    # (sqrt(‖v_lin‖²[m/s] + ‖ω‖²[rad/s])); default is a starting point
+    # for the J2 characterization sweep, NOT a tuned value.
+    dock_use_6d_twist: bool = True   # False = legacy linear _gripper_speed gate (A/B)
+    dock_twist_max: float = 0.05     # [mixed twist norm] ε_twist for ‖Jc·v⁻‖
 
     # ── Contact estimator (GMO) ────────────────────────────────
     gmo_K_O: float = 80.0              # Observer gain [1/s]

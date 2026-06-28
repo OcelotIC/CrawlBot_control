@@ -199,6 +199,14 @@ class SimLog:
     # Dock events
     dock_events: list = field(default_factory=list)
 
+    # Fix C (J2 #1): per-gate-evaluation trace of the 6-D weld-relative
+    # twist ‖Jc·v⁻‖ + pose (d, ori) at each dock-gate check (once the
+    # swing trajectory is done). Supports the Part-2 "does (b) drive the
+    # gate" trajectory and the Part-3 firing/timeout characterization.
+    # Each dict: {t, step, d_mm, ori_deg, twist, fired}. Empty on legacy
+    # logs (default_factory []).
+    dock_gate_trace: list = field(default_factory=list)
+
     # M7: aborted steps (pre-planner infeasible or dock timeout).
     # Each dict carries: step_idx, t, reason ('preplanner_infeasible'
     # | 'dock_timeout'), and — for dock_timeout — d_mm, ori_deg.

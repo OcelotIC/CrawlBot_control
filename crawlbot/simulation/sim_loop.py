@@ -1141,6 +1141,71 @@ class SimulationLoop:
         R_err = R_ee.T @ R_tgt
         return float(np.degrees(np.linalg.norm(pin.log3(R_err))))
 
+    def _weld_relative_twist(self, arm, anchor_idx):
+        """6-D weld-relative twist Jc·v⁻ for one gripper↔anchor pair.
+
+        Returns the 6-vector [relative linear; relative angular] velocity
+        of the swing gripper site w.r.t. its target anchor site, over ALL
+        qvel (incl. structure base + wheels). This is the exact quantity
+        the inelastic impact map projects out at dock.
+
+        Reuses the Fix-A relative-site weld-Jacobian construction
+        (the post-dock impact block): J = [jpg-jpa; jrg-jra] via
+        ``mj_jacSite`` for the gripper/anchor sites, twist = J @ qvel.
+        Unlike the impact block (which iterates ``eq_active``), the gate
+        runs BEFORE the weld engages, so the pair is addressed by name.
+        Assumes the caller has already run ``mj_forward`` so the site
+        Jacobians are current. Returns zeros if either site is missing.
+        """
+        nv = self.mj_model.nv
+        gsid = self._site_ids.get(f'gripper_{arm}', -1)
+        asid = self._site_ids.get(f'anchor_{anchor_idx + 1}{arm}', -1)
+        if gsid < 0 or asid < 0:
+            return np.zeros(6)
+        jpg = np.zeros((3, nv)); jrg = np.zeros((3, nv))
+        jpa = np.zeros((3, nv)); jra = np.zeros((3, nv))
+        mujoco.mj_jacSite(self.mj_model, self.mj_data, jpg, jrg, gsid)
+        mujoco.mj_jacSite(self.mj_model, self.mj_data, jpa, jra, asid)
+        J = np.vstack([jpg - jpa, jrg - jra])      # (6, nv)
+        return J @ self.mj_data.qvel               # 6-D weld-relative twist
+
+    def _dock_gate(self, swing_arm, target_idx, *, log=None, t=0.0,
+                   step_idx=-1):
+        """Evaluate the dock gate. Returns (docked, d, ori_deg, twist_norm).
+
+        Fix C (J2 #1): the velocity criterion is the 6-D weld-relative
+        twist ‖Jc·v⁻‖ < cfg.dock_twist_max (via ``_weld_relative_twist``),
+        not the legacy LINEAR EE speed. Pose criteria (d < weld_radius,
+        ori < dock_ori_threshold_deg) are unchanged. The legacy linear
+        gate is kept behind ``cfg.dock_use_6d_twist=False`` for A/B.
+        Caller must have run ``mj_forward``. When ``log`` is given, one
+        ``dock_gate_trace`` row is appended per evaluation. ``twist_norm``
+        is always computed (for logging) even on the legacy path.
+        """
+        cfg = self.cfg
+        d = self._gripper_distance(swing_arm, target_idx)
+        ori_err_deg = self._gripper_ori_err_deg(swing_arm, target_idx)
+        twist_norm = float(np.linalg.norm(
+            self._weld_relative_twist(swing_arm, target_idx)))
+        pos_ok = d < cfg.weld_radius
+        ori_ok = ori_err_deg < cfg.dock_ori_threshold_deg
+        if cfg.dock_use_6d_twist:
+            vel_ok = twist_norm < cfg.dock_twist_max
+        else:
+            vel_ok = self._gripper_speed(swing_arm) < cfg.dock_vel_max
+        if cfg.use_gmo_dock:
+            docked = self._contact_confirmed and ori_ok and vel_ok
+        else:
+            docked = pos_ok and ori_ok and vel_ok
+        if log is not None:
+            log.dock_gate_trace.append({
+                't': round(float(t), 3), 'step': int(step_idx),
+                'd_mm': round(d * 1000, 3),
+                'ori_deg': round(ori_err_deg, 3),
+                'twist': round(twist_norm, 6),
+                'fired': bool(docked)})
+        return docked, d, ori_err_deg, twist_norm
+
     # ── Per-step planning handoff (M7) ───────────────────────────────────
 
     def _planned_arm_config(self, t: float, rs):
@@ -2018,22 +2083,16 @@ class SimulationLoop:
                         if ((t - t_ss_start) > cfg.dock_check_delay
                                 and swing_done):
                             mujoco.mj_forward(self.mj_model, self.mj_data)
-                            d = self._gripper_distance(swing_arm, target_idx)
-                            ori_err_deg = self._gripper_ori_err_deg(
-                                swing_arm, target_idx)
-                            pos_ok = d < cfg.weld_radius
-                            ori_ok = ori_err_deg < cfg.dock_ori_threshold_deg
-                            vel_ok = (self._gripper_speed(swing_arm)
-                                      < cfg.dock_vel_max)
-                            if cfg.use_gmo_dock:
-                                docked = self._contact_confirmed and ori_ok and vel_ok
-                            else:
-                                docked = pos_ok and ori_ok and vel_ok
+                            docked, d, ori_err_deg, twist_norm = (
+                                self._dock_gate(
+                                    swing_arm, target_idx,
+                                    log=log, t=t, step_idx=step_idx))
                             if docked:
                                 log.dock_events.append({
                                     't': round(t, 3), 'step': step_idx,
                                     'd_mm': round(d*1000, 2),
                                     'ori_deg': round(ori_err_deg, 2),
+                                    'twist': round(twist_norm, 6),
                                     'arm': swing_arm, 'anchor': target_idx,
                                     'method': ('gmo' if cfg.use_gmo_dock
                                                else 'kinematic')})
@@ -2071,22 +2130,16 @@ class SimulationLoop:
                             t += cfg.dt_nmpc
 
                             mujoco.mj_forward(self.mj_model, self.mj_data)
-                            d = self._gripper_distance(swing_arm, target_idx)
-                            ori_err_deg = self._gripper_ori_err_deg(
-                                swing_arm, target_idx)
-                            pos_ok = d < cfg.weld_radius
-                            ori_ok = ori_err_deg < cfg.dock_ori_threshold_deg
-                            vel_ok = (self._gripper_speed(swing_arm)
-                                      < cfg.dock_vel_max)
-                            if cfg.use_gmo_dock:
-                                docked = self._contact_confirmed and ori_ok and vel_ok
-                            else:
-                                docked = pos_ok and ori_ok and vel_ok
+                            docked, d, ori_err_deg, twist_norm = (
+                                self._dock_gate(
+                                    swing_arm, target_idx,
+                                    log=log, t=t, step_idx=step_idx))
                             if docked:
                                 log.dock_events.append({
                                     't': round(t, 3), 'step': step_idx,
                                     'd_mm': round(d*1000, 2),
                                     'ori_deg': round(ori_err_deg, 2),
+                                    'twist': round(twist_norm, 6),
                                     'arm': swing_arm, 'anchor': target_idx,
                                     'method': ('gmo' if cfg.use_gmo_dock
                                                else 'kinematic')})
