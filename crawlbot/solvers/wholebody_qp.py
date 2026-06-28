@@ -157,6 +157,12 @@ class WholeBodyQPConfig:
 
     # ── Passivity constraint (DS only) ──
     alpha_passivity: float = 1.0  # Energy decay rate α [1/s] (α < 50 at 100 Hz)
+    # Dock-floor audit: a CONSTANT positive work budget added to the
+    # passivity RHS:  dqⱼᵀτ_q + 2α·T_kin ≤ W_budget  (vs strict ≤0). This is
+    # a provisional relaxation knob to probe whether positive joint work
+    # changes the achievable dock distance — NOT the envelope-coupled
+    # Piste A. Default 0.0 ⇒ strict (unchanged).
+    passivity_W_budget: float = 0.0
 
     # ── M5: soft slack on momentum safety backup constraint ──
     # Replaces the hard inequality h_w(k+1) ∈ [h_min, h_max] with
@@ -551,7 +557,10 @@ class WholeBodyQP:
             T_kin = 0.5 * float(dq @ H_jj @ dq)
             A_pass = np.zeros((1, n))
             A_pass[0, idx['tau'][0]: idx['tau'][1]] = dq
-            b_pass = np.array([-2.0 * cfg.alpha_passivity * T_kin])
+            # Dock-floor audit: + W_budget relaxes the strict ≤0 RHS to allow
+            # bounded positive joint work (provisional knob; default 0).
+            b_pass = np.array([-2.0 * cfg.alpha_passivity * T_kin
+                               + cfg.passivity_W_budget])
             qp.add_inequality_constraint(A_pass, b_pass)
 
         # ============================================================ #

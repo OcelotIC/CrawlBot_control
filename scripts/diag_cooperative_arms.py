@@ -252,7 +252,9 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
          ss_kp_torso: float = 6.0, ss_kd_torso: float = 5.0,
          dock_twist_max: float = None, dock_gate_linear: bool = False,
          weld_radius: float = None,
-         ds_mobile_com_magnitude: float = None, dt_ds: float = None):
+         ds_mobile_com_magnitude: float = None, dt_ds: float = None,
+         dock_hold_passivity_on: bool = False, passivity_W_budget: float = None,
+         log_dock_work: bool = False):
     cfg = r_single._make_m7_config()
     cfg.gait_anchor_dx = anchor_dx
     # Sweet-spot config carry-over (these are also already the defaults
@@ -442,6 +444,11 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
         cfg.dt_ds = float(dt_ds)
     if ds_mobile_com_magnitude is not None:
         cfg.ds_mobile_com_magnitude = float(ds_mobile_com_magnitude)
+    # Dock-floor passivity audit knobs.
+    cfg.dock_hold_passivity_on = bool(dock_hold_passivity_on)
+    cfg.log_dock_work = bool(log_dock_work)
+    if passivity_W_budget is not None:
+        cfg.passivity_W_budget = float(passivity_W_budget)
     # Output-dir override (memo §7: new runs → new dirs; prior committed
     # baselines stay read-only). Accepts a name under results/ or an abs path.
     if out_dir_override is not None:
@@ -715,6 +722,15 @@ if __name__ == '__main__':
     parser.add_argument('--dt-ds', type=float, default=None,
                         help='α (J2 #2): DS phase duration [s] (default 0.5; '
                              '>~1.5 triggers the DWELL where moving-CoM runs).')
+    # Dock-floor passivity audit.
+    parser.add_argument('--dock-hold-passivity-on', action='store_true',
+                        help='dock-floor: force passivity ON in the SS dock-close '
+                             'hold window (default OFF = the SS-hold escape).')
+    parser.add_argument('--passivity-w-budget', type=float, default=None,
+                        help='dock-floor: constant passivity RHS budget '
+                             '(dqᵀτ_q+2αT_kin ≤ W; default 0 = strict).')
+    parser.add_argument('--log-dock-work', action='store_true',
+                        help='dock-floor: trace per-SS-tick dqⱼᵀτ_q + d + passivity.')
     args = parser.parse_args()
 
     with open(MJCF, 'r') as f:
@@ -746,7 +762,10 @@ if __name__ == '__main__':
              dock_gate_linear=args.dock_gate_linear,
              weld_radius=args.weld_radius,
              ds_mobile_com_magnitude=args.ds_mobile_com_magnitude,
-             dt_ds=args.dt_ds)
+             dt_ds=args.dt_ds,
+             dock_hold_passivity_on=args.dock_hold_passivity_on,
+             passivity_W_budget=args.passivity_w_budget,
+             log_dock_work=args.log_dock_work)
     finally:
         with open(MJCF, 'w') as f:
             f.write(original)

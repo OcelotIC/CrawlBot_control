@@ -214,6 +214,12 @@ class SimLog:
     # feasibility loss. Empty by default.
     ds_mobile_trace: list = field(default_factory=list)
 
+    # Dock-floor passivity audit: per-SS-tick trace (gated cfg.log_dock_work).
+    # Each dict: {t, step, d_mm, dq_tau, pass_active}. dq_tau = dqⱼᵀτ_q (joint
+    # mechanical power; >0 ⇒ the arm does positive work) — confirms whether
+    # the relaxation is exercised in the dock-close window. Empty by default.
+    dock_work_trace: list = field(default_factory=list)
+
     # M7: aborted steps (pre-planner infeasible or dock timeout).
     # Each dict carries: step_idx, t, reason ('preplanner_infeasible'
     # | 'dock_timeout'), and — for dock_timeout — d_mm, ori_deg.

@@ -297,6 +297,16 @@ class SimConfig:
     # the moving-CoM-under-strict-passivity conflict (J2 #2).
     ds_mobile_com_magnitude: float = 0.0
 
+    # Dock-floor passivity audit. ────────────────────────────────────
+    # The SS convergence-hold window (the last-mm dock close) runs
+    # passivity OFF by default (the documented SS-hold escape). These
+    # knobs let the audit force passivity back ON there and relax it by a
+    # constant budget, to decide whether the ~4.5 mm dock floor is
+    # passivity-limited or kinematic. All default to the current behaviour.
+    dock_hold_passivity_on: bool = False  # force passivity ON in the dock-close hold window
+    passivity_W_budget: float = 0.0       # constant RHS budget: dqᵀτ_q + 2α T_kin ≤ W_budget
+    log_dock_work: bool = False           # per-SS-tick trace of dqⱼᵀτ_q + d + passivity (audit)
+
     # DS centroidal-control mode (replaces joint-vel-damping cost with
     # CoM + torso-ori tracking at P1, posture at P3, passivity inequality
     # for energy dissipation). Off by default ⇒ legacy joint-vel damping.

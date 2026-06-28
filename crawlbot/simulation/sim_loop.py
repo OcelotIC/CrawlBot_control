@@ -1040,6 +1040,7 @@ class SimulationLoop:
             ee_null_space=cfg.use_m2_stack,
             alpha_com_soft=cfg.alpha_com_soft,
             alpha_passivity=cfg.alpha_passivity,
+            passivity_W_budget=cfg.passivity_W_budget,
             r_tube=cfg.r_tube,
             w_tube_lin=cfg.w_tube_lin,
             cooperative_arms_mode=cfg.cooperative_arms_mode,
@@ -2158,7 +2159,10 @@ class SimulationLoop:
                                 cc_ss, target_idx, stance_a, stance_b,
                                 hw, L_com_prev, log,
                                 ss_end=t_ss_start + T_step,
-                                passivity_hold=False)
+                                # Dock-floor audit: default False (the SS-hold
+                                # escape — passivity OFF); the audit forces it
+                                # ON to test whether passivity limits the close.
+                                passivity_hold=cfg.dock_hold_passivity_on)
                             t += cfg.dt_nmpc
 
                             mujoco.mj_forward(self.mj_model, self.mj_data)
@@ -2931,6 +2935,17 @@ class SimulationLoop:
                     'swing_manip': manip,
                     'qp_ok': bool(qp_ok),
                     'nmpc_status': int(nmpc_status_code)})
+
+            # Dock-floor audit: per-SS-tick joint mechanical power + dock
+            # distance, to confirm whether the arm does positive work
+            # (dqⱼᵀτ_q > 0) while closing, and under which passivity setting.
+            if cfg.log_dock_work and phase == 'SS':
+                log.dock_work_trace.append({
+                    't': round(float(t), 3), 'step': int(step_idx),
+                    'd_mm': round(self._gripper_distance(
+                        swing_arm, target_anchor) * 1000, 3),
+                    'dq_tau': float(rs.dq_joints @ tau),
+                    'pass_active': bool(passivity_active)})
 
             # ── Diagnostic B + C: per-cycle log of (c_ref, r_b_ref,
             # p_torso_actual, a_torso_des, a_torso_qp, δ(q_planned),
