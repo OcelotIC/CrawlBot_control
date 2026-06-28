@@ -1041,6 +1041,7 @@ class SimulationLoop:
             alpha_com_soft=cfg.alpha_com_soft,
             alpha_passivity=cfg.alpha_passivity,
             passivity_W_budget=cfg.passivity_W_budget,
+            qp_envelope_exact=cfg.qp_envelope_exact,
             r_tube=cfg.r_tube,
             w_tube_lin=cfg.w_tube_lin,
             cooperative_arms_mode=cfg.cooperative_arms_mode,
@@ -2870,6 +2871,24 @@ class SimulationLoop:
                     f"step{int(step_idx):02d}/{phase}/qs={int(qs):02d}")
             except Exception:
                 pass
+            # Piste A LOT A: envelope-coupled passivity work-budget. Per tick,
+            # W_budget = β·α·max(0, τ_w_max − ‖Ḣ_s(lambda_ref)‖∞), where
+            # Ḣ_s(lambda_ref) = Σ r_Cj×f_j_ref + τ_j_ref is the NMPC-EXACT
+            # origin-referenced planned momentum-rate (the same quantity the
+            # NMPC envelope path constraint enforces). A pre-solve scalar that
+            # opens the strict passivity RHS only by the planned envelope
+            # headroom. β=0 ⇒ None ⇒ strict (byte-identical).
+            _pisteA_W = None
+            if cfg.ds_passivity_beta > 0.0 and passivity_active:
+                _lr = np.asarray(lr, dtype=float)
+                _rCa = np.asarray(self.sched.anchors_a[stance_a], dtype=float)
+                _rCb = np.asarray(self.sched.anchors_b[stance_b], dtype=float)
+                _Hs_plan = (np.cross(_rCa, _lr[0:3]) + _lr[3:6]
+                            + np.cross(_rCb, _lr[6:9]) + _lr[9:12])
+                _margin = max(0.0, cfg.tau_w_max
+                              - float(np.max(np.abs(_Hs_plan))))
+                _pisteA_W = (cfg.ds_passivity_beta * cfg.alpha_passivity
+                             * _margin)
             try:
                 qdd_t_qp, qdd_qp, lambda_qp_sol, tau, _ = qp.solve(
                     q_t=rs.q_torso, dq_t=rs.dq_torso,
@@ -2886,6 +2905,7 @@ class SimulationLoop:
                     settle_mode=settle_mode,
                     passivity_active=passivity_active,
                     ds_centroidal_active=ds_centroidal_active,
+                    passivity_W_budget=_pisteA_W,
                     **tkw, **ek)
             except Exception as _qp_exc:
                 # Surface QP failures (silent swallow -> zero torque is
@@ -2931,6 +2951,9 @@ class SimulationLoop:
                     'com_err': float(np.linalg.norm(
                         rs.r_com - np.asarray(cref_r, dtype=float))),
                     'pass_resid': pass_resid,
+                    'dq_tau': float(dqj @ tau),   # joint mech. power (>0 ⇒ +work)
+                    'W_budget': (float(_pisteA_W) if _pisteA_W is not None
+                                 else 0.0),       # Piste A per-tick budget
                     'Hdot_inf': float(np.max(np.abs(Hdot))),
                     'swing_manip': manip,
                     'qp_ok': bool(qp_ok),

@@ -307,6 +307,17 @@ class SimConfig:
     passivity_W_budget: float = 0.0       # constant RHS budget: dqᵀτ_q + 2α T_kin ≤ W_budget
     log_dock_work: bool = False           # per-SS-tick trace of dqⱼᵀτ_q + d + passivity (audit)
 
+    # Piste A (J2 #3): envelope-coupled passivity work-budget + exact Ḣ_s box.
+    # LOT A — per-tick DS passivity budget W_budget = β·α·max(0, τ_w,max −
+    #   ‖Ḣ_s(lambda_ref)‖∞), using the NMPC-exact planned Ḣ_s. β (this knob)
+    #   is dimensionless; β=0 ⇒ W_budget=0 ⇒ strict passivity (byte-identical).
+    ds_passivity_beta: float = 0.0
+    # LOT B — FLAG 2: the QP momentum-rate envelope box uses the EXACT Ḣ_s
+    #   (origin-referenced, |M_exact·λ|, M_exact = momentum map with levers
+    #   from O_s) instead of the |M_λ·λ| proxy (lever-from-robot-CoM, which
+    #   omits the orbital term r_com×Σf). False ⇒ proxy (byte-identical).
+    qp_envelope_exact: bool = False
+
     # DS centroidal-control mode (replaces joint-vel-damping cost with
     # CoM + torso-ori tracking at P1, posture at P3, passivity inequality
     # for energy dissipation). Off by default ⇒ legacy joint-vel damping.

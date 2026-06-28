@@ -163,6 +163,10 @@ class WholeBodyQPConfig:
     # changes the achievable dock distance — NOT the envelope-coupled
     # Piste A. Default 0.0 ⇒ strict (unchanged).
     passivity_W_budget: float = 0.0
+    # Piste A LOT B (FLAG 2): use the EXACT origin-referenced Ḣ_s in the
+    # momentum-rate envelope box (|M_exact·λ| ≤ τ_w_max) instead of the
+    # |M_λ·λ| proxy. Default False ⇒ proxy box (byte-identical).
+    qp_envelope_exact: bool = False
 
     # ── M5: soft slack on momentum safety backup constraint ──
     # Replaces the hard inequality h_w(k+1) ∈ [h_min, h_max] with
@@ -349,6 +353,9 @@ class WholeBodyQP:
         # Intended to be ON during DS phase only (see §3.6, §5.7).
         passivity_active: bool = False,
         ds_centroidal_active: bool = False,
+        # Piste A LOT A: per-tick passivity RHS budget (envelope-coupled,
+        # computed by sim_loop). None ⇒ fall back to cfg.passivity_W_budget.
+        passivity_W_budget: Optional[float] = None,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, QPSolveInfo]:
         """Solve the whole-body QP.
 
@@ -528,14 +535,23 @@ class WholeBodyQP:
                     np.concatenate([b_L_upper, b_L_lower])
                 )
 
-            # 3. Momentum rate box: |L̇_robot| = |M_λ·λ| ≤ τ_w_max
+            # 3. Momentum rate box: |Ḣ_s| ≤ τ_w_max.
+            # Proxy (default): Ḣ_s ≈ M_λ·λ (lever from robot CoM — omits the
+            # orbital term r_com×Σf). Piste A LOT B (qp_envelope_exact): use
+            # the EXACT origin-referenced Ḣ_s = M_exact·λ, M_exact the
+            # momentum map with levers from O_s (= compute_momentum_map at
+            # r_com=0). Stays LINEAR in λ (r_com is a per-tick parameter).
             if np.isfinite(cfg.tau_w_max):
+                if cfg.qp_envelope_exact:
+                    M_env = compute_momentum_map(np.zeros(3), contact_config)
+                else:
+                    M_env = M_lambda
                 A_Ld_upper = np.zeros((3, n))
-                A_Ld_upper[:, idx['lambda'][0]: idx['lambda'][1]] = M_lambda
+                A_Ld_upper[:, idx['lambda'][0]: idx['lambda'][1]] = M_env
                 b_Ld_upper = cfg.tau_w_max * np.ones(3)
 
                 A_Ld_lower = np.zeros((3, n))
-                A_Ld_lower[:, idx['lambda'][0]: idx['lambda'][1]] = -M_lambda
+                A_Ld_lower[:, idx['lambda'][0]: idx['lambda'][1]] = -M_env
                 b_Ld_lower = cfg.tau_w_max * np.ones(3)
 
                 qp.add_inequality_constraint(
@@ -557,10 +573,13 @@ class WholeBodyQP:
             T_kin = 0.5 * float(dq @ H_jj @ dq)
             A_pass = np.zeros((1, n))
             A_pass[0, idx['tau'][0]: idx['tau'][1]] = dq
-            # Dock-floor audit: + W_budget relaxes the strict ≤0 RHS to allow
-            # bounded positive joint work (provisional knob; default 0).
-            b_pass = np.array([-2.0 * cfg.alpha_passivity * T_kin
-                               + cfg.passivity_W_budget])
+            # + W_budget relaxes the strict ≤0 RHS to allow bounded positive
+            # joint work. Piste A LOT A passes an envelope-coupled per-tick
+            # W_budget (kwarg); else the constant cfg.passivity_W_budget
+            # (dock-floor audit; default 0 ⇒ strict, byte-identical).
+            W_budget = (passivity_W_budget if passivity_W_budget is not None
+                        else cfg.passivity_W_budget)
+            b_pass = np.array([-2.0 * cfg.alpha_passivity * T_kin + W_budget])
             qp.add_inequality_constraint(A_pass, b_pass)
 
         # ============================================================ #
