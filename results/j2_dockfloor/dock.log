@@ -1,0 +1,45 @@
+==========================================================================
+RUN [off]: /home/user/CrawlBot_control/results/df_off
+  docks fired = 5  timeouts = 0
+  dock distance per step [mm] = [4.94, 4.51, 4.91, 4.61, 4.84]
+  dock twist ‖Jc·v⁻‖ per step  = [0.006, 0.00396, 0.00603, 0.00417, 0.00577]
+  close-window (d<10mm, 386 ticks): dqⱼᵀτ_q max=-0.0009 W  positive-frac=0.00  passivity_active=False
+  >>> worst dock distance = 4.940 mm
+==========================================================================
+RUN [strict]: /home/user/CrawlBot_control/results/df_strict
+  docks fired = 5  timeouts = 0
+  dock distance per step [mm] = [4.94, 4.51, 4.91, 4.61, 4.84]
+  dock twist ‖Jc·v⁻‖ per step  = [0.006, 0.00396, 0.00603, 0.00417, 0.00577]
+  close-window (d<10mm, 386 ticks): dqⱼᵀτ_q max=-0.0009 W  positive-frac=0.00  passivity_active=False
+  >>> worst dock distance = 4.940 mm
+==========================================================================
+RUN [W0.5]: /home/user/CrawlBot_control/results/df_W0.5
+  docks fired = 5  timeouts = 0
+  dock distance per step [mm] = [4.94, 4.51, 4.91, 4.61, 4.84]
+  dock twist ‖Jc·v⁻‖ per step  = [0.006, 0.00396, 0.00603, 0.00417, 0.00577]
+  close-window (d<10mm, 386 ticks): dqⱼᵀτ_q max=-0.0009 W  positive-frac=0.00  passivity_active=False
+  >>> worst dock distance = 4.940 mm
+==========================================================================
+RUN [W2.0]: /home/user/CrawlBot_control/results/df_W2.0
+  docks fired = 5  timeouts = 0
+  dock distance per step [mm] = [4.94, 4.51, 4.91, 4.61, 4.84]
+  dock twist ‖Jc·v⁻‖ per step  = [0.006, 0.00396, 0.00603, 0.00417, 0.00577]
+  close-window (d<10mm, 386 ticks): dqⱼᵀτ_q max=-0.0009 W  positive-frac=0.00  passivity_active=False
+  >>> worst dock distance = 4.940 mm
+==========================================================================
+RUN [W10]: /home/user/CrawlBot_control/results/df_W10
+  docks fired = 5  timeouts = 0
+  dock distance per step [mm] = [4.94, 4.51, 4.91, 4.61, 4.84]
+  dock twist ‖Jc·v⁻‖ per step  = [0.006, 0.00396, 0.00603, 0.00417, 0.00577]
+  close-window (d<10mm, 386 ticks): dqⱼᵀτ_q max=-0.0009 W  positive-frac=0.00  passivity_active=False
+  >>> worst dock distance = 4.940 mm
+==========================================================================
+DOCK-FLOOR SUMMARY (raw):
+ label             worst_d  per-step d [mm]                pos_work  pass_on  dk/to
+ off                4.940  [4.94, 4.51, 4.91, 4.61, 4.84]     0.00  False   5/0
+ strict             4.940  [4.94, 4.51, 4.91, 4.61, 4.84]     0.00  False   5/0
+ W0.5               4.940  [4.94, 4.51, 4.91, 4.61, 4.84]     0.00  False   5/0
+ W2.0               4.940  [4.94, 4.51, 4.91, 4.61, 4.84]     0.00  False   5/0
+ W10                4.940  [4.94, 4.51, 4.91, 4.61, 4.84]     0.00  False   5/0
+
+  closest worst-dock across all levels = 4.940 mm
