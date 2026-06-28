@@ -1,0 +1,177 @@
+==========================================================================
+RUN: /home/user/CrawlBot_control/results/fixC_linear
+  H_sys (‖subtree_angmom[0]‖) at snapshots [N·m·s]:
+      t=   0.00  initial               0.000000
+      t=   0.11  release_step0         0.000000
+      t=   3.31  dock_step0            0.000009
+      t=   5.04  release_step1         0.001501
+      t=  13.44  dock_step1            0.001502
+      t=  13.95  release_step2         0.001699
+      t=  17.25  dock_step2            0.001702
+      t=  18.27  release_step3         0.003089
+      t=  26.37  dock_step3            0.003089
+      t=  26.88  release_step4         0.003360
+      t=  30.38  dock_step4            0.003363
+      t=  50.38  final                 0.003977
+  --> residual: traversal-final=0.003977  final-dock=0.003363  max-dock=0.003363 N·m·s
+  docks fired = 5 ; dock_timeouts = 0
+  per-dock at firing:  step   t      d[mm]   ori[deg]  twist‖Jc·v⁻‖
+      dock  step0  t=  3.31    4.94     0.10   0.006004  [kinematic]
+      dock  step1  t= 13.44    4.51     0.01   0.003956  [kinematic]
+      dock  step2  t= 17.25    4.91     0.11   0.006031  [kinematic]
+      dock  step3  t= 26.37    4.61     0.02   0.004165  [kinematic]
+      dock  step4  t= 30.38    4.84     0.10   0.005765  [kinematic]
+  near-dock ‖Jc·v⁻‖ trajectory (last 8 gate evals / step):
+      step0: 0.0033  0.0050  0.0059  0.0061  0.0060*
+              (d_mm: 5.91 5.70 5.43 5.17 4.94)
+      step1: 0.0040*
+              (d_mm: 4.51)
+      step2: 0.0025  0.0051  0.0060  0.0062  0.0060*
+              (d_mm: 6.03 5.77 5.46 5.17 4.91)
+      step3: 0.0042*
+              (d_mm: 4.61)
+      step4: 0.0034  0.0054  0.0060  0.0060  0.0058*
+              (d_mm: 6.12 5.80 5.46 5.13 4.84)
+==========================================================================
+RUN: /home/user/CrawlBot_control/results/fixC_e0.02
+  H_sys (‖subtree_angmom[0]‖) at snapshots [N·m·s]:
+      t=   0.00  initial               0.000000
+      t=   0.11  release_step0         0.000000
+      t=   3.31  dock_step0            0.000009
+      t=   5.04  release_step1         0.001501
+      t=  13.44  dock_step1            0.001502
+      t=  13.95  release_step2         0.001699
+      t=  17.25  dock_step2            0.001702
+      t=  18.27  release_step3         0.003089
+      t=  26.37  dock_step3            0.003089
+      t=  26.88  release_step4         0.003360
+      t=  30.38  dock_step4            0.003363
+      t=  50.38  final                 0.003977
+  --> residual: traversal-final=0.003977  final-dock=0.003363  max-dock=0.003363 N·m·s
+  docks fired = 5 ; dock_timeouts = 0
+  per-dock at firing:  step   t      d[mm]   ori[deg]  twist‖Jc·v⁻‖
+      dock  step0  t=  3.31    4.94     0.10   0.006004  [kinematic]
+      dock  step1  t= 13.44    4.51     0.01   0.003956  [kinematic]
+      dock  step2  t= 17.25    4.91     0.11   0.006031  [kinematic]
+      dock  step3  t= 26.37    4.61     0.02   0.004165  [kinematic]
+      dock  step4  t= 30.38    4.84     0.10   0.005765  [kinematic]
+  near-dock ‖Jc·v⁻‖ trajectory (last 8 gate evals / step):
+      step0: 0.0033  0.0050  0.0059  0.0061  0.0060*
+              (d_mm: 5.91 5.70 5.43 5.17 4.94)
+      step1: 0.0040*
+              (d_mm: 4.51)
+      step2: 0.0025  0.0051  0.0060  0.0062  0.0060*
+              (d_mm: 6.03 5.77 5.46 5.17 4.91)
+      step3: 0.0042*
+              (d_mm: 4.61)
+      step4: 0.0034  0.0054  0.0060  0.0060  0.0058*
+              (d_mm: 6.12 5.80 5.46 5.13 4.84)
+==========================================================================
+RUN: /home/user/CrawlBot_control/results/fixC_e0.05
+  H_sys (‖subtree_angmom[0]‖) at snapshots [N·m·s]:
+      t=   0.00  initial               0.000000
+      t=   0.11  release_step0         0.000000
+      t=   3.31  dock_step0            0.000009
+      t=   5.04  release_step1         0.001501
+      t=  13.44  dock_step1            0.001502
+      t=  13.95  release_step2         0.001699
+      t=  17.25  dock_step2            0.001702
+      t=  18.27  release_step3         0.003089
+      t=  26.37  dock_step3            0.003089
+      t=  26.88  release_step4         0.003360
+      t=  30.38  dock_step4            0.003363
+      t=  50.38  final                 0.003977
+  --> residual: traversal-final=0.003977  final-dock=0.003363  max-dock=0.003363 N·m·s
+  docks fired = 5 ; dock_timeouts = 0
+  per-dock at firing:  step   t      d[mm]   ori[deg]  twist‖Jc·v⁻‖
+      dock  step0  t=  3.31    4.94     0.10   0.006004  [kinematic]
+      dock  step1  t= 13.44    4.51     0.01   0.003956  [kinematic]
+      dock  step2  t= 17.25    4.91     0.11   0.006031  [kinematic]
+      dock  step3  t= 26.37    4.61     0.02   0.004165  [kinematic]
+      dock  step4  t= 30.38    4.84     0.10   0.005765  [kinematic]
+  near-dock ‖Jc·v⁻‖ trajectory (last 8 gate evals / step):
+      step0: 0.0033  0.0050  0.0059  0.0061  0.0060*
+              (d_mm: 5.91 5.70 5.43 5.17 4.94)
+      step1: 0.0040*
+              (d_mm: 4.51)
+      step2: 0.0025  0.0051  0.0060  0.0062  0.0060*
+              (d_mm: 6.03 5.77 5.46 5.17 4.91)
+      step3: 0.0042*
+              (d_mm: 4.61)
+      step4: 0.0034  0.0054  0.0060  0.0060  0.0058*
+              (d_mm: 6.12 5.80 5.46 5.13 4.84)
+==========================================================================
+RUN: /home/user/CrawlBot_control/results/fixC_e0.10
+  H_sys (‖subtree_angmom[0]‖) at snapshots [N·m·s]:
+      t=   0.00  initial               0.000000
+      t=   0.11  release_step0         0.000000
+      t=   3.31  dock_step0            0.000009
+      t=   5.04  release_step1         0.001501
+      t=  13.44  dock_step1            0.001502
+      t=  13.95  release_step2         0.001699
+      t=  17.25  dock_step2            0.001702
+      t=  18.27  release_step3         0.003089
+      t=  26.37  dock_step3            0.003089
+      t=  26.88  release_step4         0.003360
+      t=  30.38  dock_step4            0.003363
+      t=  50.38  final                 0.003977
+  --> residual: traversal-final=0.003977  final-dock=0.003363  max-dock=0.003363 N·m·s
+  docks fired = 5 ; dock_timeouts = 0
+  per-dock at firing:  step   t      d[mm]   ori[deg]  twist‖Jc·v⁻‖
+      dock  step0  t=  3.31    4.94     0.10   0.006004  [kinematic]
+      dock  step1  t= 13.44    4.51     0.01   0.003956  [kinematic]
+      dock  step2  t= 17.25    4.91     0.11   0.006031  [kinematic]
+      dock  step3  t= 26.37    4.61     0.02   0.004165  [kinematic]
+      dock  step4  t= 30.38    4.84     0.10   0.005765  [kinematic]
+  near-dock ‖Jc·v⁻‖ trajectory (last 8 gate evals / step):
+      step0: 0.0033  0.0050  0.0059  0.0061  0.0060*
+              (d_mm: 5.91 5.70 5.43 5.17 4.94)
+      step1: 0.0040*
+              (d_mm: 4.51)
+      step2: 0.0025  0.0051  0.0060  0.0062  0.0060*
+              (d_mm: 6.03 5.77 5.46 5.17 4.91)
+      step3: 0.0042*
+              (d_mm: 4.61)
+      step4: 0.0034  0.0054  0.0060  0.0060  0.0058*
+              (d_mm: 6.12 5.80 5.46 5.13 4.84)
+==========================================================================
+RUN: /home/user/CrawlBot_control/results/fixC_e0.20
+  H_sys (‖subtree_angmom[0]‖) at snapshots [N·m·s]:
+      t=   0.00  initial               0.000000
+      t=   0.11  release_step0         0.000000
+      t=   3.31  dock_step0            0.000009
+      t=   5.04  release_step1         0.001501
+      t=  13.44  dock_step1            0.001502
+      t=  13.95  release_step2         0.001699
+      t=  17.25  dock_step2            0.001702
+      t=  18.27  release_step3         0.003089
+      t=  26.37  dock_step3            0.003089
+      t=  26.88  release_step4         0.003360
+      t=  30.38  dock_step4            0.003363
+      t=  50.38  final                 0.003977
+  --> residual: traversal-final=0.003977  final-dock=0.003363  max-dock=0.003363 N·m·s
+  docks fired = 5 ; dock_timeouts = 0
+  per-dock at firing:  step   t      d[mm]   ori[deg]  twist‖Jc·v⁻‖
+      dock  step0  t=  3.31    4.94     0.10   0.006004  [kinematic]
+      dock  step1  t= 13.44    4.51     0.01   0.003956  [kinematic]
+      dock  step2  t= 17.25    4.91     0.11   0.006031  [kinematic]
+      dock  step3  t= 26.37    4.61     0.02   0.004165  [kinematic]
+      dock  step4  t= 30.38    4.84     0.10   0.005765  [kinematic]
+  near-dock ‖Jc·v⁻‖ trajectory (last 8 gate evals / step):
+      step0: 0.0033  0.0050  0.0059  0.0061  0.0060*
+              (d_mm: 5.91 5.70 5.43 5.17 4.94)
+      step1: 0.0040*
+              (d_mm: 4.51)
+      step2: 0.0025  0.0051  0.0060  0.0062  0.0060*
+              (d_mm: 6.03 5.77 5.46 5.17 4.91)
+      step3: 0.0042*
+              (d_mm: 4.61)
+      step4: 0.0034  0.0054  0.0060  0.0060  0.0058*
+              (d_mm: 6.12 5.80 5.46 5.13 4.84)
+==========================================================================
+SWEEP SUMMARY:  run                      trav_final  max_dock  docks  timeouts
+  fixC_linear                0.003977  0.003363   5      0
+  fixC_e0.02                 0.003977  0.003363   5      0
+  fixC_e0.05                 0.003977  0.003363   5      0
+  fixC_e0.10                 0.003977  0.003363   5      0
+  fixC_e0.20                 0.003977  0.003363   5      0

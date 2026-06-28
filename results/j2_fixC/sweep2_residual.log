@@ -1,0 +1,184 @@
+==========================================================================
+RUN: /home/user/CrawlBot_control/results/fixC_t0.004
+  H_sys (‖subtree_angmom[0]‖) at snapshots [N·m·s]:
+      t=   0.00  initial               0.000000
+      t=   0.11  release_step0         0.000000
+      t=   4.11  dock_step0            0.000009
+      t=   5.16  release_step1         0.001234
+      t=  13.56  dock_step1            0.001234
+      t=  14.07  release_step2         0.000950
+      t=  18.07  dock_step2            0.000948
+      t=  19.10  release_step3         0.001716
+      t=  27.30  dock_step3            0.001716
+      t=  27.81  release_step4         0.001423
+      t=  31.91  dock_step4            0.001422
+      t=  51.91  final                 0.001656
+  --> residual: traversal-final=0.001656  final-dock=0.001422  max-dock=0.001716 N·m·s
+  docks fired = 5 ; dock_timeouts = 0
+  per-dock at firing:  step   t      d[mm]   ori[deg]  twist‖Jc·v⁻‖
+      dock  step0  t=  4.11    4.73     0.04   0.003715  [kinematic]
+      dock  step1  t= 13.56    4.37     0.01   0.003855  [kinematic]
+      dock  step2  t= 18.07    4.37     0.04   0.003874  [kinematic]
+      dock  step3  t= 27.30    4.35     0.02   0.003922  [kinematic]
+      dock  step4  t= 31.91    4.00     0.04   0.003827  [kinematic]
+  near-dock ‖Jc·v⁻‖ trajectory (last 8 gate evals / step):
+      step0: 0.0058  0.0055  0.0053  0.0050  0.0046  0.0043  0.0040  0.0037*
+              (d_mm: 4.76 4.64 4.56 4.53 4.54 4.58 4.64 4.73)
+      step1: 0.0039*
+              (d_mm: 4.37)
+      step2: 0.0060  0.0057  0.0054  0.0051  0.0048  0.0045  0.0042  0.0039*
+              (d_mm: 4.84 4.64 4.49 4.39 4.33 4.32 4.33 4.37)
+      step3: 0.0039*
+              (d_mm: 4.35)
+      step4: 0.0058  0.0056  0.0053  0.0050  0.0047  0.0044  0.0041  0.0038*
+              (d_mm: 4.86 4.61 4.40 4.24 4.12 4.05 4.01 4.00)
+==========================================================================
+RUN: /home/user/CrawlBot_control/results/fixC_t0.005
+  H_sys (‖subtree_angmom[0]‖) at snapshots [N·m·s]:
+      t=   0.00  initial               0.000000
+      t=   0.11  release_step0         0.000000
+      t=   3.71  dock_step0            0.000009
+      t=   4.77  release_step1         0.000433
+      t=  13.17  dock_step1            0.000434
+      t=  13.68  release_step2         0.000404
+      t=  17.38  dock_step2            0.000410
+      t=  18.40  release_step3         0.000724
+      t=  26.50  dock_step3            0.000724
+      t=  27.01  release_step4         0.000842
+      t=  30.81  dock_step4            0.000846
+      t=  50.81  final                 0.001005
+  --> residual: traversal-final=0.001005  final-dock=0.000846  max-dock=0.000846 N·m·s
+  docks fired = 5 ; dock_timeouts = 0
+  per-dock at firing:  step   t      d[mm]   ori[deg]  twist‖Jc·v⁻‖
+      dock  step0  t=  3.71    4.53     0.07   0.004955  [kinematic]
+      dock  step1  t= 13.17    4.45     0.01   0.003908  [kinematic]
+      dock  step2  t= 17.38    4.35     0.07   0.004811  [kinematic]
+      dock  step3  t= 26.50    4.73     0.02   0.004164  [kinematic]
+      dock  step4  t= 30.81    4.17     0.07   0.004777  [kinematic]
+  near-dock ‖Jc·v⁻‖ trajectory (last 8 gate evals / step):
+      step0: 0.0050  0.0059  0.0061  0.0060  0.0058  0.0055  0.0053  0.0050*
+              (d_mm: 5.70 5.43 5.17 4.94 4.76 4.64 4.56 4.53)
+      step1: 0.0039*
+              (d_mm: 4.45)
+      step2: 0.0051  0.0060  0.0061  0.0060  0.0057  0.0054  0.0051  0.0048*
+              (d_mm: 5.70 5.40 5.11 4.86 4.66 4.51 4.41 4.35)
+      step3: 0.0042*
+              (d_mm: 4.73)
+      step4: 0.0039  0.0056  0.0060  0.0059  0.0057  0.0054  0.0051  0.0048*
+              (d_mm: 5.93 5.60 5.27 4.96 4.69 4.47 4.30 4.17)
+==========================================================================
+RUN: /home/user/CrawlBot_control/results/fixC_t0.006
+  H_sys (‖subtree_angmom[0]‖) at snapshots [N·m·s]:
+      t=   0.00  initial               0.000000
+      t=   0.11  release_step0         0.000000
+      t=   3.41  dock_step0            0.000009
+      t=   5.13  release_step1         0.001127
+      t=  13.53  dock_step1            0.001128
+      t=  14.04  release_step2         0.001324
+      t=  17.44  dock_step2            0.001328
+      t=  18.46  release_step3         0.002370
+      t=  26.56  dock_step3            0.002370
+      t=  27.07  release_step4         0.002648
+      t=  30.57  dock_step4            0.002651
+      t=  50.57  final                 0.003236
+  --> residual: traversal-final=0.003236  final-dock=0.002651  max-dock=0.002651 N·m·s
+  docks fired = 5 ; dock_timeouts = 0
+  per-dock at firing:  step   t      d[mm]   ori[deg]  twist‖Jc·v⁻‖
+      dock  step0  t=  3.41    4.76     0.10   0.005803  [kinematic]
+      dock  step1  t= 13.53    4.50     0.01   0.003946  [kinematic]
+      dock  step2  t= 17.44    4.69     0.10   0.005769  [kinematic]
+      dock  step3  t= 26.56    4.65     0.02   0.004174  [kinematic]
+      dock  step4  t= 30.57    4.80     0.10   0.005741  [kinematic]
+  near-dock ‖Jc·v⁻‖ trajectory (last 8 gate evals / step):
+      step0: 0.0033  0.0050  0.0059  0.0061  0.0060  0.0058*
+              (d_mm: 5.91 5.70 5.43 5.17 4.94 4.76)
+      step1: 0.0039*
+              (d_mm: 4.50)
+      step2: 0.0025  0.0051  0.0060  0.0062  0.0060  0.0058*
+              (d_mm: 6.01 5.75 5.44 5.15 4.89 4.69)
+      step3: 0.0042*
+              (d_mm: 4.65)
+      step4: 0.0036  0.0055  0.0060  0.0060  0.0057*
+              (d_mm: 6.07 5.75 5.40 5.08 4.80)
+==========================================================================
+RUN: /home/user/CrawlBot_control/results/fixC_t0.007
+  H_sys (‖subtree_angmom[0]‖) at snapshots [N·m·s]:
+      t=   0.00  initial               0.000000
+      t=   0.11  release_step0         0.000000
+      t=   3.31  dock_step0            0.000009
+      t=   5.04  release_step1         0.001501
+      t=  13.44  dock_step1            0.001502
+      t=  13.95  release_step2         0.001699
+      t=  17.25  dock_step2            0.001702
+      t=  18.27  release_step3         0.003089
+      t=  26.37  dock_step3            0.003089
+      t=  26.88  release_step4         0.003360
+      t=  30.38  dock_step4            0.003363
+      t=  50.38  final                 0.003977
+  --> residual: traversal-final=0.003977  final-dock=0.003363  max-dock=0.003363 N·m·s
+  docks fired = 5 ; dock_timeouts = 0
+  per-dock at firing:  step   t      d[mm]   ori[deg]  twist‖Jc·v⁻‖
+      dock  step0  t=  3.31    4.94     0.10   0.006004  [kinematic]
+      dock  step1  t= 13.44    4.51     0.01   0.003956  [kinematic]
+      dock  step2  t= 17.25    4.91     0.11   0.006031  [kinematic]
+      dock  step3  t= 26.37    4.61     0.02   0.004165  [kinematic]
+      dock  step4  t= 30.38    4.84     0.10   0.005765  [kinematic]
+  near-dock ‖Jc·v⁻‖ trajectory (last 8 gate evals / step):
+      step0: 0.0033  0.0050  0.0059  0.0061  0.0060*
+              (d_mm: 5.91 5.70 5.43 5.17 4.94)
+      step1: 0.0040*
+              (d_mm: 4.51)
+      step2: 0.0025  0.0051  0.0060  0.0062  0.0060*
+              (d_mm: 6.03 5.77 5.46 5.17 4.91)
+      step3: 0.0042*
+              (d_mm: 4.61)
+      step4: 0.0034  0.0054  0.0060  0.0060  0.0058*
+              (d_mm: 6.12 5.80 5.46 5.13 4.84)
+==========================================================================
+RUN: /home/user/CrawlBot_control/results/fixC_p0.002
+  H_sys (‖subtree_angmom[0]‖) at snapshots [N·m·s]:
+      t=   0.00  initial               0.000000
+      t=   0.11  release_step0         0.000000
+      t=  10.91  final                 0.000009
+  --> residual: traversal-final=0.000009  final-dock=nan  max-dock=nan N·m·s
+  docks fired = 0 ; dock_timeouts = 1
+  per-dock at firing:  step   t      d[mm]   ori[deg]  twist‖Jc·v⁻‖
+      TIMEOUT step0  t= 10.91  min_d=  6.97mm  ori=  0.00°
+  near-dock ‖Jc·v⁻‖ trajectory (last 8 gate evals / step):
+      step0: 0.0000  0.0000  0.0000  0.0000  0.0000  0.0000  0.0000  0.0000
+              (d_mm: 6.99 6.99 6.99 6.99 6.99 6.99 6.99 6.99)
+==========================================================================
+RUN: /home/user/CrawlBot_control/results/fixC_p0.003
+  H_sys (‖subtree_angmom[0]‖) at snapshots [N·m·s]:
+      t=   0.00  initial               0.000000
+      t=   0.11  release_step0         0.000000
+      t=  10.91  final                 0.000009
+  --> residual: traversal-final=0.000009  final-dock=nan  max-dock=nan N·m·s
+  docks fired = 0 ; dock_timeouts = 1
+  per-dock at firing:  step   t      d[mm]   ori[deg]  twist‖Jc·v⁻‖
+      TIMEOUT step0  t= 10.91  min_d=  6.97mm  ori=  0.00°
+  near-dock ‖Jc·v⁻‖ trajectory (last 8 gate evals / step):
+      step0: 0.0000  0.0000  0.0000  0.0000  0.0000  0.0000  0.0000  0.0000
+              (d_mm: 6.99 6.99 6.99 6.99 6.99 6.99 6.99 6.99)
+==========================================================================
+RUN: /home/user/CrawlBot_control/results/fixC_p0.004
+  H_sys (‖subtree_angmom[0]‖) at snapshots [N·m·s]:
+      t=   0.00  initial               0.000000
+      t=   0.11  release_step0         0.000000
+      t=  10.91  final                 0.000009
+  --> residual: traversal-final=0.000009  final-dock=nan  max-dock=nan N·m·s
+  docks fired = 0 ; dock_timeouts = 1
+  per-dock at firing:  step   t      d[mm]   ori[deg]  twist‖Jc·v⁻‖
+      TIMEOUT step0  t= 10.91  min_d=  6.97mm  ori=  0.00°
+  near-dock ‖Jc·v⁻‖ trajectory (last 8 gate evals / step):
+      step0: 0.0000  0.0000  0.0000  0.0000  0.0000  0.0000  0.0000  0.0000
+              (d_mm: 6.99 6.99 6.99 6.99 6.99 6.99 6.99 6.99)
+==========================================================================
+SWEEP SUMMARY:  run                      trav_final  max_dock  docks  timeouts
+  fixC_t0.004                0.001656  0.001716   5      0
+  fixC_t0.005                0.001005  0.000846   5      0
+  fixC_t0.006                0.003236  0.002651   5      0
+  fixC_t0.007                0.003977  0.003363   5      0
+  fixC_p0.002                0.000009  nan   0      1
+  fixC_p0.003                0.000009  nan   0      1
+  fixC_p0.004                0.000009  nan   0      1
