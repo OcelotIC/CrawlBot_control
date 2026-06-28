@@ -126,6 +126,21 @@ class SimConfig:
     # Diagnostic: zero wheel torque during DS (Mode B still runs in SS).
     aocs_off_in_ds: bool = False
 
+    # Re-activate the AOCS inside the inter-step DS passivity loop
+    # (_run_ds_passivity_loop). The structure is free-floating at all
+    # times, so the AOCS (τ_w on the wheels) must run every tick — DS
+    # included. Historically this loop hardcoded the wheels to 0.0,
+    # leaving the structure attitude open-loop for the settle duration
+    # (the AOCS-during-DS audit: ~46% of DS time, θ_s drift up to
+    # 0.046°/settle, uncorrected). When True (default — the correct,
+    # invariant-restoring behaviour) the loop runs the canonical
+    # legacy_pid_numerical AOCS with the DS wrench feedforward
+    # (−Σ_i r_Ci×f_i+τ_i from λ_qp, the welded-loop couple the FD-on-
+    # L_com feedforward misses). When False the legacy hardcoded-zero
+    # path runs unchanged (byte-identical A/B reference). Does not touch
+    # the QP, the passivity constraint, or the envelope box.
+    aocs_active_in_interstep: bool = True
+
     # When True, the gait-phase loop breaks out of the multi-step
     # traversal as soon as a step ABORTs (dock_timeout or
     # preplanner_infeasible). Subsequent steps would only observe

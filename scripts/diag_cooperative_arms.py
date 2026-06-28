@@ -255,7 +255,8 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
          ds_mobile_com_magnitude: float = None, dt_ds: float = None,
          dock_hold_passivity_on: bool = False, passivity_W_budget: float = None,
          log_dock_work: bool = False,
-         ds_passivity_beta: float = None, qp_envelope_exact: bool = False):
+         ds_passivity_beta: float = None, qp_envelope_exact: bool = False,
+         aocs_active_in_interstep: bool = True):
     cfg = r_single._make_m7_config()
     cfg.gait_anchor_dx = anchor_dx
     # Sweet-spot config carry-over (these are also already the defaults
@@ -305,6 +306,10 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     # See AOCS code path; AOCS uses tau_struct_ff = −Σ(r_Ci × f_i + τ_i)
     # from λ_qp when this is on and phase=='DS'.
     cfg.aocs_use_wrench_ff_in_ds = True
+    # J2 step 4a: re-activate the AOCS inside the inter-step DS loop
+    # (default on — restores the free-floating invariant). --no-aocs-in-
+    # interstep flips it off for the byte-identical A/B baseline.
+    cfg.aocs_active_in_interstep = bool(aocs_active_in_interstep)
     # Stage 3 — trailing-DS torso reference uses the actual welded
     # state instead of the both-tools-at-anchors IK that gave the
     # persistent ~3.86° torso ori error.
@@ -331,6 +336,8 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
         cfg.ds_torso_ref_from_state = False
         cfg.ss_alpha_lambda_int = 0.0
         cfg.ds_centroidal_mode = False
+        # Pre-rework: the inter-step loop hardcoded the wheels to 0.
+        cfg.aocs_active_in_interstep = False
     # alpha_torso_ang stays at default 500 (set by _make_m7_config).
     # 5 evenly-spaced snapshots per SS for the offline renderer.
     # FRAMES_PER_STEP=0 disables capture entirely (e.g. for tests).
@@ -743,6 +750,11 @@ if __name__ == '__main__':
     parser.add_argument('--qp-envelope-exact', action='store_true',
                         help='Piste A LOT B (FLAG 2): exact origin-referenced Ḣ_s '
                              'envelope box (vs the |M_λ·λ| proxy).')
+    parser.add_argument('--no-aocs-in-interstep', action='store_false',
+                        dest='aocs_active_in_interstep',
+                        help='J2 step 4a A/B: disable the inter-step DS AOCS '
+                             '(reverts to the legacy hardcoded-zero wheels). '
+                             'Default: AOCS active in the inter-step loop.')
     args = parser.parse_args()
 
     with open(MJCF, 'r') as f:
@@ -779,7 +791,8 @@ if __name__ == '__main__':
              passivity_W_budget=args.passivity_w_budget,
              log_dock_work=args.log_dock_work,
              ds_passivity_beta=args.ds_passivity_beta,
-             qp_envelope_exact=args.qp_envelope_exact)
+             qp_envelope_exact=args.qp_envelope_exact,
+             aocs_active_in_interstep=args.aocs_active_in_interstep)
     finally:
         with open(MJCF, 'w') as f:
             f.write(original)

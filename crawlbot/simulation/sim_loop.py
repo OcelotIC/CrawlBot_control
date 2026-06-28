@@ -701,6 +701,15 @@ class SimulationLoop:
         hw_current = np.zeros(3) if not self.has_rwa else (
             cfg.rwa_I_w * self.mj_data.qvel[6:9]).copy()
 
+        # Loop-local ω_s history for the inter-step AOCS K_d·ω̇_s term.
+        # The _step regulator's `_omega_s_last` is local to _step and
+        # invisible here, so the loop tracks its own (init from the entry
+        # ω_s ⇒ ω̇_s = 0 on the first tick; updated each iteration before
+        # mj_step). Only this history is new — the DS wrench feedforward
+        # needs no L_com/v_com history (AOCS-FF audit).
+        _omega_s_prev = (self.mj_data.qvel[3:6].copy()
+                         if self.has_rwa else np.zeros(3))
+
         T_history = []
         exit_reason = 'max_steps'
         T = T_start
@@ -761,8 +770,23 @@ class SimulationLoop:
                 lambda_qp_sol = np.zeros(12)
 
             self.mj_data.ctrl[:n_j] = tau
+            # AOCS re-activation (free-floating invariant — J2 step 4a).
+            # The structure is free-floating every tick, so the AOCS must
+            # run in DS too. Flag ON (default): run the canonical
+            # legacy_pid_numerical AOCS with the DS wrench FF from the
+            # settle-QP wrench (lambda_qp_sol). Flag OFF: the legacy
+            # hardcoded-zero path, byte-identical to the pre-fix loop.
+            tau_w_applied = np.zeros(3)
             if self.has_rwa:
-                self.mj_data.ctrl[n_j:n_j + 3] = 0.0
+                if cfg.aocs_active_in_interstep:
+                    tau_w_applied = self._interstep_aocs_command(
+                        rs, cc_ds, lambda_qp_sol, _omega_s_prev)
+                    self.mj_data.ctrl[n_j:n_j + 3] = tau_w_applied
+                    # Update the ω_s history BEFORE mj_step (current ω_s
+                    # is this tick's pre-step value, the next tick's prev).
+                    _omega_s_prev = self.mj_data.qvel[3:6].copy()
+                else:
+                    self.mj_data.ctrl[n_j:n_j + 3] = 0.0
             mujoco.mj_step(self.mj_model, self.mj_data)
 
             # ── Phase-B per-tick logging (logging-only; no control change) ──
@@ -774,7 +798,7 @@ class SimulationLoop:
                     log_obj, t_abs_tick,
                     log_step_idx, log_just_landed_arm,
                     log_anchor_a_idx, log_anchor_b_idx,
-                    tau, lambda_qp_sol)
+                    tau, lambda_qp_sol, tau_w_applied)
 
         n_steps_run = min(k + 1, max_steps) if max_steps > 0 else 0
         # Record final energy (no ctrl reset — caller manages the handoff)
@@ -792,8 +816,81 @@ class SimulationLoop:
             'exit_reason': exit_reason,
         }
 
+    def _interstep_aocs_command(self, rs, cc_ds, lambda_qp_sol, omega_s_prev):
+        """Canonical AOCS wheel-torque command for the inter-step DS loop.
+
+        Re-activates the structure attitude controller inside
+        ``_run_ds_passivity_loop`` (J2 step 4a — the loop historically
+        zeroed the wheels, violating the free-floating invariant; see the
+        AOCS-during-DS audit). Mirrors the ``_step`` AOCS for the canonical
+        ``legacy_pid_numerical`` mode, fed entirely from in-loop values:
+
+          - DS WRENCH feedforward  τ_w_FF = −Σ_i (r_Ci × f_i + τ_i)  from
+            ``lambda_qp_sol`` (the settle-QP wrench captured this tick),
+            with anchor levers r_Ci = cc_ds.r_contact_{A,B} (struct frame).
+            This is the welded-loop internal-stress couple the FD-on-L_com
+            feedforward is blind to (force_estimator.py:582-592). Same
+            construction as _step (sim_loop.py wrench-FF block).
+          - attitude PID + desaturation via
+            ``compute_aocs_command_legacy_pid_numerical`` — θ_s from the
+            geometric SO(3) error ½ vee(R_errᵀ−R_err) (identical to _step),
+            ω_s / h_w from MuJoCo state, ω̇_s from the loop-local
+            ``omega_s_prev``.
+
+        No NMPC dependency (the loop bypasses the NMPC): the feedforward
+        source is the QP wrench, not the NMPC plan (AOCS-FF audit). The QP,
+        passivity constraint, and envelope box are untouched. Returns the
+        clipped τ_w command (±aocs_tau_w_max).
+        """
+        from crawlbot.aocs.force_estimator import (
+            compute_aocs_command_legacy_pid_numerical)
+        cfg = self.cfg
+        omega_s = self.mj_data.qvel[3:6].copy()
+        hw_phys = (cfg.rwa_I_w * self.mj_data.qvel[6:9]).copy()
+
+        # Geometric SO(3) attitude error θ_s (same as _step).
+        qw, qx, qy, qz = self._struct_quat_init
+        R_init = pin.Quaternion(qw, qx, qy, qz).toRotationMatrix()
+        qw, qx, qy, qz = self.mj_data.qpos[3:7]
+        R_now = pin.Quaternion(qw, qx, qy, qz).toRotationMatrix()
+        R_err = R_init.T @ R_now
+        theta_s = 0.5 * np.array([
+            R_err[2, 1] - R_err[1, 2],
+            R_err[0, 2] - R_err[2, 0],
+            R_err[1, 0] - R_err[0, 1],
+        ])
+
+        # DS wrench feedforward from λ_qp (anchor levers in struct frame;
+        # λ_qp in world frame — equivalent at the <5° structure-frame
+        # rotation we operate in, as in _step).
+        _lam = np.asarray(lambda_qp_sol, dtype=float).ravel()
+        _r_C = (cc_ds.r_contact_A, cc_ds.r_contact_B)
+        tau_struct_ff = np.zeros(3)
+        for _ci in range(2):
+            if not cc_ds.active_contacts[_ci]:
+                continue
+            _f = _lam[6 * _ci: 6 * _ci + 3]
+            _tq = _lam[6 * _ci + 3: 6 * _ci + 6]
+            tau_struct_ff -= np.cross(_r_C[_ci], _f) + _tq
+
+        # L_com/v_com args are unused on the wrench-FF path (the FD branch
+        # is `tau_struct_ff is None`), so current values are passed.
+        return compute_aocs_command_legacy_pid_numerical(
+            L_com=rs.L_com, L_com_prev=rs.L_com,
+            r_com=rs.r_com, v_com=rs.v_com, v_com_prev=rs.v_com,
+            omega_s=omega_s, omega_s_prev=omega_s_prev,
+            theta_s=theta_s,
+            hw_current=hw_phys, dt=cfg.dt_qp,
+            robot_mass=self.robot._total_mass,
+            K_hw=cfg.aocs_K_hw, K_omega=cfg.aocs_K_omega,
+            K_d=cfg.aocs_K_d, K_theta=cfg.aocs_K_theta,
+            hw_min=cfg.hw_min, hw_max=cfg.hw_max,
+            tau_w_max=cfg.aocs_tau_w_max,
+            tau_struct_ff=tau_struct_ff)
+
     def _log_ds_tick(self, log, t_abs, step_idx, just_landed_arm,
-                     anchor_a_idx, anchor_b_idx, tau, lambda_qp_sol):
+                     anchor_a_idx, anchor_b_idx, tau, lambda_qp_sol,
+                     tau_w_applied=None):
         """Append one per-tick DS log row (logging-only; no control change).
 
         Called from ``_run_ds_passivity_loop`` AFTER ``mj_step``. The row
@@ -924,10 +1021,14 @@ class SimulationLoop:
         log.L_dot_norm.append(0.0)
         log.hw.append(hw.copy())
 
-        # RWA physical — wheels are OFF in this loop (ctrl[n_j:n_j+3]=0).
-        # tau_w = zeros is the actual commanded value.
+        # RWA physical. With the inter-step AOCS re-activated (flag on),
+        # tau_w_applied is the ACTUAL wheel torque commanded this tick;
+        # when the AOCS is off (flag off / no RWA) it is zeros — the
+        # legacy commanded value. None defaults to zeros for any caller
+        # that does not pass it (schema-safe).
         log.hw_physical.append(hw.copy())
-        log.tau_w.append(np.zeros(3))
+        log.tau_w.append((np.zeros(3) if tau_w_applied is None
+                          else np.asarray(tau_w_applied, dtype=float)).copy())
         log.rw_speed.append(rw_vel.copy())
 
         # EE tracking error (vs same-frame ref → 0).
