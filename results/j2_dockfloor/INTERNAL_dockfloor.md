@@ -111,7 +111,8 @@ from the script, not committed.
 
 **Regression (`pytest tests/`):** defaults are dormant and **byte-identical** — `W_budget+0.0 ≡ W`,
 `dock_hold_passivity_on=False`, `log_dock_work=False` — and **C6 is BIT-IDENTICAL in every sweep run above**
-(direct evidence the flag-OFF path is unchanged). Full-suite count **in flight**; expected 220 passed / 1
-pre-existing FK fail (`test_E7_t15_step2_dock_under_fk_mode`). [Updated below on completion.]
+(direct evidence the flag-OFF path is unchanged). Full-suite count: **220 passed, 1 failed** — the single
+failure is the pre-existing FK test `test_E7_t15_step2_dock_under_fk_mode` (identical on clean `ae0673e`).
+No new failures.
 
 **STOP after the report.** No success threshold; Piste A design follows the digest. No merge, no PR.
