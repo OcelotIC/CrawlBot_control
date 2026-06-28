@@ -55,9 +55,9 @@ non-constant. No mode flag, no hold↔mobile switch.
 **Strict passivity only** (`passivity_active=True`, RHS ≤ 0 — no Piste A budget, no envelope-box change, no
 FLAG-2 fix). Orientation + posture held (arm-posture-as-moving-DOF is BUILDING, out of scope).
 
-**Regression (`pytest tests/`):** confirmed through 97 % of the suite with a **single failure — the
-pre-existing FK test** `test_E7_t15_step2_dock_under_fk_mode` (verified identical on clean `ae0673e` in the
-J2 #1 work; an FK-mode preplanner/timeout issue, unrelated to α). **No new failures.** The α paths are
+**Regression (`pytest tests/`):** **220 passed, 1 failed.** The single failure is the **pre-existing FK
+test** `test_E7_t15_step2_dock_under_fk_mode` (verified identical on clean `ae0673e` in the J2 #1 work; an
+FK-mode preplanner/timeout issue, unrelated to α). **No new failures.** The α paths are
 default-off (`ds_mobile_com_magnitude=0`, `dt_ds=0.5`) and the only always-on edit is
 `dt_ds=self.cfg.dt_ds` (= the prior literal 0.5) ⇒ default behaviour byte-identical; the remaining
 integration tests exercise that dormant default. (C6 OFF in every sweep run above is BIT-IDENTICAL to the
