@@ -111,8 +111,8 @@ reproducible from the script, not committed.
 
 **Regression (`pytest tests/`):** defaults dormant (β=0 ⇒ W_budget=None ⇒ strict; `qp_envelope_exact=False`
 ⇒ proxy box) ⇒ byte-identical, and **C6 is BIT-IDENTICAL in every sweep run above** (direct evidence the
-flag-OFF path is unchanged). Full-suite count **in flight**; expected 220 passed / 1 pre-existing FK fail
-(`test_E7_t15_step2_dock_under_fk_mode`). [Updated below on completion.]
+flag-OFF path is unchanged). Full-suite count: **220 passed, 1 failed** — the single failure is the
+pre-existing FK test `test_E7_t15_step2_dock_under_fk_mode` (identical on clean `ae0673e`). No new failures.
 
 **STOP after the report.** No success threshold; β and the box-correction trade are dimensioned by Idriss +
 reviewing Claude on these numbers. No merge, no PR.
