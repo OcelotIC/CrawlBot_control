@@ -1,0 +1,8 @@
+RUN: /home/user/CrawlBot_control/results/pam20_b0.0
+  --> residual: traversal-final=0.001746  final-dock=0.001534  max-dock=0.001534 N·m·s
+RUN: /home/user/CrawlBot_control/results/pam20_b0.5
+  --> residual: traversal-final=0.001754  final-dock=0.001547  max-dock=0.001547 N·m·s
+RUN: /home/user/CrawlBot_control/results/pam20_b1.0
+  --> residual: traversal-final=0.001754  final-dock=0.001547  max-dock=0.001547 N·m·s
+RUN: /home/user/CrawlBot_control/results/pam20_b2.0
+  --> residual: traversal-final=0.001754  final-dock=0.001547  max-dock=0.001547 N·m·s
