@@ -19,6 +19,13 @@ PASS_BIND = 1e-4   # pass_resid > -PASS_BIND ⇒ passivity (near-)binding
 ENV_BIND = 0.90 * TAU_W_MAX
 
 
+def _segments(tr):
+    """Split the trace into contiguous DS segments (break on t-gaps > 0.5 s)."""
+    ts = np.array([r['t'] for r in tr])
+    brk = [0] + [i for i in range(1, len(ts)) if ts[i] - ts[i - 1] > 0.5] + [len(ts)]
+    return [(brk[k], brk[k + 1]) for k in range(len(brk) - 1)]
+
+
 def analyse(label, run_dir):
     p = os.path.join(run_dir, 'sim_log.json')
     if not os.path.exists(p):
@@ -27,9 +34,6 @@ def analyse(label, run_dir):
     tr = sl.get('ds_mobile_trace', [])
     print('=' * 74)
     print(f'RUN [{label}]: {run_dir}   (ds_mobile_trace ticks = {len(tr)})')
-    if not tr:
-        print('  (empty trace — magnitude 0 / DWELL not triggered?)')
-        # still report docks/timeouts
     docks = len(sl.get('dock_events', []))
     tos = len([a for a in sl.get('aborted_steps', [])
                if a.get('reason') == 'dock_timeout'])
@@ -39,32 +43,44 @@ def analyse(label, run_dir):
         pr = np.array([r['pass_resid'] for r in tr])
         hd = np.array([r['Hdot_inf'] for r in tr])
         mn = np.array([r.get('swing_manip', float('nan')) for r in tr])
-        qpf = sum(1 for r in tr if not r['qp_ok'])
-        nin = sum(1 for r in tr if r['nmpc_status'] == 2)
-        pass_bind_frac = float(np.mean(pr > -PASS_BIND))
-        env_bind_frac = float(np.mean(hd > ENV_BIND))
-        print(f'  CoM tracking err [m]:   max={ce.max():.5f}  mean={ce.mean():.5f}  final={ce[-1]:.5f}')
-        print(f'  passivity resid:        max={pr.max():.3e} (→0 binds)  '
-              f'binding-frac={pass_bind_frac:.2f}')
-        print(f'  envelope ‖Ḣ_s‖∞ [N·m]:  max={hd.max():.3f} (cap {TAU_W_MAX})  '
-              f'≥90%%cap-frac={env_bind_frac:.2f}')
-        print(f'  feasibility:            qp_fail_ticks={qpf}  nmpc_infeas_ticks={nin}')
-        print(f'  swing manip:            first={mn[0]:.4e}  last={mn[-1]:.4e}  '
-              f'Δ={"+" if mn[-1]>=mn[0] else ""}{(mn[-1]-mn[0]):.4e}')
-        # which binds (heuristic ordering for the table; reviewer decides)
-        binds = []
-        if qpf or nin:
-            binds.append('FEASIBILITY')
-        if pass_bind_frac > 0.10:
-            binds.append('passivity')
-        if env_bind_frac > 0.10:
-            binds.append('envelope')
-        print(f'  >>> binds: {", ".join(binds) if binds else "none (slack)"}')
-        res = dict(label=label, ticks=len(tr), com_max=ce.max(), com_final=ce[-1],
-                   pass_max=pr.max(), pass_frac=pass_bind_frac,
-                   hd_max=hd.max(), env_frac=env_bind_frac,
-                   qpf=qpf, nin=nin, manip0=mn[0], manip1=mn[-1],
-                   docks=docks, tos=tos)
+        # Per-segment: a "moving" segment translates the CoM (com_err range
+        # > 5 mm); "hold" segments are the trailing/settle DS. Report each;
+        # the MOVING segment is the moving-CoM-under-passivity conflict.
+        segs = _segments(tr)
+        moving = None
+        print(f'  segments ({len(segs)}): '
+              + ', '.join(f'[{a}:{b}] t={tr[a]["t"]:.1f}-{tr[b-1]["t"]:.1f}'
+                          for a, b in segs))
+        for a, b in segs:
+            ce_s, pr_s, hd_s, mn_s = ce[a:b], pr[a:b], hd[a:b], mn[a:b]
+            kind = 'MOVING' if (ce_s.max() - ce_s.min()) > 5e-3 else 'hold  '
+            pbf = float(np.mean(pr_s > -PASS_BIND))
+            ebf = float(np.mean(hd_s > ENV_BIND))
+            qpf = sum(1 for r in tr[a:b] if not r['qp_ok'])
+            nin = sum(1 for r in tr[a:b] if r['nmpc_status'] == 2)
+            print(f'    {kind} ce[max={ce_s.max():.4f} fin={ce_s[-1]:.4f}] '
+                  f'pass→0={pr_s.max():.1e} p_frac={pbf:.2f} '
+                  f'Ḣ_max={hd_s.max():.3f}(cap{TAU_W_MAX:.0f}) e_frac={ebf:.2f} '
+                  f'qpf={qpf} nin={nin} manip={mn_s[0]:.3e}→{mn_s[-1]:.3e}')
+            if kind == 'MOVING' and moving is None:
+                binds = (['FEASIBILITY'] if (qpf or nin) else []) \
+                    + (['passivity'] if pbf > 0.10 else []) \
+                    + (['envelope'] if ebf > 0.10 else [])
+                moving = dict(label=label, com_max=ce_s.max(), com_fin=ce_s[-1],
+                              pass_frac=pbf, hd_max=hd_s.max(), env_frac=ebf,
+                              qpf=qpf, nin=nin, manip0=mn_s[0], manip1=mn_s[-1],
+                              binds='+'.join(binds) or 'slack',
+                              docks=docks, tos=tos)
+        if moving is None:   # no moving segment (e.g. m=0): use the whole trace
+            moving = dict(label=label, com_max=ce.max(), com_fin=ce[-1],
+                          pass_frac=float(np.mean(pr > -PASS_BIND)),
+                          hd_max=hd.max(), env_frac=float(np.mean(hd > ENV_BIND)),
+                          qpf=0, nin=0, manip0=mn[0], manip1=mn[-1],
+                          binds='hold', docks=docks, tos=tos)
+        print(f'  >>> MOVING-segment binds: {moving["binds"]}')
+        res = moving
+    else:
+        print('  (empty trace — magnitude 0 / DWELL not triggered)')
     print(f'  docks fired={docks}  dock_timeouts={tos}')
     return res
 
