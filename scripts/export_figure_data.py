@@ -32,6 +32,7 @@ import json
 import os
 import numpy as np
 import mujoco
+import pinocchio as pin
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 MJCF = os.path.join(ROOT, 'models', 'VISPA_crawling_rwa3.xml')
@@ -40,6 +41,26 @@ MJCF = os.path.join(ROOT, 'models', 'VISPA_crawling_rwa3.xml')
 def robot_subtree_mass(model):
     bid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_BODY, 'torso')
     return float(model.body_subtreemass[bid])
+
+
+def load_anchors_struct_frame(model, struct_pos0, struct_quat0):
+    """Anchor site positions in the INITIAL structure frame R_s0 — replicates
+    postprocess_results_figs._load_anchors_struct_frame so the realized
+    inter-step Ḣ_s (FIX 2) uses the SAME anchors/levers as the planned SS Ḣ_s."""
+    d = mujoco.MjData(model)
+    mujoco.mj_forward(model, d)
+    aw, bw = [], []
+    for i in range(1, 20):
+        sa = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, f'anchor_{i}a')
+        sb = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_SITE, f'anchor_{i}b')
+        if sa < 0 or sb < 0:
+            break
+        aw.append(d.site_xpos[sa].copy())
+        bw.append(d.site_xpos[sb].copy())
+    qw, qx, qy, qz = struct_quat0
+    R0 = pin.Quaternion(qw, qx, qy, qz).toRotationMatrix()
+    p0 = np.asarray(struct_pos0, float)
+    return ([R0.T @ (a - p0) for a in aw], [R0.T @ (b - p0) for b in bw])
 
 
 def ltot_at_snapshots(sl, model):
@@ -118,36 +139,77 @@ def main():
     sidx = np.asarray(sl['step_idx'], int)
     raw_ph = np.asarray(sl['phase'])
     lam_ref = np.asarray(sl['lambda_ref'], float)   # (n, 12) planned wrench
+    lam_qp = np.asarray(sl['lambda_qp'], float)     # (n, 12) realized settle/QP wrench
+    struct_pos = np.asarray(sl['struct_pos'], float)
+    struct_quat = np.asarray(sl['struct_quat'], float)
 
-    # Envelope (figure 1) — the EXACT origin-referenced Ḣ_s the controller plans
-    # within: Ḣ_s = Σ_j (r_Cj × f_j + τ_j) from the planned wrench (lambda_ref)
-    # and the structure-frame anchors. This is the SAME quantity as the C3 gate
-    # metric ‖Ḣ_s‖∞_SS (which reads 5.0 at the binding) — read directly from the
-    # postproc CSV so figure 1 matches C3 exactly. It is the NMPC envelope path-
-    # constraint quantity (origin-referenced, exact levers), NOT the FD of the
-    # realized momentum (which has dock/phase-transition spikes and is not what
-    # the envelope enforces). Defined on SS/_step rows; NaN on inter-step DS
-    # (NMPC bypassed there ⇒ no planned wrench).
+    phase = phase_per_tick(sl)
+
+    # Envelope (figure 1) — the EXACT origin-referenced Ḣ_s = Σ_j (r_Cj×f_j + τ_j)
+    # with the structure-frame anchors. SS/_step: PLANNED (from lambda_ref), read
+    # from postproc_F3F4.csv so it matches the C3 gate metric ‖Ḣ_s‖∞_SS (=5.0 at
+    # the binding). Inter-step DS: REALIZED (from the settle-QP wrench lambda_qp),
+    # since lambda_ref is absent when the NMPC is bypassed — FIX 2, fills the
+    # ~46%-of-DS gap so the envelope covers the full SS→DS→SS cycle. Same
+    # formula/anchors ⇒ consistent. (NOT an FD of realized momentum, which spikes
+    # at impacts.)
     pp_path = os.path.join(args.run_dir, 'postproc_F3F4.csv')
     Hdot_exact = np.full((n, 3), np.nan)
+    stance_a = np.full(n, -1, int)
+    stance_b = np.full(n, -1, int)
     with open(pp_path) as f:
-        rdr = csv.DictReader(f)
-        for i, row in enumerate(rdr):
+        for i, row in enumerate(csv.DictReader(f)):
             if i >= n:
                 break
             for j, a in enumerate('xyz'):
-                v = row.get(f'Hdot_s_{a}', '')
                 try:
-                    Hdot_exact[i, j] = float(v)
+                    Hdot_exact[i, j] = float(row.get(f'Hdot_s_{a}', ''))
                 except (ValueError, TypeError):
                     Hdot_exact[i, j] = np.nan
-    # Proxy (orbital term omitted): lever from the robot CoM instead of O_s ⇒
-    # proxy = exact − r_com × Σf (Σf = f1+f2 from the same planned wrench).
-    f_sum = lam_ref[:, 0:3] + lam_ref[:, 6:9]
+            try:
+                stance_a[i] = int(row['stance_a_idx'])
+                stance_b[i] = int(row['stance_b_idx'])
+            except (ValueError, KeyError, TypeError):
+                pass
+
+    Hdot_source = ['planned' if np.all(np.isfinite(Hdot_exact[i])) else '' for i in range(n)]
+
+    # FIX 2: realized inter-step Ḣ_s from lambda_qp + anchors (origin-referenced).
+    anchors_a, anchors_b = load_anchors_struct_frame(model, struct_pos[0], struct_quat[0])
+    for i in range(n):
+        if (phase[i] == 'DS_interstep'
+                and 0 <= stance_a[i] < len(anchors_a)
+                and 0 <= stance_b[i] < len(anchors_b)):
+            L = lam_qp[i]
+            Hdot_exact[i] = (np.cross(anchors_a[stance_a[i]], L[0:3]) + L[3:6]
+                             + np.cross(anchors_b[stance_b[i]], L[6:9]) + L[9:12])
+            Hdot_source[i] = 'realized'
+
+    # Proxy (orbital omitted): lever from the robot CoM ⇒ proxy = exact − r_com×Σf,
+    # Σf from the SAME wrench as the exact value at that tick (planned vs realized).
+    is_real = (np.array(Hdot_source) == 'realized')[:, None]
+    f_sum = np.where(is_real, lam_qp[:, 0:3] + lam_qp[:, 6:9],
+                     lam_ref[:, 0:3] + lam_ref[:, 6:9])
     Hdot_proxy = Hdot_exact - np.cross(r_com, f_sum)
 
-    phase = phase_per_tick(sl)
     swing_active = [(raw_ph[i] == 'SS') and (sarm[i] in ('a', 'b')) for i in range(n)]
+
+    # FIX 1: torso reference = the HELD setpoint during DS (realized torso pose
+    # frozen at the entry of each contiguous DS block); SS keeps the logged
+    # setpoint. Removes the (0,0,0) step=-1 sentinel, the DS_interstep phase-lag,
+    # and the DS_terminal dock-IK offset ⇒ ‖torso − ref‖ is the true tracking
+    # error (~28 mm SS, ~mm hold in DS). CoM ref (r_ref) is left as logged: it is
+    # already the QP-held value in inter-step DS (error ~0), the moving reference
+    # in the run-B DWELL, and the real NMPC current-tick ref (=e_com) in SS.
+    torso_ref = p_tr.copy()
+    _held = None
+    for i in range(n):
+        if phase[i] != 'SS':
+            if _held is None:
+                _held = p_t[i].copy()
+            torso_ref[i] = _held
+        else:
+            _held = None
 
     # Ltot at snapshots -> nearest tick (sparse in the CSV; full series in meta).
     snaps = ltot_at_snapshots(sl, model)
@@ -168,6 +230,7 @@ def main():
         ('Hdot_s_proxy_x_Nm', lambda i: '' if np.isnan(Hdot_proxy[i,0]) else f'{Hdot_proxy[i,0]:.6e}'),
         ('Hdot_s_proxy_y_Nm', lambda i: '' if np.isnan(Hdot_proxy[i,1]) else f'{Hdot_proxy[i,1]:.6e}'),
         ('Hdot_s_proxy_z_Nm', lambda i: '' if np.isnan(Hdot_proxy[i,2]) else f'{Hdot_proxy[i,2]:.6e}'),
+        ('Hdot_s_source', lambda i: Hdot_source[i]),
         ('hw_x_Nms', lambda i: f'{hwp[i,0]:.6e}'),
         ('hw_y_Nms', lambda i: f'{hwp[i,1]:.6e}'),
         ('hw_z_Nms', lambda i: f'{hwp[i,2]:.6e}'),
@@ -189,9 +252,9 @@ def main():
         ('torso_pos_x_m', lambda i: f'{p_t[i,0]:.6f}'),
         ('torso_pos_y_m', lambda i: f'{p_t[i,1]:.6f}'),
         ('torso_pos_z_m', lambda i: f'{p_t[i,2]:.6f}'),
-        ('torso_pos_ref_x_m', lambda i: f'{p_tr[i,0]:.6f}'),
-        ('torso_pos_ref_y_m', lambda i: f'{p_tr[i,1]:.6f}'),
-        ('torso_pos_ref_z_m', lambda i: f'{p_tr[i,2]:.6f}'),
+        ('torso_pos_ref_x_m', lambda i: f'{torso_ref[i,0]:.6f}'),
+        ('torso_pos_ref_y_m', lambda i: f'{torso_ref[i,1]:.6f}'),
+        ('torso_pos_ref_z_m', lambda i: f'{torso_ref[i,2]:.6f}'),
         ('torso_ori_err_deg', lambda i: f'{e_to[i]:.6f}'),
         ('swing_dist_m', lambda i: f'{dsw[i]:.6f}'),
         ('swing_active', lambda i: '1' if swing_active[i] else '0'),
@@ -236,7 +299,7 @@ def main():
         'dt_s_median': dt_median,
         'dt_s_min': dt_min,
         'dt_note': ('mixed-cadence log: SS/_step rows ~0.1 s (dt_nmpc), inter-step DS rows ~0.01 s '
-                    '(dt_qp). Use the t_s column for the time axis; Hdot_s FD uses the actual t.'),
+                    '(dt_qp). Use the t_s column for the time axis.'),
         'n_ticks': n,
         'n_steps': int(sidx.max()) + 1 if n else 0,
         'robot_mass_kg': m_robot,
@@ -244,11 +307,21 @@ def main():
         'Ltot_definition': ('subtree_angmom[0] (total system angular momentum about the system CoM, '
                             'world frame), recomputed at snapshots via mj_subtreeVel — identical to the '
                             'Fix-A conservation check (audit_fixC_residual.py). Not per-tick (needs full state).'),
-        'Hdot_s_definition': ('exact origin-referenced Ḣ_s = Σ_j (r_Cj×f_j + τ_j) from the planned wrench '
-                              '(lambda_ref) + structure-frame anchors — the NMPC envelope-constraint quantity, '
-                              'read from postproc_F3F4.csv (identical to the C3 metric ‖Ḣ_s‖∞_SS=5.0 at the '
-                              'binding). proxy = exact − r_com×Σf (lever from the robot CoM, orbital omitted; '
-                              'the FLAG-2 proxy). Defined on SS/_step rows; NaN (blank) on inter-step DS.'),
+        'Hdot_s_definition': ('exact origin-referenced Ḣ_s = Σ_j (r_Cj×f_j + τ_j), structure-frame anchors. '
+                              'SS/_step ticks: PLANNED (from lambda_ref), read from postproc_F3F4.csv = the C3 '
+                              'metric ‖Ḣ_s‖∞_SS (=5.0 at the binding). inter-step DS ticks (FIX 2): REALIZED '
+                              '(from the settle-QP wrench lambda_qp), since lambda_ref is absent there — fills '
+                              'the envelope gap so Ḣ_s is DEFINED on every tick. The Hdot_s_source column tags '
+                              'each tick planned|realized. proxy = exact − r_com×Σf (robot-CoM lever, orbital '
+                              'omitted; FLAG-2 proxy), Σf from the same wrench as the exact value at that tick.'),
+        'torso_pos_ref_definition': ('FIX 1: held setpoint — in DS the realized torso pose frozen at the entry '
+                                     'of each contiguous DS block (the docked pose it holds); in SS the logged '
+                                     'NMPC/QP setpoint. Removes the (0,0,0) step=-1 sentinel + the DS phase-lag/'
+                                     'dock-IK offset ⇒ ‖torso−ref‖ is the true error (~28 mm SS, ~mm hold in DS).'),
+        'rref_definition': ('CoM reference, logged as-is (cref_r): the inter-step QP holds r_com_ref=realized '
+                            '(error ~0 in DS_interstep); the run-B DWELL moving reference is preserved; the SS '
+                            'value is the real NMPC current-tick ref (‖rcom−rref‖ = the logged e_com, the true '
+                            'CoM tracking lag). No sentinel/phase-lag here — only the torso ref needed fixing.'),
         'swing_dist_definition': ('d_grip_swing = ‖gripper_site − target_anchor‖ via _gripper_distance — the '
                                   'same gripper/anchor site pair as Fix C dock gate; meaningful when swing_active=1.'),
         'dock_events': dock_events,
@@ -263,11 +336,24 @@ def main():
     print(f'wrote {meta_path}  ({len(snaps)} conservation snapshots, {len(dock_events)} dock events, '
           f'{len(segs)} phase segments)')
     # quick sanity
+    src = np.array(Hdot_source)
+    ph_arr = np.array(phase)
+    def axpk(mask):
+        m = mask & np.all(np.isfinite(Hdot_exact), axis=1)
+        return np.round(np.nanmax(np.abs(Hdot_exact[m]), axis=0), 3) if m.any() else None
+    n_over = int((np.abs(Hdot_exact[src == 'realized']) > 5.0 + 1e-6).any(axis=1).sum())
     print(f'  m_robot={m_robot:.4f} kg  dt median={dt_median:.4f}s min={dt_min:.4f}s  '
-          f'n_steps={meta["n_steps"]}')
-    print(f'  max|Hdot_s| per-axis (SS)={np.nanmax(np.abs(Hdot_exact),axis=0)} Nm (cap 5)  '
-          f'final‖theta_s‖={np.linalg.norm(theta[-1]):.4f} deg  '
-          f'hw range=[{hwp.min():.3f},{hwp.max():.3f}] Nms')
+          f'n_steps={meta["n_steps"]}  ticks planned={int((src=="planned").sum())} '
+          f'realized={int((src=="realized").sum())} blank={int((src=="").sum())}')
+    print(f'  |Hdot_s|inf per-axis: planned(SS)={axpk(ph_arr=="SS")} '
+          f'realized(inter-step)={axpk(ph_arr=="DS_interstep")} '
+          f'FULL-CYCLE={axpk(np.ones(n,bool))} Nm (cap 5); inter-step ticks over 5: {n_over}')
+    # torso pos-peak: SS rows (true tracking) vs all (should have no artifact now)
+    tperr = np.linalg.norm(p_t - torso_ref, axis=1)
+    ss_m = ph_arr == 'SS'
+    print(f'  torso pos-peak: SS={tperr[ss_m].max()*1000:.1f}mm  DS={tperr[~ss_m].max()*1000:.1f}mm  '
+          f'(fixed ref) | final‖theta_s‖={np.linalg.norm(theta[-1]):.4f} deg '
+          f'hw range=[{hwp.min():.3f},{hwp.max():.3f}]')
     Ln = [s['Ltot_norm'] for s in snaps]
     print(f'  Ltot‖·‖ snapshots: min={min(Ln):.4e} max={max(Ln):.4e} Nms')
 
