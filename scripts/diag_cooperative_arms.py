@@ -257,7 +257,8 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
          log_dock_work: bool = False,
          ds_passivity_beta: float = None, qp_envelope_exact: bool = False,
          aocs_active_in_interstep: bool = True,
-         interstep_hw_refresh: bool = True):
+         interstep_hw_refresh: bool = True,
+         interstep_settle_alpha_wrench: float = 0.0):
     cfg = r_single._make_m7_config()
     cfg.gait_anchor_dx = anchor_dx
     # Sweet-spot config carry-over (these are also already the defaults
@@ -315,6 +316,8 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     # (default on — _step-consistent). --no-interstep-hw-refresh flips it off
     # for the byte-identical A/B (entry-frozen hw_current).
     cfg.interstep_hw_refresh = bool(interstep_hw_refresh)
+    # J2 chatter fix: settle-only α_wrench in the inter-step DS QP (0 = off).
+    cfg.interstep_settle_alpha_wrench = float(interstep_settle_alpha_wrench)
     # Stage 3 — trailing-DS torso reference uses the actual welded
     # state instead of the both-tools-at-anchors IK that gave the
     # persistent ~3.86° torso ori error.
@@ -768,6 +771,11 @@ if __name__ == '__main__':
                              'at loop entry (revert the per-tick refresh). '
                              'Default: refresh hw_current per tick (live wheel '
                              'momentum), mirroring the _step QP and c_simple(k).')
+    parser.add_argument('--interstep-settle-alpha-wrench', type=float, default=0.0,
+                        help='J2 chatter fix: settle-only α_wrench in the inter-step '
+                             'DS QP (0=off=byte-identical). >0 makes the λ-cost '
+                             'strictly convex ⇒ unique min-norm wrench, breaking the '
+                             'period-2 active-set chatter.')
     args = parser.parse_args()
 
     with open(MJCF, 'r') as f:
@@ -806,7 +814,8 @@ if __name__ == '__main__':
              ds_passivity_beta=args.ds_passivity_beta,
              qp_envelope_exact=args.qp_envelope_exact,
              aocs_active_in_interstep=args.aocs_active_in_interstep,
-             interstep_hw_refresh=args.interstep_hw_refresh)
+             interstep_hw_refresh=args.interstep_hw_refresh,
+             interstep_settle_alpha_wrench=args.interstep_settle_alpha_wrench)
     finally:
         with open(MJCF, 'w') as f:
             f.write(original)

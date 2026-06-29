@@ -75,6 +75,7 @@ def segments(sl):
 def analyze_run(tag, run_dir):
     sl, pp = load(run_dir)
     lq = np.asarray(sl['lambda_qp'], float)
+    tauw = np.asarray(sl['tau_w'], float)
     r_com = np.asarray(sl['r_com'], float)
     sp0 = np.asarray(sl['struct_pos'], float)[0]
     sq0 = np.asarray(sl['struct_quat'], float)[0]
@@ -84,17 +85,19 @@ def analyze_run(tag, run_dir):
 
     print(f"\n{'='*78}\nRUN: {tag}  ({run_dir})\n{'='*78}")
     print(f"  {'seg(step/arm)':16s} {'nticks':>6s} {'flipfrac':>9s} {'at±5':>6s} "
-          f"{'exact‖·‖med':>11s} {'proxy‖·‖med':>11s} {'orbital med':>11s} "
-          f"{'wrenchΔ med':>11s} {'Δtrend':>7s} {'vtxdist':>8s}")
+          f"{'exact‖·‖med':>11s} {'proxy‖·‖med':>11s} {'orbital med':>11s} {'‖Σf‖med':>8s} "
+          f"{'Δτ_w med':>9s} {'wrenchΔ med':>11s} {'vtxdist':>8s}")
     rows = {}
     for (step, arm, idx) in segments(sl):
         if len(idx) < 3:
             continue
         H = np.array([hdot_exact(anchors_a[sa_i[k]], anchors_b[sb_i[k]], lq[k])
                       for k in idx])           # exact Ḣ_s per tick
-        fsum = lq[idx, 0:3] + lq[idx, 6:9]
+        fsum = lq[idx, 0:3] + lq[idx, 6:9]      # net contact force Σf
         orb = np.cross(r_com[idx], fsum)        # orbital term r_com×Σf
         proxy = H - orb
+        dtauw = np.linalg.norm(np.diff(tauw[idx], axis=0), axis=1)  # τ_w tick-to-tick |Δ|
+        sigmaf = np.linalg.norm(fsum, axis=1)
         # flip-fraction: per-axis sign flips tick-to-tick; report the max axis.
         flips = [np.mean(np.sign(H[1:, a]) != np.sign(H[:-1, a])) for a in range(3)]
         flipfrac = max(flips)
@@ -106,15 +109,16 @@ def analyze_run(tag, run_dir):
         # two-vertex distance: mean λ on even vs odd ticks within the segment.
         ev = lq[idx[0::2]].mean(0); od = lq[idx[1::2]].mean(0)
         vtx = np.linalg.norm(ev - od)
-        print(f"  step{step}/{arm:1s} (n={len(idx):3d})  {len(idx):6d} {flipfrac:9.3f} "
+        print(f"  step{step}/{arm:3s} (n={len(idx):3d})  {len(idx):6d} {flipfrac:9.3f} "
               f"{at5:6.2f} {np.median(np.linalg.norm(H,axis=1)):11.3f} "
               f"{np.median(np.linalg.norm(proxy,axis=1)):11.3f} "
-              f"{np.median(np.linalg.norm(orb,axis=1)):11.3f} "
-              f"{np.median(dlam):11.3f} {trend:7.2f} {vtx:8.3f}")
+              f"{np.median(np.linalg.norm(orb,axis=1)):11.3f} {np.median(sigmaf):8.3f} "
+              f"{np.median(dtauw):9.3f} {np.median(dlam):11.3f} {vtx:8.3f}")
         rows[(step, arm)] = dict(flipfrac=flipfrac, at5=at5,
                                  exact=float(np.median(np.linalg.norm(H, axis=1))),
                                  proxy=float(np.median(np.linalg.norm(proxy, axis=1))),
                                  orbital=float(np.median(np.linalg.norm(orb, axis=1))),
+                                 sigmaf=float(np.median(sigmaf)), dtauw=float(np.median(dtauw)),
                                  dlam=float(np.median(dlam)), trend=float(trend), vtx=float(vtx),
                                  H=H, lam=lq[idx], anchors=(sa_i[idx[0]], sb_i[idx[0]]))
     return rows

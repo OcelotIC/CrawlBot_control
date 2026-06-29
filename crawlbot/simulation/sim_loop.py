@@ -778,7 +778,10 @@ class SimulationLoop:
                     v_torso_ref=np.zeros(6),
                     a_torso_ff=np.zeros(6),
                     settle_mode=True,
-                    passivity_active=True)
+                    passivity_active=True,
+                    settle_alpha_wrench=(cfg.interstep_settle_alpha_wrench
+                                         if cfg.interstep_settle_alpha_wrench > 0
+                                         else None))
                 tau = np.clip(tau, -cfg.tau_max, cfg.tau_max)
             except Exception:
                 tau = -fallback_Kd * rs.dq_joints

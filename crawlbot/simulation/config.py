@@ -155,6 +155,16 @@ class SimConfig:
     # (byte-identical to the pre-c_curr inter-step loop).
     interstep_hw_refresh: bool = True
 
+    # Chatter fix (J2): α_wrench used in the inter-step DS settle QP ONLY. The
+    # DS-settle chatter is a period-2 active-set limit cycle (diagnosis
+    # af2f64a): when the exact envelope box binds (arm-a configs), the
+    # default α_wrench≈0.01 is below the solver's degeneracy tolerance and it
+    # alternates between the two equal-norm saturating wrench vertices (A≈−B).
+    # A larger settle-only weight makes the λ-cost strictly convex ⇒ unique
+    # min-norm wrench. 0.0 ⇒ use cfg.alpha_wrench (byte-identical baseline).
+    # Applied only in _run_ds_passivity_loop (SS and the _step DWELL untouched).
+    interstep_settle_alpha_wrench: float = 0.0
+
     # When True, the gait-phase loop breaks out of the multi-step
     # traversal as soon as a step ABORTs (dock_timeout or
     # preplanner_infeasible). Subsequent steps would only observe

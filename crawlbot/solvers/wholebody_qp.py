@@ -356,6 +356,16 @@ class WholeBodyQP:
         # Piste A LOT A: per-tick passivity RHS budget (envelope-coupled,
         # computed by sim_loop). None ⇒ fall back to cfg.passivity_W_budget.
         passivity_W_budget: Optional[float] = None,
+        # Chatter fix (J2): in settle_mode, override the wrench-tracking
+        # weight α_wrench with a larger (strictly-convex) value. cfg.alpha_wrench
+        # (≈0.01) is below the active-set solver's degeneracy tolerance, so when
+        # the exact envelope box binds the solver alternates between the two
+        # equal-norm saturating vertices (A≈−B) → period-2 chatter. A larger
+        # weight makes the λ-cost strictly convex ⇒ unique min-norm wrench (the
+        # midpoint), killing the limit cycle. None ⇒ cfg.alpha_wrench
+        # (byte-identical). Passed ONLY from the inter-step settle loop, so SS
+        # and the _step DWELL are untouched.
+        settle_alpha_wrench: Optional[float] = None,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, QPSolveInfo]:
         """Solve the whole-body QP.
 
@@ -1160,7 +1170,13 @@ class WholeBodyQP:
                         self._stance_thrust_corr_max_norm,
                         float(np.linalg.norm(delta_lambda)))
 
-        qp.add_task(A_wrench, b_wrench, cfg.alpha_wrench, priority=4)
+        # Chatter fix: settle-only α_wrench boost (strictly convex ⇒ unique
+        # min-norm λ; breaks the period-2 active-set degeneracy). Localized to
+        # settle_mode and only when the caller passes an override.
+        _aw = (settle_alpha_wrench
+               if (settle_mode and settle_alpha_wrench is not None)
+               else cfg.alpha_wrench)
+        qp.add_task(A_wrench, b_wrench, _aw, priority=4)
 
         # --- Task 3c: DS internal-stress regularization ---
         # In DS both grippers are welded → contact-wrench space is 12-D
