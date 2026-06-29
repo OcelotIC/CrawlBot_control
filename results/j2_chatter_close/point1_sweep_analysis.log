@@ -1,0 +1,82 @@
+
+=== p1_c0_e0        docks=2/5 [1.9, 4.8]  max|r_com|=1.14m  abort=['dock_timeout']
+   settle        n  r_com  Σf-flip  ‖Σf‖med  jflip   jmean     T_end       exit dock_mm clean
+   step0/init   10   0.71    1.000     0.00   1.00  0.0000   3.9e-13 target_met  0.0000 no
+   step1/b3    236   0.69    0.021     0.30   0.01  0.0220   1.7e-06    plateau  0.0165 YES
+   step2/a3     80   0.99    0.987     7.02   0.99  0.1022   2.7e-03    plateau  0.0173 no
+
+=== p1_c0_e1        docks=2/5 [1.9, 4.8]  max|r_com|=1.15m  abort=['dock_timeout']
+   settle        n  r_com  Σf-flip  ‖Σf‖med  jflip   jmean     T_end       exit dock_mm clean
+   step0/init   10   0.71    0.778     0.00   1.00  0.0000   3.1e-18 target_met  0.0000 no
+   step1/b3    190   0.69    0.021     0.16   0.01  0.0271   4.1e-07    plateau  0.0174 YES
+   step2/a3     93   0.99    0.750     5.60   0.84  0.0829   2.1e-03    plateau  0.0155 no
+
+=== p1_c0_e3        docks=5/5 [1.9, 4.8, 4.9, 4.9, 4.7]  max|r_com|=1.84m  abort=[]
+   settle        n  r_com  Σf-flip  ‖Σf‖med  jflip   jmean     T_end       exit dock_mm clean
+   step0/init   10   0.71    0.222     0.00   0.00  0.0000   1.6e-19 target_met  0.0000 no
+   step1/b3    181   0.70    0.017     0.21   0.02  0.0296   2.4e-08 target_met  0.0176 YES
+   step2/a3    258   0.99    0.016     0.14   0.01  0.0143   2.4e-08 target_met  0.0133 YES
+   step3/b4    271   1.11    0.026     0.05   0.01  0.0148   2.5e-08 target_met  0.0120 YES
+   step4/a4    233   1.65    0.026     0.05   0.03  0.0137   2.4e-08 target_met  0.0114 YES
+
+=== p1_dx06_e0      docks=2/5 [1.6, 4.6]  max|r_com|=1.04m  abort=['dock_timeout']
+   settle        n  r_com  Σf-flip  ‖Σf‖med  jflip   jmean     T_end       exit dock_mm clean
+   step0/init   10   0.71    1.000     0.00   1.00  0.0000   3.9e-13 target_met  0.0000 no
+   step1/b3     77   0.72    0.211     1.91   0.26  0.0232   2.2e-04    plateau  0.0129 no
+   step2/a3     93   0.95    0.891     7.08   0.89  0.0854   3.6e-03    plateau  0.0164 no
+
+=== p1_dx06_e1      docks=4/5 [1.6, 4.5, 3.0, 4.4]  max|r_com|=1.53m  abort=['dock_timeout']
+   settle        n  r_com  Σf-flip  ‖Σf‖med  jflip   jmean     T_end       exit dock_mm clean
+   step0/init   10   0.71    0.778     0.00   1.00  0.0000   3.1e-18 target_met  0.0000 no
+   step1/b3    211   0.72    0.024     0.09   0.02  0.0075   2.4e-08 target_met  0.0126 YES
+   step2/a3    115   0.95    0.412     2.72   0.39  0.0556   2.8e-04    plateau  0.0164 no
+   step3/b4    237   1.01    0.017     0.08   0.02  0.0153   2.5e-08 target_met  0.0242 YES
+   step4/a4    116   1.38    0.452     3.69   0.46  0.0628   4.3e-04    plateau  0.0225 no
+
+=== p1_dx06_e3      docks=4/5 [1.6, 4.5, 2.9, 4.5]  max|r_com|=1.53m  abort=['dock_timeout']
+   settle        n  r_com  Σf-flip  ‖Σf‖med  jflip   jmean     T_end       exit dock_mm clean
+   step0/init   10   0.71    0.222     0.00   0.00  0.0000   1.6e-19 target_met  0.0000 no
+   step1/b3    158   0.72    0.025     0.15   0.01  0.0112   2.5e-08 target_met  0.0112 YES
+   step2/a3    260   0.95    0.012     0.20   0.01  0.0145   2.5e-08 target_met  0.0167 YES
+   step3/b4    138   1.01    0.044     0.06   0.04  0.0252   2.5e-08 target_met  0.0190 YES
+   step4/a4    376   1.39    0.011     0.08   0.01  0.0122   2.7e-08    plateau  0.0135 YES
+
+=== p1_dx09_e0      docks=0/5 []  max|r_com|=0.71m  abort=['dock_timeout']
+   settle        n  r_com  Σf-flip  ‖Σf‖med  jflip   jmean     T_end       exit dock_mm clean
+   step0/init   10   0.71    1.000     0.00   1.00  0.0000   3.9e-13 target_met  0.0000 no
+
+=== p1_dx10_e3      docks=0/5 []  max|r_com|=0.72m  abort=['dock_timeout']
+   settle        n  r_com  Σf-flip  ‖Σf‖med  jflip   jmean     T_end       exit dock_mm clean
+   step0/init   10   0.72    0.222     0.00   0.00  0.0000   1.6e-19 target_met  0.0000 no
+
+=== p1_runB_e0      docks=4/5 [1.9, 4.7, 4.9, 4.7]  max|r_com|=1.73m  abort=['dock_timeout']
+   settle        n  r_com  Σf-flip  ‖Σf‖med  jflip   jmean     T_end       exit dock_mm clean
+   step0/init   11   0.71    0.900     0.00   0.90  0.0011   3.9e-13 target_met  0.0008 no
+   step1/b3    235   0.69    0.021     0.29   0.01  0.0208   1.7e-06    plateau  0.0189 YES
+   step2/a3     76   1.00    0.907     7.15   0.97  0.0992   3.1e-03    plateau  0.0148 no
+   step3/b4    169   1.01    0.024     0.83   0.02  0.0466   3.3e-05    plateau  0.0533 YES
+   step4/a4     81   1.51    1.000     8.11   0.97  0.1100   2.2e-03    plateau  0.0361 no
+
+=== p1_runB_e1      docks=2/5 [1.9, 4.6]  max|r_com|=1.17m  abort=['dock_timeout']
+   settle        n  r_com  Σf-flip  ‖Σf‖med  jflip   jmean     T_end       exit dock_mm clean
+   step0/init   11   0.71    0.700     0.00   0.90  0.0011   3.1e-18 target_met  0.0007 no
+   step1/b3    191   0.69    0.021     0.16   0.01  0.0255   3.8e-07    plateau  0.0196 YES
+   step2/a3     94   1.00    0.731     5.72   0.80  0.0785   1.5e-03    plateau  0.0135 no
+
+=== p1_runB_e3      docks=2/5 [1.9, 4.6]  max|r_com|=1.18m  abort=['dock_timeout']
+   settle        n  r_com  Σf-flip  ‖Σf‖med  jflip   jmean     T_end       exit dock_mm clean
+   step0/init   11   0.71    0.300     0.00   0.10  0.0005   1.6e-19 target_met  0.0008 no
+   step1/b3    182   0.69    0.017     0.22   0.01  0.0280   2.4e-08 target_met  0.0193 YES
+   step2/a3    245   1.00    0.016     0.15   0.01  0.0136   2.5e-08 target_met  0.0116 YES
+
+======================================================================
+ARM-A SETTLE CLEANLINESS (the chatterers) per run
+  p1_c0_e0      : arm-a settles=1  flip=[0.99]  all_clean=False
+  p1_c0_e1      : arm-a settles=1  flip=[0.75]  all_clean=False
+  p1_c0_e3      : arm-a settles=2  flip=[0.02,0.03]  all_clean=True
+  p1_dx06_e0    : arm-a settles=1  flip=[0.89]  all_clean=False
+  p1_dx06_e1    : arm-a settles=2  flip=[0.41,0.45]  all_clean=False
+  p1_dx06_e3    : arm-a settles=2  flip=[0.01,0.01]  all_clean=True
+  p1_runB_e0    : arm-a settles=2  flip=[0.91,1.00]  all_clean=False
+  p1_runB_e1    : arm-a settles=1  flip=[0.73]  all_clean=False
+  p1_runB_e3    : arm-a settles=1  flip=[0.02]  all_clean=True
