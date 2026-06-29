@@ -165,6 +165,14 @@ class SimConfig:
     # Applied only in _run_ds_passivity_loop (SS and the _step DWELL untouched).
     interstep_settle_alpha_wrench: float = 0.0
 
+    # Chatter fix (J2, principled): explicit penalty α_Σf·‖Σf‖² on the net
+    # contact force Σf=f1+f2=m·a_com in the inter-step DS settle QP. Expresses
+    # "hold ⇒ no CoM acceleration" and removes the flat direction in the Σf
+    # sign BY CONSTRUCTION (vs the Tikhonov ‖λ‖², which only recovers Σf≈0
+    # because the two vertices are A≈−B). 0.0 ⇒ off (byte-identical). DS-settle
+    # only; passed only from _run_ds_passivity_loop.
+    interstep_settle_alpha_sigf: float = 0.0
+
     # When True, the gait-phase loop breaks out of the multi-step
     # traversal as soon as a step ABORTs (dock_timeout or
     # preplanner_infeasible). Subsequent steps would only observe

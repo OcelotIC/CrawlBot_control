@@ -258,7 +258,8 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
          ds_passivity_beta: float = None, qp_envelope_exact: bool = False,
          aocs_active_in_interstep: bool = True,
          interstep_hw_refresh: bool = True,
-         interstep_settle_alpha_wrench: float = 0.0):
+         interstep_settle_alpha_wrench: float = 0.0,
+         interstep_settle_alpha_sigf: float = 0.0):
     cfg = r_single._make_m7_config()
     cfg.gait_anchor_dx = anchor_dx
     # Sweet-spot config carry-over (these are also already the defaults
@@ -318,6 +319,8 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     cfg.interstep_hw_refresh = bool(interstep_hw_refresh)
     # J2 chatter fix: settle-only α_wrench in the inter-step DS QP (0 = off).
     cfg.interstep_settle_alpha_wrench = float(interstep_settle_alpha_wrench)
+    # J2 chatter fix (principled): settle-only Σf=f1+f2 penalty (0 = off).
+    cfg.interstep_settle_alpha_sigf = float(interstep_settle_alpha_sigf)
     # Stage 3 — trailing-DS torso reference uses the actual welded
     # state instead of the both-tools-at-anchors IK that gave the
     # persistent ~3.86° torso ori error.
@@ -776,6 +779,10 @@ if __name__ == '__main__':
                              'DS QP (0=off=byte-identical). >0 makes the λ-cost '
                              'strictly convex ⇒ unique min-norm wrench, breaking the '
                              'period-2 active-set chatter.')
+    parser.add_argument('--interstep-settle-alpha-sigf', type=float, default=0.0,
+                        help='J2 chatter fix (principled): settle-only penalty on the '
+                             'net contact force Σf=f1+f2=m·a_com (0=off). Removes the '
+                             'flat direction in the Σf sign by construction.')
     args = parser.parse_args()
 
     with open(MJCF, 'r') as f:
@@ -815,7 +822,8 @@ if __name__ == '__main__':
              qp_envelope_exact=args.qp_envelope_exact,
              aocs_active_in_interstep=args.aocs_active_in_interstep,
              interstep_hw_refresh=args.interstep_hw_refresh,
-             interstep_settle_alpha_wrench=args.interstep_settle_alpha_wrench)
+             interstep_settle_alpha_wrench=args.interstep_settle_alpha_wrench,
+             interstep_settle_alpha_sigf=args.interstep_settle_alpha_sigf)
     finally:
         with open(MJCF, 'w') as f:
             f.write(original)

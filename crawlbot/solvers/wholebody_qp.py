@@ -366,6 +366,16 @@ class WholeBodyQP:
         # (byte-identical). Passed ONLY from the inter-step settle loop, so SS
         # and the _step DWELL are untouched.
         settle_alpha_wrench: Optional[float] = None,
+        # Chatter fix (J2, principled): explicit penalty on the NET contact
+        # force Σf = f1+f2 = m·a_com. The settle holds the welded arms while
+        # dissipating joint KE ⇒ no CoM acceleration ⇒ Σf≈0. The QP cost
+        # currently leaves a FLAT direction in the sign of Σf (the chatter
+        # axis: +6 N vs −6 N equal-cost). α_Σf·‖Σf‖² removes that flat
+        # direction BY CONSTRUCTION (Σf=0 is the unique minimizer of the
+        # term), so Σf≈0 falls out of the cost rather than from min-norm
+        # selection. None ⇒ off. DS (nc==2) + settle only; passed only from
+        # the inter-step loop.
+        settle_alpha_sigf: Optional[float] = None,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, QPSolveInfo]:
         """Solve the whole-body QP.
 
@@ -1177,6 +1187,21 @@ class WholeBodyQP:
                if (settle_mode and settle_alpha_wrench is not None)
                else cfg.alpha_wrench)
         qp.add_task(A_wrench, b_wrench, _aw, priority=4)
+
+        # --- Task 3d: explicit net-force (Σf = m·a_com) penalty (chatter fix) ---
+        # Principled settle regularization: penalize the NET contact force
+        # Σf = f1 + f2 directly, expressing "hold ⇒ no CoM acceleration". This
+        # removes the flat direction in the sign of Σf at the source (Σf=0 is
+        # the unique minimizer), so Σf≈0 by construction — not via min-norm
+        # selection of the Tikhonov. Settle + DS (two contacts) only; passed
+        # only from the inter-step loop.
+        if (settle_mode and settle_alpha_sigf is not None
+                and contact_config.nc == 2):
+            lo = idx['lambda'][0]
+            A_sigf = np.zeros((3, n))
+            A_sigf[:, lo + 0: lo + 3] = np.eye(3)     # f1
+            A_sigf[:, lo + 6: lo + 9] = np.eye(3)     # f2  ⇒ A·z = f1 + f2 = Σf
+            qp.add_task(A_sigf, np.zeros(3), settle_alpha_sigf, priority=4)
 
         # --- Task 3c: DS internal-stress regularization ---
         # In DS both grippers are welded → contact-wrench space is 12-D
