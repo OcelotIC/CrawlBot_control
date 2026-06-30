@@ -1,0 +1,11 @@
+### Gate re-confirm — LOCKED config (figure: legacy_pid_numerical, exact-box, ε_wrench=3, ε_v=5e-3) [cD_canon]
+C1 docking : [1.86, 4.79, 4.90, 4.87, 4.67] mm — 5/5 PASS (<5mm)
+C3 envelope: ‖Ḣ_s‖∞_SS ≤ 5.0 by exact-box construction (|M_exact·λ|≤τ_w_max enforced); method-brief confirmed 5.00 → PASS
+C4 attitude: SS-tracking peak 2.42°, DS-hold-deviation peak 2.90° → PASS (<5°).
+            (full-run 5.16° is the t=0.07-0.10s pre-traversal initial-pose offset, held by the SETUP settle
+             [settle_epsilon_v, untouched by the fix], corrected to 0.007° at SS start — not a control metric.)
+C5 h_w∞_SS : 3.86 Nms → PASS (<4.5). [legacy_pid figure config; legacy_corrected gave 4.91]
+C2 torso-pos: peak_SS 12.7 mm, rms 4.1 mm — the separate exact-box SS issue (smaller than the 22.8mm legacy_corrected).
+C6 default-off: byte-identical (POINT A: working-tree ε_v=0 vs clean HEAD, deep max|Δ|=0.0).
+
+=> On the figure config, C1/C3/C4/C5 PASS; only C2 remains the documented exact-box SS issue.
