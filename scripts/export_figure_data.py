@@ -174,10 +174,16 @@ def main():
 
     Hdot_source = ['planned' if np.all(np.isfinite(Hdot_exact[i])) else '' for i in range(n)]
 
-    # FIX 2: realized inter-step Ḣ_s from lambda_qp + anchors (origin-referenced).
+    # FIX 2: realized Ḣ_s from lambda_qp + anchors (origin-referenced), in ALL DS
+    # phases (inter-step AND terminal). In any DS settle the NMPC is bypassed, so
+    # lambda_ref is the stale/NaN sentinel and the PLANNED reconstruction is a
+    # meaningless artifact (the terminal DS planned |Ḣ_s| spuriously rides 7.5 Nm,
+    # all ticks > 5); the REALIZED wrench lambda_qp is the physical envelope signal
+    # (terminal DS realized ≤ 5, clean). Using realized in every DS makes the
+    # full-cycle Ḣ_s sound for the envelope figure.
     anchors_a, anchors_b = load_anchors_struct_frame(model, struct_pos[0], struct_quat[0])
     for i in range(n):
-        if (phase[i] == 'DS_interstep'
+        if (phase[i] in ('DS_interstep', 'DS_terminal')
                 and 0 <= stance_a[i] < len(anchors_a)
                 and 0 <= stance_b[i] < len(anchors_b)):
             L = lam_qp[i]
@@ -309,9 +315,11 @@ def main():
                             'Fix-A conservation check (audit_fixC_residual.py). Not per-tick (needs full state).'),
         'Hdot_s_definition': ('exact origin-referenced Ḣ_s = Σ_j (r_Cj×f_j + τ_j), structure-frame anchors. '
                               'SS/_step ticks: PLANNED (from lambda_ref), read from postproc_F3F4.csv = the C3 '
-                              'metric ‖Ḣ_s‖∞_SS (=5.0 at the binding). inter-step DS ticks (FIX 2): REALIZED '
-                              '(from the settle-QP wrench lambda_qp), since lambda_ref is absent there — fills '
-                              'the envelope gap so Ḣ_s is DEFINED on every tick. The Hdot_s_source column tags '
+                              'metric ‖Ḣ_s‖∞_SS (=5.0 at the binding). ALL DS ticks (inter-step AND terminal; '
+                              'FIX 2): REALIZED (from the settle-QP wrench lambda_qp), since the NMPC is bypassed '
+                              'in DS so lambda_ref is the stale/NaN sentinel (its planned reconstruction spuriously '
+                              'rides 7.5 Nm in the terminal DS); realized lambda_qp is the physical envelope signal '
+                              '(≤5, clean) and is DEFINED on every tick. The Hdot_s_source column tags '
                               'each tick planned|realized. proxy = exact − r_com×Σf (robot-CoM lever, orbital '
                               'omitted; FLAG-2 proxy), Σf from the same wrench as the exact value at that tick.'),
         'torso_pos_ref_definition': ('FIX 1: held setpoint — in DS the realized torso pose frozen at the entry '

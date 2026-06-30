@@ -1,64 +1,66 @@
 {
-  "label": "latest-features canonical 5-step (exact box + AOCS-on + c_curr-on)",
+  "label": "LOCKED config 5-step (figure config: legacy_pid_numerical, exact box, eps=3 + eps_v=5mm/s)",
   "run_config": {
     "qp_envelope_exact": true,
     "aocs_active_in_interstep": true,
     "interstep_hw_refresh": true,
     "aocs_mode": "legacy_pid_numerical",
+    "interstep_settle_alpha_wrench": 3.0,
+    "interstep_settle_epsilon_v": 0.005,
     "n_steps": 5
   },
   "tau_w_max_Nm": 5.0,
   "hw_max_Nms": 5.0,
-  "dt_s_median": 0.09999999999999964,
+  "dt_s_median": 0.010000000000001563,
   "dt_s_min": 0.00999999999999801,
   "dt_note": "mixed-cadence log: SS/_step rows ~0.1 s (dt_nmpc), inter-step DS rows ~0.01 s (dt_qp). Use the t_s column for the time axis.",
-  "n_ticks": 773,
+  "n_ticks": 1184,
   "n_steps": 5,
   "robot_mass_kg": 71.056,
   "structure_mass_kg": 7110.0,
   "Ltot_definition": "subtree_angmom[0] (total system angular momentum about the system CoM, world frame), recomputed at snapshots via mj_subtreeVel \u2014 identical to the Fix-A conservation check (audit_fixC_residual.py). Not per-tick (needs full state).",
-  "Hdot_s_definition": "exact origin-referenced \u1e22_s = \u03a3_j (r_Cj\u00d7f_j + \u03c4_j), structure-frame anchors. SS/_step ticks: PLANNED (from lambda_ref), read from postproc_F3F4.csv = the C3 metric \u2016\u1e22_s\u2016\u221e_SS (=5.0 at the binding). inter-step DS ticks (FIX 2): REALIZED (from the settle-QP wrench lambda_qp), since lambda_ref is absent there \u2014 fills the envelope gap so \u1e22_s is DEFINED on every tick. The Hdot_s_source column tags each tick planned|realized. proxy = exact \u2212 r_com\u00d7\u03a3f (robot-CoM lever, orbital omitted; FLAG-2 proxy), \u03a3f from the same wrench as the exact value at that tick.",
+  "Hdot_s_definition": "exact origin-referenced \u1e22_s = \u03a3_j (r_Cj\u00d7f_j + \u03c4_j), structure-frame anchors. SS/_step ticks: PLANNED (from lambda_ref), read from postproc_F3F4.csv = the C3 metric \u2016\u1e22_s\u2016\u221e_SS (=5.0 at the binding). ALL DS ticks (inter-step AND terminal; FIX 2): REALIZED (from the settle-QP wrench lambda_qp), since the NMPC is bypassed in DS so lambda_ref is the stale/NaN sentinel (its planned reconstruction spuriously rides 7.5 Nm in the terminal DS); realized lambda_qp is the physical envelope signal (\u22645, clean) and is DEFINED on every tick. The Hdot_s_source column tags each tick planned|realized. proxy = exact \u2212 r_com\u00d7\u03a3f (robot-CoM lever, orbital omitted; FLAG-2 proxy), \u03a3f from the same wrench as the exact value at that tick.",
   "torso_pos_ref_definition": "FIX 1: held setpoint \u2014 in DS the realized torso pose frozen at the entry of each contiguous DS block (the docked pose it holds); in SS the logged NMPC/QP setpoint. Removes the (0,0,0) step=-1 sentinel + the DS phase-lag/dock-IK offset \u21d2 \u2016torso\u2212ref\u2016 is the true error (~28 mm SS, ~mm hold in DS).",
   "rref_definition": "CoM reference, logged as-is (cref_r): the inter-step QP holds r_com_ref=realized (error ~0 in DS_interstep); the run-B DWELL moving reference is preserved; the SS value is the real NMPC current-tick ref (\u2016rcom\u2212rref\u2016 = the logged e_com, the true CoM tracking lag). No sentinel/phase-lag here \u2014 only the torso ref needed fixing.",
   "swing_dist_definition": "d_grip_swing = \u2016gripper_site \u2212 target_anchor\u2016 via _gripper_distance \u2014 the same gripper/anchor site pair as Fix C dock gate; meaningful when swing_active=1.",
   "dock_events": [
     {
       "step_index": 0,
-      "tick": 42,
-      "t": 3.31,
-      "dock_distance_mm": 4.94,
+      "tick": 38,
+      "t": 2.91,
+      "dock_distance_mm": 1.86,
       "arm": "b",
       "anchor": 3
     },
     {
       "step_index": 1,
-      "tick": 227,
-      "t": 12.73,
-      "dock_distance_mm": 4.44,
+      "tick": 263,
+      "t": 12.64,
+      "dock_distance_mm": 4.79,
       "arm": "a",
       "anchor": 3
     },
     {
       "step_index": 2,
-      "tick": 313,
-      "t": 16.84,
-      "dock_distance_mm": 4.99,
+      "tick": 573,
+      "t": 25.56,
+      "dock_distance_mm": 4.9,
       "arm": "b",
       "anchor": 4
     },
     {
       "step_index": 3,
-      "tick": 492,
-      "t": 25.84,
-      "dock_distance_mm": 4.64,
+      "tick": 791,
+      "t": 35.4,
+      "dock_distance_mm": 4.87,
       "arm": "a",
       "anchor": 4
     },
     {
       "step_index": 4,
-      "tick": 573,
-      "t": 29.45,
-      "dock_distance_mm": 4.73,
+      "tick": 984,
+      "t": 41.03,
+      "dock_distance_mm": 4.67,
       "arm": "b",
       "anchor": 5
     }
@@ -74,61 +76,61 @@
       "phase": "SS",
       "step_index": 0,
       "tick_start": 10,
-      "tick_end": 41
+      "tick_end": 37
     },
     {
       "phase": "DS_interstep",
       "step_index": 0,
-      "tick_start": 42,
-      "tick_end": 142
+      "tick_start": 38,
+      "tick_end": 179
     },
     {
       "phase": "SS",
       "step_index": 1,
-      "tick_start": 143,
-      "tick_end": 226
+      "tick_start": 180,
+      "tick_end": 262
     },
     {
       "phase": "DS_interstep",
       "step_index": 1,
-      "tick_start": 227,
-      "tick_end": 276
+      "tick_start": 263,
+      "tick_end": 463
     },
     {
       "phase": "SS",
       "step_index": 2,
-      "tick_start": 277,
-      "tick_end": 312
+      "tick_start": 464,
+      "tick_end": 572
     },
     {
       "phase": "DS_interstep",
       "step_index": 2,
-      "tick_start": 313,
-      "tick_end": 411
+      "tick_start": 573,
+      "tick_end": 705
     },
     {
       "phase": "SS",
       "step_index": 3,
-      "tick_start": 412,
-      "tick_end": 491
+      "tick_start": 706,
+      "tick_end": 790
     },
     {
       "phase": "DS_interstep",
       "step_index": 3,
-      "tick_start": 492,
-      "tick_end": 541
+      "tick_start": 791,
+      "tick_end": 942
     },
     {
       "phase": "SS",
       "step_index": 4,
-      "tick_start": 542,
-      "tick_end": 572
+      "tick_start": 943,
+      "tick_end": 983
     },
     {
       "phase": "DS_terminal",
       "step_index": 4,
-      "tick_start": 573,
-      "tick_end": 772
+      "tick_start": 984,
+      "tick_end": 1183
     }
   ],
   "conservation_snapshots": [
@@ -144,101 +146,101 @@
     {
       "label": "release_step0",
       "t": 0.11,
-      "Ltot_x": 2.7267524992152214e-18,
-      "Ltot_y": 2.98515007409668e-17,
-      "Ltot_z": 1.095638399403387e-17,
-      "Ltot_norm": 3.1915350944406664e-17,
+      "Ltot_x": -4.308073760243375e-21,
+      "Ltot_y": -4.531035084088537e-21,
+      "Ltot_z": 4.731061129084176e-21,
+      "Ltot_norm": 7.840453932271393e-21,
       "tick": 10
     },
     {
       "label": "dock_step0",
-      "t": 3.31,
-      "Ltot_x": -2.8895645205182278e-06,
-      "Ltot_y": 8.760494912035742e-06,
-      "Ltot_z": -1.316043605888986e-06,
-      "Ltot_norm": 9.318144933120709e-06,
-      "tick": 42
+      "t": 2.91,
+      "Ltot_x": -5.128484564000113e-07,
+      "Ltot_y": 1.7702127501923598e-06,
+      "Ltot_z": -2.214510555318891e-06,
+      "Ltot_norm": 2.8810976588436317e-06,
+      "tick": 38
     },
     {
       "label": "release_step1",
-      "t": 4.33,
-      "Ltot_x": -0.0010092060925061402,
-      "Ltot_y": 0.0001649996650681372,
-      "Ltot_z": 0.0009132228795369647,
-      "Ltot_norm": 0.0013710207344653455,
-      "tick": 143
+      "t": 4.34,
+      "Ltot_x": 0.00014105059979868472,
+      "Ltot_y": -0.0001660065811880282,
+      "Ltot_z": 0.0005470589066192969,
+      "Ltot_norm": 0.000588835209555956,
+      "tick": 180
     },
     {
       "label": "dock_step1",
-      "t": 12.73,
-      "Ltot_x": -0.0010091988347923873,
-      "Ltot_y": 0.00016533192489338693,
-      "Ltot_z": 0.0009136123654925913,
-      "Ltot_norm": 0.0013713148755542008,
-      "tick": 227
+      "t": 12.64,
+      "Ltot_x": 0.00014112972139735834,
+      "Ltot_y": -0.00016574611385850122,
+      "Ltot_z": 0.0005467641950892884,
+      "Ltot_norm": 0.000588506973240359,
+      "tick": 263
     },
     {
       "label": "release_step2",
-      "t": 13.24,
-      "Ltot_x": -0.0014299305508697739,
-      "Ltot_y": 0.00028790999140974514,
-      "Ltot_z": 0.0007175401378678808,
-      "Ltot_norm": 0.001625563715427898,
-      "tick": 277
+      "t": 14.66,
+      "Ltot_x": -0.0003483596894216849,
+      "Ltot_y": -0.00016700358556183745,
+      "Ltot_z": 0.00046067941594281445,
+      "Ltot_norm": 0.0006012239142598166,
+      "tick": 464
     },
     {
       "label": "dock_step2",
-      "t": 16.84,
-      "Ltot_x": -0.0014305295427467486,
-      "Ltot_y": 0.0002919230090507603,
-      "Ltot_z": 0.0007140625496625259,
-      "Ltot_norm": 0.001625275096934368,
-      "tick": 313
-    },
-    {
-      "label": "release_step3",
-      "t": 17.84,
-      "Ltot_x": -0.001809460295463972,
-      "Ltot_y": 0.00043641151905244696,
-      "Ltot_z": 0.0011328185980466513,
-      "Ltot_norm": 0.00217896295308172,
-      "tick": 412
-    },
-    {
-      "label": "dock_step3",
-      "t": 25.84,
-      "Ltot_x": -0.001809454439768368,
-      "Ltot_y": 0.00043679344048481636,
-      "Ltot_z": 0.0011332473298470062,
-      "Ltot_norm": 0.0021792575317876937,
-      "tick": 492
-    },
-    {
-      "label": "release_step4",
-      "t": 26.35,
-      "Ltot_x": -0.0022323346466423255,
-      "Ltot_y": 0.0005288110370043905,
-      "Ltot_z": 0.0010174028779146626,
-      "Ltot_norm": 0.0025095951273953363,
-      "tick": 542
-    },
-    {
-      "label": "dock_step4",
-      "t": 29.45,
-      "Ltot_x": -0.002231718554105899,
-      "Ltot_y": 0.0005296523047331201,
-      "Ltot_z": 0.0010106874355558862,
-      "Ltot_norm": 0.002506509198275595,
+      "t": 25.56,
+      "Ltot_x": -0.0003262805990428899,
+      "Ltot_y": -0.00015513780283892692,
+      "Ltot_z": 0.00045758478822802845,
+      "Ltot_norm": 0.0005830185293789268,
       "tick": 573
     },
     {
+      "label": "release_step3",
+      "t": 26.9,
+      "Ltot_x": 0.000728381081827266,
+      "Ltot_y": 8.724414598020234e-05,
+      "Ltot_z": -0.00015774131715684005,
+      "Ltot_norm": 0.0007503551589147955,
+      "tick": 706
+    },
+    {
+      "label": "dock_step3",
+      "t": 35.4,
+      "Ltot_x": 0.0007282947654351332,
+      "Ltot_y": 8.584486768016542e-05,
+      "Ltot_z": -0.00015629406675148083,
+      "Ltot_norm": 0.0007498069364636187,
+      "tick": 791
+    },
+    {
+      "label": "release_step4",
+      "t": 36.93,
+      "Ltot_x": 0.00031967912054158833,
+      "Ltot_y": 0.0001487530750238162,
+      "Ltot_z": -0.00029030347277445067,
+      "Ltot_norm": 0.00045672565479091566,
+      "tick": 943
+    },
+    {
+      "label": "dock_step4",
+      "t": 41.03,
+      "Ltot_x": 0.0003191099854848514,
+      "Ltot_y": 0.00014942088576092635,
+      "Ltot_z": -0.00028913839043159806,
+      "Ltot_norm": 0.00045580565239924036,
+      "tick": 984
+    },
+    {
       "label": "final",
-      "t": 49.45,
-      "Ltot_x": -0.0025208456612148527,
-      "Ltot_y": 0.000455353380707397,
-      "Ltot_z": 0.001536141322003221,
-      "Ltot_norm": 0.0029869281394357657,
-      "tick": 772
+      "t": 61.03,
+      "Ltot_x": 0.000601370519079443,
+      "Ltot_y": 0.0007617545666199399,
+      "Ltot_z": 0.0010050530438043311,
+      "Ltot_norm": 0.001397157164332117,
+      "tick": 1183
     }
   ]
 }
