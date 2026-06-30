@@ -80,6 +80,13 @@ class SimulationLoop:
         self.sched = None
         self.swing_planner = None
         self.torso_planner = None
+        # Global flat torso-orientation reference = R_torso(t=0), structure
+        # frame. Captured ONCE at the start of run() and sourced at every
+        # phase (SS dock-IK / hold / swing-end, DS holds) instead of
+        # re-sampling live torso state — so the orientation reference is
+        # continuous by construction (eliminates the CASE-B per-phase
+        # re-anchoring; see ORI_CHAIN_CONTINUITY_DIAG.md).
+        self._R_torso_flat = None
         self.nmpc = None
         self.qp_ss = None
         self._weld_map = {}
@@ -1475,7 +1482,7 @@ class SimulationLoop:
                 q_fixed, err_fixed, w_fixed, w_sigma_min_fixed = (
                     dock_configuration_fixed_rotation(
                         model, se3_a, se3_b,
-                        R_torso_fixed=R_t0,
+                        R_torso_fixed=self._R_torso_flat,
                         torso_pos=0.5 * (se3_a.translation + se3_b.translation),
                         q_init=pq_live.copy(),
                         com_z_target=(cfg.com_z_standoff
@@ -1673,7 +1680,9 @@ class SimulationLoop:
         #    accumulated during the singular window without
         #    simultaneously tracking a moving target.
         self.torso_planner.clear_phases()
-        self.torso_planner.set_hold(p_t0, R_t0, r_com=r_com0)
+        # Orientation reference = global R_flat (NOT live R_t0); position/CoM
+        # held-setpoint (p_t0, r_com0) unchanged.
+        self.torso_planner.set_hold(p_t0, self._R_torso_flat, r_com=r_com0)
         # Mid-waypoint args are passed only when the reshape
         # succeeded — otherwise the call falls through to the legacy
         # single-quintic add_phase signature (byte-identical to the
@@ -1734,9 +1743,14 @@ class SimulationLoop:
             fk_swing_extra['q_seq'] = fk_q_seq
             fk_swing_extra['frame_swing'] = fid_swing_fk
 
+        # Orientation: R_start = R_end = R_flat (R_t1 == R_flat via the
+        # R_torso_fixed=R_flat dock-IK above), so the SS orientation reference
+        # is the constant global R_flat — zero DS<->SS seam, and the QP closes
+        # any residual torso drift back to R_flat during the swing. Position
+        # (p_t0->p_t1) and delta_com still advance as before.
         self.torso_planner.add_phase(
             t_ss_start, t_ss_start + T_step,
-            p_t0, R_t0, p_t1, R_t1,
+            p_t0, self._R_torso_flat, p_t1, R_t1,
             **torso_phase_kwargs, **fk_torso_extra)
         # Install the swing-EE phase override when mid-waypoint
         # reshape succeeded OR FK mode is on. Endpoints come from FK
@@ -1948,6 +1962,25 @@ class SimulationLoop:
         t = 0.0
         L_com_prev = None
 
+        # Capture R_torso(t=0) ONCE as the global flat orientation reference
+        # (structure frame). Sourced at all phases below (NOT re-sampled from
+        # live state), so the orientation reference never re-anchors on an FSM
+        # boundary. R_flat is the real mounting orientation (rpy ~ 0,0,-5.16°),
+        # NOT identity — holding it imposes no frame convention and snaps
+        # nothing at t=0.
+        _pq_flat, _pv_flat = mujoco_to_pinocchio(
+            self.mj_data.qpos, self.mj_data.qvel)
+        _rs_flat = self.robot.update(_pq_flat, _pv_flat)
+        self._R_torso_flat = _rs_flat.oMf_torso.rotation.copy()
+        # Seed the hold so the initial DS (before the first step's setup)
+        # already references R_flat + the initial torso pose, instead of the
+        # identity/(0,0,0) sentinel that _hold_reference returns when nothing
+        # is set (which otherwise shows a one-time ~5.16° init jump at the
+        # first DS->SS). The first _setup_torso_for_step overwrites this.
+        self.torso_planner.set_hold(
+            _rs_flat.oMf_torso.translation.copy(), self._R_torso_flat,
+            r_com=_rs_flat.r_com.copy())
+
         # Parse phases: DS-SS pairs
         phases = plan.phases
         step_idx = 0
@@ -2087,10 +2120,11 @@ class SimulationLoop:
                                       if nrm > 1e-6 else np.zeros(3))
                             # CoM + torso position translate by `offset`
                             # (constant δ_com ⇒ r_com(t)=p(t)+R·δ translates);
-                            # orientation held (R0 at both waypoints).
+                            # orientation held at global R_flat (both waypoints).
                             self.torso_planner.set_from_waypoints(
                                 t, t_dwell_end,
-                                [(p0, R0), (p0 + offset, R0)],
+                                [(p0, self._R_torso_flat),
+                                 (p0 + offset, self._R_torso_flat)],
                                 [com0, com0 + offset])
                             if verbose:
                                 print(f"  DS-mobile: CoM +{nrm and cfg.ds_mobile_com_magnitude:.3f}m "
@@ -2098,7 +2132,7 @@ class SimulationLoop:
                         else:
                             self.torso_planner.set_hold(
                                 rs_d.oMf_torso.translation.copy(),
-                                rs_d.oMf_torso.rotation.copy(),
+                                self._R_torso_flat.copy(),
                                 r_com=rs_d.r_com.copy())
                         # Use stance pair from the upcoming SS phase as the
                         # contact config (both arms welded → DOUBLE).
@@ -2478,7 +2512,7 @@ class SimulationLoop:
                     if _use_state:
                         self.torso_planner.set_hold(
                             rs_hold.oMf_torso.translation.copy(),
-                            rs_hold.oMf_torso.rotation.copy(),
+                            self._R_torso_flat.copy(),
                             r_com=rs_hold.r_com.copy())
                     else:
                         try:
@@ -2490,13 +2524,14 @@ class SimulationLoop:
                             rs_eq = self.robot.update(q_eq, np.zeros(self.robot.model.nv))
                             self.torso_planner.set_hold(
                                 rs_eq.oMf_torso.translation.copy(),
-                                rs_eq.oMf_torso.rotation.copy(),
+                                self._R_torso_flat.copy(),
                                 r_com=rs_eq.r_com.copy())
                         except RuntimeError:
-                            # IK failed — fall back to current state
+                            # IK failed — fall back to current torso POSITION;
+                            # orientation still the global R_flat.
                             self.torso_planner.set_hold(
                                 rs_hold.oMf_torso.translation.copy(),
-                                rs_hold.oMf_torso.rotation.copy(),
+                                self._R_torso_flat.copy(),
                                 r_com=rs_hold.r_com.copy())
 
                     # H_DS3 diagnostic override — disable the passivity
