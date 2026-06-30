@@ -1,0 +1,21 @@
+==========================================================================
+CANONICAL re-validation metrics
+  csv : results/j2_figdata/runA_traversal.csv  (905 ticks)
+  meta: results/j2_figdata/runA_meta.json
+  label: CANONICAL config 5-step (run_figdata.sh COMMON + chatter fix eps=3, eps_v=5mm/s)
+  run_config: {"ss_two_task": true, "ss_alpha_mom": 5000, "alpha_torso_pose": 24000, "ss_kp_torso": 3, "ss_kd_torso": 2.5, "K_omega": 50, "aocs_mode": "legacy_pid_numerical", "qp_envelope_exact": true, "aocs_active_in_interstep": true, "interstep_hw_refresh": true, "interstep_settle_alpha_wrench": 3.0, "interstep_settle_epsilon_v": 0.005, "n_steps": 5}
+==========================================================================
+C1 docking : [4.94, 4.45, 4.94, 4.65, 4.84] mm  arms=['b3', 'a3', 'b4', 'a4', 'b5']  -> PASS (5/5 <=5mm; worst margin 0.06mm)
+C2 torso-pos SS: peak 23.0 mm  rms 9.3 mm (median 7.8)
+C3 envelope: ||Hdot_s||inf_SS(planned) = 5.000  -> PASS (<=5) [SS ticks>5: 0]
+   full-cycle (SS planned + DS realized): max 5.000  ticks>5: 0/905
+C4 attitude: peak|theta_s|inf full-run 0.47 deg  SS 0.47  DS 0.46  -> PASS (<5); first tick 0.00 (init offset)
+C5 h_w∞    : full-run 4.930 Nms  SS 4.930  -> FAIL (<=4.5)
+terminal   : ||hw|| 0.338 Nms  ||theta_s|| 0.086 deg (last tick t=50.940000s, phase DS_terminal)
+CoM e_com SS: median 47.1 mm  max 95.1 mm
+tau_w      : full-run max 5.000 Nm  DS max 5.000  SS max 5.000 (limit 5)
+torso drift vs t=0 (raw results/figA_canon, 905 ticks):
+   structure-frame: peak 0.721 deg  final 0.721 deg
+   world-frame    : peak 0.992 deg  final 0.747 deg
+   context theta_s : peak 0.471  final 0.086
+==========================================================================

@@ -1,0 +1,30 @@
+
+=== figA_canon      docks=5/5 [4.9, 4.5, 4.9, 4.7, 4.8]  max|r_com|=1.81m  abort=[]
+   settle        n  r_com  Σf-flip  ‖Σf‖med  jflip   jmean     T_end       exit dock_mm clean
+   step0/init   10   0.71    0.222     0.00   0.00  0.0000   1.6e-19 target_met  0.0000 no
+   step1/b3    129   0.68    0.031     0.33   0.02  0.0321   6.1e-07 target_met  0.0122 YES
+   step2/a3     50   1.01    0.061     0.93   0.08  0.0527   3.9e-04    plateau  0.0088 YES
+   step3/b4    132   1.13    0.038     0.31   0.02  0.0281   5.8e-07 target_met  0.0065 YES
+   step4/a4    118   1.63    0.034     0.33   0.02  0.0257   6.3e-07 target_met  0.0092 YES
+
+=== figA_canon_e0   docks=5/5 [4.9, 4.4, 5.0, 4.6, 4.7]  max|r_com|=1.81m  abort=[]
+   settle        n  r_com  Σf-flip  ‖Σf‖med  jflip   jmean     T_end       exit dock_mm clean
+   step0/init   10   0.71    1.000     0.00   1.00  0.0000   3.9e-13 target_met  0.0000 no
+   step1/b3    101   0.68    0.030     1.33   0.02  0.0370   7.8e-05    plateau  0.0114 no
+   step2/a3     50   1.01    0.898     6.90   0.92  0.0992   2.2e-03    plateau  0.0096 no
+   step3/b4     99   1.13    0.041     1.24   0.02  0.0356   6.8e-05    plateau  0.0074 no
+   step4/a4     50   1.63    0.980     6.88   1.00  0.0990   2.0e-03    plateau  0.0091 no
+
+=== figA_canon_e1   docks=5/5 [4.9, 4.5, 5.0, 4.6, 4.9]  max|r_com|=1.81m  abort=[]
+   settle        n  r_com  Σf-flip  ‖Σf‖med  jflip   jmean     T_end       exit dock_mm clean
+   step0/init   10   0.71    0.778     0.00   1.00  0.0000   3.1e-18 target_met  0.0000 no
+   step1/b3    187   0.68    0.022     0.15   0.02  0.0214   1.0e-06    plateau  0.0121 YES
+   step2/a3     50   1.01    0.694     5.30   0.71  0.0831   2.0e-03    plateau  0.0098 no
+   step3/b4    178   1.13    0.034     0.17   0.02  0.0209   1.5e-06    plateau  0.0072 YES
+   step4/a4     50   1.63    0.612     3.17   0.47  0.0758   5.5e-04    plateau  0.0096 no
+
+======================================================================
+ARM-A SETTLE CLEANLINESS (the chatterers) per run
+  figA_canon    : arm-a settles=2  flip=[0.06,0.03]  all_clean=True
+  figA_canon_e0 : arm-a settles=2  flip=[0.90,0.98]  all_clean=False
+  figA_canon_e1 : arm-a settles=2  flip=[0.69,0.61]  all_clean=False
