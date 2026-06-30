@@ -1,20 +1,26 @@
 {
-  "label": "LOCKED config 5-step (figure config: legacy_pid_numerical, exact box, eps=3 + eps_v=5mm/s)",
+  "label": "CANONICAL config 5-step (run_figdata.sh COMMON + chatter fix eps=3, eps_v=5mm/s)",
   "run_config": {
+    "ss_two_task": true,
+    "ss_alpha_mom": 5000,
+    "alpha_torso_pose": 24000,
+    "ss_kp_torso": 3,
+    "ss_kd_torso": 2.5,
+    "K_omega": 50,
+    "aocs_mode": "legacy_pid_numerical",
     "qp_envelope_exact": true,
     "aocs_active_in_interstep": true,
     "interstep_hw_refresh": true,
-    "aocs_mode": "legacy_pid_numerical",
     "interstep_settle_alpha_wrench": 3.0,
     "interstep_settle_epsilon_v": 0.005,
     "n_steps": 5
   },
   "tau_w_max_Nm": 5.0,
   "hw_max_Nms": 5.0,
-  "dt_s_median": 0.010000000000001563,
+  "dt_s_median": 0.09999999999999964,
   "dt_s_min": 0.00999999999999801,
   "dt_note": "mixed-cadence log: SS/_step rows ~0.1 s (dt_nmpc), inter-step DS rows ~0.01 s (dt_qp). Use the t_s column for the time axis.",
-  "n_ticks": 1184,
+  "n_ticks": 905,
   "n_steps": 5,
   "robot_mass_kg": 71.056,
   "structure_mass_kg": 7110.0,
@@ -26,41 +32,41 @@
   "dock_events": [
     {
       "step_index": 0,
-      "tick": 38,
-      "t": 2.91,
-      "dock_distance_mm": 1.86,
+      "tick": 42,
+      "t": 3.31,
+      "dock_distance_mm": 4.94,
       "arm": "b",
       "anchor": 3
     },
     {
       "step_index": 1,
-      "tick": 263,
-      "t": 12.64,
-      "dock_distance_mm": 4.79,
+      "tick": 255,
+      "t": 13.01,
+      "dock_distance_mm": 4.45,
       "arm": "a",
       "anchor": 3
     },
     {
       "step_index": 2,
-      "tick": 573,
-      "t": 25.56,
-      "dock_distance_mm": 4.9,
+      "tick": 341,
+      "t": 17.12,
+      "dock_distance_mm": 4.94,
       "arm": "b",
       "anchor": 4
     },
     {
       "step_index": 3,
-      "tick": 791,
-      "t": 35.4,
-      "dock_distance_mm": 4.87,
+      "tick": 553,
+      "t": 26.45,
+      "dock_distance_mm": 4.65,
       "arm": "a",
       "anchor": 4
     },
     {
       "step_index": 4,
-      "tick": 984,
-      "t": 41.03,
-      "dock_distance_mm": 4.67,
+      "tick": 705,
+      "t": 31.04,
+      "dock_distance_mm": 4.84,
       "arm": "b",
       "anchor": 5
     }
@@ -76,61 +82,61 @@
       "phase": "SS",
       "step_index": 0,
       "tick_start": 10,
-      "tick_end": 37
+      "tick_end": 41
     },
     {
       "phase": "DS_interstep",
       "step_index": 0,
-      "tick_start": 38,
-      "tick_end": 179
+      "tick_start": 42,
+      "tick_end": 170
     },
     {
       "phase": "SS",
       "step_index": 1,
-      "tick_start": 180,
-      "tick_end": 262
+      "tick_start": 171,
+      "tick_end": 254
     },
     {
       "phase": "DS_interstep",
       "step_index": 1,
-      "tick_start": 263,
-      "tick_end": 463
+      "tick_start": 255,
+      "tick_end": 304
     },
     {
       "phase": "SS",
       "step_index": 2,
-      "tick_start": 464,
-      "tick_end": 572
+      "tick_start": 305,
+      "tick_end": 340
     },
     {
       "phase": "DS_interstep",
       "step_index": 2,
-      "tick_start": 573,
-      "tick_end": 705
+      "tick_start": 341,
+      "tick_end": 472
     },
     {
       "phase": "SS",
       "step_index": 3,
-      "tick_start": 706,
-      "tick_end": 790
+      "tick_start": 473,
+      "tick_end": 552
     },
     {
       "phase": "DS_interstep",
       "step_index": 3,
-      "tick_start": 791,
-      "tick_end": 942
+      "tick_start": 553,
+      "tick_end": 670
     },
     {
       "phase": "SS",
       "step_index": 4,
-      "tick_start": 943,
-      "tick_end": 983
+      "tick_start": 671,
+      "tick_end": 704
     },
     {
       "phase": "DS_terminal",
       "step_index": 4,
-      "tick_start": 984,
-      "tick_end": 1183
+      "tick_start": 705,
+      "tick_end": 904
     }
   ],
   "conservation_snapshots": [
@@ -154,93 +160,93 @@
     },
     {
       "label": "dock_step0",
-      "t": 2.91,
-      "Ltot_x": -5.128484564000113e-07,
-      "Ltot_y": 1.7702127501923598e-06,
-      "Ltot_z": -2.214510555318891e-06,
-      "Ltot_norm": 2.8810976588436317e-06,
-      "tick": 38
+      "t": 3.31,
+      "Ltot_x": -2.8895655878961304e-06,
+      "Ltot_y": 8.760494386102278e-06,
+      "Ltot_z": -1.3160433865404665e-06,
+      "Ltot_norm": 9.318144738677327e-06,
+      "tick": 42
     },
     {
       "label": "release_step1",
-      "t": 4.34,
-      "Ltot_x": 0.00014105059979868472,
-      "Ltot_y": -0.0001660065811880282,
-      "Ltot_z": 0.0005470589066192969,
-      "Ltot_norm": 0.000588835209555956,
-      "tick": 180
+      "t": 4.61,
+      "Ltot_x": -0.000860337097174422,
+      "Ltot_y": 0.00015202316397131398,
+      "Ltot_z": 0.0008189313258295446,
+      "Ltot_norm": 0.0011974721205870705,
+      "tick": 171
     },
     {
       "label": "dock_step1",
-      "t": 12.64,
-      "Ltot_x": 0.00014112972139735834,
-      "Ltot_y": -0.00016574611385850122,
-      "Ltot_z": 0.0005467641950892884,
-      "Ltot_norm": 0.000588506973240359,
-      "tick": 263
+      "t": 13.01,
+      "Ltot_x": -0.0008603205274862735,
+      "Ltot_y": 0.00015247011696993486,
+      "Ltot_z": 0.0008194285797956903,
+      "Ltot_norm": 0.0011978571467287189,
+      "tick": 255
     },
     {
       "label": "release_step2",
-      "t": 14.66,
-      "Ltot_x": -0.0003483596894216849,
-      "Ltot_y": -0.00016700358556183745,
-      "Ltot_z": 0.00046067941594281445,
-      "Ltot_norm": 0.0006012239142598166,
-      "tick": 464
+      "t": 13.52,
+      "Ltot_x": -0.0012864153290102279,
+      "Ltot_y": 0.0002758556570632961,
+      "Ltot_z": 0.0006291006340409116,
+      "Ltot_norm": 0.0014583306723774936,
+      "tick": 305
     },
     {
       "label": "dock_step2",
-      "t": 25.56,
-      "Ltot_x": -0.0003262805990428899,
-      "Ltot_y": -0.00015513780283892692,
-      "Ltot_z": 0.00045758478822802845,
-      "Ltot_norm": 0.0005830185293789268,
-      "tick": 573
+      "t": 17.12,
+      "Ltot_x": -0.0012871584529838337,
+      "Ltot_y": 0.00028015356020903335,
+      "Ltot_z": 0.0006263459250740516,
+      "Ltot_norm": 0.00145861993618708,
+      "tick": 341
     },
     {
       "label": "release_step3",
-      "t": 26.9,
-      "Ltot_x": 0.000728381081827266,
-      "Ltot_y": 8.724414598020234e-05,
-      "Ltot_z": -0.00015774131715684005,
-      "Ltot_norm": 0.0007503551589147955,
-      "tick": 706
+      "t": 18.45,
+      "Ltot_x": -0.001683699069831421,
+      "Ltot_y": 0.00041544223107901283,
+      "Ltot_z": 0.0010143005706984174,
+      "Ltot_norm": 0.002009039684235788,
+      "tick": 473
     },
     {
       "label": "dock_step3",
-      "t": 35.4,
-      "Ltot_x": 0.0007282947654351332,
-      "Ltot_y": 8.584486768016542e-05,
-      "Ltot_z": -0.00015629406675148083,
-      "Ltot_norm": 0.0007498069364636187,
-      "tick": 791
+      "t": 26.45,
+      "Ltot_x": -0.0016836871336995147,
+      "Ltot_y": 0.0004159268433268821,
+      "Ltot_z": 0.001014847151197104,
+      "Ltot_norm": 0.002009405942928912,
+      "tick": 553
     },
     {
       "label": "release_step4",
-      "t": 36.93,
-      "Ltot_x": 0.00031967912054158833,
-      "Ltot_y": 0.0001487530750238162,
-      "Ltot_z": -0.00029030347277445067,
-      "Ltot_norm": 0.00045672565479091566,
-      "tick": 943
+      "t": 27.64,
+      "Ltot_x": -0.0021247974962023083,
+      "Ltot_y": 0.0005146216519115144,
+      "Ltot_z": 0.0008918503987033911,
+      "Ltot_norm": 0.0023611431507113523,
+      "tick": 671
     },
     {
       "label": "dock_step4",
-      "t": 41.03,
-      "Ltot_x": 0.0003191099854848514,
-      "Ltot_y": 0.00014942088576092635,
-      "Ltot_z": -0.00028913839043159806,
-      "Ltot_norm": 0.00045580565239924036,
-      "tick": 984
+      "t": 31.04,
+      "Ltot_x": -0.002124581512953306,
+      "Ltot_y": 0.0005164485785471751,
+      "Ltot_z": 0.0008865688428887205,
+      "Ltot_norm": 0.0023593579746717963,
+      "tick": 705
     },
     {
       "label": "final",
-      "t": 61.03,
-      "Ltot_x": 0.000601370519079443,
-      "Ltot_y": 0.0007617545666199399,
-      "Ltot_z": 0.0010050530438043311,
-      "Ltot_norm": 0.001397157164332117,
-      "tick": 1183
+      "t": 51.04,
+      "Ltot_x": -0.0025000739840280273,
+      "Ltot_y": 0.0005400133724570752,
+      "Ltot_z": 0.0014937420149282454,
+      "Ltot_norm": 0.002961967179968092,
+      "tick": 904
     }
   ]
 }
