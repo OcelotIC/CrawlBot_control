@@ -157,6 +157,16 @@ class WholeBodyQPConfig:
 
     # ── Passivity constraint (DS only) ──
     alpha_passivity: float = 1.0  # Energy decay rate α [1/s] (α < 50 at 100 Hz)
+    # Dock-floor audit: a CONSTANT positive work budget added to the
+    # passivity RHS:  dqⱼᵀτ_q + 2α·T_kin ≤ W_budget  (vs strict ≤0). This is
+    # a provisional relaxation knob to probe whether positive joint work
+    # changes the achievable dock distance — NOT the envelope-coupled
+    # Piste A. Default 0.0 ⇒ strict (unchanged).
+    passivity_W_budget: float = 0.0
+    # Piste A LOT B (FLAG 2): use the EXACT origin-referenced Ḣ_s in the
+    # momentum-rate envelope box (|M_exact·λ| ≤ τ_w_max) instead of the
+    # |M_λ·λ| proxy. Default False ⇒ proxy box (byte-identical).
+    qp_envelope_exact: bool = False
 
     # ── M5: soft slack on momentum safety backup constraint ──
     # Replaces the hard inequality h_w(k+1) ∈ [h_min, h_max] with
@@ -343,6 +353,29 @@ class WholeBodyQP:
         # Intended to be ON during DS phase only (see §3.6, §5.7).
         passivity_active: bool = False,
         ds_centroidal_active: bool = False,
+        # Piste A LOT A: per-tick passivity RHS budget (envelope-coupled,
+        # computed by sim_loop). None ⇒ fall back to cfg.passivity_W_budget.
+        passivity_W_budget: Optional[float] = None,
+        # Chatter fix (J2): in settle_mode, override the wrench-tracking
+        # weight α_wrench with a larger (strictly-convex) value. cfg.alpha_wrench
+        # (≈0.01) is below the active-set solver's degeneracy tolerance, so when
+        # the exact envelope box binds the solver alternates between the two
+        # equal-norm saturating vertices (A≈−B) → period-2 chatter. A larger
+        # weight makes the λ-cost strictly convex ⇒ unique min-norm wrench (the
+        # midpoint), killing the limit cycle. None ⇒ cfg.alpha_wrench
+        # (byte-identical). Passed ONLY from the inter-step settle loop, so SS
+        # and the _step DWELL are untouched.
+        settle_alpha_wrench: Optional[float] = None,
+        # Chatter fix (J2, principled): explicit penalty on the NET contact
+        # force Σf = f1+f2 = m·a_com. The settle holds the welded arms while
+        # dissipating joint KE ⇒ no CoM acceleration ⇒ Σf≈0. The QP cost
+        # currently leaves a FLAT direction in the sign of Σf (the chatter
+        # axis: +6 N vs −6 N equal-cost). α_Σf·‖Σf‖² removes that flat
+        # direction BY CONSTRUCTION (Σf=0 is the unique minimizer of the
+        # term), so Σf≈0 falls out of the cost rather than from min-norm
+        # selection. None ⇒ off. DS (nc==2) + settle only; passed only from
+        # the inter-step loop.
+        settle_alpha_sigf: Optional[float] = None,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, QPSolveInfo]:
         """Solve the whole-body QP.
 
@@ -522,14 +555,23 @@ class WholeBodyQP:
                     np.concatenate([b_L_upper, b_L_lower])
                 )
 
-            # 3. Momentum rate box: |L̇_robot| = |M_λ·λ| ≤ τ_w_max
+            # 3. Momentum rate box: |Ḣ_s| ≤ τ_w_max.
+            # Proxy (default): Ḣ_s ≈ M_λ·λ (lever from robot CoM — omits the
+            # orbital term r_com×Σf). Piste A LOT B (qp_envelope_exact): use
+            # the EXACT origin-referenced Ḣ_s = M_exact·λ, M_exact the
+            # momentum map with levers from O_s (= compute_momentum_map at
+            # r_com=0). Stays LINEAR in λ (r_com is a per-tick parameter).
             if np.isfinite(cfg.tau_w_max):
+                if cfg.qp_envelope_exact:
+                    M_env = compute_momentum_map(np.zeros(3), contact_config)
+                else:
+                    M_env = M_lambda
                 A_Ld_upper = np.zeros((3, n))
-                A_Ld_upper[:, idx['lambda'][0]: idx['lambda'][1]] = M_lambda
+                A_Ld_upper[:, idx['lambda'][0]: idx['lambda'][1]] = M_env
                 b_Ld_upper = cfg.tau_w_max * np.ones(3)
 
                 A_Ld_lower = np.zeros((3, n))
-                A_Ld_lower[:, idx['lambda'][0]: idx['lambda'][1]] = -M_lambda
+                A_Ld_lower[:, idx['lambda'][0]: idx['lambda'][1]] = -M_env
                 b_Ld_lower = cfg.tau_w_max * np.ones(3)
 
                 qp.add_inequality_constraint(
@@ -551,7 +593,13 @@ class WholeBodyQP:
             T_kin = 0.5 * float(dq @ H_jj @ dq)
             A_pass = np.zeros((1, n))
             A_pass[0, idx['tau'][0]: idx['tau'][1]] = dq
-            b_pass = np.array([-2.0 * cfg.alpha_passivity * T_kin])
+            # + W_budget relaxes the strict ≤0 RHS to allow bounded positive
+            # joint work. Piste A LOT A passes an envelope-coupled per-tick
+            # W_budget (kwarg); else the constant cfg.passivity_W_budget
+            # (dock-floor audit; default 0 ⇒ strict, byte-identical).
+            W_budget = (passivity_W_budget if passivity_W_budget is not None
+                        else cfg.passivity_W_budget)
+            b_pass = np.array([-2.0 * cfg.alpha_passivity * T_kin + W_budget])
             qp.add_inequality_constraint(A_pass, b_pass)
 
         # ============================================================ #
@@ -1132,7 +1180,28 @@ class WholeBodyQP:
                         self._stance_thrust_corr_max_norm,
                         float(np.linalg.norm(delta_lambda)))
 
-        qp.add_task(A_wrench, b_wrench, cfg.alpha_wrench, priority=4)
+        # Chatter fix: settle-only α_wrench boost (strictly convex ⇒ unique
+        # min-norm λ; breaks the period-2 active-set degeneracy). Localized to
+        # settle_mode and only when the caller passes an override.
+        _aw = (settle_alpha_wrench
+               if (settle_mode and settle_alpha_wrench is not None)
+               else cfg.alpha_wrench)
+        qp.add_task(A_wrench, b_wrench, _aw, priority=4)
+
+        # --- Task 3d: explicit net-force (Σf = m·a_com) penalty (chatter fix) ---
+        # Principled settle regularization: penalize the NET contact force
+        # Σf = f1 + f2 directly, expressing "hold ⇒ no CoM acceleration". This
+        # removes the flat direction in the sign of Σf at the source (Σf=0 is
+        # the unique minimizer), so Σf≈0 by construction — not via min-norm
+        # selection of the Tikhonov. Settle + DS (two contacts) only; passed
+        # only from the inter-step loop.
+        if (settle_mode and settle_alpha_sigf is not None
+                and contact_config.nc == 2):
+            lo = idx['lambda'][0]
+            A_sigf = np.zeros((3, n))
+            A_sigf[:, lo + 0: lo + 3] = np.eye(3)     # f1
+            A_sigf[:, lo + 6: lo + 9] = np.eye(3)     # f2  ⇒ A·z = f1 + f2 = Σf
+            qp.add_task(A_sigf, np.zeros(3), settle_alpha_sigf, priority=4)
 
         # --- Task 3c: DS internal-stress regularization ---
         # In DS both grippers are welded → contact-wrench space is 12-D

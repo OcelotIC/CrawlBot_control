@@ -241,7 +241,7 @@ class SimulationLoop:
         # timeline queries, but the actual DS exit is energy-based.
         self.sched = ContactScheduler(
             anchors_a=anchors_a_local, anchors_b=anchors_b_local,
-            dt_ds=0.5, dt_ss=0.0)
+            dt_ds=self.cfg.dt_ds, dt_ss=0.0)
         if sequence_path is not None:
             from crawlbot.planning.sequence_loader import (
                 load_sequence, plan_from_sequence)
@@ -701,6 +701,15 @@ class SimulationLoop:
         hw_current = np.zeros(3) if not self.has_rwa else (
             cfg.rwa_I_w * self.mj_data.qvel[6:9]).copy()
 
+        # Loop-local ω_s history for the inter-step AOCS K_d·ω̇_s term.
+        # The _step regulator's `_omega_s_last` is local to _step and
+        # invisible here, so the loop tracks its own (init from the entry
+        # ω_s ⇒ ω̇_s = 0 on the first tick; updated each iteration before
+        # mj_step). Only this history is new — the DS wrench feedforward
+        # needs no L_com/v_com history (AOCS-FF audit).
+        _omega_s_prev = (self.mj_data.qvel[3:6].copy()
+                         if self.has_rwa else np.zeros(3))
+
         T_history = []
         exit_reason = 'max_steps'
         T = T_start
@@ -728,6 +737,22 @@ class SimulationLoop:
 
             Jc, Jdc = self.robot.get_contact_jacobians(True, True)
 
+            # c_curr (J2): refresh the QP's hw_current parameter to the LIVE
+            # wheel momentum this tick. With the AOCS active in this loop the
+            # wheels move, so the entry-frozen hw_current goes stale and the
+            # QP momentum-safety box loses C5 margin. Reading qvel[6:9] here
+            # (same source as the _step per-tick refresh) and passing it as
+            # the frozen hw parameter mirrors c_simple(k): a fresh numeric
+            # value per solve, frozen during the solve, NOT a decision
+            # variable (non-co-integration audit — the QP decision vector
+            # {qdd_t, qdd, λ, τ_q, slack} is unchanged). Flag OFF ⇒ the
+            # entry-frozen value (byte-identical). At k=0 qvel is unchanged
+            # since entry ⇒ the first solve is identical either way.
+            if self.has_rwa and cfg.interstep_hw_refresh:
+                hw_for_qp = (cfg.rwa_I_w * self.mj_data.qvel[6:9]).copy()
+            else:
+                hw_for_qp = hw_current
+
             try:
                 # lambda_qp_sol captured for logging-only (was `_` before
                 # Phase B). No control change — value is not consumed
@@ -741,7 +766,7 @@ class SimulationLoop:
                     J_com=rs.J_com, Jdot_dq_com=rs.Jdot_dq_com,
                     contact_config=cc_ds,
                     J_contacts=Jc, Jdot_dq_contacts=Jdc,
-                    hw_current=hw_current,
+                    hw_current=hw_for_qp,
                     hw_min=cfg.hw_min, hw_max=cfg.hw_max,
                     r_com=rs.r_com, L_com_current=rs.L_com,
                     J_torso=rs.J_torso,
@@ -753,7 +778,13 @@ class SimulationLoop:
                     v_torso_ref=np.zeros(6),
                     a_torso_ff=np.zeros(6),
                     settle_mode=True,
-                    passivity_active=True)
+                    passivity_active=True,
+                    settle_alpha_wrench=(cfg.interstep_settle_alpha_wrench
+                                         if cfg.interstep_settle_alpha_wrench > 0
+                                         else None),
+                    settle_alpha_sigf=(cfg.interstep_settle_alpha_sigf
+                                       if cfg.interstep_settle_alpha_sigf > 0
+                                       else None))
                 tau = np.clip(tau, -cfg.tau_max, cfg.tau_max)
             except Exception:
                 tau = -fallback_Kd * rs.dq_joints
@@ -761,8 +792,23 @@ class SimulationLoop:
                 lambda_qp_sol = np.zeros(12)
 
             self.mj_data.ctrl[:n_j] = tau
+            # AOCS re-activation (free-floating invariant — J2 step 4a).
+            # The structure is free-floating every tick, so the AOCS must
+            # run in DS too. Flag ON (default): run the canonical
+            # legacy_pid_numerical AOCS with the DS wrench FF from the
+            # settle-QP wrench (lambda_qp_sol). Flag OFF: the legacy
+            # hardcoded-zero path, byte-identical to the pre-fix loop.
+            tau_w_applied = np.zeros(3)
             if self.has_rwa:
-                self.mj_data.ctrl[n_j:n_j + 3] = 0.0
+                if cfg.aocs_active_in_interstep:
+                    tau_w_applied = self._interstep_aocs_command(
+                        rs, cc_ds, lambda_qp_sol, _omega_s_prev)
+                    self.mj_data.ctrl[n_j:n_j + 3] = tau_w_applied
+                    # Update the ω_s history BEFORE mj_step (current ω_s
+                    # is this tick's pre-step value, the next tick's prev).
+                    _omega_s_prev = self.mj_data.qvel[3:6].copy()
+                else:
+                    self.mj_data.ctrl[n_j:n_j + 3] = 0.0
             mujoco.mj_step(self.mj_model, self.mj_data)
 
             # ── Phase-B per-tick logging (logging-only; no control change) ──
@@ -774,7 +820,7 @@ class SimulationLoop:
                     log_obj, t_abs_tick,
                     log_step_idx, log_just_landed_arm,
                     log_anchor_a_idx, log_anchor_b_idx,
-                    tau, lambda_qp_sol)
+                    tau, lambda_qp_sol, tau_w_applied)
 
         n_steps_run = min(k + 1, max_steps) if max_steps > 0 else 0
         # Record final energy (no ctrl reset — caller manages the handoff)
@@ -792,8 +838,81 @@ class SimulationLoop:
             'exit_reason': exit_reason,
         }
 
+    def _interstep_aocs_command(self, rs, cc_ds, lambda_qp_sol, omega_s_prev):
+        """Canonical AOCS wheel-torque command for the inter-step DS loop.
+
+        Re-activates the structure attitude controller inside
+        ``_run_ds_passivity_loop`` (J2 step 4a — the loop historically
+        zeroed the wheels, violating the free-floating invariant; see the
+        AOCS-during-DS audit). Mirrors the ``_step`` AOCS for the canonical
+        ``legacy_pid_numerical`` mode, fed entirely from in-loop values:
+
+          - DS WRENCH feedforward  τ_w_FF = −Σ_i (r_Ci × f_i + τ_i)  from
+            ``lambda_qp_sol`` (the settle-QP wrench captured this tick),
+            with anchor levers r_Ci = cc_ds.r_contact_{A,B} (struct frame).
+            This is the welded-loop internal-stress couple the FD-on-L_com
+            feedforward is blind to (force_estimator.py:582-592). Same
+            construction as _step (sim_loop.py wrench-FF block).
+          - attitude PID + desaturation via
+            ``compute_aocs_command_legacy_pid_numerical`` — θ_s from the
+            geometric SO(3) error ½ vee(R_errᵀ−R_err) (identical to _step),
+            ω_s / h_w from MuJoCo state, ω̇_s from the loop-local
+            ``omega_s_prev``.
+
+        No NMPC dependency (the loop bypasses the NMPC): the feedforward
+        source is the QP wrench, not the NMPC plan (AOCS-FF audit). The QP,
+        passivity constraint, and envelope box are untouched. Returns the
+        clipped τ_w command (±aocs_tau_w_max).
+        """
+        from crawlbot.aocs.force_estimator import (
+            compute_aocs_command_legacy_pid_numerical)
+        cfg = self.cfg
+        omega_s = self.mj_data.qvel[3:6].copy()
+        hw_phys = (cfg.rwa_I_w * self.mj_data.qvel[6:9]).copy()
+
+        # Geometric SO(3) attitude error θ_s (same as _step).
+        qw, qx, qy, qz = self._struct_quat_init
+        R_init = pin.Quaternion(qw, qx, qy, qz).toRotationMatrix()
+        qw, qx, qy, qz = self.mj_data.qpos[3:7]
+        R_now = pin.Quaternion(qw, qx, qy, qz).toRotationMatrix()
+        R_err = R_init.T @ R_now
+        theta_s = 0.5 * np.array([
+            R_err[2, 1] - R_err[1, 2],
+            R_err[0, 2] - R_err[2, 0],
+            R_err[1, 0] - R_err[0, 1],
+        ])
+
+        # DS wrench feedforward from λ_qp (anchor levers in struct frame;
+        # λ_qp in world frame — equivalent at the <5° structure-frame
+        # rotation we operate in, as in _step).
+        _lam = np.asarray(lambda_qp_sol, dtype=float).ravel()
+        _r_C = (cc_ds.r_contact_A, cc_ds.r_contact_B)
+        tau_struct_ff = np.zeros(3)
+        for _ci in range(2):
+            if not cc_ds.active_contacts[_ci]:
+                continue
+            _f = _lam[6 * _ci: 6 * _ci + 3]
+            _tq = _lam[6 * _ci + 3: 6 * _ci + 6]
+            tau_struct_ff -= np.cross(_r_C[_ci], _f) + _tq
+
+        # L_com/v_com args are unused on the wrench-FF path (the FD branch
+        # is `tau_struct_ff is None`), so current values are passed.
+        return compute_aocs_command_legacy_pid_numerical(
+            L_com=rs.L_com, L_com_prev=rs.L_com,
+            r_com=rs.r_com, v_com=rs.v_com, v_com_prev=rs.v_com,
+            omega_s=omega_s, omega_s_prev=omega_s_prev,
+            theta_s=theta_s,
+            hw_current=hw_phys, dt=cfg.dt_qp,
+            robot_mass=self.robot._total_mass,
+            K_hw=cfg.aocs_K_hw, K_omega=cfg.aocs_K_omega,
+            K_d=cfg.aocs_K_d, K_theta=cfg.aocs_K_theta,
+            hw_min=cfg.hw_min, hw_max=cfg.hw_max,
+            tau_w_max=cfg.aocs_tau_w_max,
+            tau_struct_ff=tau_struct_ff)
+
     def _log_ds_tick(self, log, t_abs, step_idx, just_landed_arm,
-                     anchor_a_idx, anchor_b_idx, tau, lambda_qp_sol):
+                     anchor_a_idx, anchor_b_idx, tau, lambda_qp_sol,
+                     tau_w_applied=None):
         """Append one per-tick DS log row (logging-only; no control change).
 
         Called from ``_run_ds_passivity_loop`` AFTER ``mj_step``. The row
@@ -924,10 +1043,14 @@ class SimulationLoop:
         log.L_dot_norm.append(0.0)
         log.hw.append(hw.copy())
 
-        # RWA physical — wheels are OFF in this loop (ctrl[n_j:n_j+3]=0).
-        # tau_w = zeros is the actual commanded value.
+        # RWA physical. With the inter-step AOCS re-activated (flag on),
+        # tau_w_applied is the ACTUAL wheel torque commanded this tick;
+        # when the AOCS is off (flag off / no RWA) it is zeros — the
+        # legacy commanded value. None defaults to zeros for any caller
+        # that does not pass it (schema-safe).
         log.hw_physical.append(hw.copy())
-        log.tau_w.append(np.zeros(3))
+        log.tau_w.append((np.zeros(3) if tau_w_applied is None
+                          else np.asarray(tau_w_applied, dtype=float)).copy())
         log.rw_speed.append(rw_vel.copy())
 
         # EE tracking error (vs same-frame ref → 0).
@@ -1040,6 +1163,8 @@ class SimulationLoop:
             ee_null_space=cfg.use_m2_stack,
             alpha_com_soft=cfg.alpha_com_soft,
             alpha_passivity=cfg.alpha_passivity,
+            passivity_W_budget=cfg.passivity_W_budget,
+            qp_envelope_exact=cfg.qp_envelope_exact,
             r_tube=cfg.r_tube,
             w_tube_lin=cfg.w_tube_lin,
             cooperative_arms_mode=cfg.cooperative_arms_mode,
@@ -1140,6 +1265,71 @@ class SimulationLoop:
         R_tgt = np.asarray(self.sched.anchor_se3(arm, anchor_idx).rotation)
         R_err = R_ee.T @ R_tgt
         return float(np.degrees(np.linalg.norm(pin.log3(R_err))))
+
+    def _weld_relative_twist(self, arm, anchor_idx):
+        """6-D weld-relative twist Jc·v⁻ for one gripper↔anchor pair.
+
+        Returns the 6-vector [relative linear; relative angular] velocity
+        of the swing gripper site w.r.t. its target anchor site, over ALL
+        qvel (incl. structure base + wheels). This is the exact quantity
+        the inelastic impact map projects out at dock.
+
+        Reuses the Fix-A relative-site weld-Jacobian construction
+        (the post-dock impact block): J = [jpg-jpa; jrg-jra] via
+        ``mj_jacSite`` for the gripper/anchor sites, twist = J @ qvel.
+        Unlike the impact block (which iterates ``eq_active``), the gate
+        runs BEFORE the weld engages, so the pair is addressed by name.
+        Assumes the caller has already run ``mj_forward`` so the site
+        Jacobians are current. Returns zeros if either site is missing.
+        """
+        nv = self.mj_model.nv
+        gsid = self._site_ids.get(f'gripper_{arm}', -1)
+        asid = self._site_ids.get(f'anchor_{anchor_idx + 1}{arm}', -1)
+        if gsid < 0 or asid < 0:
+            return np.zeros(6)
+        jpg = np.zeros((3, nv)); jrg = np.zeros((3, nv))
+        jpa = np.zeros((3, nv)); jra = np.zeros((3, nv))
+        mujoco.mj_jacSite(self.mj_model, self.mj_data, jpg, jrg, gsid)
+        mujoco.mj_jacSite(self.mj_model, self.mj_data, jpa, jra, asid)
+        J = np.vstack([jpg - jpa, jrg - jra])      # (6, nv)
+        return J @ self.mj_data.qvel               # 6-D weld-relative twist
+
+    def _dock_gate(self, swing_arm, target_idx, *, log=None, t=0.0,
+                   step_idx=-1):
+        """Evaluate the dock gate. Returns (docked, d, ori_deg, twist_norm).
+
+        Fix C (J2 #1): the velocity criterion is the 6-D weld-relative
+        twist ‖Jc·v⁻‖ < cfg.dock_twist_max (via ``_weld_relative_twist``),
+        not the legacy LINEAR EE speed. Pose criteria (d < weld_radius,
+        ori < dock_ori_threshold_deg) are unchanged. The legacy linear
+        gate is kept behind ``cfg.dock_use_6d_twist=False`` for A/B.
+        Caller must have run ``mj_forward``. When ``log`` is given, one
+        ``dock_gate_trace`` row is appended per evaluation. ``twist_norm``
+        is always computed (for logging) even on the legacy path.
+        """
+        cfg = self.cfg
+        d = self._gripper_distance(swing_arm, target_idx)
+        ori_err_deg = self._gripper_ori_err_deg(swing_arm, target_idx)
+        twist_norm = float(np.linalg.norm(
+            self._weld_relative_twist(swing_arm, target_idx)))
+        pos_ok = d < cfg.weld_radius
+        ori_ok = ori_err_deg < cfg.dock_ori_threshold_deg
+        if cfg.dock_use_6d_twist:
+            vel_ok = twist_norm < cfg.dock_twist_max
+        else:
+            vel_ok = self._gripper_speed(swing_arm) < cfg.dock_vel_max
+        if cfg.use_gmo_dock:
+            docked = self._contact_confirmed and ori_ok and vel_ok
+        else:
+            docked = pos_ok and ori_ok and vel_ok
+        if log is not None:
+            log.dock_gate_trace.append({
+                't': round(float(t), 3), 'step': int(step_idx),
+                'd_mm': round(d * 1000, 3),
+                'ori_deg': round(ori_err_deg, 3),
+                'twist': round(twist_norm, 6),
+                'fired': bool(docked)})
+        return docked, d, ori_err_deg, twist_norm
 
     # ── Per-step planning handoff (M7) ───────────────────────────────────
 
@@ -1819,7 +2009,11 @@ class SimulationLoop:
                     ds_result = self._run_ds_passivity_loop(
                         contact_config=cc_ds,
                         max_steps=cfg.n_ds_max_steps,
-                        epsilon_v=cfg.settle_inter_epsilon_v,
+                        # Settle-exit fix (POINT A): dock-tolerance-derived ε_v
+                        # override when > 0 (else the byte-identical 1 mm/s).
+                        epsilon_v=(cfg.interstep_settle_epsilon_v
+                                   if cfg.interstep_settle_epsilon_v > 0
+                                   else cfg.settle_inter_epsilon_v),
                         plateau_window=50,
                         plateau_ratio=cfg.settle_plateau_ratio,
                         min_steps=min_steps_ds,
@@ -1873,11 +2067,39 @@ class SimulationLoop:
                         pq_d, pv_d = mujoco_to_pinocchio(
                             self.mj_data.qpos, self.mj_data.qvel)
                         rs_d = self.robot.update(pq_d, pv_d)
-                        self.torso_planner.set_hold(
-                            rs_d.oMf_torso.translation.copy(),
-                            rs_d.oMf_torso.rotation.copy(),
-                            r_com=rs_d.r_com.copy())
                         t_dwell_end = t + _dwell_target
+                        if cfg.ds_mobile_com_magnitude > 0.0:
+                            # α (J2 #2): CoM-mobile DS. Translate the CoM toward
+                            # the next swing arm's target anchor (held ori +
+                            # posture) via the existing trajectory machinery —
+                            # NOT a mode. set_hold is the degenerate constant
+                            # case; here the CoM content is non-constant.
+                            p0 = rs_d.oMf_torso.translation.copy()
+                            R0 = rs_d.oMf_torso.rotation.copy()
+                            com0 = rs_d.r_com.copy()
+                            anchors = (self.sched.anchors_a if swing_arm == 'a'
+                                       else self.sched.anchors_b)
+                            anchor_next = np.asarray(anchors[target_idx],
+                                                     dtype=float)
+                            dirvec = anchor_next - com0
+                            nrm = float(np.linalg.norm(dirvec))
+                            offset = (cfg.ds_mobile_com_magnitude * dirvec / nrm
+                                      if nrm > 1e-6 else np.zeros(3))
+                            # CoM + torso position translate by `offset`
+                            # (constant δ_com ⇒ r_com(t)=p(t)+R·δ translates);
+                            # orientation held (R0 at both waypoints).
+                            self.torso_planner.set_from_waypoints(
+                                t, t_dwell_end,
+                                [(p0, R0), (p0 + offset, R0)],
+                                [com0, com0 + offset])
+                            if verbose:
+                                print(f"  DS-mobile: CoM +{nrm and cfg.ds_mobile_com_magnitude:.3f}m "
+                                      f"toward anchor {swing_arm}{target_idx}")
+                        else:
+                            self.torso_planner.set_hold(
+                                rs_d.oMf_torso.translation.copy(),
+                                rs_d.oMf_torso.rotation.copy(),
+                                r_com=rs_d.r_com.copy())
                         # Use stance pair from the upcoming SS phase as the
                         # contact config (both arms welded → DOUBLE).
                         last_sa_d = stance_a
@@ -1895,6 +2117,10 @@ class SimulationLoop:
                         if verbose:
                             print(f"  DWELL end: t={t:.2f}s, "
                                   f"‖h_w‖={np.linalg.norm(hw):.3f} Nms")
+                        # α (J2 #2): drop the (possibly moving) dwell phase so
+                        # the next SS plans fresh and no stale phase leaks into
+                        # reference_at during the transition.
+                        self.torso_planner.clear_phases()
                         # B-probe: reset NMPC warm-start after the long
                         # dwell. The NMPC ran ~thousands of ticks during
                         # the dwell with a static DS reference; carrying
@@ -2018,22 +2244,16 @@ class SimulationLoop:
                         if ((t - t_ss_start) > cfg.dock_check_delay
                                 and swing_done):
                             mujoco.mj_forward(self.mj_model, self.mj_data)
-                            d = self._gripper_distance(swing_arm, target_idx)
-                            ori_err_deg = self._gripper_ori_err_deg(
-                                swing_arm, target_idx)
-                            pos_ok = d < cfg.weld_radius
-                            ori_ok = ori_err_deg < cfg.dock_ori_threshold_deg
-                            vel_ok = (self._gripper_speed(swing_arm)
-                                      < cfg.dock_vel_max)
-                            if cfg.use_gmo_dock:
-                                docked = self._contact_confirmed and ori_ok and vel_ok
-                            else:
-                                docked = pos_ok and ori_ok and vel_ok
+                            docked, d, ori_err_deg, twist_norm = (
+                                self._dock_gate(
+                                    swing_arm, target_idx,
+                                    log=log, t=t, step_idx=step_idx))
                             if docked:
                                 log.dock_events.append({
                                     't': round(t, 3), 'step': step_idx,
                                     'd_mm': round(d*1000, 2),
                                     'ori_deg': round(ori_err_deg, 2),
+                                    'twist': round(twist_norm, 6),
                                     'arm': swing_arm, 'anchor': target_idx,
                                     'method': ('gmo' if cfg.use_gmo_dock
                                                else 'kinematic')})
@@ -2067,26 +2287,23 @@ class SimulationLoop:
                                 cc_ss, target_idx, stance_a, stance_b,
                                 hw, L_com_prev, log,
                                 ss_end=t_ss_start + T_step,
-                                passivity_hold=False)
+                                # Dock-floor audit: default False (the SS-hold
+                                # escape — passivity OFF); the audit forces it
+                                # ON to test whether passivity limits the close.
+                                passivity_hold=cfg.dock_hold_passivity_on)
                             t += cfg.dt_nmpc
 
                             mujoco.mj_forward(self.mj_model, self.mj_data)
-                            d = self._gripper_distance(swing_arm, target_idx)
-                            ori_err_deg = self._gripper_ori_err_deg(
-                                swing_arm, target_idx)
-                            pos_ok = d < cfg.weld_radius
-                            ori_ok = ori_err_deg < cfg.dock_ori_threshold_deg
-                            vel_ok = (self._gripper_speed(swing_arm)
-                                      < cfg.dock_vel_max)
-                            if cfg.use_gmo_dock:
-                                docked = self._contact_confirmed and ori_ok and vel_ok
-                            else:
-                                docked = pos_ok and ori_ok and vel_ok
+                            docked, d, ori_err_deg, twist_norm = (
+                                self._dock_gate(
+                                    swing_arm, target_idx,
+                                    log=log, t=t, step_idx=step_idx))
                             if docked:
                                 log.dock_events.append({
                                     't': round(t, 3), 'step': step_idx,
                                     'd_mm': round(d*1000, 2),
                                     'ori_deg': round(ori_err_deg, 2),
+                                    'twist': round(twist_norm, 6),
                                     'arm': swing_arm, 'anchor': target_idx,
                                     'method': ('gmo' if cfg.use_gmo_dock
                                                else 'kinematic')})
@@ -2781,6 +2998,24 @@ class SimulationLoop:
                     f"step{int(step_idx):02d}/{phase}/qs={int(qs):02d}")
             except Exception:
                 pass
+            # Piste A LOT A: envelope-coupled passivity work-budget. Per tick,
+            # W_budget = β·α·max(0, τ_w_max − ‖Ḣ_s(lambda_ref)‖∞), where
+            # Ḣ_s(lambda_ref) = Σ r_Cj×f_j_ref + τ_j_ref is the NMPC-EXACT
+            # origin-referenced planned momentum-rate (the same quantity the
+            # NMPC envelope path constraint enforces). A pre-solve scalar that
+            # opens the strict passivity RHS only by the planned envelope
+            # headroom. β=0 ⇒ None ⇒ strict (byte-identical).
+            _pisteA_W = None
+            if cfg.ds_passivity_beta > 0.0 and passivity_active:
+                _lr = np.asarray(lr, dtype=float)
+                _rCa = np.asarray(self.sched.anchors_a[stance_a], dtype=float)
+                _rCb = np.asarray(self.sched.anchors_b[stance_b], dtype=float)
+                _Hs_plan = (np.cross(_rCa, _lr[0:3]) + _lr[3:6]
+                            + np.cross(_rCb, _lr[6:9]) + _lr[9:12])
+                _margin = max(0.0, cfg.tau_w_max
+                              - float(np.max(np.abs(_Hs_plan))))
+                _pisteA_W = (cfg.ds_passivity_beta * cfg.alpha_passivity
+                             * _margin)
             try:
                 qdd_t_qp, qdd_qp, lambda_qp_sol, tau, _ = qp.solve(
                     q_t=rs.q_torso, dq_t=rs.dq_torso,
@@ -2797,6 +3032,7 @@ class SimulationLoop:
                     settle_mode=settle_mode,
                     passivity_active=passivity_active,
                     ds_centroidal_active=ds_centroidal_active,
+                    passivity_W_budget=_pisteA_W,
                     **tkw, **ek)
             except Exception as _qp_exc:
                 # Surface QP failures (silent swallow -> zero torque is
@@ -2809,6 +3045,57 @@ class SimulationLoop:
                 qdd_t_qp = np.zeros(6)
                 qdd_qp = np.zeros(self.robot.model.nv)
                 qp_ok = False
+
+            # α (J2 #2): CoM-mobile DS conflict trace (gated; DWELL ticks).
+            # Disentangles which constraint binds during the moving-CoM DS:
+            #   pass_resid = dqⱼᵀτ_q + 2α·T_kin  (≈0 ⇒ passivity binding),
+            #   Hdot_inf   = ‖Σ r_Cj×f_j + τ_j‖∞ from the QP wrench
+            #               (→ τ_w_max ⇒ envelope binding),
+            #   com_err    = ‖r_com − cref_r‖  (tracking),
+            #   qp_ok / nmpc_status  (feasibility).
+            if (cfg.ds_mobile_com_magnitude > 0.0 and settle_mode
+                    and ds_centroidal_active):
+                dqj = rs.dq_joints
+                T_kin = 0.5 * float(dqj @ rs.H[6:, 6:] @ dqj)
+                pass_resid = float(dqj @ tau + 2.0 * cfg.alpha_passivity * T_kin)
+                lam = np.asarray(lambda_qp_sol, dtype=float)
+                rCa = np.asarray(self.sched.anchors_a[stance_a], dtype=float)
+                rCb = np.asarray(self.sched.anchors_b[stance_b], dtype=float)
+                Hdot = (np.cross(rCa, lam[0:3]) + lam[3:6]
+                        + np.cross(rCb, lam[6:9]) + lam[9:12])
+                # Next swing arm's Jacobian manipulability (byproduct: does
+                # "rapprocher" improve conditioning?). Arm-block of the tool
+                # Jacobian; sqrt(det(J Jᵀ)).
+                J_sw = (np.asarray(rs.J_tool_a) if swing_arm == 'a'
+                        else np.asarray(rs.J_tool_b))
+                sl_sw = (self.robot.arm_a_v_slice if swing_arm == 'a'
+                         else self.robot.arm_b_v_slice)
+                J_arm = J_sw[:, sl_sw]
+                JJt = J_arm @ J_arm.T
+                manip = float(np.sqrt(max(np.linalg.det(JJt), 0.0)))
+                log.ds_mobile_trace.append({
+                    't': round(float(t), 3),
+                    'com_err': float(np.linalg.norm(
+                        rs.r_com - np.asarray(cref_r, dtype=float))),
+                    'pass_resid': pass_resid,
+                    'dq_tau': float(dqj @ tau),   # joint mech. power (>0 ⇒ +work)
+                    'W_budget': (float(_pisteA_W) if _pisteA_W is not None
+                                 else 0.0),       # Piste A per-tick budget
+                    'Hdot_inf': float(np.max(np.abs(Hdot))),
+                    'swing_manip': manip,
+                    'qp_ok': bool(qp_ok),
+                    'nmpc_status': int(nmpc_status_code)})
+
+            # Dock-floor audit: per-SS-tick joint mechanical power + dock
+            # distance, to confirm whether the arm does positive work
+            # (dqⱼᵀτ_q > 0) while closing, and under which passivity setting.
+            if cfg.log_dock_work and phase == 'SS':
+                log.dock_work_trace.append({
+                    't': round(float(t), 3), 'step': int(step_idx),
+                    'd_mm': round(self._gripper_distance(
+                        swing_arm, target_anchor) * 1000, 3),
+                    'dq_tau': float(rs.dq_joints @ tau),
+                    'pass_active': bool(passivity_active)})
 
             # ── Diagnostic B + C: per-cycle log of (c_ref, r_b_ref,
             # p_torso_actual, a_torso_des, a_torso_qp, δ(q_planned),

@@ -1,0 +1,15 @@
+RUN: /home/user/CrawlBot_control/results/pa_b0_exact
+  --> residual: traversal-final=0.002864  final-dock=0.002229  max-dock=0.002229 N·m·s
+  docks fired = 5 ; dock_timeouts = 0
+RUN: /home/user/CrawlBot_control/results/pa_b0.25_exact
+  --> residual: traversal-final=0.003115  final-dock=0.002515  max-dock=0.002515 N·m·s
+  docks fired = 5 ; dock_timeouts = 0
+RUN: /home/user/CrawlBot_control/results/pa_b0.5_exact
+  --> residual: traversal-final=0.003115  final-dock=0.002515  max-dock=0.002515 N·m·s
+  docks fired = 5 ; dock_timeouts = 0
+RUN: /home/user/CrawlBot_control/results/pa_b1.0_exact
+  --> residual: traversal-final=0.003115  final-dock=0.002515  max-dock=0.002515 N·m·s
+  docks fired = 5 ; dock_timeouts = 0
+RUN: /home/user/CrawlBot_control/results/pa_b0_proxy
+  --> residual: traversal-final=0.003963  final-dock=0.003377  max-dock=0.003377 N·m·s
+  docks fired = 5 ; dock_timeouts = 0

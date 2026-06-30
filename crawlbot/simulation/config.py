@@ -40,6 +40,22 @@ class SimConfig:
     # position-gated only — without this gate, docking at large ori
     # misalignment corrupts the next step's initial conditions.
     dock_ori_threshold_deg: float = 5.0
+    # ── Fix C (J2 #1): 6-D weld-relative dock gate ──────────────────
+    # The legacy gate's velocity term is the LINEAR EE speed only
+    # (_gripper_speed < dock_vel_max). Fix C replaces it with the full
+    # 6-D weld-relative twist ‖Jc·v⁻‖ < dock_twist_max, where Jc is the
+    # relative-site weld Jacobian [jpg-jpa; jrg-jra] (reused from the
+    # Fix-A impact block) and v⁻ is the pre-weld qvel. This is the
+    # quantity the inelastic impact map mishandles, so gating it (not
+    # just linear speed) makes the dock arrive with no weld-relative
+    # twist. Pose terms (weld_radius, dock_ori_threshold_deg) unchanged.
+    #   docked = (d < weld_radius) ∧ (ori < dock_ori_threshold_deg)
+    #            ∧ (‖Jc·v⁻‖ < dock_twist_max)
+    # dock_twist_max units are a mixed lin+ang twist norm
+    # (sqrt(‖v_lin‖²[m/s] + ‖ω‖²[rad/s])); default is a starting point
+    # for the J2 characterization sweep, NOT a tuned value.
+    dock_use_6d_twist: bool = True   # False = legacy linear _gripper_speed gate (A/B)
+    dock_twist_max: float = 0.05     # [mixed twist norm] ε_twist for ‖Jc·v⁻‖
 
     # ── Contact estimator (GMO) ────────────────────────────────
     gmo_K_O: float = 80.0              # Observer gain [1/s]
@@ -109,6 +125,53 @@ class SimConfig:
 
     # Diagnostic: zero wheel torque during DS (Mode B still runs in SS).
     aocs_off_in_ds: bool = False
+
+    # Re-activate the AOCS inside the inter-step DS passivity loop
+    # (_run_ds_passivity_loop). The structure is free-floating at all
+    # times, so the AOCS (τ_w on the wheels) must run every tick — DS
+    # included. Historically this loop hardcoded the wheels to 0.0,
+    # leaving the structure attitude open-loop for the settle duration
+    # (the AOCS-during-DS audit: ~46% of DS time, θ_s drift up to
+    # 0.046°/settle, uncorrected). When True (default — the correct,
+    # invariant-restoring behaviour) the loop runs the canonical
+    # legacy_pid_numerical AOCS with the DS wrench feedforward
+    # (−Σ_i r_Ci×f_i+τ_i from λ_qp, the welded-loop couple the FD-on-
+    # L_com feedforward misses). When False the legacy hardcoded-zero
+    # path runs unchanged (byte-identical A/B reference). Does not touch
+    # the QP, the passivity constraint, or the envelope box.
+    aocs_active_in_interstep: bool = True
+
+    # c_curr (J2): refresh the inter-step QP's hw_current parameter to the
+    # LIVE wheel momentum each tick, instead of freezing it at loop entry.
+    # With the AOCS active in the inter-step loop the wheels move during a
+    # settle, so the entry-frozen hw_current goes stale and the QP's
+    # momentum-safety box (b = hw_max − hw_current) loses C5 margin. The
+    # _step QP already refreshes hw_current per tick; this brings the
+    # inter-step loop in line. Per the non-co-integration audit this is a
+    # PARAMETER refresh (a fresh numeric value frozen at solve, h_w never a
+    # decision variable) — architecturally identical to c_simple(k)'s
+    # per-MPC-step refresh, NOT a co-solve. Default True (corrected,
+    # _step-consistent). When False the entry-frozen value is used
+    # (byte-identical to the pre-c_curr inter-step loop).
+    interstep_hw_refresh: bool = True
+
+    # Chatter fix (J2): α_wrench used in the inter-step DS settle QP ONLY. The
+    # DS-settle chatter is a period-2 active-set limit cycle (diagnosis
+    # af2f64a): when the exact envelope box binds (arm-a configs), the
+    # default α_wrench≈0.01 is below the solver's degeneracy tolerance and it
+    # alternates between the two equal-norm saturating wrench vertices (A≈−B).
+    # A larger settle-only weight makes the λ-cost strictly convex ⇒ unique
+    # min-norm wrench. 0.0 ⇒ use cfg.alpha_wrench (byte-identical baseline).
+    # Applied only in _run_ds_passivity_loop (SS and the _step DWELL untouched).
+    interstep_settle_alpha_wrench: float = 0.0
+
+    # Chatter fix (J2, principled): explicit penalty α_Σf·‖Σf‖² on the net
+    # contact force Σf=f1+f2=m·a_com in the inter-step DS settle QP. Expresses
+    # "hold ⇒ no CoM acceleration" and removes the flat direction in the Σf
+    # sign BY CONSTRUCTION (vs the Tikhonov ‖λ‖², which only recovers Σf≈0
+    # because the two vertices are A≈−B). 0.0 ⇒ off (byte-identical). DS-settle
+    # only; passed only from _run_ds_passivity_loop.
+    interstep_settle_alpha_sigf: float = 0.0
 
     # When True, the gait-phase loop breaks out of the multi-step
     # traversal as soon as a step ABORTs (dock_timeout or
@@ -223,6 +286,14 @@ class SimConfig:
     t_settle_inter: float = 0.0                     # [DEPRECATED] ignored
     use_energy_settle_inter: bool = True            # spec §7.1.1
     settle_inter_epsilon_v: float = 1e-3            # target ‖dq_full‖ [m/s]
+    # Settle-exit fix (J2 close, POINT A): when > 0, OVERRIDE the inter-step
+    # settle target velocity with a value DERIVED from the dock tolerance
+    # rather than the over-tight 1 mm/s on the softest mode. The exit fires at
+    # T_kin < 0.5·ε_v²·λ_min, so a larger ε_v ⇒ much shorter settle. Derivation:
+    # per-tick (dt_nmpc) residual drift ε_v·dt_nmpc ≤ (1/10)·dock_gate(5 mm) ⇒
+    # ε_v = 5 mm/s. 0.0 ⇒ off (use settle_inter_epsilon_v, byte-identical).
+    # Inter-step settle only (the SS/_step DWELL stepper is untouched).
+    interstep_settle_epsilon_v: float = 0.0
     n_settle_inter_max_steps: int = 500             # safety cap (5 s @ 100 Hz)
     t_settle_inter_min: float = 0.1                 # min runtime [s]
 
@@ -264,6 +335,43 @@ class SimConfig:
     # legacy cooperative/strict-P1 path unchanged (bit-identical).
     ss_two_task_mode: bool = False
     alpha_torso_pose: float = 5e3    # 6-D torso-pose weight — validated two-task working point (was 1e3 pre-sweep)
+
+    # α (J2 #2): CoM-mobile DS. ───────────────────────────────────────
+    # dt_ds = DS phase nominal duration in the gait plan. The canonical
+    # 0.5 s lets the energy-settle finish but NEVER triggers the DWELL
+    # (the centroidal-DS, NMPC-driven inter-step window, gated >1.0 s).
+    # A longer dt_ds routes the inter-step DS through the DWELL, where the
+    # CoM-3D task tracks the planner's per-tick CoM reference. Default 0.5
+    # ⇒ unchanged behaviour / DWELL dormant (flag-OFF bit-identical).
+    dt_ds: float = 0.5
+    # During the DWELL, translate the CoM this far [m] toward the next
+    # swing arm's target anchor (held orientation, posture at q_nominal),
+    # via the existing add_phase machinery — NOT a mode flag. The CoM-3D
+    # task tracks the moving target; the torso-ori task holds; the posture
+    # task holds q_nominal. 0.0 = hold (default; unchanged). >0 exercises
+    # the moving-CoM-under-strict-passivity conflict (J2 #2).
+    ds_mobile_com_magnitude: float = 0.0
+
+    # Dock-floor passivity audit. ────────────────────────────────────
+    # The SS convergence-hold window (the last-mm dock close) runs
+    # passivity OFF by default (the documented SS-hold escape). These
+    # knobs let the audit force passivity back ON there and relax it by a
+    # constant budget, to decide whether the ~4.5 mm dock floor is
+    # passivity-limited or kinematic. All default to the current behaviour.
+    dock_hold_passivity_on: bool = False  # force passivity ON in the dock-close hold window
+    passivity_W_budget: float = 0.0       # constant RHS budget: dqᵀτ_q + 2α T_kin ≤ W_budget
+    log_dock_work: bool = False           # per-SS-tick trace of dqⱼᵀτ_q + d + passivity (audit)
+
+    # Piste A (J2 #3): envelope-coupled passivity work-budget + exact Ḣ_s box.
+    # LOT A — per-tick DS passivity budget W_budget = β·α·max(0, τ_w,max −
+    #   ‖Ḣ_s(lambda_ref)‖∞), using the NMPC-exact planned Ḣ_s. β (this knob)
+    #   is dimensionless; β=0 ⇒ W_budget=0 ⇒ strict passivity (byte-identical).
+    ds_passivity_beta: float = 0.0
+    # LOT B — FLAG 2: the QP momentum-rate envelope box uses the EXACT Ḣ_s
+    #   (origin-referenced, |M_exact·λ|, M_exact = momentum map with levers
+    #   from O_s) instead of the |M_λ·λ| proxy (lever-from-robot-CoM, which
+    #   omits the orbital term r_com×Σf). False ⇒ proxy (byte-identical).
+    qp_envelope_exact: bool = False
 
     # DS centroidal-control mode (replaces joint-vel-damping cost with
     # CoM + torso-ori tracking at P1, posture at P3, passivity inequality

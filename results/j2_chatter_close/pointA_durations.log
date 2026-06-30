@@ -1,0 +1,23 @@
+
+=== pA_base         docks=5/5 [1.9, 4.8, 4.9, 4.9, 4.7]  max|r_com|=1.84m  abort=[]
+   settle        n  r_com  Σf-flip  ‖Σf‖med  jflip   jmean     T_end       exit dock_mm clean
+   step0/init   10   0.71    0.222     0.00   0.00  0.0000   1.6e-19 target_met  0.0000 no
+   step1/b3    181   0.70    0.017     0.21   0.02  0.0296   2.4e-08 target_met  0.0176 YES
+   step2/a3    258   0.99    0.016     0.14   0.01  0.0143   2.4e-08 target_met  0.0133 YES
+   step3/b4    271   1.11    0.026     0.05   0.01  0.0148   2.5e-08 target_met  0.0120 YES
+   step4/a4    233   1.65    0.026     0.05   0.03  0.0137   2.4e-08 target_met  0.0114 YES
+
+=== pA_fix          docks=5/5 [1.9, 4.8, 4.9, 4.9, 4.7]  max|r_com|=1.84m  abort=[]
+   settle        n  r_com  Σf-flip  ‖Σf‖med  jflip   jmean     T_end       exit dock_mm clean
+   step0/init   10   0.71    0.222     0.00   0.00  0.0000   1.6e-19 target_met  0.0000 no
+   step1/b3    142   0.70    0.021     0.31   0.02  0.0377   6.1e-07 target_met  0.0176 YES
+   step2/a3    201   0.99    0.020     0.25   0.01  0.0183   6.1e-07 target_met  0.0133 YES
+   step3/b4    133   1.11    0.038     0.53   0.01  0.0300   6.2e-07 target_met  0.0120 YES
+   step4/a4    152   1.65    0.033     0.24   0.03  0.0209   6.2e-07 target_met  0.0114 YES
+
+======================================================================
+ARM-A SETTLE CLEANLINESS (the chatterers) per run
+  pA_base       : arm-a settles=2  flip=[0.02,0.03]  all_clean=True
+  pA_fix        : arm-a settles=2  flip=[0.02,0.03]  all_clean=True
+C6: working-tree(ε_v=0) vs clean-HEAD c9df233/4eb4f20 → deep max |Δ| over computed state = 0.0 (BYTE-IDENTICAL)
+REGRESSION: 1 failed (known FK test_E7_t15_step2_dock_under_fk_mode), 219 passed, 1 deselected (env-flaky test_chain_consistency) — no new failures.

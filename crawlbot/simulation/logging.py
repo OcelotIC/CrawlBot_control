@@ -199,6 +199,27 @@ class SimLog:
     # Dock events
     dock_events: list = field(default_factory=list)
 
+    # Fix C (J2 #1): per-gate-evaluation trace of the 6-D weld-relative
+    # twist ‖Jc·v⁻‖ + pose (d, ori) at each dock-gate check (once the
+    # swing trajectory is done). Supports the Part-2 "does (b) drive the
+    # gate" trajectory and the Part-3 firing/timeout characterization.
+    # Each dict: {t, step, d_mm, ori_deg, twist, fired}. Empty on legacy
+    # logs (default_factory []).
+    dock_gate_trace: list = field(default_factory=list)
+
+    # α (J2 #2): per-tick CoM-mobile DS conflict trace (DWELL only, gated on
+    # cfg.ds_mobile_com_magnitude>0). Each dict: {t, com_err, pass_resid,
+    # Hdot_inf, qp_ok, nmpc_status}. pass_resid≈0 ⇒ passivity binding;
+    # Hdot_inf→τ_w_max ⇒ envelope binding; qp_ok False / nmpc_status 2 ⇒
+    # feasibility loss. Empty by default.
+    ds_mobile_trace: list = field(default_factory=list)
+
+    # Dock-floor passivity audit: per-SS-tick trace (gated cfg.log_dock_work).
+    # Each dict: {t, step, d_mm, dq_tau, pass_active}. dq_tau = dqⱼᵀτ_q (joint
+    # mechanical power; >0 ⇒ the arm does positive work) — confirms whether
+    # the relaxation is exercised in the dock-close window. Empty by default.
+    dock_work_trace: list = field(default_factory=list)
+
     # M7: aborted steps (pre-planner infeasible or dock timeout).
     # Each dict carries: step_idx, t, reason ('preplanner_infeasible'
     # | 'dock_timeout'), and — for dock_timeout — d_mm, ori_deg.

@@ -249,7 +249,18 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
          alpha_torso_pose: float = 5000.0,
          ss_alpha_ee: float = 3e3, ss_alpha_posture: float = 2e1,
          ss_alpha_wrench: float = 1e-2,
-         ss_kp_torso: float = 6.0, ss_kd_torso: float = 5.0):
+         ss_kp_torso: float = 6.0, ss_kd_torso: float = 5.0,
+         dock_twist_max: float = None, dock_gate_linear: bool = False,
+         weld_radius: float = None,
+         ds_mobile_com_magnitude: float = None, dt_ds: float = None,
+         dock_hold_passivity_on: bool = False, passivity_W_budget: float = None,
+         log_dock_work: bool = False,
+         ds_passivity_beta: float = None, qp_envelope_exact: bool = False,
+         aocs_active_in_interstep: bool = True,
+         interstep_hw_refresh: bool = True,
+         interstep_settle_alpha_wrench: float = 0.0,
+         interstep_settle_alpha_sigf: float = 0.0,
+         interstep_settle_epsilon_v: float = 0.0):
     cfg = r_single._make_m7_config()
     cfg.gait_anchor_dx = anchor_dx
     # Sweet-spot config carry-over (these are also already the defaults
@@ -299,6 +310,21 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     # See AOCS code path; AOCS uses tau_struct_ff = −Σ(r_Ci × f_i + τ_i)
     # from λ_qp when this is on and phase=='DS'.
     cfg.aocs_use_wrench_ff_in_ds = True
+    # J2 step 4a: re-activate the AOCS inside the inter-step DS loop
+    # (default on — restores the free-floating invariant). --no-aocs-in-
+    # interstep flips it off for the byte-identical A/B baseline.
+    cfg.aocs_active_in_interstep = bool(aocs_active_in_interstep)
+    # J2 c_curr: per-tick refresh of the inter-step QP hw_current parameter
+    # (default on — _step-consistent). --no-interstep-hw-refresh flips it off
+    # for the byte-identical A/B (entry-frozen hw_current).
+    cfg.interstep_hw_refresh = bool(interstep_hw_refresh)
+    # J2 chatter fix: settle-only α_wrench in the inter-step DS QP (0 = off).
+    cfg.interstep_settle_alpha_wrench = float(interstep_settle_alpha_wrench)
+    # J2 chatter fix (principled): settle-only Σf=f1+f2 penalty (0 = off).
+    cfg.interstep_settle_alpha_sigf = float(interstep_settle_alpha_sigf)
+    # J2 close (POINT A): dock-tolerance-derived inter-step settle exit ε_v
+    # (0 = off = byte-identical 1 mm/s).
+    cfg.interstep_settle_epsilon_v = float(interstep_settle_epsilon_v)
     # Stage 3 — trailing-DS torso reference uses the actual welded
     # state instead of the both-tools-at-anchors IK that gave the
     # persistent ~3.86° torso ori error.
@@ -325,6 +351,10 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
         cfg.ds_torso_ref_from_state = False
         cfg.ss_alpha_lambda_int = 0.0
         cfg.ds_centroidal_mode = False
+        # Pre-rework: the inter-step loop hardcoded the wheels to 0.
+        cfg.aocs_active_in_interstep = False
+        # Pre-rework: hw_current was frozen at loop entry (no per-tick refresh).
+        cfg.interstep_hw_refresh = False
     # alpha_torso_ang stays at default 500 (set by _make_m7_config).
     # 5 evenly-spaced snapshots per SS for the offline renderer.
     # FRAMES_PER_STEP=0 disables capture entirely (e.g. for tests).
@@ -421,6 +451,33 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     # given weight. Defaults equal config (6.0/5.0) ⇒ no-flag = prior behaviour.
     cfg.ss_Kp_torso = float(ss_kp_torso)
     cfg.ss_Kd_torso = float(ss_kd_torso)
+    # Fix C (J2 #1): dock-gate parameters. dock_twist_max sets ε_twist for
+    # the 6-D weld-relative twist gate ‖Jc·v⁻‖<ε; dock_gate_linear flips
+    # back to the legacy linear _gripper_speed gate for A/B. Defaults
+    # (None / False) ⇒ the config values (6-D gate at 0.05) are used.
+    if dock_twist_max is not None:
+        cfg.dock_twist_max = float(dock_twist_max)
+    if dock_gate_linear:
+        cfg.dock_use_6d_twist = False
+    # Fix C ε_pos: dock position tolerance (the gap-couple knob). Default
+    # None ⇒ config weld_radius (0.005 m).
+    if weld_radius is not None:
+        cfg.weld_radius = float(weld_radius)
+    # α (J2 #2): CoM-mobile DS. dt_ds lengthens the DS so the DWELL fires;
+    # ds_mobile_com_magnitude translates the CoM toward the next anchor.
+    if dt_ds is not None:
+        cfg.dt_ds = float(dt_ds)
+    if ds_mobile_com_magnitude is not None:
+        cfg.ds_mobile_com_magnitude = float(ds_mobile_com_magnitude)
+    # Dock-floor passivity audit knobs.
+    cfg.dock_hold_passivity_on = bool(dock_hold_passivity_on)
+    cfg.log_dock_work = bool(log_dock_work)
+    if passivity_W_budget is not None:
+        cfg.passivity_W_budget = float(passivity_W_budget)
+    # Piste A (J2 #3): envelope-coupled budget (β) + exact Ḣ_s box.
+    if ds_passivity_beta is not None:
+        cfg.ds_passivity_beta = float(ds_passivity_beta)
+    cfg.qp_envelope_exact = bool(qp_envelope_exact)
     # Output-dir override (memo §7: new runs → new dirs; prior committed
     # baselines stay read-only). Accepts a name under results/ or an abs path.
     if out_dir_override is not None:
@@ -677,6 +734,64 @@ if __name__ == '__main__':
                              'config). Lower ⇒ softer commanded torso accel.')
     parser.add_argument('--ss-kd-torso', type=float, default=5.0,
                         help='SS torso-pose derivative gain (default 5.0 = config).')
+    # Fix C (J2 #1): 6-D weld-relative dock gate ε_twist + A/B switch.
+    parser.add_argument('--dock-twist-max', type=float, default=None,
+                        help='Fix C ε_twist: max ‖Jc·v⁻‖ (6-D weld-relative '
+                             'twist) for a clean dock (default = config 0.05).')
+    parser.add_argument('--dock-gate-linear', action='store_true',
+                        help='Fix C A/B: use the legacy LINEAR _gripper_speed '
+                             'dock gate instead of the 6-D twist gate.')
+    parser.add_argument('--weld-radius', type=float, default=None,
+                        help='Fix C ε_pos: dock position tolerance [m] '
+                             '(default = config 0.005). The gap-couple knob.')
+    # α (J2 #2): CoM-mobile DS.
+    parser.add_argument('--ds-mobile-com-magnitude', type=float, default=None,
+                        help='α (J2 #2): translate the CoM this far [m] toward '
+                             'the next anchor during the DWELL (0=hold).')
+    parser.add_argument('--dt-ds', type=float, default=None,
+                        help='α (J2 #2): DS phase duration [s] (default 0.5; '
+                             '>~1.5 triggers the DWELL where moving-CoM runs).')
+    # Dock-floor passivity audit.
+    parser.add_argument('--dock-hold-passivity-on', action='store_true',
+                        help='dock-floor: force passivity ON in the SS dock-close '
+                             'hold window (default OFF = the SS-hold escape).')
+    parser.add_argument('--passivity-w-budget', type=float, default=None,
+                        help='dock-floor: constant passivity RHS budget '
+                             '(dqᵀτ_q+2αT_kin ≤ W; default 0 = strict).')
+    parser.add_argument('--log-dock-work', action='store_true',
+                        help='dock-floor: trace per-SS-tick dqⱼᵀτ_q + d + passivity.')
+    # Piste A (J2 #3).
+    parser.add_argument('--ds-passivity-beta', type=float, default=None,
+                        help='Piste A LOT A: β for the envelope-coupled passivity '
+                             'budget W=β·α·max(0,τ_w_max−‖Ḣ_s(λ_ref)‖∞). 0=strict.')
+    parser.add_argument('--qp-envelope-exact', action='store_true',
+                        help='Piste A LOT B (FLAG 2): exact origin-referenced Ḣ_s '
+                             'envelope box (vs the |M_λ·λ| proxy).')
+    parser.add_argument('--no-aocs-in-interstep', action='store_false',
+                        dest='aocs_active_in_interstep',
+                        help='J2 step 4a A/B: disable the inter-step DS AOCS '
+                             '(reverts to the legacy hardcoded-zero wheels). '
+                             'Default: AOCS active in the inter-step loop.')
+    parser.add_argument('--no-interstep-hw-refresh', action='store_false',
+                        dest='interstep_hw_refresh',
+                        help='J2 c_curr A/B: freeze the inter-step QP hw_current '
+                             'at loop entry (revert the per-tick refresh). '
+                             'Default: refresh hw_current per tick (live wheel '
+                             'momentum), mirroring the _step QP and c_simple(k).')
+    parser.add_argument('--interstep-settle-alpha-wrench', type=float, default=0.0,
+                        help='J2 chatter fix: settle-only α_wrench in the inter-step '
+                             'DS QP (0=off=byte-identical). >0 makes the λ-cost '
+                             'strictly convex ⇒ unique min-norm wrench, breaking the '
+                             'period-2 active-set chatter.')
+    parser.add_argument('--interstep-settle-alpha-sigf', type=float, default=0.0,
+                        help='J2 chatter fix (principled): settle-only penalty on the '
+                             'net contact force Σf=f1+f2=m·a_com (0=off). Removes the '
+                             'flat direction in the Σf sign by construction.')
+    parser.add_argument('--interstep-settle-epsilon-v', type=float, default=0.0,
+                        help='J2 close (POINT A): dock-tolerance-derived inter-step '
+                             'settle exit target ‖dq_full‖ [m/s] (0=off=byte-identical '
+                             '1e-3). Larger ⇒ exits earlier (T<0.5·ε_v²·λ_min). '
+                             'Derived 5e-3 = per-tick drift 1/10 of the 5 mm dock gate.')
     args = parser.parse_args()
 
     with open(MJCF, 'r') as f:
@@ -703,7 +818,22 @@ if __name__ == '__main__':
              ss_alpha_posture=args.ss_alpha_posture,
              ss_alpha_wrench=args.ss_alpha_wrench,
              ss_kp_torso=args.ss_kp_torso,
-             ss_kd_torso=args.ss_kd_torso)
+             ss_kd_torso=args.ss_kd_torso,
+             dock_twist_max=args.dock_twist_max,
+             dock_gate_linear=args.dock_gate_linear,
+             weld_radius=args.weld_radius,
+             ds_mobile_com_magnitude=args.ds_mobile_com_magnitude,
+             dt_ds=args.dt_ds,
+             dock_hold_passivity_on=args.dock_hold_passivity_on,
+             passivity_W_budget=args.passivity_w_budget,
+             log_dock_work=args.log_dock_work,
+             ds_passivity_beta=args.ds_passivity_beta,
+             qp_envelope_exact=args.qp_envelope_exact,
+             aocs_active_in_interstep=args.aocs_active_in_interstep,
+             interstep_hw_refresh=args.interstep_hw_refresh,
+             interstep_settle_alpha_wrench=args.interstep_settle_alpha_wrench,
+             interstep_settle_alpha_sigf=args.interstep_settle_alpha_sigf,
+             interstep_settle_epsilon_v=args.interstep_settle_epsilon_v)
     finally:
         with open(MJCF, 'w') as f:
             f.write(original)

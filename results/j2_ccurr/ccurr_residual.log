@@ -1,0 +1,6 @@
+RUN: /home/user/CrawlBot_control/results/ccurr_proxy_off
+  --> residual: traversal-final=0.004022  final-dock=0.003379  max-dock=0.003379 N·m·s
+RUN: /home/user/CrawlBot_control/results/ccurr_proxy_on
+  --> residual: traversal-final=0.004022  final-dock=0.003379  max-dock=0.003379 N·m·s
+RUN: /home/user/CrawlBot_control/results/ccurr_exact_on
+  --> residual: traversal-final=0.002987  final-dock=0.002507  max-dock=0.002507 N·m·s

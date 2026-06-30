@@ -1,0 +1,276 @@
+{
+  "label": "DWELL moving-CoM mag 0.20 dt_ds 2.5 (latest features)",
+  "run_config": {
+    "qp_envelope_exact": true,
+    "aocs_active_in_interstep": true,
+    "interstep_hw_refresh": true,
+    "aocs_mode": "legacy_pid_numerical",
+    "ds_mobile_com_magnitude": 0.2,
+    "dt_ds": 2.5,
+    "n_steps": 5
+  },
+  "tau_w_max_Nm": 5.0,
+  "hw_max_Nms": 5.0,
+  "dt_s_median": 0.10000000000000009,
+  "dt_s_min": 0.00999999999999801,
+  "dt_note": "mixed-cadence log: SS/_step rows ~0.1 s (dt_nmpc), inter-step DS rows ~0.01 s (dt_qp). Use the t_s column for the time axis.",
+  "n_ticks": 869,
+  "n_steps": 5,
+  "robot_mass_kg": 71.056,
+  "structure_mass_kg": 7110.0,
+  "Ltot_definition": "subtree_angmom[0] (total system angular momentum about the system CoM, world frame), recomputed at snapshots via mj_subtreeVel \u2014 identical to the Fix-A conservation check (audit_fixC_residual.py). Not per-tick (needs full state).",
+  "Hdot_s_definition": "exact origin-referenced \u1e22_s = \u03a3_j (r_Cj\u00d7f_j + \u03c4_j), structure-frame anchors. SS/_step ticks: PLANNED (from lambda_ref), read from postproc_F3F4.csv = the C3 metric \u2016\u1e22_s\u2016\u221e_SS (=5.0 at the binding). inter-step DS ticks (FIX 2): REALIZED (from the settle-QP wrench lambda_qp), since lambda_ref is absent there \u2014 fills the envelope gap so \u1e22_s is DEFINED on every tick. The Hdot_s_source column tags each tick planned|realized. proxy = exact \u2212 r_com\u00d7\u03a3f (robot-CoM lever, orbital omitted; FLAG-2 proxy), \u03a3f from the same wrench as the exact value at that tick.",
+  "torso_pos_ref_definition": "FIX 1: held setpoint \u2014 in DS the realized torso pose frozen at the entry of each contiguous DS block (the docked pose it holds); in SS the logged NMPC/QP setpoint. Removes the (0,0,0) step=-1 sentinel + the DS phase-lag/dock-IK offset \u21d2 \u2016torso\u2212ref\u2016 is the true error (~28 mm SS, ~mm hold in DS).",
+  "rref_definition": "CoM reference, logged as-is (cref_r): the inter-step QP holds r_com_ref=realized (error ~0 in DS_interstep); the run-B DWELL moving reference is preserved; the SS value is the real NMPC current-tick ref (\u2016rcom\u2212rref\u2016 = the logged e_com, the true CoM tracking lag). No sentinel/phase-lag here \u2014 only the torso ref needed fixing.",
+  "swing_dist_definition": "d_grip_swing = \u2016gripper_site \u2212 target_anchor\u2016 via _gripper_distance \u2014 the same gripper/anchor site pair as Fix C dock gate; meaningful when swing_active=1.",
+  "dock_events": [
+    {
+      "step_index": 0,
+      "tick": 64,
+      "t": 5.51,
+      "dock_distance_mm": 4.94,
+      "arm": "b",
+      "anchor": 3
+    },
+    {
+      "step_index": 1,
+      "tick": 264,
+      "t": 16.43,
+      "dock_distance_mm": 4.14,
+      "arm": "a",
+      "anchor": 3
+    },
+    {
+      "step_index": 2,
+      "tick": 369,
+      "t": 22.44,
+      "dock_distance_mm": 4.89,
+      "arm": "b",
+      "anchor": 4
+    },
+    {
+      "step_index": 3,
+      "tick": 565,
+      "t": 33.23,
+      "dock_distance_mm": 4.18,
+      "arm": "a",
+      "anchor": 4
+    },
+    {
+      "step_index": 4,
+      "tick": 669,
+      "t": 39.14,
+      "dock_distance_mm": 4.87,
+      "arm": "b",
+      "anchor": 5
+    }
+  ],
+  "phase_segments": [
+    {
+      "phase": "DS_interstep",
+      "step_index": -1,
+      "tick_start": 0,
+      "tick_end": 10
+    },
+    {
+      "phase": "DS_terminal",
+      "step_index": -1,
+      "tick_start": 11,
+      "tick_end": 33
+    },
+    {
+      "phase": "SS",
+      "step_index": 0,
+      "tick_start": 34,
+      "tick_end": 63
+    },
+    {
+      "phase": "DS_interstep",
+      "step_index": 0,
+      "tick_start": 64,
+      "tick_end": 165
+    },
+    {
+      "phase": "DS_terminal",
+      "step_index": 0,
+      "tick_start": 166,
+      "tick_end": 179
+    },
+    {
+      "phase": "SS",
+      "step_index": 1,
+      "tick_start": 180,
+      "tick_end": 263
+    },
+    {
+      "phase": "DS_interstep",
+      "step_index": 1,
+      "tick_start": 264,
+      "tick_end": 314
+    },
+    {
+      "phase": "DS_terminal",
+      "step_index": 1,
+      "tick_start": 315,
+      "tick_end": 333
+    },
+    {
+      "phase": "SS",
+      "step_index": 2,
+      "tick_start": 334,
+      "tick_end": 368
+    },
+    {
+      "phase": "DS_interstep",
+      "step_index": 2,
+      "tick_start": 369,
+      "tick_end": 467
+    },
+    {
+      "phase": "DS_terminal",
+      "step_index": 2,
+      "tick_start": 468,
+      "tick_end": 482
+    },
+    {
+      "phase": "SS",
+      "step_index": 3,
+      "tick_start": 483,
+      "tick_end": 564
+    },
+    {
+      "phase": "DS_interstep",
+      "step_index": 3,
+      "tick_start": 565,
+      "tick_end": 615
+    },
+    {
+      "phase": "DS_terminal",
+      "step_index": 3,
+      "tick_start": 616,
+      "tick_end": 634
+    },
+    {
+      "phase": "SS",
+      "step_index": 4,
+      "tick_start": 635,
+      "tick_end": 668
+    },
+    {
+      "phase": "DS_terminal",
+      "step_index": 4,
+      "tick_start": 669,
+      "tick_end": 868
+    }
+  ],
+  "conservation_snapshots": [
+    {
+      "label": "initial",
+      "t": 0.0,
+      "Ltot_x": 0.0,
+      "Ltot_y": 0.0,
+      "Ltot_z": 0.0,
+      "Ltot_norm": 0.0,
+      "tick": 0
+    },
+    {
+      "label": "release_step0",
+      "t": 2.51,
+      "Ltot_x": -6.172116300690034e-09,
+      "Ltot_y": 4.557500079193852e-08,
+      "Ltot_z": 3.8953679101999886e-08,
+      "Ltot_norm": 6.027076266645397e-08,
+      "tick": 34
+    },
+    {
+      "label": "dock_step0",
+      "t": 5.51,
+      "Ltot_x": -3.319312095545913e-06,
+      "Ltot_y": 9.644052676072113e-06,
+      "Ltot_z": -1.466713623641397e-06,
+      "Ltot_norm": 1.0304214364048642e-05,
+      "tick": 64
+    },
+    {
+      "label": "release_step1",
+      "t": 8.03,
+      "Ltot_x": -0.0011358942844292993,
+      "Ltot_y": 9.261212409260105e-05,
+      "Ltot_z": 0.0010297066262656865,
+      "Ltot_norm": 0.0015359454961370066,
+      "tick": 180
+    },
+    {
+      "label": "dock_step1",
+      "t": 16.43,
+      "Ltot_x": -0.0011358808861731459,
+      "Ltot_y": 9.317721214675817e-05,
+      "Ltot_z": 0.0010302843515627926,
+      "Ltot_norm": 0.0015363571282459353,
+      "tick": 264
+    },
+    {
+      "label": "release_step2",
+      "t": 18.94,
+      "Ltot_x": -0.001504596958739102,
+      "Ltot_y": 0.000196586742702437,
+      "Ltot_z": 0.0008598411698928091,
+      "Ltot_norm": 0.0017440714415114834,
+      "tick": 334
+    },
+    {
+      "label": "dock_step2",
+      "t": 22.44,
+      "Ltot_x": -0.0015059914566550214,
+      "Ltot_y": 0.0002018588676349987,
+      "Ltot_z": 0.0008572830408731273,
+      "Ltot_norm": 0.001744617861346568,
+      "tick": 369
+    },
+    {
+      "label": "release_step3",
+      "t": 25.03,
+      "Ltot_x": -0.0018826526960088784,
+      "Ltot_y": 0.00033457428428332634,
+      "Ltot_z": 0.0012619042418056524,
+      "Ltot_norm": 0.002291009262526081,
+      "tick": 483
+    },
+    {
+      "label": "dock_step3",
+      "t": 33.23,
+      "Ltot_x": -0.0018826319429058847,
+      "Ltot_y": 0.00033505398779134154,
+      "Ltot_z": 0.0012624572558357415,
+      "Ltot_norm": 0.0022913669566432997,
+      "tick": 565
+    },
+    {
+      "label": "release_step4",
+      "t": 35.74,
+      "Ltot_x": -0.0022165739471448785,
+      "Ltot_y": 0.0004057739746695004,
+      "Ltot_z": 0.0011645453057476428,
+      "Ltot_norm": 0.0025365366843038916,
+      "tick": 635
+    },
+    {
+      "label": "dock_step4",
+      "t": 39.14,
+      "Ltot_x": -0.0022162297505933883,
+      "Ltot_y": 0.0004072065814578695,
+      "Ltot_z": 0.0011588515204693835,
+      "Ltot_norm": 0.002533856419352138,
+      "tick": 669
+    },
+    {
+      "label": "final",
+      "t": 59.14,
+      "Ltot_x": -0.0025762300910193046,
+      "Ltot_y": 0.0004322987831605342,
+      "Ltot_z": 0.0017693391904121314,
+      "Ltot_norm": 0.0031550602039459833,
+      "tick": 868
+    }
+  ]
+}

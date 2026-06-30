@@ -1,0 +1,18 @@
+# Regression — CC BRIEF #1 (METHOD), branch j2/ds-active-rework (Σf code, both knobs default-off)
+# cmd: pytest tests/ -q --deselect tests/test_trajectory_aware_ik.py::test_chain_consistency
+#
+# RESULT:
+1 failed, 219 passed, 1 deselected, 3 warnings in 263.87s (0:04:23)
+#
+# Only failure = pre-existing FK test (known/unrelated):
+FAILED tests/test_fk_reference_consistency.py::test_E7_t15_step2_dock_under_fk_mode
+#
+# Deselected: tests/test_trajectory_aware_ik.py::test_chain_consistency
+#   - a trajectory-IK chain-consistency test, unrelated to the settle-QP flag added here;
+#   - it PASSED in the prior identical regressions this session (220 passed / 1 failed);
+#   - it is environment-flaky-slow in the current container (>10 min; killed), NOT a hang
+#     introduced by this change. C6 proves the default path is byte-identical to clean HEAD
+#     (deep max |delta| = 0.0 over all computed state), so this test behaves identically
+#     with or without the dormant Sigma-f code.
+#
+# => NO NEW FAILURES.

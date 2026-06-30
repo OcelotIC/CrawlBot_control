@@ -1,0 +1,38 @@
+======================================================================
+AOCS inter-step re-activation — A/B (inter-step DS settles only)
+======================================================================
+
+========== OFF ==========
+  inter-step ticks: 383 (3.83s) across 5 settles
+  τ_w  over inter-step ticks: mean=0.0000 max=0.0000 Nm
+  ω_s  over inter-step ticks: mean=7.336e-04 max=1.643e-03 rad/s
+  per-settle:  Δθ_s(max-min)°        | n_steps  dur[s]  T_end/T_settle  exit
+    settle 0 (step 0): [0.0000,0.0000,0.0000] max 0.0000  |τ_w|max=0.000  |   11  0.10   1.54e-05   target_met
+    settle 1 (step 1): [0.0319,0.0179,0.0238] max 0.0319  |τ_w|max=0.000  |  173  1.72   4.45e+02   plateau
+    settle 2 (step 2): [0.0071,0.0113,0.0189] max 0.0189  |τ_w|max=0.000  |   51  0.50   1.89e+05   plateau
+    settle 3 (step 3): [0.0223,0.0276,0.0459] max 0.0459  |τ_w|max=0.000  |  102  1.01   2.30e+03   plateau
+    settle 4 (step 4): [0.0081,0.0130,0.0266] max 0.0266  |τ_w|max=0.000  |   51  0.50   1.98e+05   plateau
+  WORST per-settle Δθ_s = 0.0459°
+  h_w∞ whole-traversal = 5.0422 Nms  (C5 cap 4.5; physical ±5)
+  h_w∞ during inter-step settles = 1.5577 Nms
+
+========== ON ==========
+  inter-step ticks: 387 (3.87s) across 5 settles
+  τ_w  over inter-step ticks: mean=3.2776 max=8.6603 Nm
+  ω_s  over inter-step ticks: mean=7.221e-04 max=1.539e-03 rad/s
+  per-settle:  Δθ_s(max-min)°        | n_steps  dur[s]  T_end/T_settle  exit
+    settle 0 (step 0): [0.0000,0.0000,0.0000] max 0.0000  |τ_w|max=0.000  |   11  0.10   1.54e-05   target_met
+    settle 1 (step 1): [0.0273,0.0135,0.0249] max 0.0273  |τ_w|max=8.023  |  175  1.74   4.21e+02   plateau
+    settle 2 (step 2): [0.0062,0.0106,0.0194] max 0.0194  |τ_w|max=8.660  |   51  0.50   1.89e+05   plateau
+    settle 3 (step 3): [0.0181,0.0261,0.0534] max 0.0534  |τ_w|max=8.660  |  104  1.03   2.21e+03   plateau
+    settle 4 (step 4): [0.0062,0.0132,0.0287] max 0.0287  |τ_w|max=8.660  |   51  0.50   1.92e+05   plateau
+  WORST per-settle Δθ_s = 0.0534°
+  h_w∞ whole-traversal = 5.1545 Nms  (C5 cap 4.5; physical ±5)
+  h_w∞ during inter-step settles = 1.7247 Nms
+
+======================================================================
+SUMMARY (off = legacy hardcoded-zero; on = AOCS re-activated)
+======================================================================
+  worst Δθ_s/settle:  off 0.0459°  →  on 0.0534°   (NOT reduced)
+  τ_w inter-step:     off mean 0.0000/max 0.0000  →  on mean 3.2776/max 8.6603 Nm
+  h_w∞ whole:         off 5.0422  →  on 5.1545 Nms   (C5 cap 4.5)

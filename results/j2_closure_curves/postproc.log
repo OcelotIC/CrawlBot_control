@@ -1,0 +1,94 @@
+==============================================================================
+Canonical-run post-processing — F3 + F4 derived signals
+==============================================================================
+
+[anchors] loaded 6 anchor pairs in R_s frame
+  anchor_3a (idx 2): [-0.400,+0.300,+0.025]
+  anchor_4b (idx 3): [+0.400,-0.300,+0.025]
+
+[gait_plan] 11 phases:
+  phases[ 0]   DOUBLE   DS anchor=(2a,2b)  swing_from=-1  swing_to=-1
+  phases[ 1] SINGLE_A SS:b anchor=(2a,2b)  swing_from=2  swing_to=3
+  phases[ 2]   DOUBLE   DS anchor=(2a,3b)  swing_from=-1  swing_to=-1
+  phases[ 3] SINGLE_B SS:a anchor=(2a,3b)  swing_from=2  swing_to=3
+  phases[ 4]   DOUBLE   DS anchor=(3a,3b)  swing_from=-1  swing_to=-1
+  phases[ 5] SINGLE_A SS:b anchor=(3a,3b)  swing_from=3  swing_to=4
+  phases[ 6]   DOUBLE   DS anchor=(3a,4b)  swing_from=-1  swing_to=-1
+  phases[ 7] SINGLE_B SS:a anchor=(3a,4b)  swing_from=3  swing_to=4
+  phases[ 8]   DOUBLE   DS anchor=(4a,4b)  swing_from=-1  swing_to=-1
+  phases[ 9] SINGLE_A SS:b anchor=(4a,4b)  swing_from=4  swing_to=5
+  phases[10]   DOUBLE   DS anchor=(4a,5b)  swing_from=-1  swing_to=-1
+
+Stance sanity — one row per (step_idx, phase) transition.
+tick |   t [s] | step | phase | swing | stance_a | stance_b | swing_to | r_C1=anchor_a (xyz)         | r_C2=anchor_b (xyz)
+----------------------------------------------------------------------------------------------------------------------------------
+   0 |    0.01 |   -1 |    DS |       |        2 |        2 |       -1 |      [-0.400,+0.300,+0.025] |      [-0.400,-0.300,+0.025]
+  10 |    0.11 |    0 |    SS |     b |        2 |        2 |        3 |      [-0.400,+0.300,+0.025] |      [-0.400,-0.300,+0.025]
+  38 |    2.92 |    0 |    DS |     b |        2 |        3 |        3 |      [-0.400,+0.300,+0.025] |      [+0.400,-0.300,+0.025]
+ 180 |    4.34 |    1 |    SS |     a |        2 |        3 |        3 |      [-0.400,+0.300,+0.025] |      [+0.400,-0.300,+0.025]
+ 263 |   12.65 |    1 |    DS |     a |        3 |        3 |        3 |      [+0.400,+0.300,+0.025] |      [+0.400,-0.300,+0.025]
+ 464 |   14.66 |    2 |    SS |     b |        3 |        3 |        4 |      [+0.400,+0.300,+0.025] |      [+0.400,-0.300,+0.025]
+ 573 |   25.57 |    2 |    DS |     b |        3 |        4 |        4 |      [+0.400,+0.300,+0.025] |      [+1.200,-0.300,+0.025]
+ 706 |   26.90 |    3 |    SS |     a |        3 |        4 |        4 |      [+0.400,+0.300,+0.025] |      [+1.200,-0.300,+0.025]
+ 791 |   35.41 |    3 |    DS |     a |        4 |        4 |        4 |      [+1.200,+0.300,+0.025] |      [+1.200,-0.300,+0.025]
+ 943 |   36.93 |    4 |    SS |     b |        4 |        4 |        5 |      [+1.200,+0.300,+0.025] |      [+1.200,-0.300,+0.025]
+ 984 |   41.03 |    4 |    DS |     b |        4 |        5 |        5 |      [+1.200,+0.300,+0.025] |      [+2.000,-0.300,+0.025]
+
+[stance cross-check] max d_grip_stance over run: 0.1633 mm  (threshold 10.0 mm)
+[stance cross-check] OK — stance gripper stays within 0.1633 mm of nominal anchor at every tick.
+
+[1] Hdot_s shape=(1184, 3), per-axis peak |Hdot_s|=[nan nan nan] Nm, ticks at ±5.0 clip: 265
+[1] tau_w (AOCS cmd) shape=(1184, 3), per-axis peak=[5. 5. 5.] Nm, ticks at ±5.0 clip: 43 (3.63%)
+
+[2] e_ori_torso_deg (SS rows, vs planner): cross-check vs logged scalar: max|diff|=9.96e-11
+
+[Phase-B DS hold-deviation] 6 DS blocks:
+  ticks         | t [s]           | step | p_hold (xyz, R_s)         | max |dp| per axis (mm)            | max |dp|₂ (mm) | max d_ori (deg)
+  ---------------------------------------------------------------------------------------------------------------------------------------------------------------------
+  [   0..   9] | [  0.01..  0.10] |   -1 | [+0.177,-0.816,-0.344] | x=  0.00 y=  0.00 z=  0.00     |      0.000     |      0.0000
+  [  38.. 179] | [  2.92..  4.33] |    0 | [+0.169,-0.799,-0.349] | x=  8.60 y=  0.89 z=  4.62     |      9.804     |      0.4516
+  [ 263.. 463] | [ 12.65.. 14.65] |    1 | [+0.806,-0.910,-0.348] | x=  6.50 y=  2.85 z=  1.94     |      7.360     |      0.3726
+  [ 573.. 705] | [ 25.57.. 26.89] |    2 | [+1.090,-0.611,-0.323] | x=  0.88 y=  3.43 z=  8.54     |      9.191     |      0.3552
+  [ 791.. 942] | [ 35.41.. 36.92] |    3 | [+1.763,-0.595,-0.331] | x=  0.84 y=  1.87 z=  2.61     |      3.289     |      0.2455
+  [ 984..1183] | [ 41.03.. 60.93] |    4 | [+1.869,-0.636,-0.333] | x= 32.42 y= 97.91 z= 15.97     |    101.745     |      2.9076
+
+[3] e_pos_torso (SS=planner-tracking, DS=hold-dev) shape=(1184, 3), per-axis min=[-0.01952672 -0.00343189 -0.00854443], max=[0.03241536 0.09791474 0.01597122]
+[4] d_ee_to_target shape=(1184,), min=0.000000 m, max=0.8000 m (1174 finite ticks: 346 SS + ~828 DS)
+[5] e_ori_ee_deg shape=(1184,), min=4.2483e-10, max=2.3784
+[6] mask_ss: 346 SS ticks / 1184 total (29.2%)
+[7] theta_s_deg shape=(1184,), min=2.9473e-30, peak=0.6069, final=0.0980
+
+[csv] wrote /home/user/CrawlBot_control/results/locked_run/postproc_F3F4.csv  (1184 rows × 23 cols)
+[json] wrote /home/user/CrawlBot_control/results/locked_run/postproc_metrics.json
+
+==============================================================================
+PHASE-B: per-DS-gap attitude (wheels-off inter-step DS)
+==============================================================================
+  step_idx | DS regime    | just_landed | swing_to_idx | p_anchor (xyz)             | t [s]          | theta_s start | theta_s end | theta_s peak | d_ee first/last (mm)
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+        -1 |     initial  |         ''  |          -1  |                        n/a | t=[  0.01,  0.10] |      0.0000°  |     0.0000°  |      0.0000°  | nan / nan
+         0 |  inter-step  |        'b'  |           3  |     [+0.400,-0.300,+0.025] | t=[  2.92,  4.33] |      0.0680°  |     0.0719°  |      0.0744°  |    1.69 /    0.00
+         1 |  inter-step  |        'a'  |           3  |     [+0.400,+0.300,+0.025] | t=[ 12.65, 14.65] |      0.4051°  |     0.3287°  |      0.4051°  |    4.35 /    0.00
+         2 |  inter-step  |        'b'  |           4  |     [+1.200,-0.300,+0.025] | t=[ 25.57, 26.89] |      0.5748°  |     0.5136°  |      0.5748°  |    4.47 /    0.00
+         3 |  inter-step  |        'a'  |           4  |     [+1.200,+0.300,+0.025] | t=[ 35.41, 36.92] |      0.5582°  |     0.4907°  |      0.5582°  |    4.43 /    0.00
+         4 |    trailing  |        'b'  |           5  |     [+2.000,-0.300,+0.025] | t=[ 41.03, 60.93] |      0.4656°  |     0.0980°  |      0.5177°  |    0.21 /    0.00
+
+==============================================================================
+METRICS SUMMARY
+==============================================================================
+  theta_s_deg         peak: 0.6069   final: 0.0980   RMS: 0.4039
+  e_ori_torso_deg (SS tracking)   RMS: 0.5978   peak: 2.4228
+  |e_pos_torso| (SS tracking)     RMS: 4.1415e-03 m   peak: 1.2706e-02 m
+  e_pos_torso per-axis peak SS (m): x=0.0112  y=0.0051  z=0.0067
+  e_ori_torso_deg (DS hold-dev)   peak across all DS blocks: 2.9076
+  |e_pos_torso| (DS hold-dev)     peak across all DS blocks: 101.745 mm   per-axis [x/y/z mm]: 32.42 / 97.91 / 15.97
+  d_ee at docks (per step, mm)   [sim-log "d_mm" | post-hoc R_s recomputed]:
+    step 0 (arm b→anchor 3): t_dock=2.91s  d_mm=1.86  recomp_mm=1.86  ori_sim=0.170°  ori_recomp=0.166°
+    step 1 (arm a→anchor 3): t_dock=12.64s  d_mm=4.79  recomp_mm=4.79  ori_sim=0.050°  ori_recomp=0.053°
+    step 2 (arm b→anchor 4): t_dock=25.56s  d_mm=4.90  recomp_mm=4.90  ori_sim=0.030°  ori_recomp=0.028°
+    step 3 (arm a→anchor 4): t_dock=35.40s  d_mm=4.87  recomp_mm=4.87  ori_sim=0.040°  ori_recomp=0.040°
+    step 4 (arm b→anchor 5): t_dock=41.03s  d_mm=4.67  recomp_mm=4.67  ori_sim=0.400°  ori_recomp=0.401°
+  e_ori_ee_deg (SS)   RMS: 0.3443   peak: 2.3784
+  Hdot_s per-axis peak SS-only (Nm):   x=5.0000  y=5.0000  z=5.0000   (hits ±5.0? True)
+  Hdot_s per-axis peak full-run (Nm):  x=5.0000  y=5.0000  z=7.4812
+  tau_w per-axis peak SS-only (Nm):    x=5.0000  y=5.0000  z=5.0000   at clip 22/346 SS ticks (6.36%)

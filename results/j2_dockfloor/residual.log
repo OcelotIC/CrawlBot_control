@@ -1,0 +1,15 @@
+RUN: /home/user/CrawlBot_control/results/df_off
+  --> residual: traversal-final=0.003977  final-dock=0.003363  max-dock=0.003363 N·m·s
+  docks fired = 5 ; dock_timeouts = 0
+RUN: /home/user/CrawlBot_control/results/df_strict
+  --> residual: traversal-final=0.003977  final-dock=0.003363  max-dock=0.003363 N·m·s
+  docks fired = 5 ; dock_timeouts = 0
+RUN: /home/user/CrawlBot_control/results/df_W0.5
+  --> residual: traversal-final=0.003978  final-dock=0.003395  max-dock=0.003395 N·m·s
+  docks fired = 5 ; dock_timeouts = 0
+RUN: /home/user/CrawlBot_control/results/df_W2.0
+  --> residual: traversal-final=0.003978  final-dock=0.003395  max-dock=0.003395 N·m·s
+  docks fired = 5 ; dock_timeouts = 0
+RUN: /home/user/CrawlBot_control/results/df_W10
+  --> residual: traversal-final=0.003978  final-dock=0.003395  max-dock=0.003395 N·m·s
+  docks fired = 5 ; dock_timeouts = 0

@@ -1,0 +1,53 @@
+==============================================================================
+RUN [b0]: /home/user/CrawlBot_control/results/pam20_b0.0  (trace ticks=2390)
+  MOVING seg [0:240] (240 ticks):
+    CoM err   max=0.1943  final=0.0099 m
+    W_budget  max=0.0000  mean=0.0000 W
+    passivity p_frac (at RHS) = 0.61
+    positive work dqⱼᵀτ_q>0   frac = 0.00  (max=-0.0000 W)
+    budget VIOLATIONS (pass_resid>W+tol) = 0  [max(pass_resid - W) = +1.34e-17]
+    envelope ‖Ḣ_s‖∞ max=0.816 (cap 5.0)  over-cap ticks=0
+    feasibility qpf=0 nin=0 ; swing manip 2.541e-01→2.571e-01
+  docks=2 timeouts=0
+==============================================================================
+RUN [b0.5]: /home/user/CrawlBot_control/results/pam20_b0.5  (trace ticks=2390)
+  MOVING seg [0:240] (240 ticks):
+    CoM err   max=0.1939  final=0.0098 m
+    W_budget  max=1.9461  mean=0.6899 W
+    passivity p_frac (at RHS) = 0.53
+    positive work dqⱼᵀτ_q>0   frac = 0.12  (max=+0.0041 W)
+    budget VIOLATIONS (pass_resid>W+tol) = 0  [max(pass_resid - W) = +3.14e-18]
+    envelope ‖Ḣ_s‖∞ max=0.661 (cap 5.0)  over-cap ticks=0
+    feasibility qpf=0 nin=0 ; swing manip 2.541e-01→2.570e-01
+  docks=2 timeouts=0
+==============================================================================
+RUN [b1.0]: /home/user/CrawlBot_control/results/pam20_b1.0  (trace ticks=2390)
+  MOVING seg [0:240] (240 ticks):
+    CoM err   max=0.1939  final=0.0098 m
+    W_budget  max=3.8922  mean=1.3797 W
+    passivity p_frac (at RHS) = 0.53
+    positive work dqⱼᵀτ_q>0   frac = 0.12  (max=+0.0041 W)
+    budget VIOLATIONS (pass_resid>W+tol) = 0  [max(pass_resid - W) = +3.36e-18]
+    envelope ‖Ḣ_s‖∞ max=0.661 (cap 5.0)  over-cap ticks=0
+    feasibility qpf=0 nin=0 ; swing manip 2.541e-01→2.570e-01
+  docks=2 timeouts=0
+==============================================================================
+RUN [b2.0]: /home/user/CrawlBot_control/results/pam20_b2.0  (trace ticks=2390)
+  MOVING seg [0:240] (240 ticks):
+    CoM err   max=0.1939  final=0.0098 m
+    W_budget  max=7.7838  mean=2.7592 W
+    passivity p_frac (at RHS) = 0.53
+    positive work dqⱼᵀτ_q>0   frac = 0.12  (max=+0.0041 W)
+    budget VIOLATIONS (pass_resid>W+tol) = 0  [max(pass_resid - W) = +5.85e-18]
+    envelope ‖Ḣ_s‖∞ max=0.661 (cap 5.0)  over-cap ticks=0
+    feasibility qpf=0 nin=0 ; swing manip 2.541e-01→2.570e-01
+  docks=2 timeouts=0
+==============================================================================
+β-SWEEP SUMMARY (raw — MOVING segment):
+ label        com_max com_fin  W_max  p_frac posW>0 viol  Hd_max env>cap  dk/to
+ b0            0.1943  0.0099  0.000   0.61   0.00    0   0.816      0  2/0
+ b0.5          0.1939  0.0098  1.946   0.53   0.12    0   0.661      0  2/0
+ b1.0          0.1939  0.0098  3.892   0.53   0.12    0   0.661      0  2/0
+ b2.0          0.1939  0.0098  7.784   0.53   0.12    0   0.661      0  2/0
+
+  (viol=0 ⇒ budget never violated; env>cap=0 ⇒ envelope never exceeded)
