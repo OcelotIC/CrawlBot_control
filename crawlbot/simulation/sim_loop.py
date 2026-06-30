@@ -2009,7 +2009,11 @@ class SimulationLoop:
                     ds_result = self._run_ds_passivity_loop(
                         contact_config=cc_ds,
                         max_steps=cfg.n_ds_max_steps,
-                        epsilon_v=cfg.settle_inter_epsilon_v,
+                        # Settle-exit fix (POINT A): dock-tolerance-derived ε_v
+                        # override when > 0 (else the byte-identical 1 mm/s).
+                        epsilon_v=(cfg.interstep_settle_epsilon_v
+                                   if cfg.interstep_settle_epsilon_v > 0
+                                   else cfg.settle_inter_epsilon_v),
                         plateau_window=50,
                         plateau_ratio=cfg.settle_plateau_ratio,
                         min_steps=min_steps_ds,

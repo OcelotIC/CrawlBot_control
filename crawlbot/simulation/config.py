@@ -286,6 +286,14 @@ class SimConfig:
     t_settle_inter: float = 0.0                     # [DEPRECATED] ignored
     use_energy_settle_inter: bool = True            # spec §7.1.1
     settle_inter_epsilon_v: float = 1e-3            # target ‖dq_full‖ [m/s]
+    # Settle-exit fix (J2 close, POINT A): when > 0, OVERRIDE the inter-step
+    # settle target velocity with a value DERIVED from the dock tolerance
+    # rather than the over-tight 1 mm/s on the softest mode. The exit fires at
+    # T_kin < 0.5·ε_v²·λ_min, so a larger ε_v ⇒ much shorter settle. Derivation:
+    # per-tick (dt_nmpc) residual drift ε_v·dt_nmpc ≤ (1/10)·dock_gate(5 mm) ⇒
+    # ε_v = 5 mm/s. 0.0 ⇒ off (use settle_inter_epsilon_v, byte-identical).
+    # Inter-step settle only (the SS/_step DWELL stepper is untouched).
+    interstep_settle_epsilon_v: float = 0.0
     n_settle_inter_max_steps: int = 500             # safety cap (5 s @ 100 Hz)
     t_settle_inter_min: float = 0.1                 # min runtime [s]
 
