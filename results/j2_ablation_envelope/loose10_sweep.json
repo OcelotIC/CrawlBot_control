@@ -1,0 +1,66 @@
+[
+  {
+    "h_max": 5.0,
+    "success": false,
+    "hw_inf": 2.578862322368476,
+    "L_inf": 3.468465581844397,
+    "cost": 193.05704233321174,
+    "status": "RuntimeError: Error in Opti::solve [OptiNode] at .../casadi/core/optistack.cpp:217:"
+  },
+  {
+    "h_max": 6.0,
+    "success": false,
+    "hw_inf": 2.5788540148096777,
+    "L_inf": 3.4856228487852188,
+    "cost": 195.08136246021826,
+    "status": "RuntimeError: Error in Opti::solve [OptiNode] at .../casadi/core/optistack.cpp:217:"
+  },
+  {
+    "h_max": 7.0,
+    "success": false,
+    "hw_inf": 2.5788623198816722,
+    "L_inf": 3.4833047858823747,
+    "cost": 194.96942946515384,
+    "status": "RuntimeError: Error in Opti::solve [OptiNode] at .../casadi/core/optistack.cpp:217:"
+  },
+  {
+    "h_max": 8.0,
+    "success": false,
+    "hw_inf": 2.5788623198992227,
+    "L_inf": 3.4689388780622576,
+    "cost": 194.94386176452315,
+    "status": "RuntimeError: Error in Opti::solve [OptiNode] at .../casadi/core/optistack.cpp:217:"
+  },
+  {
+    "h_max": 10.0,
+    "success": false,
+    "hw_inf": 2.5788623198402236,
+    "L_inf": 3.4682741541583426,
+    "cost": 194.91405224373173,
+    "status": "RuntimeError: Error in Opti::solve [OptiNode] at .../casadi/core/optistack.cpp:217:"
+  },
+  {
+    "h_max": 20.0,
+    "success": false,
+    "hw_inf": 2.5788623198569094,
+    "L_inf": 3.4617856308714865,
+    "cost": 194.28144375316103,
+    "status": "RuntimeError: Error in Opti::solve [OptiNode] at .../casadi/core/optistack.cpp:217:"
+  },
+  {
+    "h_max": 100.0,
+    "success": false,
+    "hw_inf": 2.578853490084228,
+    "L_inf": 3.4480107020247637,
+    "cost": 193.91850189006004,
+    "status": "RuntimeError: Error in Opti::solve [OptiNode] at .../casadi/core/optistack.cpp:217:"
+  },
+  {
+    "h_max": 1000000.0,
+    "success": false,
+    "hw_inf": 2.5788537571808696,
+    "L_inf": 3.4584827918935686,
+    "cost": 194.45893258248498,
+    "status": "RuntimeError: Error in Opti::solve [OptiNode] at .../casadi/core/optistack.cpp:217:"
+  }
+]

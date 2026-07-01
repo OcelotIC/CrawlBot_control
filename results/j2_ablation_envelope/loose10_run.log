@@ -1,0 +1,156 @@
+[loose-box] h_max_tight=10.0 (box ACTIVE), enforce_hw_conservation=True, tau_w_max/hw_max/aocs untouched; argv=--ss-two-task --ss-alpha-mom 5000 --alpha-torso-pose 24000 --ss-kp-torso 3 --ss-kd-torso 2.5 --aocs_mode legacy_pid_numerical --K_omega 50 --n-steps 6 --qp-envelope-exact --interstep-settle-alpha-wrench 3 --interstep-settle-epsilon-v 5e-3 --envelope-constraint on --out-dir figU_loose10
+[COOP-ARMS COOP] MJCF md5 pre:  8ab0edb58ca2f05fcd3c9b24dd6b41a8
+[SimulationLoop] Initialized:
+  Robot mass:     71.1 kg
+  RWA model:      YES (3 wheels)
+  AOCS estimator: L_dot (legacy)
+  GMO dock:       NO (legacy kinematic)
+  NMPC:           10 Hz, N=8
+  QP:             100 Hz, 10 per NMPC
+  Gait:           6 step(s), T_step from pre-planner (margin=5.0s)
+  Constraints:    L_max=10.0 Nms, tau_w=5.0 Nm, tau_joint=20.0 Nm
+  hw bounds:      [-5.0, 5.0] Nms
+  Dock threshold: 5.0 mm
+  Settling:       stage1=0, stage2=1 (0.01s sim, exit=target_met)
+                  T: 0.000e+00 -> 0.000e+00 J  (target T_settle=2.554e-08)
+                  lambda_min(H)=5.1084e-02 kg·m²
+                  initial |v_com|=0.0000 mm/s, |L_com|=0.0000 mNms
+
+======================================================================
+  Cooperative-arms 5-step (cooperative=True, alpha_torso_lin=500.0)
+  Output: /home/user/CrawlBot_control/results/figU_loose10
+======================================================================
+
+[Step 0] swing=b, stance=(2a,2b), target=3b
+  DS: t=0.00s (energy-based exit)
+
+qpOASES -- An Implementation of the Online Active Set Strategy.
+Copyright (C) 2007-2015 by Hans Joachim Ferreau, Andreas Potschka,
+Christian Kirches et al. All rights reserved.
+
+qpOASES is distributed under the terms of the 
+GNU Lesser General Public License 2.1 in the hope that it will be 
+useful, but WITHOUT ANY WARRANTY; without even the implied warranty 
+of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
+See the GNU Lesser General Public License for more details.
+
+
+qpOASES -- An Implementation of the Online Active Set Strategy.
+Copyright (C) 2007-2015 by Hans Joachim Ferreau, Andreas Potschka,
+Christian Kirches et al. All rights reserved.
+
+qpOASES is distributed under the terms of the 
+GNU Lesser General Public License 2.1 in the hope that it will be 
+useful, but WITHOUT ANY WARRANTY; without even the implied warranty 
+of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
+See the GNU Lesser General Public License for more details.
+
+
+qpOASES -- An Implementation of the Online Active Set Strategy.
+Copyright (C) 2007-2015 by Hans Joachim Ferreau, Andreas Potschka,
+Christian Kirches et al. All rights reserved.
+
+qpOASES is distributed under the terms of the 
+GNU Lesser General Public License 2.1 in the hope that it will be 
+useful, but WITHOUT ANY WARRANTY; without even the implied warranty 
+of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
+See the GNU Lesser General Public License for more details.
+
+
+qpOASES -- An Implementation of the Online Active Set Strategy.
+Copyright (C) 2007-2015 by Hans Joachim Ferreau, Andreas Potschka,
+Christian Kirches et al. All rights reserved.
+
+qpOASES is distributed under the terms of the 
+GNU Lesser General Public License 2.1 in the hope that it will be 
+useful, but WITHOUT ANY WARRANTY; without even the implied warranty 
+of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
+See the GNU Lesser General Public License for more details.
+
+
+qpOASES -- An Implementation of the Online Active Set Strategy.
+Copyright (C) 2007-2015 by Hans Joachim Ferreau, Andreas Potschka,
+Christian Kirches et al. All rights reserved.
+
+qpOASES is distributed under the terms of the 
+GNU Lesser General Public License 2.1 in the hope that it will be 
+useful, but WITHOUT ANY WARRANTY; without even the implied warranty 
+of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
+See the GNU Lesser General Public License for more details.
+
+
+qpOASES -- An Implementation of the Online Active Set Strategy.
+Copyright (C) 2007-2015 by Hans Joachim Ferreau, Andreas Potschka,
+Christian Kirches et al. All rights reserved.
+
+qpOASES is distributed under the terms of the 
+GNU Lesser General Public License 2.1 in the hope that it will be 
+useful, but WITHOUT ANY WARRANTY; without even the implied warranty 
+of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
+See the GNU Lesser General Public License for more details.
+
+
+qpOASES -- An Implementation of the Online Active Set Strategy.
+Copyright (C) 2007-2015 by Hans Joachim Ferreau, Andreas Potschka,
+Christian Kirches et al. All rights reserved.
+
+qpOASES is distributed under the terms of the 
+GNU Lesser General Public License 2.1 in the hope that it will be 
+useful, but WITHOUT ANY WARRANTY; without even the implied warranty 
+of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
+See the GNU Lesser General Public License for more details.
+
+
+qpOASES -- An Implementation of the Online Active Set Strategy.
+Copyright (C) 2007-2015 by Hans Joachim Ferreau, Andreas Potschka,
+Christian Kirches et al. All rights reserved.
+
+qpOASES is distributed under the terms of the 
+GNU Lesser General Public License 2.1 in the hope that it will be 
+useful, but WITHOUT ANY WARRANTY; without even the implied warranty 
+of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
+See the GNU Lesser General Public License for more details.
+
+
+qpOASES -- An Implementation of the Online Active Set Strategy.
+Copyright (C) 2007-2015 by Hans Joachim Ferreau, Andreas Potschka,
+Christian Kirches et al. All rights reserved.
+
+qpOASES is distributed under the terms of the 
+GNU Lesser General Public License 2.1 in the hope that it will be 
+useful, but WITHOUT ANY WARRANTY; without even the implied warranty 
+of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
+See the GNU Lesser General Public License for more details.
+
+
+qpOASES -- An Implementation of the Online Active Set Strategy.
+Copyright (C) 2007-2015 by Hans Joachim Ferreau, Andreas Potschka,
+Christian Kirches et al. All rights reserved.
+
+qpOASES is distributed under the terms of the 
+GNU Lesser General Public License 2.1 in the hope that it will be 
+useful, but WITHOUT ANY WARRANTY; without even the implied warranty 
+of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. 
+See the GNU Lesser General Public License for more details.
+
+  DS settle: 0.00 → +0.110s (11 steps, exit=target_met, T: 0.00e+00 → 1.60e-19 J)
+  [IK] mode=fixed_rotation  ||log(R_start^T R_goal)|| = 0.00 deg  |Δp_torso| = 125.5 mm  w_a*w_b(fixed) = 2.42e-02  threshold = 1.00e-04
+[CoarsePrePlanner] FAILED: RuntimeError: Error in Opti::solve [OptiNode] at .../casadi/core/optistack.cpp:217: — step will be skipped
+[COOP-ARMS COOP] MJCF md5 post: 8ab0edb58ca2f05fcd3c9b24dd6b41a8
+Traceback (most recent call last):
+  File "/home/user/CrawlBot_control/scripts/diag_loose_box.py", line 82, in <module>
+    runpy.run_module('scripts.diag_cooperative_arms', run_name='__main__')
+  File "<frozen runpy>", line 229, in run_module
+  File "<frozen runpy>", line 88, in _run_code
+  File "/home/user/CrawlBot_control/scripts/../scripts/diag_cooperative_arms.py", line 845, in <module>
+    main(args.legacy, args.alpha_torso_lin, args.anchor_dx,
+  File "/home/user/CrawlBot_control/scripts/../scripts/diag_cooperative_arms.py", line 552, in main
+    log = sim.run(verbose=True)
+          ^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/CrawlBot_control/scripts/../crawlbot/simulation/sim_loop.py", line 2172, in run
+    q_dock, T_step, step_feasible = self._setup_torso_for_step(
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/user/CrawlBot_control/scripts/../scripts/diag_cooperative_arms.py", line 541, in _wrapped_setup_torso
+    'q_start': sim._step_q_start.tolist(),
+               ^^^^^^^^^^^^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'tolist'

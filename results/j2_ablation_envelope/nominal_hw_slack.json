@@ -1,0 +1,9 @@
+{
+  "config": "canonical C (h_max_tight=5, enforce=True, hw_max soft box=5)",
+  "n_qp_instances": 1,
+  "n_slack_entries": 5832,
+  "max_slack_up": 0.0,
+  "max_slack_lo": 0.0,
+  "max_slack_norm": 0.0,
+  "hw_max_soft_box": 5.0
+}
