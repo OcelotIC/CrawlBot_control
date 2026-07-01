@@ -1,0 +1,80 @@
+{
+  "taskA": {
+    "n_samples": 584,
+    "cond_H_all": {
+      "median": 3512541.8,
+      "p90": 3997123.3,
+      "max": 4049350.4,
+      "n": 584
+    },
+    "cond_H_SS": {
+      "median": 3854173.6,
+      "p90": 4022702.2,
+      "max": 4049350.4,
+      "n": 328
+    },
+    "cond_H_DS": {
+      "median": 999900.0,
+      "p90": 999900.0,
+      "max": 999900.0,
+      "n": 256
+    },
+    "cond_H_no_torso_all": {
+      "median": 2201991.1,
+      "p90": 207813010.4,
+      "max": 1000010001.0,
+      "n": 584
+    },
+    "dominant_by_weight": {
+      "hw_slack": 256,
+      "torso_pose": 328
+    },
+    "dominant_by_block": {
+      "hw_slack": 256,
+      "torso_pose": 328
+    },
+    "status_distribution": {
+      "Successful return.": 584
+    },
+    "not_success": 0,
+    "switch_cond_median": 2308297.4
+  },
+  "taskB": {
+    "tau_q_SS": {
+      "rms_diff": 0.2029,
+      "tv_per_joint": 23.939,
+      "max_abs_diff": 2.6986
+    },
+    "tau_q_DS": {
+      "rms_diff": 0.0943,
+      "tv_per_joint": 16.473,
+      "max_abs_diff": 2.03
+    },
+    "tau_q_switch_jump_median": 0.7299,
+    "tau_q_typical_jump_median": 0.009,
+    "Hdot_s_RMS_gap": [
+      1.146,
+      1.076,
+      1.839
+    ],
+    "Hdot_s_HF_planned": [
+      0.1539,
+      0.2511,
+      0.5781
+    ],
+    "Hdot_s_HF_realized": [
+      0.118,
+      0.2618,
+      0.5081
+    ],
+    "kp1_residual": {
+      "r_rms_mm": 0.631,
+      "r_max_mm": 3.613,
+      "v_rms_mmps": 2.7604,
+      "L_rms_Nms": 0.1979,
+      "L_max_Nms": 0.7128,
+      "n": 528,
+      "corr_with_tauq_roughness": 0.147
+    }
+  }
+}
