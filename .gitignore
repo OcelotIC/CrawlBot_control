@@ -48,6 +48,12 @@ results/_loose_verbose/
 results/_loose_realverbose/
 results/_canon5_control/
 
+# Phase-1e h_max frontier raw run dirs (regenerable; hmax_frontier.json + summary log
+# + PHASE1E doc committed).
+results/_frontier_cap/
+results/figC_hmax6/
+results/figC_hmax7/
+
 # One-off exploratory run: v21 + mapping-bypass + raised EE-ang gains.
 # Numerics reported in chat; not preserved on branch per instruction.
 results/M7_1pct_1step_v21_mapping_off_hi_ori_gain/
