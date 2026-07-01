@@ -260,7 +260,8 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
          interstep_hw_refresh: bool = True,
          interstep_settle_alpha_wrench: float = 0.0,
          interstep_settle_alpha_sigf: float = 0.0,
-         interstep_settle_epsilon_v: float = 0.0):
+         interstep_settle_epsilon_v: float = 0.0,
+         envelope_constraint: str = 'on'):
     cfg = r_single._make_m7_config()
     cfg.gait_anchor_dx = anchor_dx
     # Sweet-spot config carry-over (these are also already the defaults
@@ -478,6 +479,28 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     if ds_passivity_beta is not None:
         cfg.ds_passivity_beta = float(ds_passivity_beta)
     cfg.qp_envelope_exact = bool(qp_envelope_exact)
+    # ── §VII ablation: hard actuation-envelope constraint on/off ───────
+    # 'off' removes the NMPC + pre-planner + QP awareness of the reaction-
+    # wheel envelope (rate ‖Ḣ_s‖∞≤τ_w,max AND storage ‖h_w‖∞≤h_max), so the
+    # planner demands whatever the task needs. The AOCS command clamp
+    # (cfg.aocs_tau_w_max) and the physical MJCF wheel ctrlrange ±5 are LEFT
+    # intact ⇒ U-fin = blind planner meets the real actuator. Nothing here
+    # touches the plant/MJCF.
+    if envelope_constraint == 'off':
+        # NOTE: use a large FINITE sentinel (1e6 ≈ unconstrained; h_w/Ḣ_s are
+        # single-digit N·m·s / N·m) rather than np.inf — CasADi's
+        # opti.set_value rejects inf for the pre-planner's h_max parameter
+        # (coarse_preplanner.py:476). 1e6 makes every envelope box vacuous
+        # with no inf edge-cases (NMPC rate autodiff, QP L̇-box finite-guard,
+        # QP soft-box RHS). Same intent as the Phase-0 diff.
+        _BIG = 1.0e6
+        cfg.tau_w_max = _BIG                    # NMPC rate + pre-planner + QP L̇-box → vacuous
+        cfg.enforce_hw_conservation = False     # NMPC h_w storage box OFF
+        cfg.h_max_tight = np.full(3, _BIG)      # pre-planner storage box OFF
+        cfg.hw_max = np.full(3, _BIG)           # QP soft s_hw box OFF (Q5)
+        print('  [ablation] envelope-constraint=OFF: tau_w_max=1e6, '
+              'enforce_hw_conservation=False, h_max_tight=1e6, hw_max=1e6 '
+              '(1e6≈inf; AOCS clamp aocs_tau_w_max + MJCF ctrlrange ±5 KEPT).')
     # Output-dir override (memo §7: new runs → new dirs; prior committed
     # baselines stay read-only). Accepts a name under results/ or an abs path.
     if out_dir_override is not None:
@@ -792,6 +815,14 @@ if __name__ == '__main__':
                              'settle exit target ‖dq_full‖ [m/s] (0=off=byte-identical '
                              '1e-3). Larger ⇒ exits earlier (T<0.5·ε_v²·λ_min). '
                              'Derived 5e-3 = per-tick drift 1/10 of the 5 mm dock gate.')
+    parser.add_argument('--envelope-constraint', choices=['on', 'off'],
+                        default='on',
+                        help='§VII ablation: NMPC/pre-planner/QP hard actuation-'
+                             'envelope constraints (rate ‖Ḣ_s‖∞≤τ_w,max + storage '
+                             '‖h_w‖∞≤h_max). off ⇒ tau_w_max=inf, '
+                             'enforce_hw_conservation=False, h_max_tight=inf, '
+                             'hw_max=inf. AOCS clamp + MJCF ctrlrange ±5 kept '
+                             '(U-fin = blind planner, real actuator).')
     args = parser.parse_args()
 
     with open(MJCF, 'r') as f:
@@ -833,7 +864,8 @@ if __name__ == '__main__':
              interstep_hw_refresh=args.interstep_hw_refresh,
              interstep_settle_alpha_wrench=args.interstep_settle_alpha_wrench,
              interstep_settle_alpha_sigf=args.interstep_settle_alpha_sigf,
-             interstep_settle_epsilon_v=args.interstep_settle_epsilon_v)
+             interstep_settle_epsilon_v=args.interstep_settle_epsilon_v,
+             envelope_constraint=args.envelope_constraint)
     finally:
         with open(MJCF, 'w') as f:
             f.write(original)
