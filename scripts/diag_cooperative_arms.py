@@ -486,21 +486,29 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     # (cfg.aocs_tau_w_max) and the physical MJCF wheel ctrlrange ±5 are LEFT
     # intact ⇒ U-fin = blind planner meets the real actuator. Nothing here
     # touches the plant/MJCF.
-    if envelope_constraint == 'off':
-        # NOTE: use a large FINITE sentinel (1e6 ≈ unconstrained; h_w/Ḣ_s are
-        # single-digit N·m·s / N·m) rather than np.inf — CasADi's
-        # opti.set_value rejects inf for the pre-planner's h_max parameter
-        # (coarse_preplanner.py:476). 1e6 makes every envelope box vacuous
-        # with no inf edge-cases (NMPC rate autodiff, QP L̇-box finite-guard,
-        # QP soft-box RHS). Same intent as the Phase-0 diff.
+    if envelope_constraint != 'on':
+        # Large FINITE sentinel (1e6 ≈ unconstrained; h_w/Ḣ_s are single-digit)
+        # rather than np.inf — CasADi opti.set_value rejects inf for the
+        # pre-planner h_max parameter (coarse_preplanner.py:476).
+        #   rate-off    : tau_w_max only (rate cap: NMPC:281 + pre-planner:343
+        #                 + QP L̇-box:564). Storage boxes intact.  [Task 1]
+        #   storage-off : enforce_hw_conservation=False + h_max_tight (NMPC:296
+        #                 + pre-planner:377). Rate cap intact.     [Task 2 / DIAG B]
+        #   off         : all of the above + QP soft s_hw box (hw_max).
+        # aocs_tau_w_max clamp + MJCF wheel ctrlrange ±5 are ALWAYS kept.
         _BIG = 1.0e6
-        cfg.tau_w_max = _BIG                    # NMPC rate + pre-planner + QP L̇-box → vacuous
-        cfg.enforce_hw_conservation = False     # NMPC h_w storage box OFF
-        cfg.h_max_tight = np.full(3, _BIG)      # pre-planner storage box OFF
-        cfg.hw_max = np.full(3, _BIG)           # QP soft s_hw box OFF (Q5)
-        print('  [ablation] envelope-constraint=OFF: tau_w_max=1e6, '
-              'enforce_hw_conservation=False, h_max_tight=1e6, hw_max=1e6 '
-              '(1e6≈inf; AOCS clamp aocs_tau_w_max + MJCF ctrlrange ±5 KEPT).')
+        if envelope_constraint in ('off', 'rate-off'):
+            cfg.tau_w_max = _BIG
+        if envelope_constraint in ('off', 'storage-off'):
+            cfg.enforce_hw_conservation = False
+            cfg.h_max_tight = np.full(3, _BIG)
+        if envelope_constraint == 'off':
+            cfg.hw_max = np.full(3, _BIG)
+        print(f'  [ablation] envelope-constraint={envelope_constraint}: '
+              f'tau_w_max={cfg.tau_w_max:g}, enforce_hw={cfg.enforce_hw_conservation}, '
+              f'h_max_tight={float(np.ravel(cfg.h_max_tight)[0]):g}, '
+              f'hw_max={float(np.ravel(cfg.hw_max)[0]):g} '
+              f'(aocs_tau_w_max={cfg.aocs_tau_w_max:g} + MJCF ±5 KEPT).')
     # Output-dir override (memo §7: new runs → new dirs; prior committed
     # baselines stay read-only). Accepts a name under results/ or an abs path.
     if out_dir_override is not None:
@@ -815,7 +823,8 @@ if __name__ == '__main__':
                              'settle exit target ‖dq_full‖ [m/s] (0=off=byte-identical '
                              '1e-3). Larger ⇒ exits earlier (T<0.5·ε_v²·λ_min). '
                              'Derived 5e-3 = per-tick drift 1/10 of the 5 mm dock gate.')
-    parser.add_argument('--envelope-constraint', choices=['on', 'off'],
+    parser.add_argument('--envelope-constraint',
+                        choices=['on', 'off', 'rate-off', 'storage-off'],
                         default='on',
                         help='§VII ablation: NMPC/pre-planner/QP hard actuation-'
                              'envelope constraints (rate ‖Ḣ_s‖∞≤τ_w,max + storage '

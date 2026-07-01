@@ -1,0 +1,85 @@
+{
+  "tau_w_max_Nm": 5.0,
+  "C": {
+    "label": "envelope rate-cap ON (canonical @5ab2c91)",
+    "csv": "results/j2_canonical_revalidation/runfix_traversal.csv",
+    "ticks": 1080,
+    "ss_planned_ticks": 328,
+    "planned_Hdot_s_SS_peak_axis_Nm": {
+      "x": 3.485,
+      "y": 5.0,
+      "z": 5.0
+    },
+    "planned_Hdot_s_SS_over_cap": {
+      "count": 0,
+      "total": 328,
+      "pct": 0.0
+    },
+    "planned_Hdot_s_per_swing_over_cap_pct": {
+      "0": 0.0,
+      "1": 0.0,
+      "2": 0.0,
+      "3": 0.0,
+      "4": 0.0,
+      "5": 0.0
+    },
+    "realized_tauw_peak_inf_Nm": 5.0,
+    "realized_tauw_saturation": {
+      "count": 40,
+      "total": 1080,
+      "pct": 3.7
+    },
+    "theta_s_peak_norm_deg": 0.5913,
+    "theta_s_final_norm_deg": 0.1078,
+    "hw_peak_inf_Nms": 4.8855,
+    "docks_mm": [
+      4.94,
+      4.41,
+      4.88,
+      4.42,
+      4.76,
+      4.92
+    ]
+  },
+  "U": {
+    "label": "rate cap OFF (cfg.tau_w_max=1e6; storage box + AOCS clamp UNCHANGED)",
+    "csv": "results/j2_ablation_envelope/runU_rateoff_traversal.csv",
+    "ticks": 1112,
+    "ss_planned_ticks": 336,
+    "planned_Hdot_s_SS_peak_axis_Nm": {
+      "x": 3.373,
+      "y": 4.483,
+      "z": 6.27
+    },
+    "planned_Hdot_s_SS_over_cap": {
+      "count": 41,
+      "total": 336,
+      "pct": 12.2
+    },
+    "planned_Hdot_s_per_swing_over_cap_pct": {
+      "0": 21.9,
+      "1": 0.0,
+      "2": 21.2,
+      "3": 0.0,
+      "4": 23.5,
+      "5": 26.8
+    },
+    "realized_tauw_peak_inf_Nm": 5.0,
+    "realized_tauw_saturation": {
+      "count": 72,
+      "total": 1112,
+      "pct": 6.5
+    },
+    "theta_s_peak_norm_deg": 0.5367,
+    "theta_s_final_norm_deg": 0.2785,
+    "hw_peak_inf_Nms": 4.4841,
+    "docks_mm": [
+      4.94,
+      4.06,
+      4.78,
+      4.47,
+      4.79,
+      4.7
+    ]
+  }
+}
