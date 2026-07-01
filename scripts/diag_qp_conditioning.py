@@ -33,9 +33,14 @@ import crawlbot.solvers.centroidal_nmpc as cn
 _orig_make = r_single._make_m7_config
 
 
+_HMAX = float(os.environ.get('QPCOND_HMAX', '5.0'))       # default 5.0 = canonical
+_OUTDIR = os.environ.get('QPCOND_OUTDIR', 'figC_qpcond')
+_STRIDE = int(os.environ.get('QPCOND_STRIDE', '10'))      # sample every Nth QP solve
+
+
 def _mk(*a, **k):
     c = _orig_make(*a, **k)
-    c.h_max_tight = np.full(3, 5.0)      # canonical
+    c.h_max_tight = np.full(3, _HMAX)
     return c
 
 
@@ -80,7 +85,7 @@ def _cond(M):
 
 def _raw(self, H, g, C_eq, d_eq, C_ineq, d_ineq, lb, ub, x0=None):
     i = _n[0]; _n[0] += 1
-    sample = (i % 10 == 0)
+    sample = (i % _STRIDE == 0)
     if sample:
         n = H.shape[0]
         cond_H = _cond(H)
@@ -158,16 +163,18 @@ sys.argv = [
     '--ss-kp-torso', '3', '--ss-kd-torso', '2.5',
     '--aocs_mode', 'legacy_pid_numerical', '--K_omega', '50', '--qp-envelope-exact',
     '--interstep-settle-alpha-wrench', '3', '--interstep-settle-epsilon-v', '5e-3',
-    '--n-steps', '6', '--envelope-constraint', 'on', '--out-dir', 'figC_qpcond',
+    '--n-steps', '6', '--envelope-constraint', 'on', '--out-dir', _OUTDIR,
 ]
-print('[qp-cond] instrumenting canonical C (h_max=5); sampling every 10th QP solve for cond(H)')
+print(f'[qp-cond] h_max={_HMAX} out={_OUTDIR} stride={_STRIDE}; sampling cond(H)')
 try:
     runpy.run_module('scripts.diag_cooperative_arms', run_name='__main__')
 except SystemExit:
     pass
 
 os.makedirs('results/j2_ablation_envelope', exist_ok=True)
-json.dump({'qp': _qp, 'nmpc': _nmpc, 'dt_nmpc': 0.1, 'dt_qp': 0.01},
-          open('results/j2_ablation_envelope/qp_cond_raw.json', 'w'))
-print(f'\n[qp-cond] captured {len(_qp)} QP-cond samples (every 10th of {_n[0]} solves), '
-      f'{len(_nmpc)} NMPC solves -> results/j2_ablation_envelope/qp_cond_raw.json')
+_rawname = 'qp_cond_raw.json' if _OUTDIR == 'figC_qpcond' else f'qp_cond_raw_{_OUTDIR}.json'
+_rawpath = f'results/j2_ablation_envelope/{_rawname}'
+json.dump({'qp': _qp, 'nmpc': _nmpc, 'dt_nmpc': 0.1, 'dt_qp': 0.01, 'h_max': _HMAX, 'stride': _STRIDE},
+          open(_rawpath, 'w'))
+print(f'\n[qp-cond] h_max={_HMAX}: captured {len(_qp)} cond samples (stride {_STRIDE} of {_n[0]} solves), '
+      f'{len(_nmpc)} NMPC solves -> {_rawpath}')

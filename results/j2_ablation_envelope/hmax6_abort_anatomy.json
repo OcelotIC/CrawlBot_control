@@ -1,0 +1,53 @@
+{
+  "5": {
+    "ticks": 1080,
+    "ss_ticks": 328,
+    "nmpc_status": {
+      "NMPC_BYPASSED": 552,
+      "Solve_Succeeded": 528
+    },
+    "nmpc_solve_failures": 0,
+    "dock_evals": 21,
+    "dock_fired": 6,
+    "dock_d_first_mm": 5.913,
+    "dock_d_min_mm": 4.405,
+    "dock_d_end_mm": 4.925,
+    "hold_span_s": 35.47,
+    "ee_track_ss_rms_mm": 8.015,
+    "ee_track_ss_max_mm": 14.479
+  },
+  "6": {
+    "ticks": 114,
+    "ss_ticks": 104,
+    "nmpc_status": {
+      "NMPC_BYPASSED": 10,
+      "Solve_Succeeded": 104
+    },
+    "nmpc_solve_failures": 0,
+    "dock_evals": 81,
+    "dock_fired": 0,
+    "dock_d_first_mm": 8.008,
+    "dock_d_min_mm": 6.8,
+    "dock_d_end_mm": 10.265,
+    "hold_span_s": 8.0,
+    "ee_track_ss_rms_mm": 8.664,
+    "ee_track_ss_max_mm": 10.259
+  },
+  "7": {
+    "ticks": 110,
+    "ss_ticks": 100,
+    "nmpc_status": {
+      "NMPC_BYPASSED": 10,
+      "Solve_Succeeded": 100
+    },
+    "nmpc_solve_failures": 0,
+    "dock_evals": 81,
+    "dock_fired": 0,
+    "dock_d_first_mm": 8.771,
+    "dock_d_min_mm": 8.771,
+    "dock_d_end_mm": 14.272,
+    "hold_span_s": 8.0,
+    "ee_track_ss_rms_mm": 12.027,
+    "ee_track_ss_max_mm": 14.265
+  }
+}

@@ -40,5 +40,10 @@ sys.argv = [
     '--interstep-settle-alpha-wrench', '3', '--interstep-settle-epsilon-v', '5e-3',
     '--n-steps', '6', '--envelope-constraint', 'on', '--out-dir', OUT,
 ]
+import shlex as _shlex
+_extra = os.environ.get('HMAX_EXTRA_FLAGS', '')
+if _extra:
+    sys.argv[1:1] = _shlex.split(_extra)
+    print(f'[run-hmax] extra flags: {_extra}')
 print(f'[run-hmax] h_max_tight={H}  out-dir=results/{OUT}  (else canonical, tau_w_max=5)')
 runpy.run_module('scripts.diag_cooperative_arms', run_name='__main__')
