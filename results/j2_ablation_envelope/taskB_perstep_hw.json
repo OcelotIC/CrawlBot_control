@@ -1,0 +1,61 @@
+{
+  "source": "results/j2_canonical_revalidation/runfix_traversal.csv (committed C, realized h_w)",
+  "box_Nms": 5.0,
+  "per_step": {
+    "0": {
+      "peak_axis": [
+        0.58,
+        1.586,
+        2.359
+      ],
+      "peak_inf": 2.359,
+      "margin": 2.641
+    },
+    "1": {
+      "peak_axis": [
+        0.148,
+        1.957,
+        2.943
+      ],
+      "peak_inf": 2.943,
+      "margin": 2.057
+    },
+    "2": {
+      "peak_axis": [
+        0.658,
+        2.116,
+        4.004
+      ],
+      "peak_inf": 4.004,
+      "margin": 0.996
+    },
+    "3": {
+      "peak_axis": [
+        0.175,
+        2.196,
+        3.008
+      ],
+      "peak_inf": 3.008,
+      "margin": 1.992
+    },
+    "4": {
+      "peak_axis": [
+        0.711,
+        2.293,
+        4.885
+      ],
+      "peak_inf": 4.885,
+      "margin": 0.115
+    },
+    "5": {
+      "peak_axis": [
+        0.222,
+        2.356,
+        3.027
+      ],
+      "peak_inf": 3.027,
+      "margin": 1.973
+    }
+  },
+  "global_peak_inf": 4.885
+}

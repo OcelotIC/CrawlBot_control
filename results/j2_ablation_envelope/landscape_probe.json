@@ -1,0 +1,125 @@
+{
+  "T5": 2.7751,
+  "T10": 1.3875,
+  "distance_m": 0.1953,
+  "x5_solve": {
+    "cost": 11.205447604093022,
+    "hw_peak": 4.3100220270460285,
+    "hw_peak_axis": [
+      0.742,
+      2.518,
+      4.31
+    ]
+  },
+  "matrix": {
+    "1_box5_T5_default": {
+      "success": true,
+      "cost": 11.205447604093022,
+      "iters": 12,
+      "hw_peak": 4.3100220270460285,
+      "hw_peak_axis": [
+        0.742,
+        2.518,
+        4.31
+      ],
+      "L_peak": 0.1340862333299741,
+      "status": "Solve_Succeeded"
+    },
+    "2_box10_T5_default": {
+      "success": true,
+      "cost": 11.205447604044167,
+      "iters": 12,
+      "hw_peak": 4.31002212357674,
+      "hw_peak_axis": [
+        0.742,
+        2.518,
+        4.31
+      ],
+      "L_peak": 0.13408620996591042,
+      "status": "Solve_Succeeded"
+    },
+    "3_box10_T10_default": {
+      "success": false,
+      "cost": 194.91405224373173,
+      "iters": 133,
+      "hw_peak": 2.5788623198402236,
+      "hw_peak_axis": [
+        1.676,
+        2.375,
+        2.579
+      ],
+      "L_peak": 3.4682741541583426,
+      "status": "RuntimeError: Error in Opti::solve [OptiNode] at .../casadi/core/optistack.cpp:217:"
+    },
+    "4_box10_T5_warmxstar": {
+      "success": true,
+      "cost": 11.205447603928713,
+      "iters": 11,
+      "hw_peak": 4.31002212343898,
+      "hw_peak_axis": [
+        0.742,
+        2.518,
+        4.31
+      ],
+      "L_peak": 0.13408620989884454,
+      "status": "Solve_Succeeded"
+    },
+    "5_box10_T10_warmxstar": {
+      "success": false,
+      "cost": 194.45971888484638,
+      "iters": 92,
+      "hw_peak": 2.5788537550250314,
+      "hw_peak_axis": [
+        1.723,
+        2.365,
+        2.579
+      ],
+      "L_peak": 3.4776868486079744,
+      "status": "RuntimeError: Error in Opti::solve [OptiNode] at .../casadi/core/optistack.cpp:217:"
+    }
+  },
+  "taskC": [
+    {
+      "seed": 1,
+      "success": true,
+      "cost": 11.205447604081941,
+      "iters": 12,
+      "hw_peak": 4.310022027030847,
+      "hw_peak_axis": [
+        0.742,
+        2.518,
+        4.31
+      ],
+      "L_peak": 0.134086233332304,
+      "status": "Solve_Succeeded"
+    },
+    {
+      "seed": 2,
+      "success": true,
+      "cost": 11.20544760409554,
+      "iters": 12,
+      "hw_peak": 4.310022027049289,
+      "hw_peak_axis": [
+        0.742,
+        2.518,
+        4.31
+      ],
+      "L_peak": 0.13408623332966427,
+      "status": "Solve_Succeeded"
+    },
+    {
+      "seed": 3,
+      "success": true,
+      "cost": 11.205447604094912,
+      "iters": 12,
+      "hw_peak": 4.310022027050302,
+      "hw_peak_axis": [
+        0.742,
+        2.518,
+        4.31
+      ],
+      "L_peak": 0.1340862333279129,
+      "status": "Solve_Succeeded"
+    }
+  ]
+}

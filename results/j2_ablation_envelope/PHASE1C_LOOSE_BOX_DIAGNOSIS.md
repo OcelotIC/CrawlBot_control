@@ -1,5 +1,17 @@
 # Phase-1c — loose-but-active storage box (h_max_tight=10, enforce=True): result
 
+> **⚠️ CORRECTED BY PHASE-1D (`PHASE1D_ROOT_CAUSE.md`).** The conclusion below — "the
+> pre-planner is numerically fragile to the box VALUE" — is **confounded and wrong**. The
+> sim's `T_step_guess` heuristic (sim_loop:1888-1890) inversely couples the planned step
+> duration to `h_max`, so the h_max=10 run also ran with **half the step time** (2.78→1.39 s).
+> With the step time held fixed, box=10 converges to the *identical* optimum as box=5
+> (`Optimal Solution Found`). The failure is the shortened step time, **not** the box value or
+> the landscape. The methodology note below (blaming a "missing warm-start") is likewise wrong:
+> the discarded sweep failed because it inherited the h_max=10 step time (T10), not for lack of
+> a warm-start. Read `PHASE1D_ROOT_CAUSE.md` for the corrected root cause; the raw run facts
+> below (h_max=10 fails, h_max=5 succeeds, verbatim EXITs, s_hw=0) remain accurate.
+
+
 **Hypothesis (Idriss):** Task-2's storage blocker was the box's ABSENCE (removing
 `enforce_hw_conservation` + setting `h_max=1e6` left `h_w` under-regularized), NOT its
 bound value. Keeping the box ACTIVE but LOOSE (2× the real 5 bound) should converge
