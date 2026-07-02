@@ -1,0 +1,14 @@
+=== Phase 1h R1-R5 verbatim IPOPT EXIT + summary table ===
+PHASE 1h FACTOR ISOLATION — step-0  (dist=0.195m, T5=2.775s, T_short=0.500s, M=15, m=71.06, eps_v=0.005, eps_L=0.05, f_max=25.0)
+--- R1: box=5  T_step=2.775s  rate_cap=5  (verbose IPOPT) ---
+EXIT: Optimal Solution Found.
+--- R2: box=100  T_step=2.775s  rate_cap=5  (verbose IPOPT) ---
+EXIT: Optimal Solution Found.
+--- R3: box=100  T_step=0.500s  rate_cap=5  (verbose IPOPT) ---
+EXIT: Converged to a point of local infeasibility. Problem may be infeasible.
+--- R4: box=100  T_step=0.500s  rate_cap=1e+06  (verbose IPOPT) ---
+EXIT: Converged to a point of local infeasibility. Problem may be infeasible.
+--- R5: box=5  T_step=0.500s  rate_cap=5  (verbose IPOPT) ---
+EXIT: Converged to a point of local infeasibility. Problem may be infeasible.
+  run |   box  T_step    rate |    OK |      cost |  |h_w|pk   |L|pk |   r_err_m    |v_N|    |L_N| |  |Ldot|pk   |f|pk
+  eps_v (terminal |v_N| soft bound) = 0.005   eps_L (terminal |L_N| soft bound) = 0.05

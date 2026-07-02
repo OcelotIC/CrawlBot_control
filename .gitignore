@@ -80,3 +80,7 @@ results/M7_1pct_3step_v22_t15_midwaypoint/physics_trace.pkl
 results/M7_1pct_3step_v22_t15_midwaypoint/metrics.csv
 results/M7_1pct_3step_v22_t15_midwaypoint/ik_trace.json
 results/M7_1pct_3step_v22_t15_midwaypoint/fig*.png
+
+# Phase 1h raw run dirs (regenerable; factor_isolation_1h.json + summary + doc committed).
+results/_1h_factor/
+results/figC_hmax6_tmax/
