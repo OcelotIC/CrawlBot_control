@@ -1,0 +1,243 @@
+{
+  "constants": {
+    "rate_cap_Nm": 5.0,
+    "storage_box_Nms": 5.0,
+    "note": "rate cap = planned |\u1e22_s| reference line; storage box = \u00b1h_w reference line"
+  },
+  "sources": {
+    "C": {
+      "csv": "results/j2_canonical_revalidation/runfix_traversal.csv",
+      "commit": "5ab2c91",
+      "label": "with management (canonical, rate cap + storage box ON)"
+    },
+    "U": {
+      "csv": "results/j2_ablation_envelope/runU_rateoff_traversal.csv",
+      "commit": "be76c9c",
+      "label": "without rate management (rate cap OFF, tau_w_max=1e6)"
+    }
+  },
+  "task1_key_numbers": {
+    "path": "results/j2_ablation_envelope/task1_key_numbers.json",
+    "commit": "be76c9c"
+  },
+  "crosscheck_csv_vs_task1": {
+    "C": {
+      "planned_peak_match": true,
+      "over_pct_match": true,
+      "tauw_sat_match": true,
+      "hw_peak_match": true,
+      "theta_peak_match": true,
+      "theta_settled_match": true
+    },
+    "U": {
+      "planned_peak_match": true,
+      "over_pct_match": true,
+      "tauw_sat_match": true,
+      "hw_peak_match": true,
+      "theta_peak_match": true,
+      "theta_settled_match": true
+    }
+  },
+  "C": {
+    "n_ticks": 1080,
+    "ss_planned_ticks": 328,
+    "planned_Hdot_s_SS_peak_per_axis_Nm": {
+      "x": 3.485,
+      "y": 5.0,
+      "z": 5.0
+    },
+    "planned_SS_over_cap": {
+      "pct": 0.0,
+      "count": 0,
+      "total": 328
+    },
+    "planned_SS_over_cap_per_step": {
+      "0": {
+        "pct": 0.0,
+        "count": 0,
+        "total": 32
+      },
+      "1": {
+        "pct": 0.0,
+        "count": 0,
+        "total": 84
+      },
+      "2": {
+        "pct": 0.0,
+        "count": 0,
+        "total": 36
+      },
+      "3": {
+        "pct": 0.0,
+        "count": 0,
+        "total": 80
+      },
+      "4": {
+        "pct": 0.0,
+        "count": 0,
+        "total": 34
+      },
+      "5": {
+        "pct": 0.0,
+        "count": 0,
+        "total": 62
+      }
+    },
+    "tauw_saturation_pct": 3.7,
+    "tauw_saturation_count": [
+      40,
+      1080
+    ],
+    "tauw_peak_norm_Nm": 7.17,
+    "tauw_peak_inf_Nm": 5.0,
+    "hw_peak_per_axis_Nms": [
+      0.7107,
+      2.3562,
+      4.8855
+    ],
+    "hw_peak_inf_Nms": 4.8855,
+    "hw_peak_per_step_per_axis_Nms": {
+      "0": [
+        0.5804,
+        1.5857,
+        2.3586
+      ],
+      "1": [
+        0.1484,
+        1.9566,
+        2.9426
+      ],
+      "2": [
+        0.6583,
+        2.1155,
+        4.004
+      ],
+      "3": [
+        0.175,
+        2.1962,
+        3.0085
+      ],
+      "4": [
+        0.7107,
+        2.2931,
+        4.8855
+      ],
+      "5": [
+        0.2223,
+        2.3562,
+        3.0272
+      ]
+    },
+    "theta_s_peak_geodesic_deg": 0.5913,
+    "theta_s_settled_geodesic_deg": 0.1078,
+    "docks_mm": [
+      4.94,
+      4.41,
+      4.88,
+      4.42,
+      4.76,
+      4.92
+    ]
+  },
+  "U": {
+    "n_ticks": 1112,
+    "ss_planned_ticks": 336,
+    "planned_Hdot_s_SS_peak_per_axis_Nm": {
+      "x": 3.373,
+      "y": 4.483,
+      "z": 6.27
+    },
+    "planned_SS_over_cap": {
+      "pct": 12.2,
+      "count": 41,
+      "total": 336
+    },
+    "planned_SS_over_cap_per_step": {
+      "0": {
+        "pct": 21.9,
+        "count": 7,
+        "total": 32
+      },
+      "1": {
+        "pct": 0.0,
+        "count": 0,
+        "total": 85
+      },
+      "2": {
+        "pct": 21.2,
+        "count": 7,
+        "total": 33
+      },
+      "3": {
+        "pct": 0.0,
+        "count": 0,
+        "total": 81
+      },
+      "4": {
+        "pct": 23.5,
+        "count": 8,
+        "total": 34
+      },
+      "5": {
+        "pct": 26.8,
+        "count": 19,
+        "total": 71
+      }
+    },
+    "tauw_saturation_pct": 6.5,
+    "tauw_saturation_count": [
+      72,
+      1112
+    ],
+    "tauw_peak_norm_Nm": 8.059,
+    "tauw_peak_inf_Nm": 5.0,
+    "hw_peak_per_axis_Nms": [
+      0.7134,
+      2.8313,
+      4.4841
+    ],
+    "hw_peak_inf_Nms": 4.4841,
+    "hw_peak_per_step_per_axis_Nms": {
+      "0": [
+        0.5806,
+        1.5864,
+        2.3595
+      ],
+      "1": [
+        0.1456,
+        1.9541,
+        2.9892
+      ],
+      "2": [
+        0.688,
+        2.1349,
+        3.7332
+      ],
+      "3": [
+        0.1744,
+        2.205,
+        3.1658
+      ],
+      "4": [
+        0.7134,
+        2.3377,
+        4.4841
+      ],
+      "5": [
+        0.1988,
+        2.8313,
+        3.7043
+      ]
+    },
+    "theta_s_peak_geodesic_deg": 0.5367,
+    "theta_s_settled_geodesic_deg": 0.2785,
+    "docks_mm": [
+      4.94,
+      4.06,
+      4.78,
+      4.47,
+      4.79,
+      4.7
+    ]
+  }
+}
