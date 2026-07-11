@@ -1,0 +1,46 @@
+{
+  "mjcf": "/home/user/CrawlBot_control/models/VISPA_crawling_rwa3.xml",
+  "reduction": "Hdot_s = Sigma_j(r_Cj x f_j + tau_j), structure-frame anchors (load_anchors_struct_frame), origin-referenced; same as export_figure_data.py:190-191, applied on ALL ticks",
+  "runs": {
+    "C": {
+      "source_log": "results/figC_qpcond/sim_log.json",
+      "source_postproc": "results/figA_canon_fixed/postproc_F3F4.csv",
+      "committed_csv": "results/j2_canonical_revalidation/runfix_traversal.csv",
+      "n_ticks": 1080,
+      "struct_pos0": [
+        -2.9507041259026073e-19,
+        -1.3813938410152076e-16,
+        -1.8
+      ],
+      "struct_quat0": [
+        1.0,
+        1.2752550554055732e-16,
+        2.8753903938651265e-17,
+        5.243865757462316e-16
+      ],
+      "ds_selfcheck_max_dev": 4.952773713373659e-07,
+      "lambda_qp_layout": "[f_a(0:3), tau_a(3:6), f_b(6:9), tau_b(9:12)]",
+      "n_anchors": 6
+    },
+    "U": {
+      "source_log": "results/figU_rateoff/sim_log.json",
+      "source_postproc": "results/figU_rateoff/postproc_F3F4.csv",
+      "committed_csv": "results/j2_ablation_envelope/runU_rateoff_traversal.csv",
+      "n_ticks": 1112,
+      "struct_pos0": [
+        -2.9500192937013807e-19,
+        -1.3813804537892837e-16,
+        -1.8
+      ],
+      "struct_quat0": [
+        1.0,
+        1.2752589085530954e-16,
+        2.875450608773091e-17,
+        5.24386069837124e-16
+      ],
+      "ds_selfcheck_max_dev": 4.6195432794604585e-06,
+      "lambda_qp_layout": "[f_a(0:3), tau_a(3:6), f_b(6:9), tau_b(9:12)]",
+      "n_anchors": 6
+    }
+  }
+}
