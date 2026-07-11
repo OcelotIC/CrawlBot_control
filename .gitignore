@@ -51,3 +51,20 @@ results/M7_1pct_3step_v22_t15_midwaypoint/physics_trace.pkl
 results/M7_1pct_3step_v22_t15_midwaypoint/metrics.csv
 results/M7_1pct_3step_v22_t15_midwaypoint/ik_trace.json
 results/M7_1pct_3step_v22_t15_midwaypoint/fig*.png
+
+# Regenerable raw sim-run dumps from the §VII ablation / h_max-frontier / QP-cond
+# phases (these dirs carry heavy sim_log.json + traces). The tidy exports, analysis
+# JSONs, and reports ARE committed elsewhere (e.g. results/j2_ablation_envelope/,
+# results/j2_canonical_revalidation/). Already ignored on j2/ablation-envelope; this
+# aligns j2/ds-active-rework with that convention. (ADJ-CONV reads figC_qpcond's
+# snapshots but its tidy deliverable lives under results/j2_adjconv/.)
+results/figU_rateoff/
+results/figC_nominal/
+results/figC_qpcond/
+results/figC_qpcond6/
+results/figC_hmax6/
+results/figC_hmax6_ee/
+results/figC_hmax6_tmax/
+results/figC_hmax7/
+results/_canon5_control/
+results/_frontier_cap/
