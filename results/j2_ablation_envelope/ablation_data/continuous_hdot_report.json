@@ -1,0 +1,140 @@
+{
+  "C": {
+    "n": 1080,
+    "empty": 0,
+    "ds_crosscheck_max": 1.2999999996488043e-06,
+    "peak_swing": [
+      1.32538627,
+      3.3698094800000007,
+      5.000000600000005
+    ],
+    "peak_weld": [
+      3.357502225,
+      5.00000033,
+      5.000000700000003
+    ],
+    "peak_settle": [
+      3.3151380611000008,
+      4.999999675,
+      5.000001260000007
+    ],
+    "peak_overall": [
+      3.357502225,
+      5.00000033,
+      5.000001260000007
+    ],
+    "peak_overall_t": 31.08,
+    "peak_overall_cat": "settle",
+    "swing_over5": true,
+    "weld_over5": true,
+    "settle_over5": true,
+    "seams": [
+      {
+        "t": 0.1,
+        "label": "DS_interstep->SS",
+        "new_jump": 1.3951808278833284,
+        "old_jump": 2.47173700788333
+      },
+      {
+        "t": 3.21,
+        "label": "SS->DS_interstep",
+        "new_jump": 0.5141624840000003,
+        "old_jump": 0.4828621
+      },
+      {
+        "t": 4.6,
+        "label": "DS_interstep->SS",
+        "new_jump": 0.35528181574000023,
+        "old_jump": 1.128402641
+      },
+      {
+        "t": 12.91,
+        "label": "SS->DS_interstep",
+        "new_jump": 0.59124599,
+        "old_jump": 0.47051405
+      },
+      {
+        "t": 13.51,
+        "label": "DS_interstep->SS",
+        "new_jump": 1.9743128240000016,
+        "old_jump": 4.3735114
+      },
+      {
+        "t": 17.02,
+        "label": "SS->DS_interstep",
+        "new_jump": 1.9620492299999999,
+        "old_jump": 1.904179
+      }
+    ],
+    "w_weld": 2
+  },
+  "U": {
+    "n": 1112,
+    "empty": 0,
+    "ds_crosscheck_max": 4.699999994528525e-06,
+    "peak_swing": [
+      1.4161433650000006,
+      3.512874415000001,
+      7.481848100000009
+    ],
+    "peak_weld": [
+      4.079137800000014,
+      15.986969999999998,
+      14.085994400000004
+    ],
+    "peak_settle": [
+      3.9369656400000004,
+      13.165420675,
+      31.148588100000016
+    ],
+    "peak_overall": [
+      4.079137800000014,
+      15.986969999999998,
+      31.148588100000016
+    ],
+    "peak_overall_t": 31.06,
+    "peak_overall_cat": "settle",
+    "swing_over5": true,
+    "weld_over5": true,
+    "settle_over5": true,
+    "seams": [
+      {
+        "t": 0.1,
+        "label": "DS_interstep->SS",
+        "new_jump": 1.3951808278831694,
+        "old_jump": 2.4717380078831703
+      },
+      {
+        "t": 3.21,
+        "label": "SS->DS_interstep",
+        "new_jump": 0.5149343395000003,
+        "old_jump": 0.4833488
+      },
+      {
+        "t": 4.59,
+        "label": "DS_interstep->SS",
+        "new_jump": 0.3678286394400002,
+        "old_jump": 1.129952368
+      },
+      {
+        "t": 13.0,
+        "label": "SS->DS_interstep",
+        "new_jump": 0.49254531700000004,
+        "old_jump": 0.40334633
+      },
+      {
+        "t": 13.6,
+        "label": "DS_interstep->SS",
+        "new_jump": 1.986073626000001,
+        "old_jump": 4.3716610000000005
+      },
+      {
+        "t": 16.81,
+        "label": "SS->DS_interstep",
+        "new_jump": 0.7243946899999993,
+        "old_jump": 0.7809015000000001
+      }
+    ],
+    "w_weld": 2
+  }
+}

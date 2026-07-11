@@ -11,6 +11,7 @@ all values are read/derived from committed artifacts. Generator: `scripts/export
 | **U** | `results/j2_ablation_envelope/runU_rateoff_traversal.csv` | `be76c9c` | without rate management (rate cap OFF, `tau_w_max=1e6`; storage box + AOCS clamp kept) |
 | task1 | `results/j2_ablation_envelope/task1_key_numbers.json` | `be76c9c` | committed headline numbers (cross-check) |
 | meta C/U | `runfix_meta.json` `5ab2c91` / `runU_rateoff_meta.json` `be76c9c` | dock_events (per-step dock distances) |
+| **λ_qp C/U** | `lambda_qp_{C,U}.csv` + `lambda_qp_meta.json` | ABL-HDOT-2 | realized contact wrench `[f_a,τ_a,f_b,τ_b]` + validated per-tick stance; source of the continuous realized Ḣ_s. Extracted from the identity-confirmed raw logs (`figC_qpcond`/`figU_rateoff`; Idriss-authorized one-time), so the continuous signal is reproducible from committed data. Stance validated to reproduce committed DS Ḣ_s (C 5e-7, U 4.6e-6). |
 
 ## Constants (plot reference lines)
 - **rate cap = 5 N·m** (`tau_w_max`; the planned \|Ḣ_s\| envelope) — source: task1_key_numbers.json `tau_w_max_Nm`, and `export_figure_data.py:303`.
@@ -32,6 +33,17 @@ We split that one column faithfully into `Hdot_s_planned_*` (populated on SS, em
 wheel command `tau_w` (see the tauw_* columns)** — that is the SS-phase realized counterpart to the planned Ḣ_s.
 We do NOT synthesize a realized-SS or planned-DS Ḣ_s.
 
+**ABL-HDOT-2 update (homogeneous continuous realized Ḣ_s).** The planned/realized split above is an
+export artifact, not a property of the physical quantity. `Hdot_s_realized_cont_{x,y,z}` now carries
+the **single continuous realized** Ḣ_s = Σ_j(r_Cj×f_j+τ_j) from the realized wrench `λ_qp` on **every**
+tick (committed `lambda_qp_{C,U}.csv`), removing the old planned→realized seam artifact (worst seam
+t≈13.5: jump 4.37→1.99, now a real swing-onset ramp). **Split (per axis):** with management (C) the
+realized rate is held at exactly **5.00** in swing / weld / settle; without (U) it exceeds ±5 in
+**swing** (z=7.48, mid-swing, robust to excluding ≤10 ticks around welds → still 6.52), at the
+docking **weld** (15.99), and in **settle** (31.15). ⇒ U's over-5 is a **real swing locomotion
+over-demand**, not only a contact-model transient. Details: `../PHASE_ABL_HDOT2_CONTINUOUS.md`,
+`continuous_hdot_report.json`.
+
 ## DELIVERABLE 1 — time-series columns (`ablation_C_timeseries.csv`, `ablation_U_timeseries.csv`)
 | column | raw/computed | source column(s) | formula / note |
 |---|---|---|---|
@@ -40,7 +52,8 @@ We do NOT synthesize a realized-SS or planned-DS Ḣ_s.
 | `phase_raw` | raw | `phase` | `DS_interstep` / `DS_terminal` / `SS` |
 | `step_index` | raw | `step_index` | −1 = pre-step; 0..5 = locomotion steps |
 | `Hdot_s_planned_{x,y,z}_Nm` | computed (split) | `Hdot_s_{x,y,z}_Nm` | = source value where `Hdot_s_source=='planned'` (SS); empty otherwise. Planned reaction-torque rate. [N·m] |
-| `Hdot_s_realized_{x,y,z}_Nm` | computed (split) | `Hdot_s_{x,y,z}_Nm` | = source value where `Hdot_s_source=='realized'` (DS); empty otherwise. Realized settle-wrench rate. **DS-only** — use `tauw_*` for realized rate during SS. [N·m] |
+| `Hdot_s_realized_{x,y,z}_Nm` | computed (split) | `Hdot_s_{x,y,z}_Nm` | = source value where `Hdot_s_source=='realized'` (DS); empty otherwise. Realized settle-wrench rate. **DS-only** — superseded by the continuous column below for a homogeneous signal. [N·m] |
+| `Hdot_s_realized_cont_{x,y,z}_Nm` | computed (ABL-HDOT-2) | `lambda_qp_{run}.csv` (`build_continuous_hdot.py`) | **continuous REALIZED** Ḣ_s = Σ_j(r_Cj×f_j+τ_j) from `λ_qp` on **EVERY** tick (SS+DS), structure-frame anchors, origin-referenced, `+Σ` sign. Same reduction as `export_figure_data.py:190-191` with the DS-only guard removed. **0 empty cells**; equals committed `Hdot_s_realized` on DS to ≤4.7e-6. On SS the swing arm's wrench is 0 so it is automatically single-contact. [N·m] |
 | `hw_{x,y,z}_Nms` | raw | `hw_{x,y,z}_Nms` | reaction-wheel stored momentum [N·m·s] |
 | `tauw_{x,y,z}_Nm` | raw | `tauw_{x,y,z}_Nm` | realized wheel torque = realized reaction-torque rate; AOCS-clamped ±5 per axis [N·m] |
 | `tauw_norm_Nm` | computed | `tauw_{x,y,z}_Nm` | `sqrt(τ_wx²+τ_wy²+τ_wz²)` [N·m] |
