@@ -68,3 +68,8 @@ results/figC_hmax6_tmax/
 results/figC_hmax7/
 results/_canon5_control/
 results/_frontier_cap/
+
+# PREPLAN-FIX revalidation raw run dumps (regenerable; before/after in
+# results/j2_adjconv/PHASE_PREPLAN_FIX_STEP2.md)
+results/figC_preplanfix/
+results/figU_preplanfix/
