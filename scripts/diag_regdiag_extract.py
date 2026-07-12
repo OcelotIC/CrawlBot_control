@@ -18,8 +18,8 @@ model = mujoco.MjModel.from_xml_path(MJCF)
 STANCE_ARM = ['a', 'b', 'a', 'b', 'a', 'b']
 STANCE_ANCHOR = [2, 3, 3, 4, 4, 5]
 # (tag, eps)
-CONFIGS = [('1em4', 1e-4), ('1em6', 1e-6), ('1em8', 1e-8),
-           ('1em10', 1e-10), ('1em12', 1e-12)]
+CONFIGS = [('1e0', 1.0), ('1em2', 1e-2), ('1em4', 1e-4), ('1em6', 1e-6),
+           ('1em8', 1e-8), ('1em10', 1e-10), ('1em12', 1e-12)]
 BASELINE_DOCKS = [4.9401, 4.4054, 4.9039, 4.4358, 4.0453, 4.9999]  # figC_sw_s5_x1
 
 
