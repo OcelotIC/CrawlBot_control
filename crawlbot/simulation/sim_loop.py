@@ -1894,6 +1894,11 @@ class SimulationLoop:
         # docking step, leaving all others bit-identical (no cross-step coupling).
         if float(np.linalg.norm(r_com_0)) > cfg.preplanner_tstep_standoff_knee:
             T_step_guess *= (1.0 + cfg.preplanner_tstep_standoff_gain)
+        # Per-step T_step scale (DIAGNOSTIC, default off). len(self._preplanner_stats)
+        # is the 0-based index of THIS step (one pre-planner call per step, appended
+        # after the solve below), so this isolates a single step's T_step.
+        if len(self._preplanner_stats) == cfg.preplanner_tstep_scale_step:
+            T_step_guess *= cfg.preplanner_tstep_scale_factor
 
         result = self.preplanner.solve(
             r_com_0=r_com_0,

@@ -262,7 +262,9 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
          interstep_settle_alpha_sigf: float = 0.0,
          interstep_settle_epsilon_v: float = 0.0,
          preplanner_tstep_standoff_gain: float = 0.0,
-         preplanner_tstep_standoff_knee: float = 1e9):
+         preplanner_tstep_standoff_knee: float = 1e9,
+         preplanner_tstep_scale_step: int = -1,
+         preplanner_tstep_scale_factor: float = 1.0):
     cfg = r_single._make_m7_config()
     cfg.gait_anchor_dx = anchor_dx
     # Sweet-spot config carry-over (these are also already the defaults
@@ -302,6 +304,8 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     # STEP5-MARGIN: standoff-keyed dock-margin safety factor on T_step (default off).
     cfg.preplanner_tstep_standoff_gain = float(preplanner_tstep_standoff_gain)
     cfg.preplanner_tstep_standoff_knee = float(preplanner_tstep_standoff_knee)
+    cfg.preplanner_tstep_scale_step = int(preplanner_tstep_scale_step)
+    cfg.preplanner_tstep_scale_factor = float(preplanner_tstep_scale_factor)
     # AOCS mode override (default 'legacy_corrected' = canonical).
     # legacy_pd_numerical / legacy_pd_model add a PD regulator on ω_s
     # on top of the legacy_corrected feedforward + desat. The two
@@ -798,6 +802,10 @@ if __name__ == '__main__':
     parser.add_argument('--preplanner-tstep-standoff-knee', type=float, default=1e9,
                         help='STEP5-MARGIN: standoff knee above which the gain '
                              'applies. inf = off (default).')
+    parser.add_argument('--preplanner-tstep-scale-step', type=int, default=-1,
+                        help='TSTEP-DIAG: 0-based step index whose T_step to scale. -1=off.')
+    parser.add_argument('--preplanner-tstep-scale-factor', type=float, default=1.0,
+                        help='TSTEP-DIAG: multiply that step T_step by this factor.')
     parser.add_argument('--interstep-settle-epsilon-v', type=float, default=0.0,
                         help='J2 close (POINT A): dock-tolerance-derived inter-step '
                              'settle exit target ‖dq_full‖ [m/s] (0=off=byte-identical '
@@ -846,7 +854,9 @@ if __name__ == '__main__':
              interstep_settle_alpha_sigf=args.interstep_settle_alpha_sigf,
              interstep_settle_epsilon_v=args.interstep_settle_epsilon_v,
              preplanner_tstep_standoff_gain=args.preplanner_tstep_standoff_gain,
-             preplanner_tstep_standoff_knee=args.preplanner_tstep_standoff_knee)
+             preplanner_tstep_standoff_knee=args.preplanner_tstep_standoff_knee,
+             preplanner_tstep_scale_step=args.preplanner_tstep_scale_step,
+             preplanner_tstep_scale_factor=args.preplanner_tstep_scale_factor)
     finally:
         with open(MJCF, 'w') as f:
             f.write(original)

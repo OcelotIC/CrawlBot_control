@@ -78,3 +78,6 @@ results/figU_preplanfix/
 results/figC_step5cal/
 results/figC_step5iso/
 results/figC_step5fix/
+
+# TSTEP-DIAG-ALL per-step sweep raw run dumps (regenerable)
+results/figC_sw_*/

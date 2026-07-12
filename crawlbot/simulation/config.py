@@ -267,6 +267,11 @@ class SimConfig:
     # step, leaving all others bit-identical. Default gain 0 / knee ∞ = off.
     preplanner_tstep_standoff_gain: float = 0.0
     preplanner_tstep_standoff_knee: float = 1e9
+    # Per-step T_step scale (DIAGNOSTIC ONLY, default off): scale the T_step of the
+    # single step whose 0-based index == scale_step by scale_factor. Used by the
+    # TSTEP-DIAG sweep to isolate one step; default scale_step=-1 → no-op.
+    preplanner_tstep_scale_step: int = -1
+    preplanner_tstep_scale_factor: float = 1.0
     # F-SAT (mapping torso-ref rate limiter): the per-WBC-tick r_b_ref
     # increment is capped at (|v_b_ref_ff| + fsat_jitter_margin)·dt_qp,
     # i.e. the planned (feasibility-bounded) torso-reference velocity
