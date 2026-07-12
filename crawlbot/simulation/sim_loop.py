@@ -1888,6 +1888,12 @@ class SimulationLoop:
         v_max = float(np.min(np.abs(h_max))) / max(m, 1e-6) / max(lever_arm, 1e-6)
         distance = float(np.linalg.norm(r_com_goal - r_com_0))
         T_step_guess = max(0.5, distance / v_max) if v_max > 0.0 else 1.0
+        # Standoff-keyed dock-margin safety factor (default off). Only steps whose
+        # standoff exceeds the knee get extra swing time — keying the knee ABOVE
+        # the other steps' standoff isolates the change to the highest-standoff
+        # docking step, leaving all others bit-identical (no cross-step coupling).
+        if float(np.linalg.norm(r_com_0)) > cfg.preplanner_tstep_standoff_knee:
+            T_step_guess *= (1.0 + cfg.preplanner_tstep_standoff_gain)
 
         result = self.preplanner.solve(
             r_com_0=r_com_0,

@@ -258,6 +258,15 @@ class SimConfig:
     preplanner_max_iter: int = 300          # IPOPT max iterations
     preplanner_a_cruise_max: float = 0.0     # [m/s²] cruise accel limit (0=off)
     preplanner_cruise_ramp_frac: float = 0.2 # ramp fraction for cruise window
+    # Standoff-keyed dock-margin safety factor on the per-step T_step guess.
+    # Only steps whose standoff |r_com_0| exceeds the knee get extra swing time:
+    #   if |r_com_0| > knee:  T_step *= (1 + gain)
+    # (At higher standoff the extended swing arm tracks less precisely, so the
+    # highest-standoff docking step needs slightly more time to close the gap.)
+    # Keying to a knee ABOVE the other steps' standoff isolates the change to that
+    # step, leaving all others bit-identical. Default gain 0 / knee ∞ = off.
+    preplanner_tstep_standoff_gain: float = 0.0
+    preplanner_tstep_standoff_knee: float = 1e9
     # F-SAT (mapping torso-ref rate limiter): the per-WBC-tick r_b_ref
     # increment is capped at (|v_b_ref_ff| + fsat_jitter_margin)·dt_qp,
     # i.e. the planned (feasibility-bounded) torso-reference velocity

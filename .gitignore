@@ -73,3 +73,8 @@ results/_frontier_cap/
 # results/j2_adjconv/PHASE_PREPLAN_FIX_STEP2.md)
 results/figC_preplanfix/
 results/figU_preplanfix/
+
+# STEP5-MARGIN calibration raw run dumps (regenerable)
+results/figC_step5cal/
+results/figC_step5iso/
+results/figC_step5fix/

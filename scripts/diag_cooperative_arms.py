@@ -260,7 +260,9 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
          interstep_hw_refresh: bool = True,
          interstep_settle_alpha_wrench: float = 0.0,
          interstep_settle_alpha_sigf: float = 0.0,
-         interstep_settle_epsilon_v: float = 0.0):
+         interstep_settle_epsilon_v: float = 0.0,
+         preplanner_tstep_standoff_gain: float = 0.0,
+         preplanner_tstep_standoff_knee: float = 1e9):
     cfg = r_single._make_m7_config()
     cfg.gait_anchor_dx = anchor_dx
     # Sweet-spot config carry-over (these are also already the defaults
@@ -297,6 +299,9 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     # AOCS clips its commanded torque at the same value).
     cfg.tau_w_max = float(tau_w_max)
     cfg.aocs_tau_w_max = float(tau_w_max)
+    # STEP5-MARGIN: standoff-keyed dock-margin safety factor on T_step (default off).
+    cfg.preplanner_tstep_standoff_gain = float(preplanner_tstep_standoff_gain)
+    cfg.preplanner_tstep_standoff_knee = float(preplanner_tstep_standoff_knee)
     # AOCS mode override (default 'legacy_corrected' = canonical).
     # legacy_pd_numerical / legacy_pd_model add a PD regulator on ω_s
     # on top of the legacy_corrected feedforward + desat. The two
@@ -787,6 +792,12 @@ if __name__ == '__main__':
                         help='J2 chatter fix (principled): settle-only penalty on the '
                              'net contact force Σf=f1+f2=m·a_com (0=off). Removes the '
                              'flat direction in the Σf sign by construction.')
+    parser.add_argument('--preplanner-tstep-standoff-gain', type=float, default=0.0,
+                        help='STEP5-MARGIN: dock-margin safety factor. If '
+                             '|r_com_0|>knee, T_step *= (1 + gain). 0 = off (default).')
+    parser.add_argument('--preplanner-tstep-standoff-knee', type=float, default=1e9,
+                        help='STEP5-MARGIN: standoff knee above which the gain '
+                             'applies. inf = off (default).')
     parser.add_argument('--interstep-settle-epsilon-v', type=float, default=0.0,
                         help='J2 close (POINT A): dock-tolerance-derived inter-step '
                              'settle exit target ‖dq_full‖ [m/s] (0=off=byte-identical '
@@ -833,7 +844,9 @@ if __name__ == '__main__':
              interstep_hw_refresh=args.interstep_hw_refresh,
              interstep_settle_alpha_wrench=args.interstep_settle_alpha_wrench,
              interstep_settle_alpha_sigf=args.interstep_settle_alpha_sigf,
-             interstep_settle_epsilon_v=args.interstep_settle_epsilon_v)
+             interstep_settle_epsilon_v=args.interstep_settle_epsilon_v,
+             preplanner_tstep_standoff_gain=args.preplanner_tstep_standoff_gain,
+             preplanner_tstep_standoff_knee=args.preplanner_tstep_standoff_knee)
     finally:
         with open(MJCF, 'w') as f:
             f.write(original)
