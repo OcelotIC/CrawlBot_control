@@ -336,11 +336,14 @@ class CoarsePrePlanner:
             opti.subject_to(opti.bounded(-cfg.f_max, fk, cfg.f_max))
             opti.subject_to(opti.bounded(-cfg.tau_max, tauk, cfg.tau_max))
 
-            # Rate bound on L̇ evaluated at the start of the interval.
-            # |L̇|_∞ ≤ τ_{w,max} is the same bound the NMPC enforces.
-            rk = xk[0:3]
-            L_dot = ca.cross(p_r_C - rk, fk) + tauk
-            opti.subject_to(opti.bounded(-cfg.tau_w_max, L_dot, cfg.tau_w_max))
+            # Rate bound evaluated at the start of the interval, on the
+            # about-origin Ḣ_s = Σ_j r_Cj×f_j + τ_j (moment arm about the
+            # structure origin; the orbital term r_com×f is included). Matches
+            # the NMPC hard cap (centroidal_nmpc.py:279); NOT the centroidal
+            # L̇_com (about the robot CoM), which under-counts the wheel torque
+            # at non-zero standoff. The L STATE (ODE above) stays centroidal.
+            H_dot_s = ca.cross(p_r_C, fk) + tauk
+            opti.subject_to(opti.bounded(-cfg.tau_w_max, H_dot_s, cfg.tau_w_max))
 
         # --- Cruise-phase acceleration constraint (v21) ---
         if cfg.a_cruise_max > 0.0:
