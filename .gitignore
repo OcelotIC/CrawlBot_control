@@ -85,3 +85,7 @@ results/figC_sw_*/
 # EE-RATIO-GLOBAL torso:EE ratio sweep raw run dumps (regenerable; table in
 # results/j2_adjconv/PHASE_EE_RATIO_GLOBAL.md + ratio_sweep.json)
 results/figC_ratio_*/
+
+# REG-DIAG epsilon-sweep raw run dumps (regenerable; table in
+# results/j2_adjconv/PHASE_REG_DIAG.md + reg_sweep.json)
+results/figC_reg_*/
