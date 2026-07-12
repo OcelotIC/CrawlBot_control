@@ -1,0 +1,114 @@
+{
+  "ktraj_summary": {
+    "26": {
+      "n": 64,
+      "kappa_min": 3545010.062887693,
+      "kappa_med": 3559516.358034609,
+      "kappa_max": 3751103.30892558
+    },
+    "32": {
+      "n": 402,
+      "kappa_min": 999900.0100989902,
+      "kappa_med": 999900.0100990015,
+      "kappa_max": 999900.0100990015
+    }
+  },
+  "reps": [
+    {
+      "label": "DS-settle",
+      "idx": 0,
+      "solver": "qpoases",
+      "n_eq": 32,
+      "weight_min": 0.01,
+      "weight_max": 10000.0,
+      "weight_span": 1000000.0,
+      "kappa_H": 999900.0100989902,
+      "kappa_H_LS": 999999.9999999998,
+      "kappa_flat_Jacobian_only": 1.9999990000010004,
+      "rescale": {
+        "D=24": {
+          "kappa_regUNscaled": 997605.7486033518,
+          "dx_regUNscaled": 1.162403506782539e-13,
+          "kappa_regScaled": 999900.0100989902,
+          "dx_regScaled": 1.3578027591165664e-13
+        },
+        "D=240": {
+          "kappa_regUNscaled": 976562.5234375,
+          "dx_regUNscaled": 1.8771095788849834e-12,
+          "kappa_regScaled": 999900.0100989899,
+          "dx_regScaled": 1.3442025270649083e-12
+        },
+        "D=1e+06": {
+          "kappa_regUNscaled": 9901.980198019803,
+          "dx_regUNscaled": 1.2090328738167955e-13,
+          "kappa_regScaled": 999900.0100989902,
+          "dx_regScaled": 1.262323578998803e-13
+        }
+      }
+    },
+    {
+      "label": "SS-mid-swing",
+      "idx": 120,
+      "solver": "qpoases",
+      "n_eq": 26,
+      "weight_min": 0.01,
+      "weight_max": 24000.0,
+      "weight_span": 2400000.0,
+      "kappa_H": 3627406.288616252,
+      "kappa_H_LS": 3627769.0291451137,
+      "kappa_flat_Jacobian_only": 8.072079812378057,
+      "rescale": {
+        "D=24": {
+          "kappa_regUNscaled": 3619083.231788819,
+          "dx_regUNscaled": 6.842158521624953e-05,
+          "kappa_regScaled": 3627406.2886162526,
+          "dx_regScaled": 3.019806626980426e-14
+        },
+        "D=240": {
+          "kappa_regUNscaled": 3542743.215962025,
+          "dx_regUNscaled": 0.0007109153363193954,
+          "kappa_regScaled": 3627406.2886162517,
+          "dx_regScaled": 1.426636586643326e-14
+        },
+        "D=1e+06": {
+          "kappa_regUNscaled": 35919.495338070425,
+          "dx_regUNscaled": 2.0062422329380096,
+          "kappa_regScaled": 3627406.2886162517,
+          "dx_regScaled": 3.552713678800501e-15
+        }
+      }
+    },
+    {
+      "label": "SS-dock-approach",
+      "idx": 320,
+      "solver": "qpoases",
+      "n_eq": 26,
+      "weight_min": 0.01,
+      "weight_max": 24000.0,
+      "weight_span": 2400000.0,
+      "kappa_H": 3554819.1584595446,
+      "kappa_H_LS": 3555174.6402753936,
+      "kappa_flat_Jacobian_only": 8.140574295932373,
+      "rescale": {
+        "D=24": {
+          "kappa_regUNscaled": 3546662.652309848,
+          "dx_regUNscaled": 1.7260281967024227e-05,
+          "kappa_regScaled": 3554819.158459547,
+          "dx_regScaled": 2.858824288409778e-15
+        },
+        "D=240": {
+          "kappa_regUNscaled": 3471850.2580814376,
+          "dx_regUNscaled": 0.00017933806258030316,
+          "kappa_regScaled": 3554819.158459544,
+          "dx_regScaled": 9.992007221626409e-16
+        },
+        "D=1e+06": {
+          "kappa_regUNscaled": 35200.739012627644,
+          "dx_regUNscaled": 0.5054428744454762,
+          "kappa_regScaled": 3554819.158459547,
+          "dx_regScaled": 1.4432899320127035e-15
+        }
+      }
+    }
+  ]
+}
