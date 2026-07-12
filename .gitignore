@@ -81,3 +81,7 @@ results/figC_step5fix/
 
 # TSTEP-DIAG-ALL per-step sweep raw run dumps (regenerable)
 results/figC_sw_*/
+
+# EE-RATIO-GLOBAL torso:EE ratio sweep raw run dumps (regenerable; table in
+# results/j2_adjconv/PHASE_EE_RATIO_GLOBAL.md + ratio_sweep.json)
+results/figC_ratio_*/
