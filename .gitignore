@@ -95,3 +95,6 @@ results/figC_userw*/
 
 # HIER-STANDARD-SWEEP raw run dumps (regenerable; tables in results/j2_adjconv/PHASE_HIER_STANDARD_SWEEP.md)
 results/figC_hier_*/
+
+# COPRIORITY-1000 raw run (regenerable; result in results/j2_adjconv/copri1000_result.json)
+results/figC_copri*/
