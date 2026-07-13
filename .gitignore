@@ -89,3 +89,6 @@ results/figC_ratio_*/
 # REG-DIAG epsilon-sweep raw run dumps (regenerable; table in
 # results/j2_adjconv/PHASE_REG_DIAG.md + reg_sweep.json)
 results/figC_reg_*/
+
+# User-weight quick-try raw run (regenerable; result in results/j2_adjconv/userweights_result.json)
+results/figC_userw/
