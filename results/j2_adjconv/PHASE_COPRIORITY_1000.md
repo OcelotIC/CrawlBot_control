@@ -71,3 +71,33 @@ Full vector + span 1e4 + ratios (above, 1:1:1 torso:mom:EE); **feasibility = FAI
 θ_s pk 0.167 (abort); **κ_SS 1.00e4** (λ_min 1.0); h_w peak 2.31; qp_fail 0 / nmpc_fail 10. Risks
 materialized: **both** (torso-floor timeout + momentum de-saturation); responsible: **torso : momentum = 1:1**
 (torso must out-weight momentum). NOT patched. `crawlbot/` untouched. **STOP for cross-check.**
+
+---
+
+## Addendum — momentum 2000 variant (torso 1000, EE 1000, momentum 2000 → torso:mom = 1:2)
+Data: `results/j2_adjconv/copri_m2000_result.json`. Raised momentum ABOVE torso to discriminate two
+hypotheses for the 1:1 timeout: **H1** — the torso:momentum ratio (raising momentum should worsen it);
+**H2** — the *low absolute* momentum / de-saturation (raising momentum should restore swing authority and dock).
+
+**Result: near-IDENTICAL timeout — momentum is not the lever.**
+| metric | mom 1000 (1:1) | mom 2000 (1:2) |
+|---|---|---|
+| feasibility | TIMEOUT step 0, min d **6.87** mm | TIMEOUT step 0, min d **6.86** mm |
+| SS Ḣ_s realized (step 0) | 2.31 | 2.33 |
+| e_com pk | 0.1034 | 0.1034 |
+| θ_s pk / settled | 0.167 / 0.068 | 0.167 / 0.068 |
+| κ_SS | 1.00e4 | 1.00e4 |
+| h_w peak | 2.31 | 2.30 |
+| nmpc_fail | 10 | 10 |
+
+- **H2 DISPROVED:** raising momentum 1000→2000 does **nothing** — the step-0 failure is **insensitive to the
+  momentum weight** (bit-for-bit the same de-saturated swing, min d 6.86 vs 6.87). The timeout is not the low
+  absolute momentum.
+- **H1 refined & consistent:** torso 1000 is below the attitude-hold threshold, and once past it the failure
+  is momentum-independent (mom 1000 = 2000). The docking runs had torso ≥ 2000 (userw2 #2) **or** momentum
+  ≤ 400 with torso 1000 (userw2 #1); at torso 1000 with momentum ≥ 1000 it fails.
+- **The lever is TORSO, not momentum.** Caveat: this run does not isolate torso from the other
+  copri-stack weights that also differ from the docking userw2 configs (hw-slack 10000 vs 800, torque 1
+  vs 5, ε 1e-6 vs 1e-4). The clean isolation test (NOT run — awaiting direction): **torso 2000 @ momentum
+  1000, EE 1000** on this stack — if it docks, torso is confirmed the lever; if it still times out, the
+  suspect shifts to hw-slack 10000 / the floor-raise interaction. NOT patched. **STOP for cross-check.**
