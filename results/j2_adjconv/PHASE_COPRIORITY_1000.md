@@ -345,3 +345,42 @@ saturation GONE, holding torso at 300 and EE at 1000. If it docks 6/6, we've iso
 0.02 mm *and* obtained a **low-torso (300) recipe** — lighter and comparably conditioned to Add-5. Caveat: the
 two-variable change here means only the mom→400 run fully isolates it, but the θ_s=0.083 evidence already makes
 torso the unlikely culprit. `crawlbot/` untouched. Measurement only. **STOP.**
+
+---
+
+## Addendum 8 — REFUTED (momentum) → ISOLATED (torso). mom 500→400 changes nothing; **torso is the lever**
+Data: `results/j2_adjconv/copri_t300e1000m400_result.json`. Single-variable test of Addendum 7's momentum
+hypothesis: drop momentum **500 → 400** (Add-5's desaturating value), holding torso 300 / EE 1000 / hw 1000.
+
+**Result: momentum hypothesis REFUTED.** Still **4/6**, step 4 still misses at **5.02 mm**, realized Ḣ_s
+**unchanged at 3.60** (was 3.61 at mom 500). Dropping the momentum weight did **not** desaturate the swing and
+did **not** recover the 0.02 mm. My Add-7 reading ("momentum 500 is the suspect") was wrong — the same
+assert-before-testing error the COPRIORITY hunt has punished repeatedly. The disciplined single-variable run
+corrected it.
+
+### The isolation — three runs, one lever
+| config | docks | Ḣ_s pk | sat | e_com | θ_s settled | step-4 |
+|---|---|---|---|---|---|---|
+| Add-5  torso **2000** EE1000 mom400 (hw800) | **6/6** | 2.50 | GONE | 0.137 | 0.424 | 2.49 dock |
+| Add-7  torso 300 EE1000 mom **500** (hw1000) | 4/6 | 3.61 | PARTIAL | 0.164 | 0.083 | **MISS 5.02** |
+| **This** torso 300 EE1000 mom **400** (hw1000) | 4/6 | 3.60 | PARTIAL | 0.164 | 0.084 | **MISS 5.02** |
+
+- **mom 500 vs 400 @ torso 300** (rows 2 vs 3): identical outcome — momentum weight is **inert** here.
+- **torso 2000 vs 300 @ mom 400, EE 1000** (rows 1 vs 3): the *only* effective difference (hw-slack 800 vs
+  1000 is inert — priority-1 at weight_ratio=1, box inactive at h_w 3.4 < 5). It flips **6/6 → 4/6**, drives
+  Ḣ_s **2.5 → 3.6**, and tips step 4 over the gate. **⇒ torso is the dock lever at EE 1000.**
+
+### Mechanism — transient vs settled (why low torso hurts the dock but not the final attitude)
+A subtlety: torso 300 gives a **better settled** attitude (θ_s 0.084 vs torso-2000's 0.424) yet **docks worse**.
+Resolution: a strong torso task damps the **base/momentum transient during the swing** (holds the base firm →
+realized Ḣ_s stays ≤ 2.5), which is what lets the swing EE close the last mm. A weak torso task still converges
+to a level attitude *at settle*, but during the swing the base moves more (Ḣ_s 3.6, e_com 0.164), and the dock
+gate is set by the **swing transient**, not the settled pose. So torso authority buys dock precision through
+the transient — invisible in the settled θ_s.
+
+### Corrected picture & next test
+The dock lever at EE 1000 is **torso**, with a 6/6 floor somewhere in **(300, 2000]**: torso 2000 docks 6/6
+(Add-5), torso 300 misses step 4 by 0.02 mm. Momentum 400↔500 and hw-slack 800↔1000 are both inert.
+**Next: bisect the torso floor — torso 1000 / EE 1000 / mom 400 / hw 1000.** If 6/6, the floor is ≤ 1000 (a
+lighter recipe than Add-5's 2000) and we push lower; if it misses, the floor is in (1000, 2000]. `crawlbot/`
+untouched. Measurement only. **STOP.**
