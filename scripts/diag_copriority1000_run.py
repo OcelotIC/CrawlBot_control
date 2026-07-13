@@ -16,10 +16,11 @@ import crawlbot.solvers.hierarchical_qp as hq
 import crawlbot.solvers.wholebody_qp as wq
 
 EPS = 1e-6
-WEIGHTS = dict(alpha_torso_pose=1000.0, w_hw_slack=10000.0, ss_alpha_mom=1000.0,
+WEIGHTS = dict(alpha_torso_pose=1000.0, w_hw_slack=10000.0, ss_alpha_mom=2000.0,
                alpha_ee=1000.0, alpha_posture=20.0, alpha_wrench=1.0,
                alpha_torque=1.0, alpha_reg=1.0)
-OUT = 'figC_copri1000'
+OUT = 'figC_copri_m2000'
+RESULT_JSON = 'results/j2_adjconv/copri_m2000_result.json'
 
 _orig_init = wq.WholeBodyQP.__init__
 def _pinit(self, config=None):
@@ -61,7 +62,7 @@ try:
             legacy=False, alpha_torso_lin=0.0, anchor_dx=0.8, mass_ratio=0.01,
             aocs_mode='legacy_pid_numerical', settle_seconds=20.0,
             K_theta=1.0, K_omega=50.0, tau_w_max=5.0,
-            n_steps=6, ss_two_task=True, ss_alpha_mom=1000.0,
+            n_steps=6, ss_two_task=True, ss_alpha_mom=2000.0,
             alpha_torso_pose=1000.0, ss_alpha_ee=1000.0, ss_alpha_posture=2e1,
             ss_alpha_wrench=1.0, ss_kp_torso=3.0, ss_kd_torso=2.5,
             qp_envelope_exact=True,
@@ -120,7 +121,7 @@ res = dict(weights=WEIGHTS, eps=EPS, span=10000.0,
            hw_peak=round(float(np.max(np.linalg.norm(hwp, axis=1))), 4),
            qp_fail=int(np.sum(~np.asarray(sl['qp_ok']))),
            nmpc_fail=int(np.sum(~np.asarray(sl['nmpc_ok']))))
-json.dump(res, open('results/j2_adjconv/copri1000_result.json', 'w'), indent=2)
+json.dump(res, open(RESULT_JSON, 'w'), indent=2)
 print('\n================ COPRIORITY-1000-FINAL ================')
 print('weights:', WEIGHTS, 'eps', EPS, 'span 1e4')
 print(f'FEASIBLE 6/6: {all6}  (docks={n_dock})   qp_fail={res["qp_fail"]} nmpc_fail={res["nmpc_fail"]}')
