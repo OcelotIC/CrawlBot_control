@@ -297,3 +297,51 @@ better κ while keeping the dock, **raise EE back toward 1000** (torso may stay 
 torso 300 / EE 1000 / mom 500 / hw 1000 would test whether the torso-floor really is that low with EE restored.
 
 `crawlbot/` untouched. Measurement only. **STOP.**
+
+---
+
+## Addendum 7 — EE-restore (torso 300, **EE 1000**): docks 4/6, step-4 **0.02 mm near-miss**
+Data: `results/j2_adjconv/copri_t300e1000_result.json`. Raised swing-EE **300 → 1000** (the dock lever from
+Addendum 6), kept torso at the low **300**, momentum 500, hw-slack 1000; torque 5 / wrench 1 / accel-reg 1 /
+posture 20 / ε 1e-6. Span 1000. Raw run `figC_copri_t300e1000` (gitignored).
+
+**Verdict: docks 0–3, then step-4 TIMEOUT at min d = 5.02 mm — misses the 5 mm gate by 0.02 mm.** Restoring EE
+did exactly what Addendum 6 predicted: the gross reach deficit vanished (step 2: **8.50 mm timeout → 4.92 mm
+dock**) and the failure moved to a razor-thin near-miss at the end.
+
+| step | outcome | d [mm] | ori [°] | EE err [mm] | (Add-6, EE 300) |
+|---|---|---|---|---|---|
+| 0 | **DOCK** | 3.50 | 0.20 | 42.5 | 4.59 |
+| 1 | **DOCK** | 4.73 | 0.06 | 22.0 | 4.59 |
+| 2 | **DOCK** | 4.92 | 0.04 | 49.1 | **timeout 8.50** |
+| 3 | **DOCK** | 4.97 | 0.08 | 20.5 | — |
+| 4 | **DOCK_TIMEOUT** | **5.02** | 0.03 | 33.5 | — |
+
+| metric | Add-7 (torso 300, EE 1000) | Add-5 dock (torso 2000, EE 1000) | Add-6 (torso 300, EE 300) |
+|---|---|---|---|
+| feasibility | **4/6** (step-4 by 0.02 mm) | 6/6 | 2/6 (step-2 by 3.5 mm) |
+| at-weld docks [mm] | 3.50 4.73 4.92 4.97 — | 2.56 4.59 4.89 4.39 2.49 4.49 | 4.59 4.59 — |
+| SS-saturation | **PARTIAL** (Ḣ_s pk 3.61) | gone (≤ 2.5) | gone |
+| θ_s settled | **0.083** (excellent) | 0.424 | 0.176 |
+| e_com pk | **0.164** (highest yet) | 0.137 | 0.154 |
+| κ_SS | 6.33e3 | 7.61e3 | 2.11e3 |
+| h_w peak | 3.41 | 4.12 | 3.31 |
+
+### Reading — torso 300 is NOT the residual; momentum 500 is the suspect
+Two things changed from the Add-5 6/6-dock config: torso 2000 → 300 **and** momentum 400 → 500. The data
+points away from torso and toward momentum:
+- **torso 300 held attitude beautifully** — θ_s settled **0.083**, the best of the whole sweep (5× tighter than
+  Add-5's 0.424), and every docked step had ori ≤ 0.20°. A 300-weight torso task is clearly not starved. So
+  lowering torso 2000 → 300 is **not** what cost the last 0.02 mm.
+- **momentum 500 reintroduced partial saturation** — realized Ḣ_s peaks at **3.61** (step 2), vs Add-5's
+  fully-desaturated ≤ 2.5. This is the exact **USERW2 lever**: momentum-task weight drives SS saturation, and
+  saturation competes with the swing reach. It also shows up as the **highest e_com of the sweep (0.164)** and
+  as docks that **creep monotonically toward the gate** (3.50 → 4.73 → 4.92 → 4.97 → 5.02) — a secular
+  CoM/momentum drift accumulating across steps, not a per-step pose error.
+
+### Decisive next test (not run — awaiting direction)
+**torso 300 / EE 1000 / momentum 400 / hw 1000** — drop momentum to the Add-5 value that docked 6/6 with
+saturation GONE, holding torso at 300 and EE at 1000. If it docks 6/6, we've isolated momentum as the last
+0.02 mm *and* obtained a **low-torso (300) recipe** — lighter and comparably conditioned to Add-5. Caveat: the
+two-variable change here means only the mom→400 run fully isolates it, but the θ_s=0.083 evidence already makes
+torso the unlikely culprit. `crawlbot/` untouched. Measurement only. **STOP.**
