@@ -108,3 +108,39 @@ regularization artifact — consistent with DOCK-CAUSE, EE-RATIO-GLOBAL, and STR
   not reg-limited.
 
 NO canonical change. `crawlbot/` untouched. Raw runs (`figC_reg_*`) gitignored. **STOP for cross-check.**
+
+---
+
+## Addendum — ε walked up to the task-weight levels (1e-2 = λ_min, 1 = torque-min): the cliff
+
+Extending the sweep upward (ε=1e-2 sits at the accel-reg/wrench weight = λ_min; ε=1 at the torque-min
+weight) maps the full curve and where docking breaks. Full canonical C:
+
+| ε | 6 SS-docks [mm] (s0…s5) | worst | κ_SS_dock | θ_s pk | dock/QP | regime |
+|---|---|---|---|---|---|---|
+| **1e0** | 5.480 — — — — — | 5.480 | 3.52e4 | 0.163\* | **0dk (step-0 TIMEOUT, abort)** | **CLIFF** |
+| 1e-2 | 4.970 4.410 4.915 4.439 4.065 4.602 | 4.970 | 1.82e6 | 0.594 | 6dk / 0 fail | contamination |
+| 1e-4 | 4.940 4.405 4.904 4.436 4.045 4.589 | **4.940** | 3.61e6 | 0.594 | 6dk / 0 fail | contamination |
+| 1e-6…1e-12 | 4.940 4.405 4.904 4.436 4.045 5.000 | 5.000 | 3.64e6 | 0.594 | 6dk / 0 fail | **inert** |
+
+\*abort artifact (only a partial step 0 ran). Realized Ḣ_s at ε=1: s0 3.99 then zeros (traversal aborted).
+
+**Three regimes:**
+1. **Inert (ε ≤ 1e-6):** docks bit-identical, κ constant 3.64e6. ε does nothing.
+2. **Contamination (1e-4 ≤ ε ≤ 1e-2):** ε is now within 2 orders of λ_min=0.01 and perturbs the whole
+   solution. It knocks step 5 off the gate (5.000→4.59) **but drifts every other step WORSE** as ε rises:
+   s0 4.940→4.970, s2 4.904→4.915, s4 4.045→4.065. So the worst-of-6 is best at ε=1e-4 (**4.940**, a mere
+   0.06 mm over baseline) and *degrades* by ε=1e-2 (4.970). κ falls (3.64e6→1.82e6) — you can buy κ by
+   raising ε, but only by contaminating the solution (exactly the QP-COND weight-rescale trade).
+3. **Cliff (ε=1, torque-min level):** the reg dominates the regularizer tier and over-damps the
+   accelerations → **step-0 TIMEOUT, traversal aborts (0 docks)**. κ collapses to 3.5e4 (100× "better") while
+   the controller is broken — the same κ-down/solution-destroyed pattern as QP-COND's extreme rescale.
+
+**Two confirmations:**
+- **Step 2 (momentum-saturated) never clears:** 4.9039 (ε≤1e-6) → 4.9041 (1e-4) → 4.9155 (1e-2, *worse*) →
+  abort (1). It only ever drifts up, then the run breaks. The ~4.9 mm floor is momentum/kinematic, immovable
+  by ε — confirmed across the entire range.
+- **No ε anywhere beats the ~4.9 mm floor.** The best worst-of-6 over ε ∈ [1e-12, 1] is **4.940 mm** (at
+  1e-4) — the same wall EE-RATIO-GLOBAL (4.904, route B) and the momentum cap impose. ε is not a lever;
+  raising it just trades a spurious step-5 nudge for whole-solution contamination and then a cliff. **Leave
+  ε at 1e-6.**
