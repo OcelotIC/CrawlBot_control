@@ -167,3 +167,31 @@ tracking tasks** (the low-weight copri stack). **Decisive test (NOT run — awai
 on the copri stack (torso 2000, mom 400, EE 1000, hw **800**, floor 1, ε 1e-6) — if it docks, hw-slack-must-be-
 below-the-main-tasks is confirmed, and the feasible + κ-good recipe is "keep the floor-raise (κ 1e4) but keep
 hw-slack under the tracking weights." NOT patched. **STOP.**
+
+---
+
+## Addendum 4 — hw-slack 800 test: hw-slack ruled out too → the difference is now just {torque, ε}
+Data: `results/j2_adjconv/copri_hw800_result.json`. Dropped hw-slack to userw2's 800.
+
+**Result: STILL TIMES OUT** — step 0, min d **6.87 mm**, all metrics identical (κ dropped to 6.78e3, so the
+hw-slack override *did* take effect — harness confirmed working). **hw-slack is NOT the culprit.** Five
+copri-stack runs now, every one timing out, insensitive to torso, momentum, AND hw-slack.
+
+**The failing copri hw800 now differs from the DOCKING userw2 #2 in EXACTLY TWO weights** (verified against
+`userweights_result2.json`; harnesses structurally identical — both apply the weight vector via
+`WholeBodyQP.__init__` and ε via `HierarchicalQP._solve_weighted`):
+| weight | userw2 #2 (docks 6/6, worst 4.59) | copri hw800 (TIMEOUT) |
+|---|---|---|
+| **torque-min** | **5** | **1** |
+| **ε** | **1e-4** | **1e-6** |
+(identical: torso 2000, hw-slack 800, momentum 400, EE 1000, posture 20, wrench 1, accel-reg 1)
+
+**ε is inert here** — λ_min(H_LS) = 1.0 (floor-raise), so ε 1e-4 and 1e-6 are both ≥ 4 orders below λ_min ⇒
+H is ~identical (REG-DIAG: ε ≪ λ_min → no effect). **⇒ the last suspect is `alpha_torque` (1 vs 5)** — a 5×
+change in the joint-torque regularizer is the only non-inert difference left between docking and timeout.
+(Counter-intuitive — a minor τ-regularizer as the dock/timeout switch — so it must be *tested*, not asserted;
+prior confident attributions were wrong 3×.) **Decisive test (NOT run — awaiting direction): copri hw800 +
+torque 5** (torso 2000, hw 800, mom 400, EE 1000, torque **5**, floor 1, ε 1e-6). If it docks, `alpha_torque`
+is the switch AND we have a **feasible + well-conditioned** recipe (κ 6.78e3, docks); if it still times out,
+the effect is the ε 1e-4 vs 1e-6 (surprising, would contradict the λ_min=1 inertness) — reproduce userw2 #2
+exactly to close. NOT patched. **STOP.**
