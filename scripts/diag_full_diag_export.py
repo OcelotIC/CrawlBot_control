@@ -1,0 +1,155 @@
+#!/usr/bin/env python3
+"""Phase FULL-DIAG-EXPORT — complete per-tick diagnostic export (standard validation export).
+
+READ-ONLY on a committed run's on-disk sim_log.json. NO re-run, NO canonical change.
+Reusable on ANY config: `--run-dir results/figC_<tag>`.
+
+Channels (grouped): dock-gate (A), CoM tracking (C), torso tracking (D), momentum
+tracking (E), QP quality (F), plus the existing envelope columns. Provenance and
+missing-data handling documented in the companion report.
+
+Realized Hdot_s: validated cross(anchor,f)+tau on lambda_qp, all ticks (USERW2-DATA).
+Planned Hdot_s: same formula on lambda_ref (NMPC target) — SS ONLY (lambda_ref is NaN
+in DS when the NMPC is bypassed). ori_err_deg: recomputed from q_ee (anchor=Identity in
+struct frame) — validated vs dock_gate_trace to <=0.13 deg. twist / docked flag: LOGGED
+ONLY at the 103 dock_gate_trace evaluation ticks (per-tick twist needs qpos/qvel, which
+are NOT logged -> MISSING, marked, not fabricated).
+
+Run: MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/diag_full_diag_export.py [--run-dir DIR]
+"""
+import sys
+import json
+import csv
+import numpy as np
+import pinocchio as pin
+import mujoco
+from scripts.export_figure_data import load_anchors_struct_frame, phase_per_tick, MJCF
+
+RUN = 'results/figC_userw2'
+if '--run-dir' in sys.argv:
+    RUN = sys.argv[sys.argv.index('--run-dir') + 1]
+sl = json.load(open(f'{RUN}/sim_log.json'))
+model = mujoco.MjModel.from_xml_path(MJCF)
+
+STANCE_ARM = ['a', 'b', 'a', 'b', 'a', 'b']; STANCE_ANCHOR = [2, 3, 3, 4, 4, 5]
+SWING_ARM = ['b', 'a', 'b', 'a', 'b', 'a']; SWING_ANCHOR = [3, 3, 4, 4, 5, 5]
+WELD_R_MM = 5.0; ORI_TH = 5.0                      # config.py:35 / :42
+
+n = len(sl['t'])
+g = lambda k: np.asarray(sl[k], float)
+t = g('t'); si = np.asarray(sl['step_idx'], int); ph = np.array(phase_per_tick(sl))
+sw = np.asarray(sl['swing_arm'])
+lam = g('lambda_qp'); lref = g('lambda_ref')
+qee = g('q_ee'); dg = g('d_grip_swing')
+aA, aB = load_anchors_struct_frame(model, np.asarray(sl['struct_pos'])[0],
+                                   np.asarray(sl['struct_quat'])[0])
+
+
+def levers(k):
+    if STANCE_ARM[k] == 'a':
+        return aA[STANCE_ANCHOR[k]], aB[SWING_ANCHOR[k]]
+    return aA[SWING_ANCHOR[k]], aB[STANCE_ANCHOR[k]]
+
+
+def hdot(L, k):
+    ra, rb = levers(k)
+    return np.cross(ra, L[0:3]) + L[3:6] + np.cross(rb, L[6:9]) + L[9:12]
+
+
+Hr = np.full((n, 3), np.nan); Hp = np.full((n, 3), np.nan)
+ori = np.full(n, np.nan)
+for i in range(n):
+    k = si[i]
+    if 0 <= k <= 5:
+        Hr[i] = hdot(lam[i], k)
+        if np.all(np.isfinite(lref[i])):
+            Hp[i] = hdot(lref[i], k)
+    else:
+        Hr[i] = 0.0
+    w, x, y, z = qee[i]
+    try:
+        ori[i] = np.degrees(np.linalg.norm(pin.log3(pin.Quaternion(w, x, y, z).toRotationMatrix())))
+    except Exception:
+        ori[i] = np.nan
+
+# gate-eval sparse: map dock_gate_trace rows -> tick (nearest t within same step)
+gate_eval = np.zeros(n, int); twist_ge = np.full(n, np.nan); docked_ge = np.full(n, np.nan)
+for row in sl.get('dock_gate_trace', []):
+    cand = np.where(si == row['step'])[0]
+    if not len(cand):
+        continue
+    i = cand[int(np.argmin(np.abs(t[cand] - row['t'])))]
+    gate_eval[i] = 1; twist_ge[i] = row['twist']; docked_ge[i] = 1 if row['fired'] else 0
+
+# channel arrays
+rc = g('r_com'); rcr = g('r_com_ref'); ec = g('e_com'); vc = g('v_com'); vcr = g('v_com_ref')
+eul = g('struct_euler_deg'); etp = g('e_torso_pos'); eto = g('e_torso_ori')
+pt = g('p_torso'); ptr = g('p_torso_ref'); eep = g('e_ee_pos'); eeo = g('e_ee_ori')
+tw = g('tau_w'); hw = g('hw_physical')
+qpok = np.asarray(sl['qp_ok']); nmok = np.asarray(sl['nmpc_ok'])
+qpt = g('qp_time_ms'); nmt = g('nmpc_time_ms'); nmit = g('nmpc_iterations')
+lqn = g('lambda_qp_norm'); lrn = g('lambda_ref_norm'); tmj = g('tau_max_joint')
+
+
+def f6(v): return f'{v:.6e}'
+def fb(v): return '' if not np.isfinite(v) else str(int(v))
+
+
+cols = (['t_s', 'phase', 'step_index', 'swing_arm',
+         'd_grip_swing_mm', 'ori_err_deg', 'pos_ok', 'ori_ok',
+         'gate_eval', 'twist_norm_at_gateeval', 'docked_at_gateeval'] +
+        [f'Hdot_s_realized_cont_{a}_Nm' for a in 'xyz'] + ['Hdot_s_realized_norm_Nm'] +
+        [f'Hdot_s_planned_ss_{a}_Nm' for a in 'xyz'] + ['Hdot_s_planned_norm_Nm'] +
+        [f'tauw_{a}_Nm' for a in 'xyz'] + [f'hw_{a}_Nms' for a in 'xyz'] +
+        [f'r_com_{a}_m' for a in 'xyz'] + [f'r_com_ref_{a}_m' for a in 'xyz'] + ['e_com_m'] +
+        [f'v_com_{a}_mps' for a in 'xyz'] + [f'v_com_ref_{a}_mps' for a in 'xyz'] +
+        [f'theta_s_{a}_deg' for a in 'xyz'] + ['e_torso_pos_m', 'e_torso_ori_deg'] +
+        [f'p_torso_{a}_m' for a in 'xyz'] + [f'p_torso_ref_{a}_m' for a in 'xyz'] +
+        ['e_ee_pos_mm', 'e_ee_ori_deg',
+         'qp_ok', 'nmpc_ok', 'qp_time_ms', 'nmpc_time_ms', 'nmpc_iterations',
+         'lambda_qp_norm', 'lambda_ref_norm', 'tau_max_joint_Nm'])
+
+out_csv = 'results/j2_adjconv/userw2_fulldiag.csv'
+with open(out_csv, 'w', newline='') as fh:
+    w = csv.writer(fh); w.writerow(cols)
+    for i in range(n):
+        d_mm = np.nan if not np.isfinite(dg[i]) else 1000 * dg[i]
+        pos_ok = '' if not np.isfinite(d_mm) else str(int(d_mm < WELD_R_MM))
+        ori_ok = '' if not np.isfinite(ori[i]) else str(int(ori[i] < ORI_TH))
+        w.writerow([f'{t[i]:.4f}', ph[i], si[i], sw[i],
+                    ('' if not np.isfinite(d_mm) else f'{d_mm:.4f}'),
+                    ('' if not np.isfinite(ori[i]) else f'{ori[i]:.4f}'), pos_ok, ori_ok,
+                    gate_eval[i], fb(twist_ge[i]) if not np.isfinite(twist_ge[i]) else f6(twist_ge[i]),
+                    fb(docked_ge[i])] +
+                   [f6(Hr[i, j]) for j in range(3)] + [f6(np.linalg.norm(Hr[i]))] +
+                   [('' if not np.isfinite(Hp[i, j]) else f6(Hp[i, j])) for j in range(3)] +
+                   [('' if not np.all(np.isfinite(Hp[i])) else f6(np.linalg.norm(Hp[i])))] +
+                   [f6(tw[i, j]) for j in range(3)] + [f6(hw[i, j]) for j in range(3)] +
+                   [f6(rc[i, j]) for j in range(3)] + [f6(rcr[i, j]) for j in range(3)] + [f6(ec[i])] +
+                   [f6(vc[i, j]) for j in range(3)] + [f6(vcr[i, j]) for j in range(3)] +
+                   [f6(eul[i, j]) for j in range(3)] + [f6(etp[i]), f6(eto[i])] +
+                   [f6(pt[i, j]) for j in range(3)] + [f6(ptr[i, j]) for j in range(3)] +
+                   [f6(1000 * eep[i]), f6(eeo[i]),
+                    int(bool(qpok[i])), int(bool(nmok[i])), f6(qpt[i]), f6(nmt[i]), int(nmit[i]),
+                    f6(lqn[i]), ('' if not np.isfinite(lrn[i]) else f6(lrn[i])), f6(tmj[i])])
+print(f'wrote {out_csv}  ({n} ticks, {len(cols)} cols)')
+
+# ── B: per-step at-weld vs min-over-swing ──
+dev = {d['step']: d for d in sl.get('dock_events', [])}
+print('\n=== B: AT-WELD (first docked) vs MIN-OVER-SWING, all 6 steps ===')
+print(' step | weld t | d@weld | d_min_swing | fly-by? | ori@weld | twist@weld')
+Brows = []
+for k in range(6):
+    ssm = (si == k) & (ph == 'SS') & np.isfinite(dg)
+    dmin = float(1000 * dg[ssm].min()) if ssm.any() else float('nan')
+    e = dev.get(k, {})
+    dweld = e.get('d_mm', float('nan')); flyby = dweld - dmin
+    Brows.append(dict(step=k, weld_t=e.get('t'), d_weld_mm=dweld, d_min_swing_mm=round(dmin, 3),
+                      flyby_gap_mm=round(float(flyby), 3), ori_weld_deg=e.get('ori_deg'),
+                      twist_weld=e.get('twist'), arm=e.get('arm'), anchor=e.get('anchor')))
+    print(f'  {k}   | {e.get("t"):6}s | {dweld:6.3f} | {dmin:10.3f}  | {flyby:+6.3f} '
+          f'| {e.get("ori_deg"):7} | {e.get("twist"):.6f}')
+
+json.dump({'run': RUN, 'csv': out_csv, 'n_ticks': n, 'at_weld_vs_min': Brows},
+          open('results/j2_adjconv/userw2_fulldiag_meta.json', 'w'), indent=2)
+print('\nwrote results/j2_adjconv/userw2_fulldiag_meta.json')
