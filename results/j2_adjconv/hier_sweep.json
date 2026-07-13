@@ -190,5 +190,133 @@
     "theta_settled": 0.1073,
     "e_com_pk": 0.09527,
     "kappa_SS": 16512326.06294217
+  },
+  {
+    "label": "S2 t24000 4.0:1 (=ee6000)",
+    "torso": 24000,
+    "ee": 6000,
+    "ratio": 4.0,
+    "weld": [
+      4.84,
+      4.21,
+      4.9,
+      4.07,
+      4.77,
+      4.86
+    ],
+    "worst": 4.9,
+    "margin": 0.1,
+    "n_dock": 6,
+    "all6": true,
+    "ss_hdot": [
+      4.839,
+      1.926,
+      5.0,
+      1.953,
+      5.0,
+      2.34
+    ],
+    "ss_steps_saturating": 2,
+    "sat_preserved": true,
+    "theta_pk": 0.6004,
+    "theta_settled": 0.0911,
+    "e_com_pk": 0.09526,
+    "kappa_SS": null
+  },
+  {
+    "label": "S2 t18000 3.0:1",
+    "torso": 18000,
+    "ee": 6000,
+    "ratio": 3.0,
+    "weld": [
+      4.89,
+      3.93,
+      4.97,
+      4.19,
+      4.63,
+      4.88
+    ],
+    "worst": 4.97,
+    "margin": 0.03,
+    "n_dock": 6,
+    "all6": true,
+    "ss_hdot": [
+      4.644,
+      1.923,
+      5.0,
+      1.953,
+      5.0,
+      2.438
+    ],
+    "ss_steps_saturating": 2,
+    "sat_preserved": true,
+    "theta_pk": 0.621,
+    "theta_settled": 0.1004,
+    "e_com_pk": 0.09511,
+    "kappa_SS": 4972814.781270182
+  },
+  {
+    "label": "S2 t12000 2.0:1",
+    "torso": 12000,
+    "ee": 6000,
+    "ratio": 2.0,
+    "weld": [
+      4.99,
+      4.08,
+      4.98,
+      4.29,
+      4.71,
+      4.83
+    ],
+    "worst": 4.99,
+    "margin": 0.01,
+    "n_dock": 6,
+    "all6": true,
+    "ss_hdot": [
+      4.309,
+      1.917,
+      5.0,
+      1.938,
+      5.0,
+      2.538
+    ],
+    "ss_steps_saturating": 2,
+    "sat_preserved": true,
+    "theta_pk": 0.6276,
+    "theta_settled": 0.1067,
+    "e_com_pk": 0.0948,
+    "kappa_SS": 4559396.180091408
+  },
+  {
+    "label": "S2 t8000  1.33:1",
+    "torso": 8000,
+    "ee": 6000,
+    "ratio": 1.33,
+    "weld": [
+      NaN,
+      NaN,
+      NaN,
+      NaN,
+      NaN,
+      NaN
+    ],
+    "worst": NaN,
+    "margin": NaN,
+    "n_dock": 0,
+    "all6": false,
+    "ss_hdot": [
+      3.835,
+      0.0,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "ss_steps_saturating": 0,
+    "sat_preserved": false,
+    "theta_pk": 0.1639,
+    "theta_settled": 0.068,
+    "e_com_pk": 0.09166,
+    "kappa_SS": 3951926.724939023
   }
 ]
