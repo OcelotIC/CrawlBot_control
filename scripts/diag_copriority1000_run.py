@@ -16,11 +16,12 @@ import crawlbot.solvers.hierarchical_qp as hq
 import crawlbot.solvers.wholebody_qp as wq
 
 EPS = 1e-6
-WEIGHTS = dict(alpha_torso_pose=2000.0, w_hw_slack=800.0, ss_alpha_mom=400.0,
-               alpha_ee=1000.0, alpha_posture=20.0, alpha_wrench=1.0,
+WEIGHTS = dict(alpha_torso_pose=300.0, w_hw_slack=1000.0, ss_alpha_mom=500.0,
+               alpha_ee=300.0, alpha_posture=20.0, alpha_wrench=1.0,
                alpha_torque=5.0, alpha_reg=1.0)
-OUT = 'figC_copri_tq5'
-RESULT_JSON = 'results/j2_adjconv/copri_tq5_result.json'
+SPAN = 1000.0
+OUT = 'figC_copri_h1000m500t300'
+RESULT_JSON = 'results/j2_adjconv/copri_h1000m500t300_result.json'
 
 _orig_init = wq.WholeBodyQP.__init__
 def _pinit(self, config=None):
@@ -62,8 +63,8 @@ try:
             legacy=False, alpha_torso_lin=0.0, anchor_dx=0.8, mass_ratio=0.01,
             aocs_mode='legacy_pid_numerical', settle_seconds=20.0,
             K_theta=1.0, K_omega=50.0, tau_w_max=5.0,
-            n_steps=6, ss_two_task=True, ss_alpha_mom=400.0,
-            alpha_torso_pose=2000.0, ss_alpha_ee=1000.0, ss_alpha_posture=2e1,
+            n_steps=6, ss_two_task=True, ss_alpha_mom=500.0,
+            alpha_torso_pose=300.0, ss_alpha_ee=300.0, ss_alpha_posture=2e1,
             ss_alpha_wrench=1.0, ss_kp_torso=3.0, ss_kd_torso=2.5,
             qp_envelope_exact=True,
             interstep_settle_alpha_wrench=3.0, interstep_settle_epsilon_v=5e-3,
@@ -110,7 +111,7 @@ if len(cap):
         kap = float((np.median(ss[:, 3]) + EPS) / (np.median(ss[:, 2]) + EPS))
         lmin = float(np.median(ss[:, 2]))
 worst = max([w for w in weld if w is not None], default=float('nan'))
-res = dict(weights=WEIGHTS, eps=EPS, span=10000.0,
+res = dict(weights=WEIGHTS, eps=EPS, span=SPAN,
            feasible_6of6=bool(all6), n_dock=n_dock,
            at_weld_docks=weld, worst=round(worst, 3) if all6 else None,
            margin=round(5.0 - worst, 3) if all6 else None,
@@ -123,7 +124,7 @@ res = dict(weights=WEIGHTS, eps=EPS, span=10000.0,
            nmpc_fail=int(np.sum(~np.asarray(sl['nmpc_ok']))))
 json.dump(res, open(RESULT_JSON, 'w'), indent=2)
 print('\n================ COPRIORITY-1000-FINAL ================')
-print('weights:', WEIGHTS, 'eps', EPS, 'span 1e4')
+print('weights:', WEIGHTS, 'eps', EPS, 'span', SPAN)
 print(f'FEASIBLE 6/6: {all6}  (docks={n_dock})   qp_fail={res["qp_fail"]} nmpc_fail={res["nmpc_fail"]}')
 print('at-weld docks:', weld, ' worst', res['worst'], 'margin', res['margin'])
 print(f'SS saturation: {sat}')
@@ -132,4 +133,4 @@ print('SS Hdot planned :', ssp)
 print(f'e_com_pk={res["e_com_pk"]} (canon 0.095, userw2 0.137)  theta_s pk={res["theta_pk"]} settled={res["theta_settled"]}')
 print(f'kappa_SS={kap:.3e}  lambda_min(H_LS)={res.get("lambda_min_LS")}  (canon kappa 3.6e6)' if kap else 'kappa: n/a')
 print(f'hw_peak={res["hw_peak"]} Nms (box +-5)')
-print('wrote results/j2_adjconv/copri1000_result.json')
+print('wrote', RESULT_JSON)
