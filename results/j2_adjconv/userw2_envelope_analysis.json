@@ -1,0 +1,137 @@
+{
+  "run": "figC_userw2 (committed 3871de4)",
+  "csv": "results/j2_adjconv/userw2_timeseries.csv",
+  "ss_peak_validation": {
+    "homogeneous": [
+      2.024,
+      2.05,
+      2.163,
+      1.537,
+      2.496,
+      1.634
+    ],
+    "committed": [
+      2.024,
+      2.05,
+      2.163,
+      1.537,
+      2.496,
+      1.634
+    ]
+  },
+  "global_peak_Nm": 5.0,
+  "cap_Nm": 5.0,
+  "per_step": [
+    {
+      "step": 0,
+      "ss_peak": [
+        0.799,
+        1.448,
+        2.024
+      ],
+      "ss_max": 2.024,
+      "ds_peak": [
+        1.759,
+        4.473,
+        5.0
+      ],
+      "ds_max": 5.0,
+      "ds_ticks_at_cap": 30,
+      "dock_mm": 2.565,
+      "Hdot_at_dock": 0.187
+    },
+    {
+      "step": 1,
+      "ss_peak": [
+        0.245,
+        1.404,
+        2.05
+      ],
+      "ss_max": 2.05,
+      "ds_peak": [
+        1.492,
+        2.002,
+        0.919
+      ],
+      "ds_max": 2.002,
+      "ds_ticks_at_cap": 0,
+      "dock_mm": 4.593,
+      "Hdot_at_dock": 0.075
+    },
+    {
+      "step": 2,
+      "ss_peak": [
+        0.607,
+        1.287,
+        2.163
+      ],
+      "ss_max": 2.163,
+      "ds_peak": [
+        2.023,
+        5.0,
+        5.0
+      ],
+      "ds_max": 5.0,
+      "ds_ticks_at_cap": 12,
+      "dock_mm": 3.006,
+      "Hdot_at_dock": 0.704
+    },
+    {
+      "step": 3,
+      "ss_peak": [
+        0.174,
+        1.37,
+        1.537
+      ],
+      "ss_max": 1.537,
+      "ds_peak": [
+        1.54,
+        2.073,
+        4.711
+      ],
+      "ds_max": 4.711,
+      "ds_ticks_at_cap": 0,
+      "dock_mm": 4.391,
+      "Hdot_at_dock": 0.201
+    },
+    {
+      "step": 4,
+      "ss_peak": [
+        0.565,
+        1.857,
+        2.496
+      ],
+      "ss_max": 2.496,
+      "ds_peak": [
+        1.511,
+        5.0,
+        5.0
+      ],
+      "ds_max": 5.0,
+      "ds_ticks_at_cap": 83,
+      "dock_mm": 2.485,
+      "Hdot_at_dock": 0.965
+    },
+    {
+      "step": 5,
+      "ss_peak": [
+        0.306,
+        1.634,
+        1.023
+      ],
+      "ss_max": 1.634,
+      "ds_peak": [
+        0.396,
+        0.826,
+        0.714
+      ],
+      "ds_max": 0.826,
+      "ds_ticks_at_cap": 0,
+      "dock_mm": 4.494,
+      "Hdot_at_dock": 0.254
+    }
+  ],
+  "Hdot_box_active": true,
+  "tauw_clamp_active_ticks": 110,
+  "hw_peak_Nms": 4.124
+}
