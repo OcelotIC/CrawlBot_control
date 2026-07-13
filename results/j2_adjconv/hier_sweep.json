@@ -1,0 +1,194 @@
+[
+  {
+    "label": "ee3000  8.0:1 (canon)",
+    "torso": 24000,
+    "ee": 3000,
+    "ratio": 8.0,
+    "weld": [
+      4.94,
+      4.41,
+      4.9,
+      4.44,
+      4.76,
+      5.0
+    ],
+    "worst": 5.0,
+    "margin": 0.0,
+    "n_dock": 6,
+    "all6": true,
+    "ss_hdot": [
+      4.817,
+      1.923,
+      5.0,
+      1.94,
+      5.0,
+      2.438
+    ],
+    "ss_steps_saturating": 2,
+    "sat_preserved": true,
+    "theta_pk": 0.5936,
+    "theta_settled": 0.1071,
+    "e_com_pk": 0.09526,
+    "kappa_SS": null
+  },
+  {
+    "label": "ee4500  5.3:1",
+    "torso": 24000,
+    "ee": 4500,
+    "ratio": 5.33,
+    "weld": [
+      4.79,
+      4.29,
+      4.88,
+      4.2,
+      4.89,
+      4.98
+    ],
+    "worst": 4.98,
+    "margin": 0.02,
+    "n_dock": 6,
+    "all6": true,
+    "ss_hdot": [
+      4.832,
+      1.924,
+      5.0,
+      1.949,
+      5.0,
+      2.36
+    ],
+    "ss_steps_saturating": 2,
+    "sat_preserved": true,
+    "theta_pk": 0.5956,
+    "theta_settled": 0.0898,
+    "e_com_pk": 0.09528,
+    "kappa_SS": 4595011.840005098
+  },
+  {
+    "label": "ee6000  4.0:1",
+    "torso": 24000,
+    "ee": 6000,
+    "ratio": 4.0,
+    "weld": [
+      4.84,
+      4.21,
+      4.9,
+      4.07,
+      4.77,
+      4.86
+    ],
+    "worst": 4.9,
+    "margin": 0.1,
+    "n_dock": 6,
+    "all6": true,
+    "ss_hdot": [
+      4.839,
+      1.926,
+      5.0,
+      1.953,
+      5.0,
+      2.34
+    ],
+    "ss_steps_saturating": 2,
+    "sat_preserved": true,
+    "theta_pk": 0.6004,
+    "theta_settled": 0.0911,
+    "e_com_pk": 0.09526,
+    "kappa_SS": null
+  },
+  {
+    "label": "ee9000  2.67:1",
+    "torso": 24000,
+    "ee": 9000,
+    "ratio": 2.67,
+    "weld": [
+      4.92,
+      4.14,
+      4.97,
+      4.32,
+      4.79,
+      4.7
+    ],
+    "worst": 4.97,
+    "margin": 0.03,
+    "n_dock": 6,
+    "all6": true,
+    "ss_hdot": [
+      4.847,
+      1.927,
+      5.0,
+      1.956,
+      5.0,
+      2.301
+    ],
+    "ss_steps_saturating": 2,
+    "sat_preserved": true,
+    "theta_pk": 0.6059,
+    "theta_settled": 0.0918,
+    "e_com_pk": 0.09525,
+    "kappa_SS": null
+  },
+  {
+    "label": "ee12000 2.0:1",
+    "torso": 24000,
+    "ee": 12000,
+    "ratio": 2.0,
+    "weld": [
+      4.85,
+      4.11,
+      4.96,
+      4.3,
+      4.88,
+      4.68
+    ],
+    "worst": 4.96,
+    "margin": 0.04,
+    "n_dock": 6,
+    "all6": true,
+    "ss_hdot": [
+      4.851,
+      1.927,
+      5.0,
+      1.956,
+      5.0,
+      2.301
+    ],
+    "ss_steps_saturating": 2,
+    "sat_preserved": true,
+    "theta_pk": 0.6067,
+    "theta_settled": 0.0927,
+    "e_com_pk": 0.09526,
+    "kappa_SS": 8978686.776321745
+  },
+  {
+    "label": "ee24000 1.0:1",
+    "torso": 24000,
+    "ee": 24000,
+    "ratio": 1.0,
+    "weld": [
+      4.76,
+      4.08,
+      4.97,
+      4.28,
+      4.94,
+      4.68
+    ],
+    "worst": 4.97,
+    "margin": 0.03,
+    "n_dock": 6,
+    "all6": true,
+    "ss_hdot": [
+      4.857,
+      1.927,
+      5.0,
+      1.956,
+      5.0,
+      2.308
+    ],
+    "ss_steps_saturating": 2,
+    "sat_preserved": true,
+    "theta_pk": 0.6174,
+    "theta_settled": 0.1073,
+    "e_com_pk": 0.09527,
+    "kappa_SS": 16512326.06294217
+  }
+]
