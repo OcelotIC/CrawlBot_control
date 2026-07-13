@@ -101,3 +101,40 @@ hypotheses for the 1:1 timeout: **H1** — the torso:momentum ratio (raising mom
   vs 5, ε 1e-6 vs 1e-4). The clean isolation test (NOT run — awaiting direction): **torso 2000 @ momentum
   1000, EE 1000** on this stack — if it docks, torso is confirmed the lever; if it still times out, the
   suspect shifts to hw-slack 10000 / the floor-raise interaction. NOT patched. **STOP for cross-check.**
+
+---
+
+## Addendum 2 — torso 2000 isolation (torso 2000, momentum 1000, EE 1000 → 2:1:1): torso is ALSO ruled out
+Data: `results/j2_adjconv/copri_t2000_result.json`. Raised torso above momentum to test the "torso is the
+lever" reading from Addendum 1.
+
+**Result: STILL TIMES OUT — torso is not the lever either.** Three copri-stack runs, all near-identical:
+| copri-stack run | torso:mom | feasibility | SS Ḣ_s | min d @ abort |
+|---|---|---|---|---|
+| torso 1000, mom 1000 | 1:1 | TIMEOUT step 0 | 2.31 | 6.87 mm |
+| torso 1000, mom 2000 | 1:2 | TIMEOUT step 0 | 2.33 | 6.86 mm |
+| **torso 2000, mom 1000** | **2:1** | **TIMEOUT step 0** | 2.51 | **6.87 mm** |
+
+(e_com ~0.10, θ_s ~0.167, κ 1.00e4, h_w ~2.4, nmpc_fail 10 — all three essentially identical.)
+
+**Honest correction: both my attributions were wrong.** The copri-stack failure is **insensitive to BOTH
+torso and momentum** across 1000↔2000 — raising either does nothing (Addendum 1's "torso must out-weight
+momentum" is disproved by the 2:1 run timing out the same as 1:1 and 1:2). The lever is **not** the
+torso:momentum weights.
+
+**Where the lever actually is.** userw2 #2 **docks** with the SAME torso 2000 / EE 1000 but differs from
+this failing copri stack in exactly four weights:
+| weight | userw2 #2 (docks) | copri (fails) |
+|---|---|---|
+| momentum | **400** | 1000 |
+| hw-slack | **800** | **10000** |
+| torque-min | 5 | 1 |
+| ε | 1e-4 | 1e-6 |
+
+Since torso/EE are held identical (2000/1000) and one docks while the other times out, the lever is among
+**{momentum≤~400 threshold, hw-slack 800 vs 10000, torque, ε}** — NOT torso, NOT momentum-in-[1000,2000].
+The strongest single suspect is **hw-slack = 10000** (12.5× userw2's 800, and the *largest* weight in the
+copri stack — it can dominate the QP), or the **momentum threshold** (userw2 docks at 400; every copri
+failure used ≥1000). **Clean discriminator (NOT run — awaiting direction): copri stack @ momentum 400**
+(torso 2000, mom 400, EE 1000, hw 10000, floor 1, ε 1e-6) — if it docks, momentum-must-be-low (~400) is the
+lever; if it still times out, the culprit is **hw-slack 10000** (or torque/ε). NOT patched. **STOP.**
