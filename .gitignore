@@ -92,3 +92,6 @@ results/figC_reg_*/
 
 # User-weight quick-try raw run (regenerable; result in results/j2_adjconv/userweights_result.json)
 results/figC_userw*/
+
+# HIER-STANDARD-SWEEP raw run dumps (regenerable; tables in results/j2_adjconv/PHASE_HIER_STANDARD_SWEEP.md)
+results/figC_hier_*/
