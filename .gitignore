@@ -91,4 +91,4 @@ results/figC_ratio_*/
 results/figC_reg_*/
 
 # User-weight quick-try raw run (regenerable; result in results/j2_adjconv/userweights_result.json)
-results/figC_userw/
+results/figC_userw*/

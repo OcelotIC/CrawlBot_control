@@ -18,10 +18,11 @@ import crawlbot.solvers.hierarchical_qp as hq
 import crawlbot.solvers.wholebody_qp as wq
 
 EPS = 1e-4
-WEIGHTS = dict(alpha_torso_pose=1000.0, w_hw_slack=800.0, ss_alpha_mom=400.0,
-               alpha_ee=600.0, alpha_posture=20.0, alpha_wrench=1.0,
+WEIGHTS = dict(alpha_torso_pose=2000.0, w_hw_slack=800.0, ss_alpha_mom=400.0,
+               alpha_ee=1000.0, alpha_posture=20.0, alpha_wrench=1.0,
                alpha_torque=5.0, alpha_reg=1.0)
-OUT = 'figC_userw'
+OUT = 'figC_userw2'
+RESULT_JSON = 'results/j2_adjconv/userweights_result2.json'
 
 _orig_init = wq.WholeBodyQP.__init__
 def _patched_init(self, config=None):
@@ -66,7 +67,7 @@ try:
             aocs_mode='legacy_pid_numerical', settle_seconds=20.0,
             K_theta=1.0, K_omega=50.0, tau_w_max=5.0,
             n_steps=6, ss_two_task=True, ss_alpha_mom=400.0,
-            alpha_torso_pose=1000.0, ss_alpha_ee=600.0, ss_alpha_posture=2e1,
+            alpha_torso_pose=2000.0, ss_alpha_ee=1000.0, ss_alpha_posture=2e1,
             ss_alpha_wrench=1.0, ss_kp_torso=3.0, ss_kd_torso=2.5,
             qp_envelope_exact=True,
             interstep_settle_alpha_wrench=3.0, interstep_settle_epsilon_v=5e-3,
@@ -117,7 +118,7 @@ res = dict(weights=WEIGHTS, eps=EPS, docks=docks, worst=round(worst, 4),
            theta_s_peak=round(float(th.max()), 4), theta_s_settled=round(float(th[-1]), 4),
            hdot_s_pk=hdot, kappa_SS=kap_ss, kappa_DS=kap_ds, min_lam_min_LS=lam_min,
            dock_vs_canonical=[round(d - b, 4) for d, b in zip(docks, BASE)])
-json.dump(res, open('results/j2_adjconv/userweights_result.json', 'w'), indent=2)
+json.dump(res, open(RESULT_JSON, 'w'), indent=2)
 
 print('\n================ USER-WEIGHT TRY ================')
 print(f'weights: {WEIGHTS}  eps={EPS}')
