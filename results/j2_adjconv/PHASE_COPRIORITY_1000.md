@@ -195,3 +195,50 @@ torque 5** (torso 2000, hw 800, mom 400, EE 1000, torque **5**, floor 1, ε 1e-6
 is the switch AND we have a **feasible + well-conditioned** recipe (κ 6.78e3, docks); if it still times out,
 the effect is the ε 1e-4 vs 1e-6 (surprising, would contradict the λ_min=1 inertness) — reproduce userw2 #2
 exactly to close. NOT patched. **STOP.**
+
+---
+
+## Addendum 5 — SOLVED: `alpha_torque` (joint-torque regularizer) is the switch
+Data: `results/j2_adjconv/copri_tq5_result.json`. Ran the copri stack with **only** `alpha_torque` 1 → 5.
+
+**Result: DOCKS 6/6.** torque 1 → step-0 TIMEOUT; **torque 5 → 6/6 dock** — nothing else changed. So after
+five red-herring runs (torso, momentum, hw-slack all ruled out), the single weight that flips
+timeout → dock is the **lowest-priority joint-torque regulariser `alpha_torque`**.
+
+| metric | torque 1 (fails) | **torque 5 (docks)** |
+|---|---|---|
+| feasibility | TIMEOUT step 0 | **6/6 dock** |
+| at-weld docks [mm] | none | 2.56 4.59 **4.89** 4.39 2.49 4.49 → worst **4.89**, margin **0.11** |
+| SS-saturation | gone | gone (realized ≤2.5) |
+| θ_s pk / settled | 0.167 (abort) | 0.432 / 0.424 |
+| e_com pk | 0.10 (abort) | 0.137 |
+| κ_SS | 6.78e3 | **7.61e3** (530× below canonical 3.6e6) |
+| h_w peak | 2.47 (abort) | 4.12 (< ±5 box) |
+
+- **Reproduces userw2 #2 to 0.01 mm** (at-weld `2.56/4.59/4.89/4.39/2.49/4.49` vs userw2's
+  `2.57/4.59/4.89/4.39/2.49/4.49`; only step 0 differs by 0.01 mm) — with ε 1e-6 here vs userw2's 1e-4. **⇒ ε
+  is confirmed inert** (as REG-DIAG predicted at λ_min=1) and `alpha_torque` is the sole switch.
+- **NMPC-fail caveat defused:** the 66 % `nmpc_fail` is **shared** with userw2 #2 (identical 1232/1860) and
+  canonical is 51 % — it is dominated by **intentional DS-phase NMPC bypass** (`nmpc_ok=False` = "not run; not
+  a failure", `sim_loop.py:1114`), not solver failures. Pre-existing, not introduced here.
+
+### Mechanism / design rule (defensible)
+The regulariser tier is {torque, wrench, accel-reg}. Canonical: torque **1** vs floor **0.01** ⇒ torque is
+**100×** the acceleration/wrench floor. The copri stack raised the floor to **1** (for conditioning, κ 1e4),
+which dropped torque:floor to **1:1** (torque 1) — the torque-min lost its dominance over the co-equal
+accel-reg, the redundant-DOF resolution degraded, and the swing never closed (step-0 timeout). Raising torque
+to **5** restores torque:floor to **5:1** — enough to dock. **Rule: when you raise the regulariser floor for
+conditioning, raise `alpha_torque` with it (keep it ≳5× the floor).**
+
+### The payoff — a feasible + well-conditioned recipe
+`torso 2000, hw-slack 800, momentum 400, EE 1000, posture 20, torque 5, wrench 1, accel-reg 1, ε 1e-6`
+**docks 6/6** (weld-worst 4.89 mm, margin 0.11) with **κ_SS 7.6e3 — 530× better than canonical 3.6e6** (the
+floor-raise conditioning win, preserved). This is essentially userw2 #2 (ε inert). Trades: SS-saturation gone
+(momentum 400), e_com loosened (0.137 vs 0.095), θ_s 0.43 (peak better, settled worse), slower.
+
+**Honest note:** my COPRIORITY attributions were wrong on torso, momentum, AND hw-slack before disciplined
+elimination landed on `alpha_torque`. Lesson banked: test each weight, don't assert.
+
+**Open (NOT run):** does the *true* co-priority 1:1:1 (torso=mom=EE=1000) dock with torque 5? Only the torso
+2000 / mom 400 operating point was proven; the 1:1:1 point may still hit the momentum-co-priority issue.
+NOT patched. `crawlbot/` untouched. **STOP for cross-check.**

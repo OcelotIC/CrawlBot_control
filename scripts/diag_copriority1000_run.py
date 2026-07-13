@@ -18,9 +18,9 @@ import crawlbot.solvers.wholebody_qp as wq
 EPS = 1e-6
 WEIGHTS = dict(alpha_torso_pose=2000.0, w_hw_slack=800.0, ss_alpha_mom=400.0,
                alpha_ee=1000.0, alpha_posture=20.0, alpha_wrench=1.0,
-               alpha_torque=1.0, alpha_reg=1.0)
-OUT = 'figC_copri_hw800'
-RESULT_JSON = 'results/j2_adjconv/copri_hw800_result.json'
+               alpha_torque=5.0, alpha_reg=1.0)
+OUT = 'figC_copri_tq5'
+RESULT_JSON = 'results/j2_adjconv/copri_tq5_result.json'
 
 _orig_init = wq.WholeBodyQP.__init__
 def _pinit(self, config=None):
