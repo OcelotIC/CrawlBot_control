@@ -98,3 +98,4 @@ results/figC_hier_*/
 
 # COPRIORITY-1000 raw run (regenerable; result in results/j2_adjconv/copri1000_result.json)
 results/figC_copri*/
+results/figN_mom*/
