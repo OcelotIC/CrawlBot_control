@@ -242,3 +242,58 @@ elimination landed on `alpha_torque`. Lesson banked: test each weight, don't ass
 **Open (NOT run):** does the *true* co-priority 1:1:1 (torso=mom=EE=1000) dock with torque 5? Only the torso
 2000 / mom 400 operating point was proven; the 1:1:1 point may still hit the momentum-co-priority issue.
 NOT patched. `crawlbot/` untouched. **STOP for cross-check.**
+
+---
+
+## Addendum 6 — low co-priority (torso=EE=300): docks 2/6, dies at step 2 on **EE authority** (not torso)
+Data: `results/j2_adjconv/copri_h1000m500t300_result.json`. Idriss's vector: **hw-slack 1000, momentum 500,
+torso 300, EE 300** (torso:EE = **1:1** true co-priority, low absolute), carrying torque 5 / wrench 1 /
+accel-reg 1 / posture 20 / ε 1e-6 forward from the Addendum-5 docking config. Span 1000. Raw run
+`figC_copri_h1000m500t300` (gitignored).
+
+**Verdict: does NOT complete — docks steps 0–1, then TIMEOUT at step 2** (min d **8.50 mm**, never < 5 mm).
+
+| step | outcome | d [mm] | ori [°] | EE err [mm] |
+|---|---|---|---|---|
+| 0 | **DOCK** | 4.59 | 0.38 | 27.4 |
+| 1 | **DOCK** | 4.59 | 0.17 | 33.9 |
+| 2 | **DOCK_TIMEOUT** | **8.50** | 0.11 | **46.1** |
+
+| metric | value | vs Addendum-5 docking config |
+|---|---|---|
+| feasibility | **2/6** (timeout step 2) | 6/6 dock |
+| at-weld docks [mm] | 4.59, 4.59, — | 2.56 4.59 4.89 4.39 2.49 4.49 |
+| κ_SS | **2.11e3** (best measured) | 7.61e3 |
+| SS-saturation | gone (realized ≤ 2.38) | gone |
+| θ_s pk / settled | 0.472 / 0.176 | 0.432 / 0.424 |
+| e_com pk | 0.154 | 0.137 |
+| h_w peak | 3.31 (< ±5) | 4.12 |
+| qp_fail | 0 | 0 |
+
+### Root cause — EE authority, NOT torso pose
+- **torso 300 is fine.** Steps 0–1 docked with orientation error **0.38° / 0.17°** (gate is 5°) — a 300-weight
+  torso task held the pose with 13× margin. So torso can floor far lower than the ≥1000 used in every prior
+  docking config; **300 is not the binding constraint here.**
+- **EE 300 is the killer.** The swing-EE tracking error **grows** across steps (27.4 → 33.9 → **46.1 mm**) and
+  step 2 (arm-a, the hardest reach) stalls at **8.50 mm > 5 mm gate**. Dropping EE 1000 → 300 removed the
+  authority the swing arm needs to close the last few mm — exactly the mechanism **Phase DOCK-CAUSE** isolated
+  (dock outcome = 100 % WBC EE-tracking residual). **EE is the dock lever; it needs ≳ 1000.**
+
+### What this pins down
+- **Co-priority direction confirmed asymmetric.** torso:EE = 1:1 is fine *if* the common level is high enough
+  for EE — at 1000/1000 (Addendum 1) it timed out on momentum; at 300/300 it times out on EE. The floor is set
+  by **EE**, not torso: torso 300 docks-2, EE 300 does not dock-6.
+- **Conditioning is now excellent and free** — κ_SS 2.11e3 (1700× below canonical 3.6e6), the best of the whole
+  sweep, purely from the span-1000 vector. But conditioning ≠ docking: this is the best-conditioned *and*
+  a non-docking config, a clean reminder that κ and dock precision are independent axes (as QP-COND showed).
+- **torque 5 was not enough to rescue it** — the Addendum-5 rule (torque ≳ 5× floor) is necessary but not
+  sufficient; it fixes the redundancy-resolution timeout, not the EE-reach deficit. Here torque:floor = 5:1
+  (correct) yet EE still starved.
+
+### Recipe standing (unchanged best): Addendum-5 config
+`torso 2000, hw-slack 800, momentum 400, EE 1000, posture 20, torque 5, wrench 1, accel-reg 1, ε 1e-6` remains
+the only **feasible + well-conditioned** vector (6/6 dock, κ 7.6e3). If the goal is lower absolute weights /
+better κ while keeping the dock, **raise EE back toward 1000** (torso may stay ≤ 300 — it has margin); e.g.
+torso 300 / EE 1000 / mom 500 / hw 1000 would test whether the torso-floor really is that low with EE restored.
+
+`crawlbot/` untouched. Measurement only. **STOP.**
