@@ -138,3 +138,32 @@ copri stack — it can dominate the QP), or the **momentum threshold** (userw2 d
 failure used ≥1000). **Clean discriminator (NOT run — awaiting direction): copri stack @ momentum 400**
 (torso 2000, mom 400, EE 1000, hw 10000, floor 1, ε 1e-6) — if it docks, momentum-must-be-low (~400) is the
 lever; if it still times out, the culprit is **hw-slack 10000** (or torque/ε). NOT patched. **STOP.**
+
+---
+
+## Addendum 3 — momentum 400 discriminator (torso 2000, mom 400, EE 1000, hw 10000): momentum ruled out too → hw-slack is the suspect
+Data: `results/j2_adjconv/copri_m400_result.json`. Dropped momentum to userw2's 400 (holding the copri
+stack) to test the momentum-threshold vs hw-slack.
+
+**Result: STILL TIMES OUT** — step 0, min d **6.87 mm**, realized SS Ḣ_s 2.50, all metrics identical to the
+other three copri runs. **Momentum-must-be-low (~400) is NOT the lever.** Four copri-stack runs now, every
+one timing out at min d ~6.87, **insensitive to torso (1000/2000) AND momentum (400/1000/2000)**.
+
+**By elimination, the culprit is in {hw-slack, torque, ε}.** This run (fails) vs userw2 #2 (**docks**) share
+torso 2000 / mom 400 / EE 1000 / wrench 1 / accel-reg 1 / posture 20 exactly, and differ ONLY in:
+| weight | userw2 #2 (docks) | copri m400 (fails) |
+|---|---|---|
+| hw-slack | **800** | **10000** |
+| torque-min | 5 | 1 |
+| ε | 1e-4 | 1e-6 |
+ε is inert at floor=1 (REG-DIAG: ε ≪ λ_min=1 → no effect); torque 1↔5 is a weak τ-regularizer. **⇒ hw-slack
+10000 is the prime suspect.**
+
+**Mechanism (coherent with ALL data):** hw-slack (momentum-box slack penalty, priority 1) is the **largest
+weight in the copri stack (10000 > torso 2000)** → it **dominates** the QP. In *every docking* config hw-slack
+sits **below** the main tasks: userw2 #2 (800 < torso 2000), canonical (10000 < torso 24000). So hw-slack
+10000 is not intrinsically bad (canonical uses it) — it breaks docking specifically when it **out-weights the
+tracking tasks** (the low-weight copri stack). **Decisive test (NOT run — awaiting direction): hw-slack → 800**
+on the copri stack (torso 2000, mom 400, EE 1000, hw **800**, floor 1, ε 1e-6) — if it docks, hw-slack-must-be-
+below-the-main-tasks is confirmed, and the feasible + κ-good recipe is "keep the floor-raise (κ 1e4) but keep
+hw-slack under the tracking weights." NOT patched. **STOP.**
