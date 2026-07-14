@@ -15,12 +15,12 @@ TorsoPlanner ──→ CoM ref ──→ CentroidalNMPC (10 Hz)
                                     ▼
                              WholeBodyQP (100 Hz)
                                     │
-                              τ_q (12 joints)
+                              τ_q (14 joints)
                                     │
                       ┌─────────────┼──────────────┐
                       ▼             ▼              ▼
                 MuJoCo ctrl   AOCS (τ_w)    Weld constraints
-                 [0:12]        [12:15]       (contact forces)
+                 [0:14]        [14:17]       (contact forces)
 ```
 
 **Two-stage cascade**: centroidal NMPC plans momentum-feasible trajectories,
@@ -36,12 +36,15 @@ spacecraft pointing during crawling.
 ```bash
 pip install pin casadi mujoco numpy matplotlib
 
-# Run 3-step crawling simulation
-PYTHONPATH=. MUJOCO_GL=disabled python scripts/compare_aocs.py
+# Reproduce the frozen canonical (6-step traversal, C managed + U ablation):
+PYTHONPATH=. MUJOCO_GL=disabled python3 scripts/diag_canonical2p5_run.py
+
+# Or drive the traversal harness directly — its defaults ARE the canonical
+# caps (tau_w_max = 2.5 in controller AND plant since commit ec41cd9):
+PYTHONPATH=. MUJOCO_GL=disabled python3 scripts/diag_cooperative_arms.py --n-steps 6
 
 # Run tests
-PYTHONPATH=. MUJOCO_GL=disabled python tests/test_r5fix_rwa.py
-PYTHONPATH=. MUJOCO_GL=disabled python tests/test_force_estimator.py
+PYTHONPATH=. MUJOCO_GL=disabled python3 -m pytest tests/ -q
 ```
 
 
@@ -92,12 +95,12 @@ models/                              # MuJoCo MJCF + Pinocchio URDF
 ├── VISPA_crawling.xml               # No wheels variant
 └── VISPA_crawling_fixed.urdf        # Robot-only URDF for Pinocchio
 
-tests/                               # Validation suite
-├── test_r5fix_rwa.py                # RWA model + docking (23 tests)
-├── test_force_estimator.py          # H_{r/O} estimator + sign validation (12 tests)
-├── test_integration.py              # Full pipeline integration
-├── test_r5_closed_loop.py           # 3-step closed-loop validation
-├── test_multi_step.py               # Multi-step locomotion
+tests/                               # Validation suite (pytest, ~221 tests)
+├── test_momentum.py                 # Momentum map / envelope identities
+├── test_nmpc_qp_consistency.py      # NMPC↔QP contract consistency
+├── test_coarse_preplanner.py        # Pre-planner envelope + timing
+├── test_aocs_physics.py             # AOCS torque law + clipping
+├── test_invariants.py               # Frame/conservation invariants
 └── ...
 
 docs/                                # Technical documentation
@@ -123,12 +126,12 @@ so existing scripts and tests work without import changes.
 | Structure mass | 500–71000 kg | Configurable (8%–0.1% ratio) |
 | `tau_max` | 20 Nm | Joint torque limit |
 | `hw_min/max` | ±5 Nms | Reaction wheel momentum envelope |
-| `tau_w_max` | 5 Nm | Wheel torque rate limit |
+| `tau_w_max` | **2.5 Nm** | Wheel torque budget — enforced in the controller (NMPC Ḣ_s constraint + AOCS clip) AND the plant (MJCF wheel `ctrlrange ±2.5`) |
 | `L_max` | 10 Nms | Robot angular momentum limit |
 | `dt_nmpc` | 0.1 s | Stage 1 rate (10 Hz) |
 | `dt_qp` | 0.01 s | Stage 2 rate (100 Hz) |
-| `t_swing` | 6.0 s | Single-support phase duration |
-| `weld_radius` | 5 mm | Docking success threshold |
+| `T_step` | per-step | Single-support duration from the coarse pre-planner (momentum envelope) |
+| `weld_radius` | 5 mm | Docking gate = mechanism capture radius |
 
 
 ## AOCS — Reaction Wheel Attitude Control
@@ -146,16 +149,25 @@ the NMPC's trajectory planning (hw box constraint with corrected dynamics).
 See `docs/force_estimator_note.md` for the full theoretical derivation.
 
 
-## Simulation Results (3-Step, 7110 kg structure)
+## Canonical Results (frozen τ_w,max = 2.5 canonical, 6-step traversal, 1% mass ratio)
 
-| Metric | Value |
-|--------|-------|
-| Docks achieved | 3/3 |
-| Max structure rotation | ~24° |
-| Peak `\|\|hw\|\|` | 0.5 Nms |
-| Peak `\|\|L_com\|\|` | 8.1 Nms |
-| NMPC infeasibility | 3/447 (0.7%) |
-| QP failures | 0 |
+Frozen at commit `32aefaf` (+ default-cap alignment `ec41cd9`). Source of truth:
+`results/j2_adjconv/canonical2p5_result.json` and the per-tick CSVs
+`c25_fulldiag.csv` / `u25_fulldiag.csv`; full analysis in
+`results/j2_adjconv/PHASE_CANONICAL_2P5.md`.
+
+| Metric | C (managed) | U (management off, plant cap active) |
+|--------|-------------|--------------------------------------|
+| Docks (at-weld) | **6/6** — worst 4.99 mm vs the 5 mm capture radius | 6/6 |
+| Planned Ḣ_s per-axis peak | capped at 2.5 on all six steps | up to 10.88 Nm (4.4× envelope) |
+| Structure attitude θ_s peak | **0.540°** | 1.194° (2.2×) |
+| Peak ‖h_w‖ | 4.24 Nms (< 5 envelope) | 5.08 Nms |
+| Applied wheel torque | ≤ 2.500 Nm | ≤ 2.500 Nm (demand up to 26.9 — actuator saturates) |
+| QP failures | 0 | 0 |
+
+The U column is the ablation: with momentum management disabled but the actuator
+physically capped, the plant saturates and attitude degrades 2.2× — the
+management constraint is active and load-bearing, not a formality.
 
 
 ## References
