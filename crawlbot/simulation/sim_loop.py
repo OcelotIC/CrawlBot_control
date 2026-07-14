@@ -944,10 +944,14 @@ class SimulationLoop:
         pq, pv = mujoco_to_pinocchio(self.mj_data.qpos, self.mj_data.qvel)
         rs = self.robot.update(pq, pv)
 
-        # Torso planner reference at the absolute tick time. During
-        # inter-step DS the planner returns its hold/last-phase pose;
-        # this gives a defined p_ref/R_ref for tracking-error fields.
-        tref = self.torso_planner.reference_at(t_abs)
+        # Torso planner reference at the absolute tick time, clamped
+        # into the phase window: during inter-step DS (t past the
+        # step's t_end) this holds the quintic's TERMINAL pose p_t1, so
+        # the exported p_torso_ref is continuous across SS->DS instead
+        # of jumping back to the set_hold pose p_t0 (a full step stride
+        # behind). Logging-only — the DS QP does not consume this value
+        # (settle_mode gates all torso tasks off).
+        tref = self.torso_planner.reference_at_clamped(t_abs)
         p_torso_ref = tref.p.copy()
         R_torso_ref = tref.R.copy()
         q_torso_ref = pin.Quaternion(R_torso_ref)
