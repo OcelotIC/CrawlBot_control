@@ -247,7 +247,7 @@ def compute_aocs_command(
     hw_target: np.ndarray = None,
     K_omega: float = 50.0,
     K_h: float = 0.5,
-    tau_w_max: float = 5.0,
+    tau_w_max: float = 2.5,
 ) -> np.ndarray:
     """Compute AOCS wheel torque command.
 
@@ -300,7 +300,7 @@ def compute_aocs_command_legacy_corrected(
     K_hw: float = 2.0,
     hw_min: np.ndarray = None,
     hw_max: np.ndarray = None,
-    tau_w_max: float = 5.0,
+    tau_w_max: float = 2.5,
 ) -> np.ndarray:
     """Corrected legacy AOCS command with the orbital term (§5.8 / M4).
 
@@ -392,7 +392,7 @@ def compute_aocs_command_legacy_pd_numerical(
     K_d: float = 25.0,
     hw_min: np.ndarray = None,
     hw_max: np.ndarray = None,
-    tau_w_max: float = 5.0,
+    tau_w_max: float = 2.5,
 ) -> np.ndarray:
     """Legacy-corrected AOCS + PD on ω_s with NUMERICAL ω̇_s estimate.
 
@@ -458,7 +458,7 @@ def compute_aocs_command_legacy_pd_model(
     K_d: float = 25.0,
     hw_min: np.ndarray = None,
     hw_max: np.ndarray = None,
-    tau_w_max: float = 5.0,
+    tau_w_max: float = 2.5,
 ) -> np.ndarray:
     """Legacy-corrected AOCS + PD on ω_s with MODEL-BASED ω̇_s estimate.
 
@@ -529,7 +529,7 @@ def compute_aocs_command_legacy_pid_numerical(
     K_theta: float = 1.0,
     hw_min: np.ndarray = None,
     hw_max: np.ndarray = None,
-    tau_w_max: float = 5.0,
+    tau_w_max: float = 2.5,
     tau_struct_ff: np.ndarray = None,
 ) -> np.ndarray:
     """Legacy-corrected AOCS + PID on attitude (numerical ω̇_s).
@@ -614,7 +614,7 @@ def compute_aocs_command_legacy_pid_model(
     K_theta: float = 1.0,
     hw_min: np.ndarray = None,
     hw_max: np.ndarray = None,
-    tau_w_max: float = 5.0,
+    tau_w_max: float = 2.5,
     tau_struct_ff: np.ndarray = None,
 ) -> np.ndarray:
     """Legacy-corrected AOCS + PID on attitude (model-based ω̇_s).

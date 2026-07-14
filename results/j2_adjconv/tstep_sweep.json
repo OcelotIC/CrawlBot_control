@@ -1,0 +1,362 @@
+[
+  {
+    "step": 0,
+    "scale": 1.0,
+    "feasible": true,
+    "T_step": 2.775,
+    "dock_mm": 4.9401,
+    "standoff": 0.709,
+    "distance": 0.1965,
+    "Hdot_s_pk": 4.817
+  },
+  {
+    "step": 0,
+    "scale": 1.1,
+    "feasible": true,
+    "T_step": 3.053,
+    "dock_mm": 4.8657,
+    "standoff": 0.709,
+    "distance": 0.1964,
+    "Hdot_s_pk": 4.099
+  },
+  {
+    "step": 0,
+    "scale": 1.25,
+    "feasible": true,
+    "T_step": 3.469,
+    "dock_mm": 4.7746,
+    "standoff": 0.709,
+    "distance": 0.1963,
+    "Hdot_s_pk": 3.31
+  },
+  {
+    "step": 0,
+    "scale": 1.5,
+    "feasible": true,
+    "T_step": 4.163,
+    "dock_mm": 3.7874,
+    "standoff": 0.709,
+    "distance": 0.1961,
+    "Hdot_s_pk": 2.396
+  },
+  {
+    "step": 0,
+    "scale": 2.0,
+    "feasible": true,
+    "T_step": 5.55,
+    "dock_mm": 2.3725,
+    "standoff": 0.709,
+    "distance": 0.1958,
+    "Hdot_s_pk": 1.392
+  },
+  {
+    "step": 0,
+    "scale": 2.5,
+    "feasible": true,
+    "T_step": 6.938,
+    "dock_mm": 1.5333,
+    "standoff": 0.709,
+    "distance": 0.1956,
+    "Hdot_s_pk": 0.897
+  },
+  {
+    "step": 1,
+    "scale": 1.0,
+    "feasible": true,
+    "T_step": 8.399,
+    "dock_mm": 4.4054,
+    "standoff": 0.678,
+    "distance": 0.5918,
+    "Hdot_s_pk": 1.923
+  },
+  {
+    "step": 1,
+    "scale": 1.1,
+    "feasible": true,
+    "T_step": 9.239,
+    "dock_mm": 3.4149,
+    "standoff": 0.678,
+    "distance": 0.5916,
+    "Hdot_s_pk": 1.596
+  },
+  {
+    "step": 1,
+    "scale": 1.25,
+    "feasible": true,
+    "T_step": 10.499,
+    "dock_mm": 2.7164,
+    "standoff": 0.678,
+    "distance": 0.5915,
+    "Hdot_s_pk": 1.243
+  },
+  {
+    "step": 1,
+    "scale": 1.5,
+    "feasible": true,
+    "T_step": 12.599,
+    "dock_mm": 1.7874,
+    "standoff": 0.678,
+    "distance": 0.5913,
+    "Hdot_s_pk": 0.871
+  },
+  {
+    "step": 1,
+    "scale": 2.0,
+    "feasible": true,
+    "T_step": 16.799,
+    "dock_mm": 0.8966,
+    "standoff": 0.678,
+    "distance": 0.5911,
+    "Hdot_s_pk": 0.508
+  },
+  {
+    "step": 1,
+    "scale": 2.5,
+    "feasible": true,
+    "T_step": 20.998,
+    "dock_mm": 0.5135,
+    "standoff": 0.678,
+    "distance": 0.5911,
+    "Hdot_s_pk": 0.342
+  },
+  {
+    "step": 2,
+    "scale": 1.0,
+    "feasible": true,
+    "T_step": 2.868,
+    "dock_mm": 4.9039,
+    "standoff": 1.01,
+    "distance": 0.2033,
+    "Hdot_s_pk": 5.0
+  },
+  {
+    "step": 2,
+    "scale": 1.1,
+    "feasible": true,
+    "T_step": 3.155,
+    "dock_mm": 4.9793,
+    "standoff": 1.01,
+    "distance": 0.2031,
+    "Hdot_s_pk": 5.0
+  },
+  {
+    "step": 2,
+    "scale": 1.25,
+    "feasible": true,
+    "T_step": 3.585,
+    "dock_mm": 4.7192,
+    "standoff": 1.01,
+    "distance": 0.203,
+    "Hdot_s_pk": 4.379
+  },
+  {
+    "step": 2,
+    "scale": 1.5,
+    "feasible": true,
+    "T_step": 4.302,
+    "dock_mm": 3.4814,
+    "standoff": 1.01,
+    "distance": 0.2029,
+    "Hdot_s_pk": 3.303
+  },
+  {
+    "step": 2,
+    "scale": 2.0,
+    "feasible": true,
+    "T_step": 5.736,
+    "dock_mm": 2.1846,
+    "standoff": 1.01,
+    "distance": 0.2026,
+    "Hdot_s_pk": 1.9
+  },
+  {
+    "step": 2,
+    "scale": 2.5,
+    "feasible": true,
+    "T_step": 7.169,
+    "dock_mm": 1.4548,
+    "standoff": 1.01,
+    "distance": 0.2024,
+    "Hdot_s_pk": 1.215
+  },
+  {
+    "step": 3,
+    "scale": 1.0,
+    "feasible": true,
+    "T_step": 7.98,
+    "dock_mm": 4.4358,
+    "standoff": 1.131,
+    "distance": 0.5622,
+    "Hdot_s_pk": 1.94
+  },
+  {
+    "step": 3,
+    "scale": 1.1,
+    "feasible": true,
+    "T_step": 8.778,
+    "dock_mm": 3.6321,
+    "standoff": 1.131,
+    "distance": 0.5621,
+    "Hdot_s_pk": 1.61
+  },
+  {
+    "step": 3,
+    "scale": 1.25,
+    "feasible": true,
+    "T_step": 9.975,
+    "dock_mm": 2.75,
+    "standoff": 1.131,
+    "distance": 0.5619,
+    "Hdot_s_pk": 1.253
+  },
+  {
+    "step": 3,
+    "scale": 1.5,
+    "feasible": true,
+    "T_step": 11.97,
+    "dock_mm": 1.8157,
+    "standoff": 1.131,
+    "distance": 0.5618,
+    "Hdot_s_pk": 0.885
+  },
+  {
+    "step": 3,
+    "scale": 2.0,
+    "feasible": true,
+    "T_step": 15.961,
+    "dock_mm": 0.9136,
+    "standoff": 1.131,
+    "distance": 0.5616,
+    "Hdot_s_pk": 0.522
+  },
+  {
+    "step": 3,
+    "scale": 2.5,
+    "feasible": true,
+    "T_step": 19.951,
+    "dock_mm": 0.5238,
+    "standoff": 1.131,
+    "distance": 0.5616,
+    "Hdot_s_pk": 0.36
+  },
+  {
+    "step": 4,
+    "scale": 1.0,
+    "feasible": true,
+    "T_step": 3.056,
+    "dock_mm": 4.0453,
+    "standoff": 1.631,
+    "distance": 0.2168,
+    "Hdot_s_pk": 5.0
+  },
+  {
+    "step": 4,
+    "scale": 1.1,
+    "feasible": true,
+    "T_step": 3.361,
+    "dock_mm": 4.8708,
+    "standoff": 1.631,
+    "distance": 0.2167,
+    "Hdot_s_pk": 5.0
+  },
+  {
+    "step": 4,
+    "scale": 1.25,
+    "feasible": true,
+    "T_step": 3.819,
+    "dock_mm": 4.5919,
+    "standoff": 1.631,
+    "distance": 0.2164,
+    "Hdot_s_pk": 4.906
+  },
+  {
+    "step": 4,
+    "scale": 1.5,
+    "feasible": true,
+    "T_step": 4.583,
+    "dock_mm": 3.7113,
+    "standoff": 1.631,
+    "distance": 0.2161,
+    "Hdot_s_pk": 3.528
+  },
+  {
+    "step": 4,
+    "scale": 2.0,
+    "feasible": true,
+    "T_step": 6.111,
+    "dock_mm": 2.0736,
+    "standoff": 1.631,
+    "distance": 0.2156,
+    "Hdot_s_pk": 2.133
+  },
+  {
+    "step": 4,
+    "scale": 2.5,
+    "feasible": true,
+    "T_step": 7.639,
+    "dock_mm": 1.3179,
+    "standoff": 1.631,
+    "distance": 0.2154,
+    "Hdot_s_pk": 1.348
+  },
+  {
+    "step": 5,
+    "scale": 1.0,
+    "feasible": true,
+    "T_step": 6.112,
+    "dock_mm": 4.9999,
+    "standoff": 1.812,
+    "distance": 0.431,
+    "Hdot_s_pk": 2.438
+  },
+  {
+    "step": 5,
+    "scale": 1.1,
+    "feasible": true,
+    "T_step": 6.724,
+    "dock_mm": 4.2215,
+    "standoff": 1.812,
+    "distance": 0.4308,
+    "Hdot_s_pk": 2.024
+  },
+  {
+    "step": 5,
+    "scale": 1.25,
+    "feasible": true,
+    "T_step": 7.64,
+    "dock_mm": 3.3407,
+    "standoff": 1.812,
+    "distance": 0.4306,
+    "Hdot_s_pk": 1.573
+  },
+  {
+    "step": 5,
+    "scale": 1.5,
+    "feasible": true,
+    "T_step": 9.169,
+    "dock_mm": 2.3424,
+    "standoff": 1.812,
+    "distance": 0.4304,
+    "Hdot_s_pk": 1.098
+  },
+  {
+    "step": 5,
+    "scale": 2.0,
+    "feasible": true,
+    "T_step": 12.225,
+    "dock_mm": 1.1839,
+    "standoff": 1.812,
+    "distance": 0.4302,
+    "Hdot_s_pk": 0.636
+  },
+  {
+    "step": 5,
+    "scale": 2.5,
+    "feasible": true,
+    "T_step": 15.281,
+    "dock_mm": 0.731,
+    "standoff": 1.812,
+    "distance": 0.4301,
+    "Hdot_s_pk": 0.423
+  }
+]

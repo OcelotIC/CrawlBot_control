@@ -77,11 +77,11 @@ class SimConfig:
     # ±5 Nms limit, so the momentum handoff remains consistent.
     hw_qp_tight: np.ndarray = field(default_factory=lambda: np.full(3, 3.0))
     L_max: float = 10.0           # Robot angular momentum limit [Nms]
-    tau_w_max: float = 5.0        # |Ḣ_s,i| ≤ τ_w_max [Nm] — wheel-torque rate cap (NMPC)
+    tau_w_max: float = 2.5        # |Ḣ_s,i| ≤ τ_w_max [Nm] — wheel-torque rate cap (NMPC); CANONICAL-2p5 freeze (was 5)
 
     # ── AOCS ────────────────────────────────────────────────────
     aocs_K_hw: float = 2.0        # Legacy feedback gain [1/s]
-    aocs_tau_w_max: float = 5.0   # Max wheel torque [Nm]
+    aocs_tau_w_max: float = 2.5   # Max wheel torque [Nm]; matches MJCF wheel ctrlrange ±2.5 (plant cap)
     rwa_I_w: float = 0.01         # Wheel spin inertia [kg·m²]
 
     # Mode: 'legacy' | 'legacy_corrected'
@@ -258,6 +258,20 @@ class SimConfig:
     preplanner_max_iter: int = 300          # IPOPT max iterations
     preplanner_a_cruise_max: float = 0.0     # [m/s²] cruise accel limit (0=off)
     preplanner_cruise_ramp_frac: float = 0.2 # ramp fraction for cruise window
+    # Standoff-keyed dock-margin safety factor on the per-step T_step guess.
+    # Only steps whose standoff |r_com_0| exceeds the knee get extra swing time:
+    #   if |r_com_0| > knee:  T_step *= (1 + gain)
+    # (At higher standoff the extended swing arm tracks less precisely, so the
+    # highest-standoff docking step needs slightly more time to close the gap.)
+    # Keying to a knee ABOVE the other steps' standoff isolates the change to that
+    # step, leaving all others bit-identical. Default gain 0 / knee ∞ = off.
+    preplanner_tstep_standoff_gain: float = 0.0
+    preplanner_tstep_standoff_knee: float = 1e9
+    # Per-step T_step scale (DIAGNOSTIC ONLY, default off): scale the T_step of the
+    # single step whose 0-based index == scale_step by scale_factor. Used by the
+    # TSTEP-DIAG sweep to isolate one step; default scale_step=-1 → no-op.
+    preplanner_tstep_scale_step: int = -1
+    preplanner_tstep_scale_factor: float = 1.0
     # F-SAT (mapping torso-ref rate limiter): the per-WBC-tick r_b_ref
     # increment is capped at (|v_b_ref_ff| + fsat_jitter_margin)·dt_qp,
     # i.e. the planned (feasibility-bounded) torso-reference velocity
@@ -302,9 +316,9 @@ class SimConfig:
     ss_alpha_torso: float = 5e2
     ss_alpha_torso_ang: float = 5e2  # Cooperative-arms P1 torso angular weight
     ss_alpha_torso_lin: float = 5e2  # Cooperative-arms P2 torso linear weight (co-equal w/ EE)
-    ss_alpha_ee: float = 3e3
+    ss_alpha_ee: float = 1e3       # CANONICAL-2p5 / Add-5 freeze (was 3e3)
     ss_alpha_posture: float = 2e1
-    ss_alpha_wrench: float = 1e-2  # pure regularisation; 1e2 was penalising contact forces (the only actuation path through the stance weld) and attenuating the torso task 7x (see scripts/test_qp_tracking.py)
+    ss_alpha_wrench: float = 1.0   # regulariser-floor tier (Add-5 freeze; was 1e-2). Keep ≤1: 1e2 penalised contact forces (the only actuation path through the stance weld) and attenuated the torso task 7x (see scripts/test_qp_tracking.py)
     ss_alpha_reaction: float = 0.0   # Reaction null-space (0 = disabled)
     ss_alpha_lambda_int: float = 0.0  # Internal-stress regularization on
     # the welded-loop λ in DS (both contacts active). No effect in SS
@@ -319,7 +333,7 @@ class SimConfig:
     # F-SAT). Kp/Kd reuse ss_Kp_com/ss_Kd_com. Default OFF = canonical
     # torso-linear P2 (bit-identical to the pre-task baseline).
     ss_centroidal_momentum_task: bool = False
-    ss_alpha_mom: float = 5e3        # T-MOM linear weight — validated two-task working point (was 5e2 pre-sweep)
+    ss_alpha_mom: float = 4e2        # T-MOM linear weight — CANONICAL-2p5 / Add-5 freeze (was 5e3; momentum weight near-inert on Hdot_s, see PHASE_NMPC_PLAN_SATURATION)
     ss_alpha_tl_weak: float = 0.0    # Variant B weak torso-linear regulariser
     #                                  (0 ⇒ Variant A: torso-linear removed)
     # Phase-2.1 instrumentation: log τ_w + h_w at the 100 Hz QP rate during SS
@@ -334,7 +348,7 @@ class SimConfig:
     # ss_alpha_mom : alpha_torso_pose ratio is the tuning knob. Default OFF ⇒
     # legacy cooperative/strict-P1 path unchanged (bit-identical).
     ss_two_task_mode: bool = False
-    alpha_torso_pose: float = 5e3    # 6-D torso-pose weight — validated two-task working point (was 1e3 pre-sweep)
+    alpha_torso_pose: float = 2e3    # 6-D torso-pose weight — CANONICAL-2p5 / Add-5 freeze (was 5e3; torso is the fine dock lever at EE 1e3, floor in (300, 2000])
 
     # α (J2 #2): CoM-mobile DS. ───────────────────────────────────────
     # dt_ds = DS phase nominal duration in the gait plan. The canonical

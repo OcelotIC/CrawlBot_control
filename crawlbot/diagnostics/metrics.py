@@ -90,7 +90,7 @@ def compute_metrics(log, cfg=None, thresholds=None) -> Dict[str, Tuple]:
         th.update(thresholds)
 
     hw_max = 5.0
-    tau_w_max = 5.0
+    tau_w_max = 2.5
     if cfg is not None:
         hw_max = float(np.max(np.abs(cfg.hw_max)))
         tau_w_max = float(cfg.tau_w_max)

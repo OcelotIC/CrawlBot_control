@@ -240,7 +240,7 @@ def _nmpc_table(step_log, out_path):
 def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
          mass_ratio: float = 0.01, aocs_mode: str = 'legacy_corrected',
          settle_seconds: float = 20.0, K_theta: float = 1.0,
-         K_omega: float = 50.0, tau_w_max: float = 5.0,
+         K_omega: float = 50.0, tau_w_max: float = 2.5,
          scenario: str = None, baseline_ds_rework: bool = False,
          out_dir_override: str = None,
          ss_centroidal_momentum_task: bool = False,
@@ -260,7 +260,11 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
          interstep_hw_refresh: bool = True,
          interstep_settle_alpha_wrench: float = 0.0,
          interstep_settle_alpha_sigf: float = 0.0,
-         interstep_settle_epsilon_v: float = 0.0):
+         interstep_settle_epsilon_v: float = 0.0,
+         preplanner_tstep_standoff_gain: float = 0.0,
+         preplanner_tstep_standoff_knee: float = 1e9,
+         preplanner_tstep_scale_step: int = -1,
+         preplanner_tstep_scale_factor: float = 1.0):
     cfg = r_single._make_m7_config()
     cfg.gait_anchor_dx = anchor_dx
     # Sweet-spot config carry-over (these are also already the defaults
@@ -297,6 +301,11 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     # AOCS clips its commanded torque at the same value).
     cfg.tau_w_max = float(tau_w_max)
     cfg.aocs_tau_w_max = float(tau_w_max)
+    # STEP5-MARGIN: standoff-keyed dock-margin safety factor on T_step (default off).
+    cfg.preplanner_tstep_standoff_gain = float(preplanner_tstep_standoff_gain)
+    cfg.preplanner_tstep_standoff_knee = float(preplanner_tstep_standoff_knee)
+    cfg.preplanner_tstep_scale_step = int(preplanner_tstep_scale_step)
+    cfg.preplanner_tstep_scale_factor = float(preplanner_tstep_scale_factor)
     # AOCS mode override (default 'legacy_corrected' = canonical).
     # legacy_pd_numerical / legacy_pd_model add a PD regulator on ω_s
     # on top of the legacy_corrected feedforward + desat. The two
@@ -413,7 +422,7 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
             suffix += f'_Kt{K_theta:g}'
         if abs(K_omega - 50.0) > 1e-9:
             suffix += f'_Kw{K_omega:g}'
-        if abs(tau_w_max - 5.0) > 1e-9:
+        if abs(tau_w_max - 2.5) > 1e-9:  # non-canonical cap (frozen 2.5)
             suffix += f'_Tw{tau_w_max:g}'
         out_dir = os.path.join(_root, 'results',
                                f'diag_cooperative_arms_{aocs_mode}{suffix}')
@@ -678,8 +687,9 @@ if __name__ == '__main__':
                              '(legacy, ζ ≈ 0.2 underdamped). '
                              'Pole-placement design (T_s=30s, ζ=0.7, '
                              'worst-axis I_s=1777) gives K_θ=36, K_ω=355.')
-    parser.add_argument('--tau_w_max', type=float, default=5.0,
-                        help='Wheel torque limit [Nm], per-axis. Default 5.0. '
+    parser.add_argument('--tau_w_max', type=float, default=2.5,
+                        help='Wheel torque limit [Nm], per-axis. Default 2.5 '
+                             '(frozen canonical; matches MJCF ctrlrange). '
                              'Sets BOTH cfg.tau_w_max (NMPC |Ḣ_s| budget) '
                              'AND cfg.aocs_tau_w_max (AOCS command clip) '
                              'so the two contracts stay in lock-step. '
@@ -787,6 +797,16 @@ if __name__ == '__main__':
                         help='J2 chatter fix (principled): settle-only penalty on the '
                              'net contact force Σf=f1+f2=m·a_com (0=off). Removes the '
                              'flat direction in the Σf sign by construction.')
+    parser.add_argument('--preplanner-tstep-standoff-gain', type=float, default=0.0,
+                        help='STEP5-MARGIN: dock-margin safety factor. If '
+                             '|r_com_0|>knee, T_step *= (1 + gain). 0 = off (default).')
+    parser.add_argument('--preplanner-tstep-standoff-knee', type=float, default=1e9,
+                        help='STEP5-MARGIN: standoff knee above which the gain '
+                             'applies. inf = off (default).')
+    parser.add_argument('--preplanner-tstep-scale-step', type=int, default=-1,
+                        help='TSTEP-DIAG: 0-based step index whose T_step to scale. -1=off.')
+    parser.add_argument('--preplanner-tstep-scale-factor', type=float, default=1.0,
+                        help='TSTEP-DIAG: multiply that step T_step by this factor.')
     parser.add_argument('--interstep-settle-epsilon-v', type=float, default=0.0,
                         help='J2 close (POINT A): dock-tolerance-derived inter-step '
                              'settle exit target ‖dq_full‖ [m/s] (0=off=byte-identical '
@@ -833,7 +853,11 @@ if __name__ == '__main__':
              interstep_hw_refresh=args.interstep_hw_refresh,
              interstep_settle_alpha_wrench=args.interstep_settle_alpha_wrench,
              interstep_settle_alpha_sigf=args.interstep_settle_alpha_sigf,
-             interstep_settle_epsilon_v=args.interstep_settle_epsilon_v)
+             interstep_settle_epsilon_v=args.interstep_settle_epsilon_v,
+             preplanner_tstep_standoff_gain=args.preplanner_tstep_standoff_gain,
+             preplanner_tstep_standoff_knee=args.preplanner_tstep_standoff_knee,
+             preplanner_tstep_scale_step=args.preplanner_tstep_scale_step,
+             preplanner_tstep_scale_factor=args.preplanner_tstep_scale_factor)
     finally:
         with open(MJCF, 'w') as f:
             f.write(original)

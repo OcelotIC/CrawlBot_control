@@ -1,0 +1,202 @@
+{
+  "cap": 2.5,
+  "h_max": 5.0,
+  "eps": 1e-06,
+  "frozen_weights": {
+    "alpha_torso_pose": 2000.0,
+    "alpha_ee": 1000.0,
+    "ss_alpha_mom": 400.0,
+    "w_hw_slack": 800.0,
+    "alpha_posture": 20.0,
+    "alpha_torque": 5.0,
+    "alpha_wrench": 1.0,
+    "alpha_reg": 1.0
+  },
+  "smoke": {
+    "ctrlrange": [
+      [
+        -2.5,
+        2.5
+      ],
+      [
+        -2.5,
+        2.5
+      ],
+      [
+        -2.5,
+        2.5
+      ]
+    ],
+    "ctrl_demand": 10.0,
+    "applied_force": [
+      2.5,
+      2.5,
+      2.5
+    ],
+    "pass": true
+  },
+  "U": {
+    "label": "U",
+    "tau_w_max_cmd": 1000000.0,
+    "weights_effective": {
+      "alpha_torso_pose": 2000.0,
+      "alpha_ee": 1000.0,
+      "ss_alpha_mom": 400.0,
+      "w_hw_slack": 800.0,
+      "alpha_posture": 20.0,
+      "alpha_torque": 5.0,
+      "alpha_wrench": 1.0,
+      "alpha_reg": 1.0,
+      "weight_ratio": 1.0,
+      "tau_w_max_qp": 1000000.0
+    },
+    "weights_match_frozen": true,
+    "n_dock": 6,
+    "at_weld_docks": [
+      2.37,
+      4.77,
+      4.86,
+      4.44,
+      4.64,
+      4.42
+    ],
+    "worst": 4.86,
+    "plan_axis_pk": [
+      1.695,
+      3.686,
+      10.876
+    ],
+    "real_axis_pk": [
+      1.027,
+      1.966,
+      3.451
+    ],
+    "step_plan_maxax": [
+      7.831,
+      3.787,
+      8.115,
+      3.673,
+      10.876,
+      3.686
+    ],
+    "step_real_maxax": [
+      1.942,
+      2.052,
+      2.165,
+      1.793,
+      3.451,
+      1.792
+    ],
+    "n_ss_ticks": 421,
+    "n_plan_at_cap": 254,
+    "swing_ref_pk": 0.0,
+    "theta_pk": 1.1939,
+    "theta_settled": 1.1939,
+    "hw_axis_pk": [
+      0.6766,
+      2.6954,
+      4.5502
+    ],
+    "hw_norm_pk": 5.0846,
+    "n_ticks_hw_over_hmax": 0,
+    "drift_mm": 21.59,
+    "e_com_pk": 0.15042507725924306,
+    "tauw_cmd_max": 26.9007,
+    "n_ticks_cmd_at_cap": 121,
+    "applied_force_max": 2.5,
+    "mjstep_total": 7503,
+    "mjstep_clamped": 397,
+    "clamped_frac": 0.0529,
+    "kappa_SS": 7709.7647857621505,
+    "lambda_min_LS": 1.0,
+    "ipopt_ss_status": {
+      "Solve_Succeeded": 421
+    },
+    "n_ss_solve": 421,
+    "qp_fail": 0,
+    "nmpc_fail": 1283
+  },
+  "step0_gate": "PASS",
+  "C": {
+    "label": "C",
+    "tau_w_max_cmd": 2.5,
+    "weights_effective": {
+      "alpha_torso_pose": 2000.0,
+      "alpha_ee": 1000.0,
+      "ss_alpha_mom": 400.0,
+      "w_hw_slack": 800.0,
+      "alpha_posture": 20.0,
+      "alpha_torque": 5.0,
+      "alpha_wrench": 1.0,
+      "alpha_reg": 1.0,
+      "weight_ratio": 1.0,
+      "tau_w_max_qp": 2.5
+    },
+    "weights_match_frozen": true,
+    "n_dock": 6,
+    "at_weld_docks": [
+      4.02,
+      4.89,
+      4.99,
+      4.97,
+      4.95,
+      4.62
+    ],
+    "worst": 4.99,
+    "plan_axis_pk": [
+      2.132,
+      2.5,
+      2.5
+    ],
+    "real_axis_pk": [
+      0.839,
+      1.949,
+      2.5
+    ],
+    "step_plan_maxax": [
+      2.5,
+      2.5,
+      2.5,
+      2.5,
+      2.5,
+      2.5
+    ],
+    "step_real_maxax": [
+      1.959,
+      2.038,
+      2.188,
+      1.502,
+      2.5,
+      1.469
+    ],
+    "n_ss_ticks": 508,
+    "n_plan_at_cap": 297,
+    "swing_ref_pk": 0.0,
+    "theta_pk": 0.5396,
+    "theta_settled": 0.5396,
+    "hw_axis_pk": [
+      0.7068,
+      2.0197,
+      4.1019
+    ],
+    "hw_norm_pk": 4.2431,
+    "n_ticks_hw_over_hmax": 0,
+    "drift_mm": 22.49,
+    "e_com_pk": 0.15370750098764288,
+    "tauw_cmd_max": 2.5,
+    "n_ticks_cmd_at_cap": 96,
+    "applied_force_max": 2.5,
+    "mjstep_total": 8458,
+    "mjstep_clamped": 368,
+    "clamped_frac": 0.0435,
+    "kappa_SS": 7483.495220403688,
+    "lambda_min_LS": 1.0,
+    "ipopt_ss_status": {
+      "Solve_Succeeded": 503,
+      "Solved_To_Acceptable_Level": 5
+    },
+    "n_ss_solve": 508,
+    "qp_fail": 0,
+    "nmpc_fail": 1368
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "run": "results/figC25_addfive",
+  "csv": "results/j2_adjconv/c25_fulldiag.csv",
+  "n_ticks": 2077,
+  "at_weld_vs_min": [
+    {
+      "step": 0,
+      "weld_t": 3.01,
+      "d_weld_mm": 4.02,
+      "d_min_swing_mm": 4.016,
+      "flyby_gap_mm": 0.004,
+      "ori_weld_deg": 0.14,
+      "twist_weld": 0.020058,
+      "arm": "b",
+      "anchor": 3
+    },
+    {
+      "step": 1,
+      "weld_t": 14.72,
+      "d_weld_mm": 4.89,
+      "d_min_swing_mm": 4.888,
+      "flyby_gap_mm": 0.002,
+      "ori_weld_deg": 0.04,
+      "twist_weld": 0.007735,
+      "arm": "a",
+      "anchor": 3
+    },
+    {
+      "step": 2,
+      "weld_t": 28.5,
+      "d_weld_mm": 4.99,
+      "d_min_swing_mm": 4.334,
+      "flyby_gap_mm": 0.656,
+      "ori_weld_deg": 0.02,
+      "twist_weld": 0.005781,
+      "arm": "b",
+      "anchor": 4
+    },
+    {
+      "step": 3,
+      "weld_t": 40.06,
+      "d_weld_mm": 4.97,
+      "d_min_swing_mm": 4.973,
+      "flyby_gap_mm": -0.003,
+      "ori_weld_deg": 0.05,
+      "twist_weld": 0.00717,
+      "arm": "a",
+      "anchor": 4
+    },
+    {
+      "step": 4,
+      "weld_t": 53.38,
+      "d_weld_mm": 4.95,
+      "d_min_swing_mm": 3.326,
+      "flyby_gap_mm": 1.624,
+      "ori_weld_deg": 0.01,
+      "twist_weld": 0.00499,
+      "arm": "b",
+      "anchor": 5
+    },
+    {
+      "step": 5,
+      "weld_t": 64.54,
+      "d_weld_mm": 4.62,
+      "d_min_swing_mm": 4.624,
+      "flyby_gap_mm": -0.004,
+      "ori_weld_deg": 0.04,
+      "twist_weld": 0.00702,
+      "arm": "a",
+      "anchor": 5
+    }
+  ]
+}

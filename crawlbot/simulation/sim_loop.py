@@ -944,10 +944,14 @@ class SimulationLoop:
         pq, pv = mujoco_to_pinocchio(self.mj_data.qpos, self.mj_data.qvel)
         rs = self.robot.update(pq, pv)
 
-        # Torso planner reference at the absolute tick time. During
-        # inter-step DS the planner returns its hold/last-phase pose;
-        # this gives a defined p_ref/R_ref for tracking-error fields.
-        tref = self.torso_planner.reference_at(t_abs)
+        # Torso planner reference at the absolute tick time, clamped
+        # into the phase window: during inter-step DS (t past the
+        # step's t_end) this holds the quintic's TERMINAL pose p_t1, so
+        # the exported p_torso_ref is continuous across SS->DS instead
+        # of jumping back to the set_hold pose p_t0 (a full step stride
+        # behind). Logging-only — the DS QP does not consume this value
+        # (settle_mode gates all torso tasks off).
+        tref = self.torso_planner.reference_at_clamped(t_abs)
         p_torso_ref = tref.p.copy()
         R_torso_ref = tref.R.copy()
         q_torso_ref = pin.Quaternion(R_torso_ref)
@@ -1139,7 +1143,10 @@ class SimulationLoop:
             alpha_ee=ae,
             alpha_posture=ap, alpha_wrench=aw,
             alpha_reaction=ar_react,
-            alpha_torque=1e0, alpha_reg=1e-2,
+            # CANONICAL-2p5 / Add-5 freeze: torque-min must stay ≳5× the
+            # accel-reg floor or SS redundancy resolution degrades to a
+            # step-0 dock timeout (PHASE_COPRIORITY_1000 Addendum 5).
+            alpha_torque=5e0, alpha_reg=1e0,
             alpha_lambda_int=cfg.ss_alpha_lambda_int,
             ds_centroidal_mode=cfg.ds_centroidal_mode,
             ds_alpha_com=cfg.ds_alpha_com,
@@ -1888,6 +1895,17 @@ class SimulationLoop:
         v_max = float(np.min(np.abs(h_max))) / max(m, 1e-6) / max(lever_arm, 1e-6)
         distance = float(np.linalg.norm(r_com_goal - r_com_0))
         T_step_guess = max(0.5, distance / v_max) if v_max > 0.0 else 1.0
+        # Standoff-keyed dock-margin safety factor (default off). Only steps whose
+        # standoff exceeds the knee get extra swing time — keying the knee ABOVE
+        # the other steps' standoff isolates the change to the highest-standoff
+        # docking step, leaving all others bit-identical (no cross-step coupling).
+        if float(np.linalg.norm(r_com_0)) > cfg.preplanner_tstep_standoff_knee:
+            T_step_guess *= (1.0 + cfg.preplanner_tstep_standoff_gain)
+        # Per-step T_step scale (DIAGNOSTIC, default off). len(self._preplanner_stats)
+        # is the 0-based index of THIS step (one pre-planner call per step, appended
+        # after the solve below), so this isolates a single step's T_step.
+        if len(self._preplanner_stats) == cfg.preplanner_tstep_scale_step:
+            T_step_guess *= cfg.preplanner_tstep_scale_factor
 
         result = self.preplanner.solve(
             r_com_0=r_com_0,
@@ -3515,6 +3533,22 @@ class SimulationLoop:
         except NameError:
             # Sub-loop didn't run (shouldn't happen in production).
             p_torso_ref_log = tref_log.p.copy()
+        # DS settle ticks with NO planner phase covering t_log (trailing
+        # settle past the last quintic, initial DS before the first): the
+        # torso-position task is settle-gated off and p_torso_ref_used
+        # carries the live CoM-mapping output, which jumps at the SS->DS
+        # switch and ramps during settle. Log the clamped planner pose
+        # instead (terminal quintic pose p_t1 / initial hold) so the
+        # exported reference is continuous across the whole traversal.
+        # When a phase DOES cover t_log (run-B DWELL set_from_waypoints
+        # moving reference), p_torso_ref_used is kept — the QP genuinely
+        # tracks that moving centroidal reference. NB the guard cannot
+        # key on ds_centroidal_active: the locked config runs centroidal
+        # DS in the trailing settle too (dca sets ds_centroidal_mode).
+        if (phase == 'DS' and settle_mode
+                and not self.torso_planner.has_phase_at(t_log)):
+            p_torso_ref_log = self.torso_planner.reference_at_clamped(
+                t_log).p.copy()
         d_swing = self._gripper_distance(swing_arm, target_anchor)
         d_stance = self._gripper_distance(
             stance_arm, stance_a if stance_arm == 'a' else stance_b)

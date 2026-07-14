@@ -72,7 +72,7 @@ def generate_plots(log, output_dir, cfg=None, dpi=150):
     docks = log.dock_events if _has(log, 'dock_events') else []
 
     hw_max = 5.0
-    tau_w_max = 5.0
+    tau_w_max = 2.5
     tau_max = 20.0
     if cfg is not None:
         hw_max = float(np.max(np.abs(cfg.hw_max)))

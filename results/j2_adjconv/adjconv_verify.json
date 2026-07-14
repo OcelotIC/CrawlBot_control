@@ -1,0 +1,21 @@
+{
+  "n_snapshots": 42,
+  "source": "results/figC_qpcond/sim_log.json",
+  "urdf": "models/VISPA_crawling_fixed.urdf",
+  "stored_pose": "T_struct_torso; p = R_s^T(p_torso - p_struct) = torso-from-structure, in R_s (state_conversions.py:86-88,98)",
+  "max_dev_LHS_adjoint_vs_RHS": 3.552713678800501e-15,
+  "max_dev_gact_vs_RHS": 3.552713678800501e-15,
+  "max_dev_VC2_vs_RHS": 3.552713678800501e-15,
+  "max_dev_INVERSE_vs_RHS": 20.39551558772491,
+  "max_2p_cross_P": 19.19301969150826,
+  "verdict": "MATCH \u2014 stored sense correct (T_struct_torso), no inversion needed",
+  "p_abs_range_m": [
+    0.8763707676159852,
+    2.36946453558557
+  ],
+  "p_mean": [
+    1.1754122002798213,
+    -0.7013126489171093,
+    -0.3269212100585818
+  ]
+}

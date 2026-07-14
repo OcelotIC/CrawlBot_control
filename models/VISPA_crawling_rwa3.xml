@@ -316,10 +316,13 @@
     <motor name="act_J4b"     joint="Joint_4_b"     gear="1" ctrlrange="-50 50"/>
     <motor name="act_J5b"     joint="Joint_5_b"     gear="1" ctrlrange="-50 50"/>
     <motor name="act_J6b"     joint="Joint_6_b"     gear="1" ctrlrange="-50 50"/>
-    <!-- RWA actuators (ctrl indices 14, 15, 16) — tau_w_max = 5 Nm per spec §5.1 -->
-    <motor name="act_rw_x" joint="rw_x" gear="1" ctrlrange="-5 5"/>
-    <motor name="act_rw_y" joint="rw_y" gear="1" ctrlrange="-5 5"/>
-    <motor name="act_rw_z" joint="rw_z" gear="1" ctrlrange="-5 5"/>
+    <!-- RWA actuators (ctrl indices 14, 15, 16) — physical wheel-torque cap
+         tau_w_max = 2.5 Nm (CANONICAL-2p5 freeze; was 5 per spec §5.1).
+         autolimits=true + gear=1: MuJoCo clamps the applied motor torque to
+         ctrlrange regardless of the commanded ctrl, in BOTH C and U runs. -->
+    <motor name="act_rw_x" joint="rw_x" gear="1" ctrlrange="-2.5 2.5"/>
+    <motor name="act_rw_y" joint="rw_y" gear="1" ctrlrange="-2.5 2.5"/>
+    <motor name="act_rw_z" joint="rw_z" gear="1" ctrlrange="-2.5 2.5"/>
   </actuator>
 
   <!-- ==================== EQUALITY CONSTRAINTS (Gripper Welds) ==================== -->

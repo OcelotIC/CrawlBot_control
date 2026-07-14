@@ -1,0 +1,51 @@
+{
+  "weights": {
+    "alpha_torso_pose": 2000.0,
+    "w_hw_slack": 10000.0,
+    "ss_alpha_mom": 400.0,
+    "alpha_ee": 1000.0,
+    "alpha_posture": 20.0,
+    "alpha_wrench": 1.0,
+    "alpha_torque": 1.0,
+    "alpha_reg": 1.0
+  },
+  "eps": 1e-06,
+  "span": 10000.0,
+  "feasible_6of6": false,
+  "n_dock": 0,
+  "at_weld_docks": [
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
+  ],
+  "worst": null,
+  "margin": null,
+  "ss_hdot_realized": [
+    2.503,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "ss_hdot_planned": [
+    5.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+  ],
+  "saturation": "GONE",
+  "e_com_pk": 0.09999,
+  "theta_pk": 0.1679,
+  "theta_settled": 0.0683,
+  "kappa_SS": 9999.990001010001,
+  "lambda_min_LS": 1.0,
+  "hw_peak": 2.4749,
+  "qp_fail": 0,
+  "nmpc_fail": 10
+}

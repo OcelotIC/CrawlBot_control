@@ -1,0 +1,104 @@
+{
+  "label": "U (rate-off, tau_w_max=1e6)",
+  "ss_alpha_mom": 400.0,
+  "tau_w_max": 1000000.0,
+  "base": {
+    "alpha_torso_pose": 2000.0,
+    "w_hw_slack": 800.0,
+    "alpha_ee": 1000.0,
+    "alpha_posture": 20.0,
+    "alpha_wrench": 1.0,
+    "alpha_torque": 5.0,
+    "alpha_reg": 1.0
+  },
+  "eps": 1e-06,
+  "n_dock": 6,
+  "feasible_6of6": true,
+  "n_ss_ticks": 421,
+  "plan_axis_pk": [
+    1.65,
+    3.687,
+    10.008
+  ],
+  "plan_maxaxis_pk": 10.008,
+  "plan_exceeds_5": true,
+  "plan_exceedance": 5.008,
+  "real_axis_pk": [
+    1.034,
+    1.939,
+    3.393
+  ],
+  "real_maxaxis_pk": 3.393,
+  "real_norm_pk": 3.528,
+  "step_plan_axis": [
+    [
+      1.608,
+      1.444,
+      7.831
+    ],
+    [
+      0.793,
+      1.689,
+      3.685
+    ],
+    [
+      1.65,
+      1.763,
+      8.009
+    ],
+    [
+      0.808,
+      2.846,
+      3.577
+    ],
+    [
+      1.434,
+      3.277,
+      10.008
+    ],
+    [
+      0.863,
+      3.687,
+      2.947
+    ]
+  ],
+  "step_real_axis": [
+    [
+      0.523,
+      1.465,
+      1.942
+    ],
+    [
+      0.239,
+      1.394,
+      2.059
+    ],
+    [
+      0.626,
+      1.13,
+      2.203
+    ],
+    [
+      0.422,
+      1.753,
+      1.488
+    ],
+    [
+      1.034,
+      1.939,
+      3.393
+    ],
+    [
+      0.383,
+      1.789,
+      0.909
+    ]
+  ],
+  "swing_ref_pk": 0.0,
+  "ipopt_ss_status": {
+    "Solve_Succeeded": 421
+  },
+  "n_ss_solve": 421,
+  "qp_fail": 0,
+  "nmpc_fail": 1287
+}

@@ -447,6 +447,34 @@ class TorsoPlanner:
         # Outside all phases: hold
         return self._hold_reference()
 
+    def has_phase_at(self, t: float) -> bool:
+        """True if an installed phase covers time t — i.e. reference_at(t)
+        would interpolate a live trajectory rather than fall through to
+        the hold pose."""
+        return any(p['t_start'] - 1e-6 <= t <= p['t_end'] + 1e-6
+                   for p in self._phases)
+
+    def reference_at_clamped(self, t: float) -> TorsoReference:
+        """reference_at with the query time clamped into the phase window.
+
+        Outside all phases, reference_at falls through to
+        _hold_reference() — by convention the set_hold pose, which the
+        sim loop sets to the phase's START pose p_t0. A time-series of
+        raw queries therefore jumps backward by the full step stride
+        once t passes t_end. This variant clamps t into
+        [t_start_first, t_end_last] so queries past the end return the
+        TERMINAL pose (continuous hold at p_t1) and queries before the
+        start return the initial pose. Logging/export use only; the
+        control path keeps its own explicit cap (sim_loop tq_planner =
+        min(tq, ss_end - 1e-3)). With no phases installed, identical to
+        reference_at (hold).
+        """
+        if self._phases:
+            t0 = min(p['t_start'] for p in self._phases)
+            t1 = max(p['t_end'] for p in self._phases)
+            t = min(max(t, t0), t1)
+        return self.reference_at(t)
+
     def com_reference_at(self, t: float) -> ComReference:
         """Compute CoM reference derived from torso trajectory (structure frame).
 

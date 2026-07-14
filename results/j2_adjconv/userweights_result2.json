@@ -1,0 +1,46 @@
+{
+  "weights": {
+    "alpha_torso_pose": 2000.0,
+    "w_hw_slack": 800.0,
+    "ss_alpha_mom": 400.0,
+    "alpha_ee": 1000.0,
+    "alpha_posture": 20.0,
+    "alpha_wrench": 1.0,
+    "alpha_torque": 5.0,
+    "alpha_reg": 1.0
+  },
+  "eps": 0.0001,
+  "docks": [
+    2.5652,
+    4.5933,
+    3.0056,
+    4.3915,
+    2.4854,
+    4.4941
+  ],
+  "worst": 4.5933,
+  "margin": 0.4067,
+  "n_dock": 6,
+  "all6": true,
+  "theta_s_peak": 0.4318,
+  "theta_s_settled": 0.4237,
+  "hdot_s_pk": [
+    2.024,
+    2.05,
+    2.163,
+    1.537,
+    2.496,
+    1.634
+  ],
+  "kappa_SS": 7806.507482883207,
+  "kappa_DS": 1000.9000099990001,
+  "min_lam_min_LS": 0.9999999999999996,
+  "dock_vs_canonical": [
+    -2.3749,
+    0.1879,
+    -1.8983,
+    -0.0443,
+    -1.5599,
+    -0.5058
+  ]
+}
