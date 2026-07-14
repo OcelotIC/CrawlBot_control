@@ -240,7 +240,7 @@ def _nmpc_table(step_log, out_path):
 def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
          mass_ratio: float = 0.01, aocs_mode: str = 'legacy_corrected',
          settle_seconds: float = 20.0, K_theta: float = 1.0,
-         K_omega: float = 50.0, tau_w_max: float = 5.0,
+         K_omega: float = 50.0, tau_w_max: float = 2.5,
          scenario: str = None, baseline_ds_rework: bool = False,
          out_dir_override: str = None,
          ss_centroidal_momentum_task: bool = False,
@@ -422,7 +422,7 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
             suffix += f'_Kt{K_theta:g}'
         if abs(K_omega - 50.0) > 1e-9:
             suffix += f'_Kw{K_omega:g}'
-        if abs(tau_w_max - 5.0) > 1e-9:
+        if abs(tau_w_max - 2.5) > 1e-9:  # non-canonical cap (frozen 2.5)
             suffix += f'_Tw{tau_w_max:g}'
         out_dir = os.path.join(_root, 'results',
                                f'diag_cooperative_arms_{aocs_mode}{suffix}')
@@ -687,8 +687,9 @@ if __name__ == '__main__':
                              '(legacy, ζ ≈ 0.2 underdamped). '
                              'Pole-placement design (T_s=30s, ζ=0.7, '
                              'worst-axis I_s=1777) gives K_θ=36, K_ω=355.')
-    parser.add_argument('--tau_w_max', type=float, default=5.0,
-                        help='Wheel torque limit [Nm], per-axis. Default 5.0. '
+    parser.add_argument('--tau_w_max', type=float, default=2.5,
+                        help='Wheel torque limit [Nm], per-axis. Default 2.5 '
+                             '(frozen canonical; matches MJCF ctrlrange). '
                              'Sets BOTH cfg.tau_w_max (NMPC |Ḣ_s| budget) '
                              'AND cfg.aocs_tau_w_max (AOCS command clip) '
                              'so the two contracts stay in lock-step. '

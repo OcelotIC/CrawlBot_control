@@ -76,7 +76,7 @@ class CoarsePrePlannerConfig:
     tau_max: float = 8.0             # [Nm] per active contact
 
     # Rate bound on L̇ (wheel torque equivalent)
-    tau_w_max: float = 5.0           # [Nm] componentwise
+    tau_w_max: float = 2.5           # [Nm] componentwise (frozen 2.5 canonical; piped from cfg.tau_w_max in the sim path)
 
     # Cost weights
     w_L: float = 1.0                 # ||L_com||² weight
