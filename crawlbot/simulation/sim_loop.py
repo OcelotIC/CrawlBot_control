@@ -3533,6 +3533,16 @@ class SimulationLoop:
         except NameError:
             # Sub-loop didn't run (shouldn't happen in production).
             p_torso_ref_log = tref_log.p.copy()
+        # Trailing-DS settle (settle_mode, NOT the run-B centroidal DWELL):
+        # no torso task consumes any reference (all settle-gated off), and
+        # p_torso_ref_used carries the live CoM-mapping output, which jumps
+        # at the SS->DS switch and ramps during settle. Log the clamped
+        # planner pose instead (terminal quintic pose p_t1, flat hold) so
+        # the exported reference is continuous across the whole traversal.
+        # ds_centroidal_active (DWELL) keeps the moving QP-tracked ref.
+        if phase == 'DS' and settle_mode and not ds_centroidal_active:
+            p_torso_ref_log = self.torso_planner.reference_at_clamped(
+                t_log).p.copy()
         d_swing = self._gripper_distance(swing_arm, target_anchor)
         d_stance = self._gripper_distance(
             stance_arm, stance_a if stance_arm == 'a' else stance_b)
