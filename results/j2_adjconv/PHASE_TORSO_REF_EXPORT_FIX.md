@@ -71,3 +71,12 @@ so the logged value was consumed by nothing.
 
 Full pytest on the final fix: running at report time; outcome appended below. **STOP** — ready for the
 continuous torso figure.
+
+---
+
+## Addendum — full pytest on the final fix: CLEAN (identical failure set to baseline)
+
+Full suite on the complete logging fix (`b619ef4` + `b37b528`): **219 passed, 2 failed (16:46)** — exactly the
+two **pre-existing** baseline failures (`test_far_infeasible_under_tight_rate`,
+`test_E7_t15_step2_dock_under_fk_mode`), the same set as pre-freeze and post-freeze. **Zero new failures**
+(Rule 7 satisfied). **STOP.**
