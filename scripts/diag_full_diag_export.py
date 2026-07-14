@@ -109,7 +109,10 @@ cols = (['t_s', 'phase', 'step_index', 'swing_arm',
          'qp_ok', 'nmpc_ok', 'qp_time_ms', 'nmpc_time_ms', 'nmpc_iterations',
          'lambda_qp_norm', 'lambda_ref_norm', 'tau_max_joint_Nm'])
 
-out_csv = 'results/j2_adjconv/userw2_fulldiag.csv'
+OUT_PREFIX = 'results/j2_adjconv/userw2'
+if '--out-prefix' in sys.argv:
+    OUT_PREFIX = sys.argv[sys.argv.index('--out-prefix') + 1]
+out_csv = f'{OUT_PREFIX}_fulldiag.csv'
 with open(out_csv, 'w', newline='') as fh:
     w = csv.writer(fh); w.writerow(cols)
     for i in range(n):
@@ -151,5 +154,5 @@ for k in range(6):
           f'| {e.get("ori_deg"):7} | {e.get("twist"):.6f}')
 
 json.dump({'run': RUN, 'csv': out_csv, 'n_ticks': n, 'at_weld_vs_min': Brows},
-          open('results/j2_adjconv/userw2_fulldiag_meta.json', 'w'), indent=2)
-print('\nwrote results/j2_adjconv/userw2_fulldiag_meta.json')
+          open(f'{OUT_PREFIX}_fulldiag_meta.json', 'w'), indent=2)
+print(f'\nwrote {OUT_PREFIX}_fulldiag_meta.json')
