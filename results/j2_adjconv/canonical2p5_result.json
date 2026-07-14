@@ -1,0 +1,38 @@
+{
+  "cap": 2.5,
+  "h_max": 5.0,
+  "eps": 1e-06,
+  "frozen_weights": {
+    "alpha_torso_pose": 2000.0,
+    "alpha_ee": 1000.0,
+    "ss_alpha_mom": 400.0,
+    "w_hw_slack": 800.0,
+    "alpha_posture": 20.0,
+    "alpha_torque": 5.0,
+    "alpha_wrench": 1.0,
+    "alpha_reg": 1.0
+  },
+  "smoke": {
+    "ctrlrange": [
+      [
+        -2.5,
+        2.5
+      ],
+      [
+        -2.5,
+        2.5
+      ],
+      [
+        -2.5,
+        2.5
+      ]
+    ],
+    "ctrl_demand": 10.0,
+    "applied_force": [
+      2.5,
+      2.5,
+      2.5
+    ],
+    "pass": true
+  }
+}
