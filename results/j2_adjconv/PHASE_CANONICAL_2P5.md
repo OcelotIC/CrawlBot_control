@@ -133,3 +133,13 @@ in both runs (stance-only Ḣ_s = exact full NMPC quantity).
 | frozen config | commit `32aefaf` |
 
 **STOP for cross-check.** Push only, never merge.
+
+---
+
+## Addendum — full post-freeze pytest: CLEAN (identical failure set to baseline)
+
+Full suite on the frozen config (`32aefaf` + phase artifacts): **219 passed, 2 failed in 26:34** — the failures
+are exactly the two **pre-existing** baseline failures (`test_coarse_preplanner.py::TestPositionDependentEnvelope::
+test_far_infeasible_under_tight_rate`, `test_fk_reference_consistency.py::test_E7_t15_step2_dock_under_fk_mode`),
+byte-for-byte the same set as the pre-freeze baseline run (219 passed / 2 failed, 26:29). **Zero new failures**
+— the τ_w 2.5 + Add-5 freeze introduces no test regressions (Rule 7 satisfied). **STOP.**
