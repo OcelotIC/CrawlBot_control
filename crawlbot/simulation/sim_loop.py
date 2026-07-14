@@ -3533,14 +3533,20 @@ class SimulationLoop:
         except NameError:
             # Sub-loop didn't run (shouldn't happen in production).
             p_torso_ref_log = tref_log.p.copy()
-        # Trailing-DS settle (settle_mode, NOT the run-B centroidal DWELL):
-        # no torso task consumes any reference (all settle-gated off), and
-        # p_torso_ref_used carries the live CoM-mapping output, which jumps
-        # at the SS->DS switch and ramps during settle. Log the clamped
-        # planner pose instead (terminal quintic pose p_t1, flat hold) so
-        # the exported reference is continuous across the whole traversal.
-        # ds_centroidal_active (DWELL) keeps the moving QP-tracked ref.
-        if phase == 'DS' and settle_mode and not ds_centroidal_active:
+        # DS settle ticks with NO planner phase covering t_log (trailing
+        # settle past the last quintic, initial DS before the first): the
+        # torso-position task is settle-gated off and p_torso_ref_used
+        # carries the live CoM-mapping output, which jumps at the SS->DS
+        # switch and ramps during settle. Log the clamped planner pose
+        # instead (terminal quintic pose p_t1 / initial hold) so the
+        # exported reference is continuous across the whole traversal.
+        # When a phase DOES cover t_log (run-B DWELL set_from_waypoints
+        # moving reference), p_torso_ref_used is kept — the QP genuinely
+        # tracks that moving centroidal reference. NB the guard cannot
+        # key on ds_centroidal_active: the locked config runs centroidal
+        # DS in the trailing settle too (dca sets ds_centroidal_mode).
+        if (phase == 'DS' and settle_mode
+                and not self.torso_planner.has_phase_at(t_log)):
             p_torso_ref_log = self.torso_planner.reference_at_clamped(
                 t_log).p.copy()
         d_swing = self._gripper_distance(swing_arm, target_anchor)

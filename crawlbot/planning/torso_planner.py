@@ -447,6 +447,13 @@ class TorsoPlanner:
         # Outside all phases: hold
         return self._hold_reference()
 
+    def has_phase_at(self, t: float) -> bool:
+        """True if an installed phase covers time t — i.e. reference_at(t)
+        would interpolate a live trajectory rather than fall through to
+        the hold pose."""
+        return any(p['t_start'] - 1e-6 <= t <= p['t_end'] + 1e-6
+                   for p in self._phases)
+
     def reference_at_clamped(self, t: float) -> TorsoReference:
         """reference_at with the query time clamped into the phase window.
 
