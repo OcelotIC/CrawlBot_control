@@ -1139,7 +1139,10 @@ class SimulationLoop:
             alpha_ee=ae,
             alpha_posture=ap, alpha_wrench=aw,
             alpha_reaction=ar_react,
-            alpha_torque=1e0, alpha_reg=1e-2,
+            # CANONICAL-2p5 / Add-5 freeze: torque-min must stay ≳5× the
+            # accel-reg floor or SS redundancy resolution degrades to a
+            # step-0 dock timeout (PHASE_COPRIORITY_1000 Addendum 5).
+            alpha_torque=5e0, alpha_reg=1e0,
             alpha_lambda_int=cfg.ss_alpha_lambda_int,
             ds_centroidal_mode=cfg.ds_centroidal_mode,
             ds_alpha_com=cfg.ds_alpha_com,

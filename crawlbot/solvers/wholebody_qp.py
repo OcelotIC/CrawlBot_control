@@ -178,7 +178,7 @@ class WholeBodyQPConfig:
     # the box, the slack allows the QP to remain feasible while the
     # penalty drives the solution toward the maximum corrective
     # wrench available.
-    w_hw_slack: float = 1e4       # Quadratic penalty on hw slack
+    w_hw_slack: float = 8e2       # Quadratic penalty on hw slack (CANONICAL-2p5 / Add-5 freeze; was 1e4)
 
     # PD gains for CoM tracking (Eq. VI-F.4)
     Kp_com: np.ndarray = field(default_factory=lambda: 100.0 * np.ones(3))
@@ -1277,11 +1277,12 @@ class WholeBodyQP:
 
         qp.add_task(A_reg, b_reg, cfg.alpha_reg, priority=6)
 
-        # --- M5 Task: hw slack penalty (heavy, high priority) ---
+        # --- M5 Task: hw slack penalty ---
         # Drive the slack variables to zero as fast as the actuator
-        # limits allow. Uses priority 1 so it can't be traded off
-        # against posture / torque minimisation. Weight = w_hw_slack
-        # (default 1e4 >> alpha_torso ≈ 1e3).
+        # limits allow. NOTE: at weight_ratio=1 the priority integer is
+        # inert — the α magnitudes alone set the hierarchy, so this task
+        # ranks by w_hw_slack (800), below torso/EE. The slacks are only
+        # active when the hw safety box itself is violated.
         if cfg.w_hw_slack > 0:
             A_slack = np.zeros((6, n))
             A_slack[0: 3, idx['slack_hw_up'][0]: idx['slack_hw_up'][1]] = np.eye(3)
