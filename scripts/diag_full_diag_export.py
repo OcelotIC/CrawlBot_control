@@ -23,7 +23,8 @@ import csv
 import numpy as np
 import pinocchio as pin
 import mujoco
-from scripts.export_figure_data import load_anchors_struct_frame, phase_per_tick, MJCF
+from scripts.export_figure_data import (load_anchors_struct_frame, phase_per_tick, MJCF,
+                                        ltot_at_snapshots, nearest_tick)
 
 RUN = 'results/figC_userw2'
 if '--run-dir' in sys.argv:
@@ -90,6 +91,18 @@ qpok = np.asarray(sl['qp_ok']); nmok = np.asarray(sl['nmpc_ok'])
 qpt = g('qp_time_ms'); nmt = g('nmpc_time_ms'); nmit = g('nmpc_iterations')
 lqn = g('lambda_qp_norm'); lrn = g('lambda_ref_norm'); tmj = g('tau_max_joint')
 
+# ── DRIFT-CLOSURE T2 (append-only diagnostic channels; no control path) ──
+# omega_s: structure angular rate = qvel[3:6] in R_s, logged per-tick (2077).
+# L_total: total system angular momentum = mj_subtreeVel(subtree_angmom[0]) on the
+#   stored (qpos, qvel) SNAPSHOTS ONLY (44 event instants) -> mapped to nearest tick,
+#   left blank on the remaining ticks (qpos/qvel not logged per-tick -> not fabricated).
+oms = g('omega_s')
+ltot_snaps = ltot_at_snapshots(sl, model)
+ltot_col = np.full((n, 3), np.nan); ltot_norm = np.full(n, np.nan)
+for _s in ltot_snaps:
+    _i = nearest_tick(t, _s['t'])
+    ltot_col[_i] = [_s['Ltot_x'], _s['Ltot_y'], _s['Ltot_z']]; ltot_norm[_i] = _s['Ltot_norm']
+
 
 def f6(v): return f'{v:.6e}'
 def fb(v): return '' if not np.isfinite(v) else str(int(v))
@@ -107,7 +120,9 @@ cols = (['t_s', 'phase', 'step_index', 'swing_arm',
         [f'p_torso_{a}_m' for a in 'xyz'] + [f'p_torso_ref_{a}_m' for a in 'xyz'] +
         ['e_ee_pos_mm', 'e_ee_ori_deg',
          'qp_ok', 'nmpc_ok', 'qp_time_ms', 'nmpc_time_ms', 'nmpc_iterations',
-         'lambda_qp_norm', 'lambda_ref_norm', 'tau_max_joint_Nm'])
+         'lambda_qp_norm', 'lambda_ref_norm', 'tau_max_joint_Nm'] +
+        [f'omega_s_{a}_radps' for a in 'xyz'] +
+        [f'Ltot_{a}_Nms' for a in 'xyz'] + ['Ltot_norm_Nms'])
 
 OUT_PREFIX = 'results/j2_adjconv/userw2'
 if '--out-prefix' in sys.argv:
@@ -134,7 +149,10 @@ with open(out_csv, 'w', newline='') as fh:
                    [f6(pt[i, j]) for j in range(3)] + [f6(ptr[i, j]) for j in range(3)] +
                    [f6(1000 * eep[i]), f6(eeo[i]),
                     int(bool(qpok[i])), int(bool(nmok[i])), f6(qpt[i]), f6(nmt[i]), int(nmit[i]),
-                    f6(lqn[i]), ('' if not np.isfinite(lrn[i]) else f6(lrn[i])), f6(tmj[i])])
+                    f6(lqn[i]), ('' if not np.isfinite(lrn[i]) else f6(lrn[i])), f6(tmj[i])] +
+                   [f6(oms[i, j]) for j in range(3)] +
+                   [('' if not np.isfinite(ltot_col[i, j]) else f6(ltot_col[i, j])) for j in range(3)] +
+                   ['' if not np.isfinite(ltot_norm[i]) else f6(ltot_norm[i])])
 print(f'wrote {out_csv}  ({n} ticks, {len(cols)} cols)')
 
 # ── B: per-step at-weld vs min-over-swing ──
@@ -153,6 +171,7 @@ for k in range(6):
     print(f'  {k}   | {e.get("t"):6}s | {dweld:6.3f} | {dmin:10.3f}  | {flyby:+6.3f} '
           f'| {e.get("ori_deg"):7} | {e.get("twist"):.6f}')
 
-json.dump({'run': RUN, 'csv': out_csv, 'n_ticks': n, 'at_weld_vs_min': Brows},
+json.dump({'run': RUN, 'csv': out_csv, 'n_ticks': n, 'at_weld_vs_min': Brows,
+           'ltot_snapshots': ltot_snaps},
           open(f'{OUT_PREFIX}_fulldiag_meta.json', 'w'), indent=2)
 print(f'\nwrote {OUT_PREFIX}_fulldiag_meta.json')
