@@ -1,0 +1,34 @@
+{
+  "settle_seconds": 900.0,
+  "t_end": 964.4400000001507,
+  "traversal_bit_identical": true,
+  "C1_hw_end": [
+    0.001492,
+    0.000151,
+    0.004118
+  ],
+  "C1_pass": true,
+  "C2_omega_norm_dps": 0.0001245678602958291,
+  "C2_pass": true,
+  "C3_theta_end_deg": 0.05958114995434921,
+  "C3_theta_end_z": 0.03478546977535238,
+  "C3_pass": false,
+  "theta_end_axes": [
+    0.004754,
+    0.048138,
+    0.034785
+  ],
+  "theta_xy_end": 0.04837235287217992,
+  "C4_Ltot_absmax": [
+    0.001247,
+    0.000777,
+    0.000643
+  ],
+  "C4_pass": true,
+  "t_cross_thetaz_005": 860.440000000127,
+  "settle_time_to_cross": 795.9000000001271,
+  "crossed": true,
+  "tail_tau_refit_s": 299.5352913205741,
+  "tail_extrap_cross_s": 861.1904439641144,
+  "all_pass": false
+}
