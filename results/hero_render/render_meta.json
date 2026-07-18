@@ -10,14 +10,6 @@
     "frame_step5_2",
     "final"
   ],
-  "apex_ticks": [
-    1.51,
-    9.62,
-    20.0,
-    34.86,
-    44.88,
-    59.34
-  ],
   "fovy": 27.0,
   "cam_A": {
     "lookat": [
@@ -29,57 +21,62 @@
     "azimuth": 35.0,
     "elevation": 18.0
   },
-  "cam_B1": {
+  "cam_B_wide": {
     "lookat": [
-      0.0,
-      -0.3,
-      -2.02
+      0.15,
+      0.1,
+      -1.98
     ],
-    "distance": 3.5,
-    "azimuth": 35.0,
-    "elevation": 18.0
+    "distance": 10.0,
+    "azimuth": 36.0,
+    "elevation": 20.0
   },
-  "cam_B2": {
+  "inset": {
     "lookat": [
-      1.0,
-      -0.3,
-      -2.02
+      1.1853,
+      0.2995,
+      -1.8271
     ],
-    "distance": 3.8,
-    "azimuth": 35.0,
-    "elevation": 18.0
+    "pose": "step4 docked gripper_a",
+    "distance": 0.9,
+    "azimuth": 42.0,
+    "elevation": 24.0
   },
   "render_A": [
     3840,
     2400
   ],
-  "render_B": [
-    2880,
-    2400
+  "render_B_wide": [
+    3600,
+    2250
+  ],
+  "render_inset": [
+    2200,
+    2200
   ],
   "arm_colour_mapping": {
-    "Arm A": "blue",
-    "Arm B": "red",
-    "note": "MJCF ground truth: class arm_a rgba 0.2 0.4 0.8 (blue), class arm_b rgba 0.8 0.3 0.2 (red); comment line 150 \"ARM A (blue)\""
+    "Arm A": "blue (0.2 0.4 0.8)",
+    "Arm B": "red (0.8 0.3 0.2)"
   },
-  "B2_midswing": "step 4 (frame_step4_2), swing = Arm B (red) reaching; stance = Arm A (blue)",
-  "camera_A_changes": [
-    "camera A: v2 model (no v3 injection), white seg-matte \u2014 UNCHANGED from v2",
-    "structure geoms alpha->0 (hidden for white-bg hero)",
-    "anchor_* sites rgba=(0.15, 0.45, 0.9, 1.0), size>=0.03 (path markers)"
+  "B_wide_pose": "step 4 mid-swing (frame_step4_2); swing=Arm B (red)",
+  "changes_A": [
+    "injected model identical to v3 (rails + mount + skybox); dynamics-neutral (v3 belt)",
+    "HIDDEN: rwa_x/y/z disc geoms + v3_rwa_mount (alpha 0) \u2014 no actuator geometry",
+    "white: structure (0.62, 0.65, 0.7) (cool grey), arms = model colours (arm_a blue, arm_b red)",
+    "anchors gold (1.0, 0.74, 0.16) posts r=0.028 h=0.05"
   ],
-  "camera_B_changes": [
-    "injected: v3_rail_a/b (anchor rails) + v3_rwa_mount, contype=0/conaffinity=0/group=2, structure <inertial> untouched",
-    "injected: dark gradient skybox rgb1=0.035 0.045 0.065 / rgb2=0.005 0.006 0.010",
-    "structure rgba->(0.80,0.82,0.85); ArmA(blue)->(0.15,0.35,0.92); ArmB(red)->(0.90,0.22,0.15); anchors->gold(1.0,0.72,0.12) size 0.045",
-    "headlight ambient 0.24 / diffuse 0.40; light0 key 0.85, light1 rim 0.75"
+  "changes_B_wide": [
+    "injected model identical to v3 (rails + mount + skybox); dynamics-neutral (v3 belt)",
+    "HIDDEN: rwa_x/y/z disc geoms + v3_rwa_mount (alpha 0) \u2014 no actuator geometry",
+    "dark: structure (0.8, 0.82, 0.85), ArmA(0.15, 0.35, 0.92), ArmB(0.9, 0.22, 0.15)",
+    "anchors gold (1.0, 0.74, 0.16) posts r=0.05 h=0.085"
   ],
-  "background_A": "pure white via segmentation matte",
-  "background_B": "dark gradient skybox",
-  "visual_geoms_injected": [
-    "v3_rail_a",
-    "v3_rail_b",
-    "v3_rwa_mount"
+  "changes_inset": [
+    "injected model identical to v3 (rails + mount + skybox); dynamics-neutral (v3 belt)",
+    "HIDDEN: rwa_x/y/z disc geoms + v3_rwa_mount (alpha 0) \u2014 no actuator geometry",
+    "dark: structure (0.8, 0.82, 0.85), ArmA(0.15, 0.35, 0.92), ArmB(0.9, 0.22, 0.15)",
+    "anchors gold (1.0, 0.74, 0.16) posts r=0.016 h=0.075"
   ],
-  "dynamics_neutral": "proven by scripts/diag_v3_belt.py (see v3_belt_result.json)"
+  "hidden": "rwa_x/y/z disc geoms + v3_rwa_mount (no actuator geometry)",
+  "dynamics_neutral": "injected model identical to v3; belt v3_belt_result.json"
 }
