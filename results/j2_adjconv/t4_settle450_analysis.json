@@ -1,0 +1,60 @@
+{
+  "t_end": 514.4400000000484,
+  "traversal_bit_identical": true,
+  "traversal_maxdiffs": {
+    "t": 0.0,
+    "struct_pos": 0.0,
+    "struct_quat": 0.0,
+    "struct_euler_deg": 0.0,
+    "omega_s": 0.0,
+    "hw_physical": 0.0,
+    "tau_w": 0.0,
+    "lambda_qp": 0.0,
+    "lambda_ref": 0.0,
+    "q_ee": 0.0,
+    "e_com": 0.0,
+    "r_com": 0.0,
+    "v_com": 0.0,
+    "e_torso_pos": 0.0,
+    "e_torso_ori": 0.0,
+    "p_torso": 0.0,
+    "d_grip_swing": 0.0,
+    "step_idx": 0.0
+  },
+  "C1_hw_end_Nms": [
+    0.002309,
+    0.001184,
+    0.01947
+  ],
+  "C1_pass": true,
+  "C2_omega_end_dps": [
+    5.8e-05,
+    5.2e-05,
+    0.000529
+  ],
+  "C2_omega_norm_dps": 0.0005348106849582501,
+  "C2_pass": true,
+  "C3_theta_end_deg": 0.16477898551210698,
+  "C3_theta_end_axes": [
+    0.018334,
+    0.035731,
+    0.15981
+  ],
+  "C3_pass": false,
+  "theta_at_entry_plus20": 0.5395877424095439,
+  "theta_peak_settle": 0.5895189581093376,
+  "hw_reload_peak_axis": [
+    0.04276,
+    0.50914,
+    1.25469
+  ],
+  "hw_reload_visible": true,
+  "C4_Ltot_absmax_Nms": [
+    0.001247,
+    0.000609,
+    0.000643
+  ],
+  "C4_pass": true,
+  "n_dense": 515,
+  "all_pass": false
+}
