@@ -25,18 +25,29 @@ import mujoco
 import crawlbot.solvers.hierarchical_qp as hq
 import crawlbot.solvers.wholebody_qp as wq
 import crawlbot.solvers.nmpc_solver as ns
+import argparse
+
+# Parameterized (T4: defaults; T4b: --settle 900 --out figC25_t4b_900s ...).
+# The ONLY control-relevant knob is --settle (-> cfg.t_settle_final); --out,
+# --result-tag, --decimate are output-path / measurement-cadence only.
+_ap = argparse.ArgumentParser()
+_ap.add_argument('--settle', type=float, default=450.0)
+_ap.add_argument('--out', default='figC25_t4_450s')
+_ap.add_argument('--result-tag', default='t4_settle450')
+_ap.add_argument('--decimate', type=float, default=1.0)
+_args, _ = _ap.parse_known_args()
 
 CAP = 2.5
 HMAX = 5.0
 EPS = 1e-6
-SETTLE = 450.0
-OUT = 'figC25_t4_450s'
+SETTLE = _args.settle
+OUT = _args.out
 FROZEN = dict(alpha_torso_pose=2000.0, alpha_ee=1000.0, ss_alpha_mom=400.0,
               w_hw_slack=800.0, alpha_posture=20.0, alpha_torque=5.0,
               alpha_wrench=1.0, alpha_reg=1.0)
-RESULT_JSON = 'results/j2_adjconv/t4_settle450_result.json'
+RESULT_JSON = f'results/j2_adjconv/{_args.result_tag}_result.json'
 DENSE_JSON = f'results/{OUT}/ltot_dense.json'
-DECIMATE_S = 1.0                 # dense (qpos,qvel) capture cadence [s of sim time]
+DECIMATE_S = _args.decimate      # dense (qpos,qvel) capture cadence [s of sim time]
 
 # ── capture-only patches (verbatim from diag_canonical2p5_run.py) ────
 EFF_W = []
