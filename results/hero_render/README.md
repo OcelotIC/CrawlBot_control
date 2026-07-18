@@ -1,68 +1,73 @@
-# HERO-RENDER v2 — figure set + provenance
+# HERO-RENDER (v3) — figure set + provenance
 
-**Rendering only.** No controller/config/model dynamics change. Poses are a **replay of stored state**
-from the frozen canonical run `results/figC25_addfive/sim_log.json` (its snapshots) — the exact qpos
-recorded during the τ_w,max=2.5 canonical traversal (freeze `32aefaf`; this run's traversal is bit-identical
-to a re-run, proven in T4/T4b Gate 0). No re-run was needed.
+**Rendering only, dynamics-neutral.** No controller/config/model *dynamics* change. Poses are a **replay of
+stored state** from the frozen canonical run `results/figC25_addfive/sim_log.json` (τ_w,max = 2.5 canonical,
+freeze `32aefaf`). The canonical MJCF **on disk is byte-identical** (CLAUDE.md rule 4 + freeze); v3 visual
+scene elements are injected into an **in-memory** XML copy (all-primitive model → `from_xml_string`).
 
-Scripts: `scripts/hero_render.py` (render helpers), `scripts/hero_render_run.py` (driver). Backend: MuJoCo
-3.10 osmesa offscreen.
+Scripts: `scripts/hero_render_v3.py` (injection + per-camera styling), `scripts/hero_render_v3_run.py`
+(driver), `scripts/diag_v3_belt.py` (neutrality belt). Backend: MuJoCo 3.10 osmesa offscreen.
 
-## Frames & ticks (Camera A)
+## Arm colour mapping (Table-III deliverable)
 
-| frame | snapshot | tick | note |
-|---|---|---|---|
-| F0 | `initial` | t=0.00 s | both docked (start) |
-| F1 | `frame_step0_2` | **t=1.51 s** | step 0 mid-swing apex |
-| F2 | `frame_step1_2` | **t=9.62 s** | step 1 mid-swing apex |
-| F3 | `frame_step2_2` | **t=20.00 s** | step 2 mid-swing apex |
-| F4 | `frame_step3_2` | **t=34.86 s** | step 3 mid-swing apex |
-| F5 | `frame_step4_2` | **t=44.88 s** | step 4 mid-swing apex |
-| F6 | `frame_step5_2` | **t=59.34 s** | step 5 mid-swing apex |
-| F7 | `final` | t=84.64 s | both docked (end) |
+**Arm A = BLUE, Arm B = RED** — MJCF ground truth: `default class="arm_a"` rgba `0.2 0.4 0.8` (blue),
+`class="arm_b"` rgba `0.8 0.3 0.2` (red); source comment line 150 reads *"ARM A (blue)"*.
+*(This corrects the v2 report, which had the mapping inverted.)*
 
-The mid-swing frame is the **tick of max swing-gripper clearance**: `frame_stepN_2` is the apex of the 5
-stored swing frames per step (perpendicular gripper offset from the lift-off→target chord ≈ **33–36 mm**,
-vs ≈16–25 mm at the flanking frames). Camera B: **B1 = F0 pose**, **B2 = F5 (step-4 mid-swing)**.
+## v3 visual scene additions (injected, dynamics-neutral)
 
-## Camera parameters (exact, MuJoCo free camera; z-up, anchor plane z=−1.775)
+- `v3_rail_a`, `v3_rail_b` — slender rails under each anchor row (anchors sit on them).
+- `v3_rwa_mount` — pedestal under the reaction-wheel cluster (no longer floating).
+- All three: `contype=0`, `conaffinity=0`, `group=2` (visual); the structure body's explicit `<inertial>`
+  (mass 7110) is untouched ⇒ **zero mass/inertia change by construction**.
+- Dark gradient **skybox** asset (rgb1 `0.035 0.045 0.065` → rgb2 `0.005 0.006 0.010`; no stars/Earth) for cam B.
 
-| camera | lookat [m] | distance [m] | azimuth [°] | elevation [°] | fovy [°] |
-|---|---|---|---|---|---|
-| **A (wide, fixed)** | (1.10, −0.35, −2.05) | 6.5 | 35 | 18 | 27 |
-| **B1 (docked)** | (−0.048, −0.385, −2.103) | 3.6 | 35 | 18 | 27 |
-| **B2 (mid-swing)** | (0.969, −0.377, −2.109) | 4.3 | 35 | 18 | 27 |
+## Neutrality belt — `scripts/diag_v3_belt.py` → `results/j2_adjconv/v3_belt_result.json`
 
-Camera A is **fixed across F0…F7** (the robot progresses +X through the fixed frame; progression axis is the
-lower-left→upper-right diagonal). B1/B2 lookat = per-pose robot-geom bbox centre; distance set for ~70 % fill.
+| check | result |
+|---|---|
+| dims nq/nv/nu, nbody, njnt | identical; ngeom +3 (the new geoms) |
+| body mass/inertia/ipos/iquat, dof damping/armature, jnt range/axis | **identical** |
+| existing-geom pos/size/type/contype/conaffinity | **identical** (new geoms excluded); new geoms `contype=conaffinity=0` |
+| structure mass / inertia | 7110 / [1777,1493,597] — unchanged |
+| **forward dynamics (qacc, qfrc_bias) at all 5 stored canonical states (t≤1.51s)** | **max diff = 0.00e+00** |
+| **closed-loop 2 s replay, M0 (canonical) vs M1 (injected), 200 ticks** | **max\|Δqpos\| = 0, max\|Δqvel\| = 0 — BIT-IDENTICAL** |
 
-## Render settings
+**Verdict: dynamics-NEUTRAL.** The injection changes the plant nowhere: identical accelerations at every
+logged canonical state, and a byte-identical 2 s closed-loop trajectory. (The visual model diverges from the
+stored log *identically* to the canonical model under this lightweight belt harness — a runner-fidelity gap,
+not an injection effect; since M1 ≡dynamics M0 and M0 ≡ stored [T4 Gate 0], M1 ≡ stored by transitivity.)
 
-- Offscreen PNG; **Camera A 3840×2400**, **Camera B 2880×2400** (both ≥2400 px).
-- **Pure white background** via a **segmentation matte**: render RGB + a segmentation pass; robot/anchor
-  pixels (`seg geom-id ≥ 0`) are composited onto a white canvas, background pixels set to 255,255,255.
-- **Shadows / skybox / reflection / haze OFF** (scene render flags). **No ground plane** — none exists in the
-  model (0 plane geoms).
+## Frames & ticks (Camera A — unchanged from v2)
 
-## Composite matte method (`composite_v1.png`)
+F0 `initial`; F1–F6 = `frame_step{0-5}_2` (mid-swing max-clearance apex, ~33–36 mm) at
+**t = 1.51 / 9.62 / 20.00 / 34.86 / 44.88 / 59.34 s**; F7 `final`.
+Camera B: **B1 = F0**; **B2 = step 4** (`frame_step4_2`) — swing = **Arm B (red)** reaching, stance = Arm A (blue).
 
-Per-frame segmentation masks drive alpha compositing over a white canvas, painted back-to-front:
-`canvas[mask] = α·rgb[mask] + (1−α)·canvas[mask]`, with **F0 α=0.50 (light)**, **F1…F6 α=0.30 (ghosted)**,
-**F7 α=1.00 (opaque, on top)**. The masks give clean per-pixel robot/background separation (no depth matte
-needed at this resolution).
+## Camera parameters (exact; MuJoCo free camera, z-up, anchor plane z=−1.775)
 
-## rgba / visibility changes (rendering-only, reported)
+| camera | lookat [m] | distance | azimuth | elevation | fovy | render |
+|---|---|---|---|---|---|---|
+| **A** (wide stroboscopic, WHITE) | (1.10, −0.35, −2.05) | 6.5 | 35° | 18° | 27° | 3840×2400 |
+| **B1** (docked, DARK) | (0.0, −0.30, −2.02) | 3.5 | 35° | 18° | 27° | 2880×2400 |
+| **B2** (mid-swing, DARK) | (1.0, −0.30, −2.02) | 3.8 | 35° | 18° | 27° | 2880×2400 |
 
-- **structure geoms → alpha 0** (hidden) so the hero reads as robot-on-white (the structure is the 4.8 m
-  platform; "no ground plane"/"white background" intent). Dynamics untouched — this is a render-time rgba edit.
-- **anchor_* sites → rgba (0.15, 0.45, 0.9, 1) + size ≥ 0.03** so the docking anchors read as small blue path
-  markers (needed for Camera-B "stance + target anchor visible"). No robot material rgba was changed — arm-a
-  (red) / arm-b (blue) / torso (grey) are already distinguishable in the source model.
+Camera A fixed across F0…F7 (progression axis = lower-left→upper-right diagonal). Cam B re-framed to the
+per-pose robot bbox (~70 % fill) with the structure now visible.
 
-## Deliverables
+## Backgrounds, lighting, rgba (reported)
 
-`frame_0.png … frame_7.png` · `composite_v1.png` · `contact_sheet.png` · `sysview_docked.png` ·
-`sysview_midswing.png` · `render_meta.json` (machine-readable params).
+- **Camera A — pure white** via segmentation matte (robot pixels over white); structure hidden (alpha 0);
+  shadows/skybox/reflection/haze off; arms/anchors = v2 colours (arm_a blue, arm_b red, anchors blue). Unchanged.
+- **Camera B — dark space**: dark gradient skybox (above); **low ambient (0.24) + overhead key light (0.85) +
+  warm rim (0.75)**, headlight diffuse 0.40; shadows/reflection/haze off. Material re-balance for dark bg:
+  - structure **light grey** rgba `(0.80, 0.82, 0.85)` (lighter than torso 0.6),
+  - **Arm A (blue)** `(0.15, 0.35, 0.92)`, **Arm B (red)** `(0.90, 0.22, 0.15)` (saturated),
+  - **anchors gold** `(1.0, 0.72, 0.12)` (distinct accent, not red/blue), upright posts r=0.030 h=0.050.
 
-*Optional fixed-camera replay mp4 (Camera A): not produced — it needs a per-tick qpos re-run + a few-hundred
-frame render; available on request.*
+## Deliverables (same paths)
+
+`frame_0.png … frame_7.png` · `composite_v1.png` · `contact_sheet.png` (all Camera A, white) ·
+`sysview_docked.png` · `sysview_midswing.png` (Camera B, dark) · `render_meta.json` · this README.
+
+*Optional Camera-A replay mp4: not produced (needs a per-tick qpos re-run); available on request.*

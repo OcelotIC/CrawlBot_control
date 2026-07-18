@@ -1,0 +1,145 @@
+{
+  "part1_dims": {
+    "nq": [
+      31,
+      31,
+      true
+    ],
+    "nv": [
+      29,
+      29,
+      true
+    ],
+    "nu": [
+      17,
+      17,
+      true
+    ],
+    "na": [
+      0,
+      0,
+      true
+    ],
+    "nbody": [
+      22,
+      22,
+      true
+    ],
+    "njnt": [
+      19,
+      19,
+      true
+    ],
+    "ngeom": [
+      22,
+      25,
+      3
+    ]
+  },
+  "part1_invariants": {
+    "body_mass": true,
+    "body_inertia": true,
+    "body_ipos": true,
+    "body_iquat": true,
+    "dof_damping": true,
+    "dof_armature": true,
+    "jnt_range": true,
+    "jnt_axis": true,
+    "geom_contype[existing]": true,
+    "geom_conaffinity[existing]": true,
+    "geom_pos[existing]": true,
+    "geom_size[existing]": true,
+    "geom_type[existing]": true,
+    "new_geoms_noncolliding": true,
+    "structure_mass_7110": [
+      7110.0,
+      7110.0
+    ],
+    "structure_inertia": [
+      [
+        1777.0,
+        1493.0,
+        597.0
+      ],
+      [
+        1777.0,
+        1493.0,
+        597.0
+      ]
+    ]
+  },
+  "part1_forward_dynamics_at_stored_states": [
+    {
+      "label": "initial",
+      "t": 0.0,
+      "max_dqacc": 0.0,
+      "max_dqfrc_bias": 0.0
+    },
+    {
+      "label": "release_step0",
+      "t": 0.11,
+      "max_dqacc": 0.0,
+      "max_dqfrc_bias": 0.0
+    },
+    {
+      "label": "frame_step0_0",
+      "t": 0.11,
+      "max_dqacc": 0.0,
+      "max_dqfrc_bias": 0.0
+    },
+    {
+      "label": "frame_step0_1",
+      "t": 0.81,
+      "max_dqacc": 0.0,
+      "max_dqfrc_bias": 0.0
+    },
+    {
+      "label": "frame_step0_2",
+      "t": 1.51,
+      "max_dqacc": 0.0,
+      "max_dqfrc_bias": 0.0
+    }
+  ],
+  "part1_pass": true,
+  "part2_M0_vs_M1": {
+    "n_ticks": 200,
+    "t_end": 2.0,
+    "max_dt": 0.0,
+    "max_dqpos": 0.0,
+    "max_dqvel": 0.0
+  },
+  "part2_M0_vs_storedlog": [
+    {
+      "label": "initial",
+      "t": 0.0,
+      "max_dqpos_vs_stored": 1.6775469902086115e-12,
+      "max_dqvel_vs_stored": 2.594666595500466e-10
+    },
+    {
+      "label": "release_step0",
+      "t": 0.11,
+      "max_dqpos_vs_stored": 0.00022050955265240368,
+      "max_dqvel_vs_stored": 0.03960332207792491
+    },
+    {
+      "label": "frame_step0_0",
+      "t": 0.11,
+      "max_dqpos_vs_stored": 0.00022050955265240368,
+      "max_dqvel_vs_stored": 0.03960332207792491
+    },
+    {
+      "label": "frame_step0_1",
+      "t": 0.81,
+      "max_dqpos_vs_stored": 0.36125788766622335,
+      "max_dqvel_vs_stored": 0.3456056888536452
+    },
+    {
+      "label": "frame_step0_2",
+      "t": 1.51,
+      "max_dqpos_vs_stored": 0.5721358677092496,
+      "max_dqvel_vs_stored": 0.7036193544387359
+    }
+  ],
+  "belt_pass": true,
+  "storedlog_determinism": false
+}

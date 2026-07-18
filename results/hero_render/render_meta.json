@@ -31,21 +31,21 @@
   },
   "cam_B1": {
     "lookat": [
-      -0.048,
-      -0.385,
-      -2.103
+      0.0,
+      -0.3,
+      -2.02
     ],
-    "distance": 3.6,
+    "distance": 3.5,
     "azimuth": 35.0,
     "elevation": 18.0
   },
   "cam_B2": {
     "lookat": [
-      0.969,
-      -0.377,
-      -2.109
+      1.0,
+      -0.3,
+      -2.02
     ],
-    "distance": 4.3,
+    "distance": 3.8,
     "azimuth": 35.0,
     "elevation": 18.0
   },
@@ -57,16 +57,29 @@
     2880,
     2400
   ],
-  "rgba_vis_changes": [
+  "arm_colour_mapping": {
+    "Arm A": "blue",
+    "Arm B": "red",
+    "note": "MJCF ground truth: class arm_a rgba 0.2 0.4 0.8 (blue), class arm_b rgba 0.8 0.3 0.2 (red); comment line 150 \"ARM A (blue)\""
+  },
+  "B2_midswing": "step 4 (frame_step4_2), swing = Arm B (red) reaching; stance = Arm A (blue)",
+  "camera_A_changes": [
+    "camera A: v2 model (no v3 injection), white seg-matte \u2014 UNCHANGED from v2",
     "structure geoms alpha->0 (hidden for white-bg hero)",
     "anchor_* sites rgba=(0.15, 0.45, 0.9, 1.0), size>=0.03 (path markers)"
   ],
-  "background": "pure white via segmentation matte (robot pixels over white)",
-  "flags_off": [
-    "shadow",
-    "skybox",
-    "reflection",
-    "haze"
+  "camera_B_changes": [
+    "injected: v3_rail_a/b (anchor rails) + v3_rwa_mount, contype=0/conaffinity=0/group=2, structure <inertial> untouched",
+    "injected: dark gradient skybox rgb1=0.035 0.045 0.065 / rgb2=0.005 0.006 0.010",
+    "structure rgba->(0.80,0.82,0.85); ArmA(blue)->(0.15,0.35,0.92); ArmB(red)->(0.90,0.22,0.15); anchors->gold(1.0,0.72,0.12) size 0.045",
+    "headlight ambient 0.24 / diffuse 0.40; light0 key 0.85, light1 rim 0.75"
   ],
-  "ground_plane": "none in model"
+  "background_A": "pure white via segmentation matte",
+  "background_B": "dark gradient skybox",
+  "visual_geoms_injected": [
+    "v3_rail_a",
+    "v3_rail_b",
+    "v3_rwa_mount"
+  ],
+  "dynamics_neutral": "proven by scripts/diag_v3_belt.py (see v3_belt_result.json)"
 }
