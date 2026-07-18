@@ -160,6 +160,8 @@ summary = dict(
     C1_hw_end=hw_end.round(6).tolist(), C1_pass=c1,
     C2_omega_norm_dps=oms_norm_end, C2_pass=c2,
     C3_theta_end_deg=th_end, C3_theta_end_z=float(np.abs(eul[-1, 2])), C3_pass=c3,
+    theta_end_axes=eul[-1].round(6).tolist(),
+    theta_xy_end=float(np.linalg.norm(eul[-1, :2])),
     C4_Ltot_absmax=Lt_absmax.round(6).tolist(), C4_pass=c4,
     t_cross_thetaz_005=t_cross, settle_time_to_cross=settle_time_cross, crossed=crossed,
     tail_tau_refit_s=float(tau_tail), tail_extrap_cross_s=(float(t_cross_extrap) if t_cross_extrap else None),
