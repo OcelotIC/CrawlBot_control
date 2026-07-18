@@ -1,0 +1,72 @@
+{
+  "source": "results/figC25_addfive/sim_log.json",
+  "poses": [
+    "initial",
+    "frame_step0_2",
+    "frame_step1_2",
+    "frame_step2_2",
+    "frame_step3_2",
+    "frame_step4_2",
+    "frame_step5_2",
+    "final"
+  ],
+  "apex_ticks": [
+    1.51,
+    9.62,
+    20.0,
+    34.86,
+    44.88,
+    59.34
+  ],
+  "fovy": 27.0,
+  "cam_A": {
+    "lookat": [
+      1.1,
+      -0.35,
+      -2.05
+    ],
+    "distance": 6.5,
+    "azimuth": 35.0,
+    "elevation": 18.0
+  },
+  "cam_B1": {
+    "lookat": [
+      -0.048,
+      -0.385,
+      -2.103
+    ],
+    "distance": 3.6,
+    "azimuth": 35.0,
+    "elevation": 18.0
+  },
+  "cam_B2": {
+    "lookat": [
+      0.969,
+      -0.377,
+      -2.109
+    ],
+    "distance": 4.3,
+    "azimuth": 35.0,
+    "elevation": 18.0
+  },
+  "render_A": [
+    3840,
+    2400
+  ],
+  "render_B": [
+    2880,
+    2400
+  ],
+  "rgba_vis_changes": [
+    "structure geoms alpha->0 (hidden for white-bg hero)",
+    "anchor_* sites rgba=(0.15, 0.45, 0.9, 1.0), size>=0.03 (path markers)"
+  ],
+  "background": "pure white via segmentation matte (robot pixels over white)",
+  "flags_off": [
+    "shadow",
+    "skybox",
+    "reflection",
+    "haze"
+  ],
+  "ground_plane": "none in model"
+}
