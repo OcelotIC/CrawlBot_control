@@ -1,14 +1,14 @@
 {
   "verdict": "PASS",
-  "baseline": "paper-2p5-base (commit bfd5509)",
-  "seconds_total": 172.2,
+  "baseline": "bfd5509 (main HEAD at founding)",
+  "seconds_total": 293.5,
   "checks": {
     "canonical_replay": {
       "status": "PASS",
       "replay": {
         "tag": "replay",
         "returncode": 0,
-        "seconds": 166.4,
+        "seconds": 277.2,
         "stdout_tail": [
           "",
           "Structure drift over run",
@@ -22,7 +22,7 @@
       "export": {
         "tag": "export",
         "returncode": 0,
-        "seconds": 0.9,
+        "seconds": 1.5,
         "stdout_tail": [
           "  2   |   28.5s |  4.990 |      4.334  | +0.656 |    0.02 | 0.005781",
           "  3   |  40.06s |  4.970 |      4.973  | -0.003 |    0.05 | 0.007170",
@@ -52,8 +52,17 @@
       "fails": []
     },
     "environment_pin": {
-      "status": "WARN",
-      "note": "environment.lock created from live env",
+      "status": "PASS",
+      "mismatches": {},
+      "locked": {
+        "python": "3.11.15",
+        "numpy": "2.3.5",
+        "mujoco": "3.10.0",
+        "pinocchio": "3.9.0",
+        "casadi": "3.7.2",
+        "scipy": "1.17.1",
+        "ipopt_available": true
+      },
       "live": {
         "python": "3.11.15",
         "numpy": "2.3.5",

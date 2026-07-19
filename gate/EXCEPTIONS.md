@@ -6,7 +6,7 @@ The CLEANUP chantier accepts changes on a **two-tier** standard.
 
 `gate/run_gate.py` must report **PASS**: the re-run canonical fulldiag CSV is
 **byte-identical** to the committed baseline `results/j2_adjconv/c25_fulldiag.csv`
-(the `paper-2p5-base` / `bfd5509` base), and the two-model consistency check
+(the founding base, commit `bfd5509` on `main`), and the two-model consistency check
 passes. This is the default and requires no sign-off.
 
 ### Definitional exclusion (not an exception)

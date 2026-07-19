@@ -38,13 +38,11 @@ Overall verdict = PASS iff checks 1+2+3 pass. Check 4 is advisory.
 
 ## Provenance
 
-- Baseline reference point: **`paper-2p5-base` = commit `bfd5509`** (main HEAD at
-  founding; the first mainline commit carrying the paper's complete artifact set:
-  66-col fulldiag CSVs, `t4b_trace_900s.csv`, the T4/T4b scripts). The canonical
-  config was frozen earlier at `32aefaf` (a documented ancestor, untagged).
-  *Note:* this managed remote does not sync git tags; `paper-2p5-base` lives as a
-  local annotated tag + this documented equivalence to `bfd5509` (permanent on
-  `main`), pushable from a developer machine.
+- Baseline reference point: **commit `bfd5509`** (main HEAD at founding; the first
+  mainline commit carrying the paper's complete artifact set: 66-col fulldiag CSVs,
+  `t4b_trace_900s.csv`, the T4/T4b scripts). The canonical config was frozen earlier
+  at `32aefaf` (a documented ancestor). No git tag is used — this managed remote does
+  not sync tags, and the base commit on `main` is a stable anchor by hash.
 - Acceptance standard and the exception ledger: `gate/EXCEPTIONS.md`.
 - Founding session report: `results/j2_adjconv/PHASE_CLEANUP_0.md`.
 

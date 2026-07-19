@@ -4,30 +4,28 @@
 Founding docs read first: `docs/architecture/PORT_AUDIT.md` (inventory, bins A–E) +
 `docs/architecture/PORT_SYNTHESIS.md` (roadmap; added to the repo this session).
 
-## STEP 0 — provenance tag
+## STEP 0 — provenance base
 
-Annotated tag **`paper-2p5-base` → `bfd5509`** (main HEAD), message *"IEEE Access paper 2.5
-artifact base; canonical config frozen at 32aefaf (ancestor)."* `bfd5509` is the first mainline
-commit carrying the paper's **complete** artifact set (66-col fulldiag CSVs, `t4b_trace_900s.csv`,
-the T4/T4b scripts); `32aefaf` (config freeze) is a documented, untagged ancestor.
+The chantier is rooted at **commit `bfd5509`** — main HEAD at founding, the first mainline commit
+carrying the paper's **complete** artifact set (66-col fulldiag CSVs, `t4b_trace_900s.csv`, the
+T4/T4b scripts). `32aefaf` (config freeze) is a documented ancestor. `bfd5509` is permanent on
+`main`, so the `cleanup` branch's root already *is* the provenance anchor.
 
-⚠ **The managed git remote does not sync tags** — no `refs/tags` namespace exists on it; tag push
-fails deterministically and the GitHub tooling exposes no create-tag call. The tag lives as a
-**local** annotated tag + this documented equivalence to `bfd5509` (permanent on `main`).
-Pushable from a developer machine: `git push origin paper-2p5-base`.
+A named tag (`paper-2p5-base`) was considered but **dropped**: this managed remote does not sync git
+tags (push fails; no create-tag API), and referencing the base commit `bfd5509` by hash is a
+sufficient, stable anchor. The gate and docs cite `bfd5509` directly.
 
 ## STEP 1 — long-lived branch
 
-**`cleanup`** created from `paper-2p5-base` (= `bfd5509`). Sub-branches: **`cleanup-<topic>`**.
+**`cleanup`** created from **`bfd5509`** (main HEAD at founding). Sub-branches: **`cleanup-<topic>`**.
 
 The bare name `cleanup` was freed when Idriss deleted the stale `cleanup/01-index-md` (an abandoned
 2026-04-29 branch that had occupied the `cleanup/` ref namespace). Because git cannot hold a branch
 `cleanup` **and** branches `cleanup/<topic>` at once (ref dir/file conflict), sub-branches use the
-hyphen form `cleanup-<topic>` (e.g. `cleanup-robot-yaml`). The provisional `cleanup-main` used during
-founding was renamed to `cleanup`; its stale remote duplicate `cleanup-main` (an ancestor of
-`cleanup`) **awaits manual deletion from the GitHub UI** — this managed remote refuses git branch
-deletes and tag pushes (same `sideband disconnect` signature), so neither the `cleanup-main` delete
-nor the `paper-2p5-base` tag push can be done from here.
+hyphen form `cleanup-<topic>` (e.g. `cleanup-robot-yaml`). A provisional `cleanup-main` used during
+founding was renamed to `cleanup`; its remote duplicate was deleted by Idriss from the GitHub UI —
+this managed remote refuses git branch deletes and tag pushes (same `sideband disconnect` signature),
+so that deletion had to be done from the UI.
 
 ## STEP 2 — the gate (`gate/`) — the only code written this session
 
@@ -79,8 +77,7 @@ session is measured against.
 
 ## Rulings
 
-1. **Branch name** — RESOLVED: Idriss deleted `cleanup/01-index-md`; the integration branch is
-   **`cleanup`**, sub-branches **`cleanup-<topic>`** (the provisional `cleanup-main` was renamed and
-   removed).
-2. **Tag** — OPEN: `paper-2p5-base` stays a local annotated tag + documented `bfd5509` anchor (Idriss
-   can `git push origin paper-2p5-base`), unless a pushable branch marker is preferred.
+1. **Branch name** — RESOLVED: integration branch **`cleanup`**, sub-branches **`cleanup-<topic>`**
+   (Idriss deleted `cleanup/01-index-md` and the provisional `cleanup-main`).
+2. **Tag** — RESOLVED: no tag. `paper-2p5-base` was dropped (remote can't hold tags); the base commit
+   `bfd5509` on `main` is the provenance anchor, cited by hash everywhere.

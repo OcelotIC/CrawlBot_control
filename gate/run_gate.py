@@ -12,7 +12,7 @@ Checks
    fulldiag CSV from it (scripts/diag_full_diag_export.py). No committed
    artifact is touched.
 2. Artifact identity — field-by-field vs the committed baseline
-   results/j2_adjconv/c25_fulldiag.csv (the paper-2p5-base / bfd5509 base).
+   results/j2_adjconv/c25_fulldiag.csv (the founding base, commit bfd5509 on main).
    Every column is byte-compared EXCEPT the two wall-clock timing columns
    (qp_time_ms, nmpc_time_ms), which are measured per-tick during the run and
    are non-reproducible by construction — see gate/EXCEPTIONS.md. Byte-identical
@@ -304,7 +304,7 @@ def main():
               and ri.get('identity', {}).get('status') == 'PASS')
     verdict = {
         'verdict': 'PASS' if passed else 'FAIL',
-        'baseline': 'paper-2p5-base (commit bfd5509)',
+        'baseline': 'bfd5509 (main HEAD at founding)',
         'seconds_total': round(time.time() - t0, 1),
         'checks': {
             'canonical_replay': {'status': ri['status'], 'replay': ri.get('replay'),
