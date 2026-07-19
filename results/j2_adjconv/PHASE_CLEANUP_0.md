@@ -24,7 +24,10 @@ The bare name `cleanup` was freed when Idriss deleted the stale `cleanup/01-inde
 2026-04-29 branch that had occupied the `cleanup/` ref namespace). Because git cannot hold a branch
 `cleanup` **and** branches `cleanup/<topic>` at once (ref dir/file conflict), sub-branches use the
 hyphen form `cleanup-<topic>` (e.g. `cleanup-robot-yaml`). The provisional `cleanup-main` used during
-founding was renamed to `cleanup` and removed.
+founding was renamed to `cleanup`; its stale remote duplicate `cleanup-main` (an ancestor of
+`cleanup`) **awaits manual deletion from the GitHub UI** — this managed remote refuses git branch
+deletes and tag pushes (same `sideband disconnect` signature), so neither the `cleanup-main` delete
+nor the `paper-2p5-base` tag push can be done from here.
 
 ## STEP 2 — the gate (`gate/`) — the only code written this session
 
