@@ -18,14 +18,13 @@ Pushable from a developer machine: `git push origin paper-2p5-base`.
 
 ## STEP 1 — long-lived branch
 
-**`cleanup-main`** created from `paper-2p5-base` (= `bfd5509`). Sub-branches: `cleanup/<topic>`.
+**`cleanup`** created from `paper-2p5-base` (= `bfd5509`). Sub-branches: **`cleanup-<topic>`**.
 
-⚠ **Naming deviation, needs Idriss's ruling.** Git cannot hold a branch `cleanup` **and** branches
-`cleanup/<topic>` at once (ref dir/file conflict), and a stale `cleanup/01-index-md` (abandoned
-2026-04-29 branch) already occupies that namespace. `cleanup-main` is the **non-destructive** choice:
-it keeps the "cleanup" token, preserves the `cleanup/<topic>` sub-branch convention, and deletes
-nothing. If the bare name `cleanup` is required, delete `cleanup/01-index-md` and rename (sub-branches
-would then have to be `cleanup-<topic>`).
+The bare name `cleanup` was freed when Idriss deleted the stale `cleanup/01-index-md` (an abandoned
+2026-04-29 branch that had occupied the `cleanup/` ref namespace). Because git cannot hold a branch
+`cleanup` **and** branches `cleanup/<topic>` at once (ref dir/file conflict), sub-branches use the
+hyphen form `cleanup-<topic>` (e.g. `cleanup-robot-yaml`). The provisional `cleanup-main` used during
+founding was renamed to `cleanup` and removed.
 
 ## STEP 2 — the gate (`gate/`) — the only code written this session
 
@@ -67,17 +66,18 @@ session is measured against.
 - **Acceptance (two-tier):** Tier-0 = gate bit-identity (default, no sign-off). Tier-1 =
   metric-equivalence exception only with justification + Idriss's sign-off, logged in
   `gate/EXCEPTIONS.md`. (The 2 excluded timing columns are a definitional exclusion, not an exception.)
-- **Governance:** work in `cleanup/<topic>` → PR into the integration branch (`cleanup-main` pending
-  the naming ruling), **never `main`**; Idriss is the sole merger. `main` frozen except review-driven
-  changes, cherry-picked onto the integration branch immediately (one-way sync). Promotion = one final
-  PR integration→`main` after paper acceptance, reviewer = the gate.
+- **Governance:** work in `cleanup-<topic>` → PR into the integration branch **`cleanup`**, **never
+  `main`**; Idriss is the sole merger. `main` frozen except review-driven changes, cherry-picked onto
+  `cleanup` immediately (one-way sync). Promotion = one final PR `cleanup`→`main` after paper
+  acceptance, reviewer = the gate.
 - **Work order (sessions 1+, one topic per PR, gate green before & after each):** (1) `robot.yaml`
   consolidation; (2) the five PORT_SYNTHESIS latent-bug tickets; (3) dead-code sweep from the
   QP-STACK/FF-ORBITAL inventories; (4) no structural generalization without a named external need.
 
-## Two rulings needed before the next session pushes
+## Rulings
 
-1. **Branch name** — accept `cleanup-main` (non-destructive), or delete the stale `cleanup/01-index-md`
-   so the integration branch can be the bare `cleanup` (then sub-branches become `cleanup-<topic>`).
-2. **Tag** — leave `paper-2p5-base` as a local tag + `bfd5509` anchor (you push the tag), or I add a
-   pushable branch marker.
+1. **Branch name** — RESOLVED: Idriss deleted `cleanup/01-index-md`; the integration branch is
+   **`cleanup`**, sub-branches **`cleanup-<topic>`** (the provisional `cleanup-main` was renamed and
+   removed).
+2. **Tag** — OPEN: `paper-2p5-base` stays a local annotated tag + documented `bfd5509` anchor (Idriss
+   can `git push origin paper-2p5-base`), unless a pushable branch marker is preferred.
