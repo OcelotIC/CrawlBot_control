@@ -1,0 +1,72 @@
+{
+  "verdict": "PASS",
+  "baseline": "paper-2p5-base (commit bfd5509)",
+  "seconds_total": 172.2,
+  "checks": {
+    "canonical_replay": {
+      "status": "PASS",
+      "replay": {
+        "tag": "replay",
+        "returncode": 0,
+        "seconds": 166.4,
+        "stdout_tail": [
+          "",
+          "Structure drift over run",
+          "  max ||struct_pos \u2212 struct_pos[0]||:  22.49 mm",
+          "  max ||omega_s||:                      1.97 mrad/s",
+          "",
+          "[replay] done -> results/gate_run_scratch/sim_log.json"
+        ],
+        "stderr_tail": []
+      },
+      "export": {
+        "tag": "export",
+        "returncode": 0,
+        "seconds": 0.9,
+        "stdout_tail": [
+          "  2   |   28.5s |  4.990 |      4.334  | +0.656 |    0.02 | 0.005781",
+          "  3   |  40.06s |  4.970 |      4.973  | -0.003 |    0.05 | 0.007170",
+          "  4   |  53.38s |  4.950 |      3.326  | +1.624 |    0.01 | 0.004990",
+          "  5   |  64.54s |  4.620 |      4.624  | -0.004 |    0.04 | 0.007020",
+          "",
+          "wrote gate/_run/c25_replay_fulldiag_meta.json"
+        ],
+        "stderr_tail": []
+      }
+    },
+    "artifact_identity": {
+      "status": "PASS",
+      "rows": 2077,
+      "columns_total": 66,
+      "columns_excluded": [
+        "qp_time_ms",
+        "nmpc_time_ms"
+      ],
+      "fields_compared": 132928
+    },
+    "two_model_consistency": {
+      "status": "PASS",
+      "n_links_checked": 15,
+      "n_arm_joints": 14,
+      "total_mass_kg": 71.056,
+      "fails": []
+    },
+    "environment_pin": {
+      "status": "WARN",
+      "note": "environment.lock created from live env",
+      "live": {
+        "python": "3.11.15",
+        "numpy": "2.3.5",
+        "mujoco": "3.10.0",
+        "pinocchio": "3.9.0",
+        "casadi": "3.7.2",
+        "scipy": "1.17.1",
+        "ipopt_available": true
+      }
+    }
+  },
+  "notes": [
+    "Tier-0 identity is byte-equality on all fulldiag columns EXCEPT the wall-clock timings qp_time_ms/nmpc_time_ms (nondeterministic instrumentation; see gate/EXCEPTIONS.md).",
+    "environment_pin is advisory (WARN-only) in this revision."
+  ]
+}
