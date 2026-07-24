@@ -105,6 +105,6 @@ results/figU25_*/
 
 # CLEANUP chantier gate — scratch outputs regenerated on every gate run
 # (the replay sim + the re-exported fulldiag CSV). Never committed; the
-# committed baseline is results/j2_adjconv/c25_fulldiag.csv @ paper-2p5-base.
+# committed baseline is results/j2_adjconv/c25_fulldiag.csv @ bfd5509.
 gate/_run/
 results/gate_run_scratch/
