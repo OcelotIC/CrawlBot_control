@@ -75,8 +75,6 @@ class WholeBodyQPConfig:
     weight_ratio: float = 1.0
 
     # Task weights (Eq. VI-F.6)
-    alpha_com: float = 1e3        # Legacy CoM tracking as primary task (weighted hierarchy)
-    alpha_torso: float = 0.0      # Torso 6D tracking (P1 in M2 stack)
     alpha_ee: float = 5e2         # End-effector tracking (swing arm)
     alpha_posture: float = 1e2    # Posture regulation
     alpha_wrench: float = 1e1     # Wrench tracking (from NMPC)
@@ -100,48 +98,26 @@ class WholeBodyQPConfig:
     ds_alpha_torso_ori: float = 2e2
     ds_alpha_posture: float = 5e1
 
-    # ── M2 stack: torso P1 + EE null-space P2 + posture P3 + soft CoM ──
-    use_m2_stack: bool = False    # Enable M2 reworked task stack (§5.6-5.7)
-    alpha_com_soft: float = 5.0   # Soft CoM residual weight (1-10 per spec)
-    ee_null_space: bool = False   # Null-space project EE task against torso task
-
-    # ── Option D: torso linear soft tube ────────────────────────
-    # See SimConfig docstring for the full rationale. r_tube > 0 enables
-    # the split. Angular torso stays at α_torso; linear torso is gated by
-    # ||p_torso - p_ref|| > r_tube with cost weight
-    # w_tube_lin * (|e|^2 - r_tube^2). Inside the tube the EE / posture
-    # null-space projections only need to avoid the 3D angular Jacobian.
-    r_tube: float = 0.0           # [m] tube radius; 0 = legacy 6D equality
-    w_tube_lin: float = 50.0      # cost scale on (|e|² - r²) when violated
-
-    # ── Cooperative-arms task stack (deviation from spec §4.3) ──
-    # See SimConfig.cooperative_arms_mode for the full rationale.
-    # When True, torso angular is P1 (alpha_torso_ang); torso linear +
-    # EE 6D are co-equal P2 weighted-LS (alpha_torso_lin, alpha_ee).
-    # Posture P3 is projected against the combined P1+P2 stack with
-    # rcond=1e-4 on the combined 12×n pinv (looser than the 1e-8 used
-    # on individual task pinvs) to handle the wider conditioning of
-    # the stacked Jacobian. r_tube is ignored when cooperative_arms_mode
-    # is True (split is structural, not violation-gated).
-    cooperative_arms_mode: bool = False
-    alpha_torso_ang: float = 5e2
-    alpha_torso_lin: float = 5e2
-
-    # ── SS centroidal-momentum task (T-MOM) ──
-    # memo SS_CENTROIDAL_MOMENTUM_TASK_2026-06. When True (cooperative SS,
-    # non-settle), the linear CMM task replaces the torso-linear P2 channel
-    # at weight ss_alpha_mom. Default OFF = canonical torso-linear P2.
-    ss_centroidal_momentum_task: bool = False
-    ss_alpha_mom: float = 5e2
-    ss_alpha_tl_weak: float = 0.0
-
     # ── SS two-task fully-weighted stack (Phase-2.1 reformulation) ──
-    # When True (+ not settle): T-MOM linear (ss_alpha_mom) + 6-D torso-pose on
-    # J_torso (alpha_torso_pose, TorsoPlanner quintic+SLERP reference, NO δ) +
-    # swing-EE (alpha_ee) + posture (alpha_posture), all weighted with NO
-    # null-space projection (strict-P1 abandoned). Supersedes the cooperative
-    # split. Default OFF = legacy path (bit-identical).
+    # THE canonical SS controller. T-MOM linear (ss_alpha_mom) + 6-D
+    # torso-pose on J_torso (alpha_torso_pose, fed the raw TorsoPlanner
+    # quintic+SLERP reference — NO δ-mapping) + swing-EE (alpha_ee) +
+    # posture (alpha_posture). All WEIGHTED, with NO null-space projection,
+    # so at weight_ratio=1 the α magnitudes ARE the hierarchy.
+    #
+    # CLEANUP-6/7 removed the stacks this superseded — the legacy CoM and
+    # torso-6D P1 tasks, the cooperative angular/linear split, the Option D
+    # linear soft tube, the null-space-projected EE task, T-MOM v1 and the
+    # soft-CoM residual — together with their config fields
+    # (alpha_com, alpha_torso, use_m2_stack, alpha_com_soft, ee_null_space,
+    # r_tube, w_tube_lin, cooperative_arms_mode, alpha_torso_ang,
+    # alpha_torso_lin, ss_centroidal_momentum_task, ss_alpha_tl_weak), all
+    # of which were provably unread on the frozen canonical config.
+    # NOTE: SimConfig.use_m2_stack is NOT dead — it still gates the
+    # torso-reference routing and DS passivity in sim_loop. Only the QP-side
+    # copy was removed.
     ss_two_task_mode: bool = False
+    ss_alpha_mom: float = 5e2
     alpha_torso_pose: float = 1e3
 
     # ── Passivity constraint (DS only) ──

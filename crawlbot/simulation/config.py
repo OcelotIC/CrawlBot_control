@@ -182,48 +182,13 @@ class SimConfig:
     frames_per_step: int = 0
 
     # ── M2: reworked QP task stack ──────────────────────────────
-    use_m2_stack: bool = False    # Enable reworked QP (torso P1 + EE null-space P2 + soft CoM)
-    alpha_com_soft: float = 0.0   # Soft CoM residual disabled — redundant with torso 6D position task; 5.0 was fighting torso tracking
+    # NOTE (CLEANUP-7): this no longer selects a QP task stack — the M2
+    # torso-P1 / EE-null-space / soft-CoM tasks were removed. It survives
+    # because sim_loop still reads it on two unrelated paths: the torso-
+    # reference routing (δ-mapping vs raw TorsoPlanner quintic) and
+    # passivity_active, i.e. the DS passivity constraint. Do not delete.
+    use_m2_stack: bool = False    # gates torso-ref routing + DS passivity
     alpha_passivity: float = 1.0  # DS passivity decay rate [1/s]
-
-    # ── Cooperative-arms mode (deviation from spec §4.3) ────────
-    # When True, the WBC task stack splits the torso 6D task into:
-    #   P1 — torso ANGULAR 3D (strict-equality strength, alpha_torso_ang)
-    #   P2 — torso LINEAR 3D + EE 6D as weighted-LS co-contributors,
-    #        BOTH projected through N_torso_ang (no projection between them)
-    #   P3 — posture, projected through N(combined P1+P2)
-    # This drops the strict EE→torso null-space hierarchy: the EE task can
-    # now pull the body forward in the linear DOFs when its reach margin
-    # demands it. The torso angular DOF stays strict (protects AOCS
-    # budget). Stance-arm thrust still flows passively through the
-    # dynamics constraint (no explicit QP cost on stance thrust —
-    # documented limitation; cooperative reaction is structurally
-    # rewarded by the LS arbitration, not by a dedicated task).
-    # Default False preserves the legacy M2 strict-priority stack.
-    cooperative_arms_mode: bool = False
-
-    # ── Stance-thrust inertial-coupling correction (experimental, OFF) ─
-    # Negative-result experiment: see WholeBodyQPConfig docstring and
-    # results/diag_cooperative_arms_thrust/. Adds an explicit
-    # M_fj · ddq_j feedforward to the stance wrench reference. Was
-    # hypothesized to close the 2.4 mm step-2 gap by absorbing the
-    # joint-acceleration coupling at the contact; in practice it
-    # regressed step 0 to TIMEOUT 12.1 mm. Kept available behind this
-    # flag for future investigation.
-
-    # ── Option D: torso linear soft tube ────────────────────────
-    # When r_tube > 0, the WBC torso P1 task is split:
-    #   (a) angular 3D — always enforced at the full α_torso weight
-    #       (hard-equality-strength task)
-    #   (b) linear 3D — gated. Skipped while ||p_torso - p_ref|| ≤ r_tube;
-    #       outside the tube, added with weight w_tube_lin · (|e|² - r²)
-    #       so the cost grows with the violation magnitude.
-    # When the linear task is skipped, the null-space projection for
-    # the EE / posture / soft-CoM tasks is computed against the 3D
-    # angular Jacobian only, freeing the linear-base DOFs for EE
-    # tracking. Default 0 disables the tube (legacy 6D equality task).
-    r_tube: float = 0.0           # [m] tube radius for torso linear position
-    w_tube_lin: float = 50.0      # cost scale on (|e|² - r²) when violated
 
     # ── M3: NMPC conservation-law box constraint ────────────────
     enforce_hw_conservation: bool = False  # Enable B2 Option B hw box
@@ -315,10 +280,6 @@ class SimConfig:
     t_settle_inter_min: float = 0.1                 # min runtime [s]
 
     # ── QP weights — Single-support ─────────────────────────────
-    ss_alpha_com: float = 2e2
-    ss_alpha_torso: float = 5e2
-    ss_alpha_torso_ang: float = 5e2  # Cooperative-arms P1 torso angular weight
-    ss_alpha_torso_lin: float = 5e2  # Cooperative-arms P2 torso linear weight (co-equal w/ EE)
     ss_alpha_ee: float = 1e3       # CANONICAL-2p5 / Add-5 freeze (was 3e3)
     ss_alpha_posture: float = 2e1
     ss_alpha_wrench: float = 1.0   # regulariser-floor tier (Add-5 freeze; was 1e-2). Keep ≤1: 1e2 penalised contact forces (the only actuation path through the stance weld) and attenuated the torso task 7x (see scripts/test_qp_tracking.py)
@@ -327,17 +288,7 @@ class SimConfig:
     # (single contact has no internal-stress null space). 0 ⇒ legacy.
 
     # ── SS centroidal-momentum task (T-MOM) ─────────────────────
-    # memo: docs/architecture/SS_CENTROIDAL_MOMENTUM_TASK_2026-06.md
-    # When True, the linear centroidal-momentum task replaces the
-    # torso-linear channel at P2 (weight ss_alpha_mom): [A_G]_lin q̈ +
-    # [Ȧ_G]_lin q̇ = m·a_com_des, realised via the CoM Jacobian, with the
-    # NMPC centroidal plan as reference (no state-dependent mapping, no
-    # F-SAT). Kp/Kd reuse ss_Kp_com/ss_Kd_com. Default OFF = canonical
-    # torso-linear P2 (bit-identical to the pre-task baseline).
-    ss_centroidal_momentum_task: bool = False
     ss_alpha_mom: float = 4e2        # T-MOM linear weight — CANONICAL-2p5 / Add-5 freeze (was 5e3; momentum weight near-inert on Hdot_s, see PHASE_NMPC_PLAN_SATURATION)
-    ss_alpha_tl_weak: float = 0.0    # Variant B weak torso-linear regulariser
-    #                                  (0 ⇒ Variant A: torso-linear removed)
     # Phase-2.1 instrumentation: log τ_w + h_w at the 100 Hz QP rate during SS
     # (vs the default 10 Hz per-NMPC-step cadence). Default OFF ⇒ no behavioural
     # change, flag-OFF bit-identical preserved. Only populates extra buffers.

@@ -439,7 +439,7 @@ class SimulationLoop:
         # synchronized trajectories (both torso and swing over [0, T_step])
         # bring the EE to zero velocity at the target without gain ramps.
         self.qp_ss = self._build_qp(
-            cfg.ss_alpha_com, cfg.ss_alpha_torso, cfg.ss_alpha_ee,
+            cfg.ss_alpha_ee,
             cfg.ss_alpha_posture, cfg.ss_alpha_wrench,
             cfg.ss_Kp_com, cfg.ss_Kd_com,
             cfg.ss_Kp_torso, cfg.ss_Kd_torso,
@@ -1130,18 +1130,18 @@ class SimulationLoop:
         # Energy / passivity
         log.T_kinetic.append(0.5 * float(rs.v @ rs.H @ rs.v))
 
-    def _build_qp(self, ac, at, ae, ap, aw,
+    def _build_qp(self, ae, ap, aw,
                    kpc, kdc, kpt, kdt, kpe, kde,
                    kpe_ang=5.0, kde_ang=3.0):
         cfg = self.cfg
-        # M2: when use_m2_stack is on, the explicit CoM task is dropped,
-        # the torso 6D task becomes primary P1, EE is null-space projected
-        # against the torso task, and a soft CoM residual cost is added.
+        # The QP runs the Phase-2.1 two-task SS stack plus the centroidal-DS
+        # tasks. The legacy CoM / torso-6D-P1 / cooperative-split / Option-D
+        # / soft-CoM channels were removed in CLEANUP-6, so their weights
+        # (alpha_com, alpha_torso, alpha_com_soft, r_tube, w_tube_lin,
+        # alpha_torso_ang/lin, ...) are no longer passed.
         c = WholeBodyQPConfig(
             nq=self.robot.n_joints, nc_max=2, dt_qp=cfg.dt_qp,
             tau_max=cfg.tau_max * np.ones(self.robot.n_joints),
-            alpha_com=ac if not cfg.use_m2_stack else 0.0,
-            alpha_torso=at,
             alpha_ee=ae,
             alpha_posture=ap, alpha_wrench=aw,
             # CANONICAL-2p5 / Add-5 freeze: torque-min must stay ≳5× the
@@ -1174,20 +1174,10 @@ class SimulationLoop:
             # the planner BUDGETS for; the QP delivers what the
             # CoM/torso/EE tracking needs. The WB QP default 3000 N
             # is effectively unbounded and stays as a sanity backstop.
-            use_m2_stack=cfg.use_m2_stack,
-            ee_null_space=cfg.use_m2_stack,
-            alpha_com_soft=cfg.alpha_com_soft,
             alpha_passivity=cfg.alpha_passivity,
             passivity_W_budget=cfg.passivity_W_budget,
             qp_envelope_exact=cfg.qp_envelope_exact,
-            r_tube=cfg.r_tube,
-            w_tube_lin=cfg.w_tube_lin,
-            cooperative_arms_mode=cfg.cooperative_arms_mode,
-            alpha_torso_ang=cfg.ss_alpha_torso_ang,
-            alpha_torso_lin=cfg.ss_alpha_torso_lin,
-            ss_centroidal_momentum_task=cfg.ss_centroidal_momentum_task,
             ss_alpha_mom=cfg.ss_alpha_mom,
-            ss_alpha_tl_weak=cfg.ss_alpha_tl_weak,
             ss_two_task_mode=cfg.ss_two_task_mode,
             alpha_torso_pose=cfg.alpha_torso_pose,
             )

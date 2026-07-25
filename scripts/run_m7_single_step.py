@@ -36,15 +36,10 @@ def _make_m7_config():
     are synchronized over [0, T_step].
     """
     return SimConfig(
-        # M2: reworked QP stack
+        # Gates the torso-reference routing and DS passivity (the QP task
+        # stack it used to select was removed in CLEANUP-6).
         use_m2_stack=True,
-        alpha_com_soft=0.0,
         alpha_passivity=1.0,
-        # Cooperative-arms mode left OFF in this helper to preserve
-        # legacy behaviour for every script and test that consumes it.
-        # Diagnostic runners that exercise the deviation (e.g.
-        # scripts/diag_cooperative_arms.py) flip the flag explicitly.
-        cooperative_arms_mode=False,
         # M3: NMPC conservation-law box
         enforce_hw_conservation=True,
         h_max_tight=np.full(3, 5.0),

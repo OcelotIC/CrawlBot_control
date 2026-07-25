@@ -1,18 +1,20 @@
-"""Cooperative-arms WBC validation — 5-step fail-fast traversal.
+"""Canonical WBC traversal runner (historically the cooperative-arms probe).
 
-Tests cfg.cooperative_arms_mode=True (default in _make_m7_config) against
-the sweet-spot baseline (results/diag_nmpc_f300/, cooperative_arms_mode=False).
+This is the runner that produces the frozen canonical artifacts. The SS
+controller it exercises is the Phase-2.1 **two-task** stack (T-MOM linear +
+6-D torso-pose + swing-EE + posture, all weighted, no null-space projection);
+DS runs the centroidal-DS tasks plus the passivity inequality.
 
-Sweet-spot config carried over:
+The cooperative-arms split this script was originally written to test has been
+superseded and its implementation removed (CLEANUP-6/7), so
+`cooperative_arms_mode`, `ss_alpha_torso_ang/lin`, the Option D tube and T-MOM
+v1 no longer exist. The `--legacy` and `--alpha_torso_lin` flags survive only
+as output-dir / hero-render discriminators — they no longer change control.
+
+Config carried over:
   nmpc_f_max=300, preplanner_f_max=25 (= F-SAT clamp source),
   mapping_bypass_in_ss=False, q_current, F-RATE+F-SAT enabled,
   stop_on_failed_step=True.
-
-Rework deltas vs sweet-spot:
-  - cooperative_arms_mode=True (split torso 6D into P1 angular +
-    P2 linear; EE 6D co-equal at P2; posture P3 projected against
-    combined P1+P2 with rcond=1e-4)
-  - ss_alpha_torso_ang=500, ss_alpha_torso_lin=500 (defaults)
 
 Outputs:
     results/diag_cooperative_arms/
@@ -243,8 +245,7 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
          K_omega: float = 50.0, tau_w_max: float = 2.5,
          scenario: str = None, baseline_ds_rework: bool = False,
          out_dir_override: str = None,
-         ss_centroidal_momentum_task: bool = False,
-         ss_alpha_mom: float = 5000.0, ss_alpha_tl_weak: float = 0.0,
+         ss_alpha_mom: float = 5000.0,
          n_steps: int = 5, ss_two_task: bool = False,
          alpha_torso_pose: float = 5000.0,
          ss_alpha_ee: float = 3e3, ss_alpha_posture: float = 2e1,
@@ -270,7 +271,6 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     # via _make_m7_config + SimConfig at this point).
     cfg.mapping_bypass_in_ss = False
     cfg.t_ss_margin = 5.0
-    cfg.r_tube = 0.0
     cfg.preplanner_f_max = 25.0  # F-SAT clamp source
     # Constant CoM-z standoff (crawl height). Initial config is also
     # re-solved at this standoff (setup) so the z-reference is flat from
@@ -289,8 +289,6 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     # measurement.
     cfg.t_settle_final = float(settle_seconds)
     # Rework knob.
-    cfg.cooperative_arms_mode = (not legacy)
-    cfg.ss_alpha_torso_lin = float(alpha_torso_lin)
     # AOCS K_theta gain override (active only for legacy_pid_* modes).
     cfg.aocs_K_theta = float(K_theta)
     # AOCS K_omega (ω_s damping) override (legacy_pd_* / legacy_pid_*).
@@ -436,9 +434,7 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
 
     # ── SS centroidal-momentum task (memo SS_CENTROIDAL_MOMENTUM_TASK_2026-06) ──
     # Default OFF reproduces the canonical torso-linear P2 stack (bit-identical).
-    cfg.ss_centroidal_momentum_task = bool(ss_centroidal_momentum_task)
     cfg.ss_alpha_mom = float(ss_alpha_mom)
-    cfg.ss_alpha_tl_weak = float(ss_alpha_tl_weak)
     # Phase-2.1: log τ_w + h_w at the 100 Hz QP rate during SS (harmless —
     # adds separate buffers; the 10 Hz log + postproc CSV are unaffected).
     cfg.log_hifreq_ss = True
@@ -649,9 +645,14 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--legacy', action='store_true',
-                        help='Disable cooperative_arms_mode (regression guard)')
+                        help='Naming/render discriminator only. Since CLEANUP-6 '
+                             'removed cooperative_arms_mode this no longer changes '
+                             'control; it still selects the output dir and gates '
+                             'the canonical hero render.')
     parser.add_argument('--alpha_torso_lin', type=float, default=500.0,
-                        help='Sensitivity sweep value (default 500)')
+                        help='Naming/render discriminator only (default 500). The '
+                             'cooperative torso-linear P2 task it used to weight was '
+                             'removed in CLEANUP-6; the value no longer reaches the QP.')
     parser.add_argument('--anchor_dx', type=float, default=0.8,
                         help='Anchor-grid pitch [m]; rewrites MJCF anchor sites '
                              'to x=(i-3.5)*dx for i=1..6 (default 0.8 = no-op)')
@@ -707,14 +708,8 @@ if __name__ == '__main__':
                              '(name under results/, or an absolute path). '
                              'Use for SS-centroidal-momentum runs so prior '
                              'committed baselines stay read-only (memo §7).')
-    parser.add_argument('--ss-centroidal-momentum-task', action='store_true',
-                        help='Enable the SS T-MOM linear task (replaces the '
-                             'torso-linear P2 channel). Default OFF = canonical.')
     parser.add_argument('--ss-alpha-mom', type=float, default=5000.0,
                         help='T-MOM linear weight (default 5000 = working point).')
-    parser.add_argument('--ss-alpha-tl-weak', type=float, default=0.0,
-                        help='Variant-B weak torso-linear regulariser weight '
-                             '(0 = Variant A: torso-linear removed).')
     parser.add_argument('--n-steps', type=int, default=5,
                         help='Traversal steps (default 5; use 1 for the '
                              'Phase-2.1 single-step swing).')
@@ -821,9 +816,7 @@ if __name__ == '__main__':
              scenario=args.scenario,
              baseline_ds_rework=args.baseline_ds_rework,
              out_dir_override=args.out_dir,
-             ss_centroidal_momentum_task=args.ss_centroidal_momentum_task,
              ss_alpha_mom=args.ss_alpha_mom,
-             ss_alpha_tl_weak=args.ss_alpha_tl_weak,
              n_steps=args.n_steps,
              ss_two_task=args.ss_two_task,
              alpha_torso_pose=args.alpha_torso_pose,
