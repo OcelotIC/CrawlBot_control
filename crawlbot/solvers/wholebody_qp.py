@@ -380,7 +380,6 @@ class WholeBodyQP:
         idx = self._idx
         n = self._n_vars
         nq = cfg.nq
-        n_robot = 6 + nq  # dimension of q̈_robot = [q̈_t; q̈]
 
         # --- Build QP ---
         # weight_ratio comes from the config and is 1 on the canonical: the
@@ -392,220 +391,24 @@ class WholeBodyQP:
             weight_ratio=cfg.weight_ratio,
         )
 
-        # ============================================================ #
-        #  EQUALITY CONSTRAINTS                                         #
-        # ============================================================ #
+        self._add_equality_constraints(
+            qp, H_robot, C_robot, J_contacts, Jdot_dq_contacts, contact_config)
 
-        # 1. Full robot dynamics: H q̈_robot + C = B_u τ_q + J_robot^T λ
-        #    → [H, -J_robot^T, -B_u] [q̈_robot; λ; τ_q] = -C
-        #
-        # Decision vector z = [q̈_t, q̈, λ, τ_q]
-        # q̈_robot = [q̈_t; q̈] are the first (6+nq) components
+        hw_constraint_active = self._add_inequality_constraints(
+            qp, H_robot, dq, r_com, hw_current, hw_min, hw_max,
+            L_com_current, contact_config, passivity_active,
+            passivity_W_budget)
 
-        A_dyn = np.zeros((n_robot, n))
-
-        # H_robot @ q̈_robot
-        A_dyn[:, idx['qdd_t'][0]: idx['qdd_t'][1]] = H_robot[:, :6]
-        A_dyn[:, idx['qdd'][0]: idx['qdd'][1]] = H_robot[:, 6:]
-
-        # -J_robot^T @ λ  (only active contacts contribute)
-        n_lambda = self._dim_lambda
-        J_robot_T = np.zeros((n_robot, n_lambda))
-        if J_contacts is not None and J_contacts.size > 0:
-            # J_contacts is (6·nc_active, n_robot) for active contacts
-            # We need to place it in the right columns of the full λ vector
-            contact_idx = 0
-            for j in range(cfg.nc_max):
-                if contact_config.active_contacts[j]:
-                    rows = slice(contact_idx * 6, (contact_idx + 1) * 6)
-                    J_robot_T[:, j * 6: (j + 1) * 6] = J_contacts[rows, :].T
-                    contact_idx += 1
-
-        A_dyn[:, idx['lambda'][0]: idx['lambda'][1]] = -J_robot_T
-
-        # -B_u @ τ_q  (B_u = [0_{6×nq}; I_nq])
-        A_dyn[6:, idx['tau'][0]: idx['tau'][1]] = -np.eye(nq)
-
-        b_dyn = -C_robot
-
-        qp.add_equality_constraint(A_dyn, b_dyn)
-
-        # 2. Contact acceleration constraint: J_contact q̈_robot = -J̇_contact q̇_robot
-        if J_contacts is not None and J_contacts.size > 0:
-            nc_active_rows = J_contacts.shape[0]
-            A_contact = np.zeros((nc_active_rows, n))
-            A_contact[:, idx['qdd_t'][0]: idx['qdd_t'][1]] = J_contacts[:, :6]
-            A_contact[:, idx['qdd'][0]: idx['qdd'][1]] = J_contacts[:, 6:]
-
-            b_contact = np.zeros(nc_active_rows)
-            if Jdot_dq_contacts is not None:
-                b_contact = -Jdot_dq_contacts
-
-            qp.add_equality_constraint(A_contact, b_contact)
-
-        # ============================================================ #
-        #  INEQUALITY CONSTRAINTS                                       #
-        # ============================================================ #
-
-        # 1. Momentum safety (M5 soft slack): h_min ≤ hw - dt·M_λ·λ ≤ h_max
-        #    With slack s_up, s_lo ≥ 0:
-        #    Upper: -dt·M_λ·λ - s_up ≤ h_max - hw
-        #    Lower:  dt·M_λ·λ - s_lo ≤ hw - h_min
-        #    Bound: s_up, s_lo ≥ 0  (set later in the bounds block)
-        #    Cost: w_hw_slack * (||s_up||² + ||s_lo||²)  (added as a task)
-        #
-        # When h_w is within the box, both slacks go to 0 and the
-        # constraint is effectively hard. When physical h_w is beyond
-        # the box (e.g., during actuator saturation), the slack lets
-        # the QP stay feasible while the heavy penalty drives the
-        # slack toward zero — giving the maximum corrective wrench.
-        hw_constraint_active = (
-            hw_current is not None and hw_min is not None
-            and r_com is not None)
-        if hw_constraint_active:
-            M_lambda = compute_momentum_map(r_com, contact_config)
-
-            A_mom_upper = np.zeros((3, n))
-            A_mom_upper[:, idx['lambda'][0]: idx['lambda'][1]] = -cfg.dt_qp * M_lambda
-            A_mom_upper[:, idx['slack_hw_up'][0]: idx['slack_hw_up'][1]] = -np.eye(3)
-            b_mom_upper = hw_max - hw_current
-
-            A_mom_lower = np.zeros((3, n))
-            A_mom_lower[:, idx['lambda'][0]: idx['lambda'][1]] = cfg.dt_qp * M_lambda
-            A_mom_lower[:, idx['slack_hw_lo'][0]: idx['slack_hw_lo'][1]] = -np.eye(3)
-            b_mom_lower = hw_current - hw_min
-
-            qp.add_inequality_constraint(
-                np.vstack([A_mom_upper, A_mom_lower]),
-                np.concatenate([b_mom_upper, b_mom_lower])
-            )
-
-            # 2. Robot angular momentum box: |L_com + dt·M_λ·λ| ≤ L_max
-            if np.isfinite(cfg.L_max) and L_com_current is not None:
-                A_L_upper = np.zeros((3, n))
-                A_L_upper[:, idx['lambda'][0]: idx['lambda'][1]] = cfg.dt_qp * M_lambda
-                b_L_upper = cfg.L_max * np.ones(3) - L_com_current
-
-                A_L_lower = np.zeros((3, n))
-                A_L_lower[:, idx['lambda'][0]: idx['lambda'][1]] = -cfg.dt_qp * M_lambda
-                b_L_lower = cfg.L_max * np.ones(3) + L_com_current
-
-                qp.add_inequality_constraint(
-                    np.vstack([A_L_upper, A_L_lower]),
-                    np.concatenate([b_L_upper, b_L_lower])
-                )
-
-            # 3. Momentum rate box: |Ḣ_s| ≤ τ_w_max.
-            # Proxy (default): Ḣ_s ≈ M_λ·λ (lever from robot CoM — omits the
-            # orbital term r_com×Σf). Piste A LOT B (qp_envelope_exact): use
-            # the EXACT origin-referenced Ḣ_s = M_exact·λ, M_exact the
-            # momentum map with levers from O_s (= compute_momentum_map at
-            # r_com=0). Stays LINEAR in λ (r_com is a per-tick parameter).
-            if np.isfinite(cfg.tau_w_max):
-                if cfg.qp_envelope_exact:
-                    M_env = compute_momentum_map(np.zeros(3), contact_config)
-                else:
-                    M_env = M_lambda
-                A_Ld_upper = np.zeros((3, n))
-                A_Ld_upper[:, idx['lambda'][0]: idx['lambda'][1]] = M_env
-                b_Ld_upper = cfg.tau_w_max * np.ones(3)
-
-                A_Ld_lower = np.zeros((3, n))
-                A_Ld_lower[:, idx['lambda'][0]: idx['lambda'][1]] = -M_env
-                b_Ld_lower = cfg.tau_w_max * np.ones(3)
-
-                qp.add_inequality_constraint(
-                    np.vstack([A_Ld_upper, A_Ld_lower]),
-                    np.concatenate([b_Ld_upper, b_Ld_lower])
-                )
-
-        # 4. Passivity constraint (M2, DS only): dq_j^T * τ_q + 2α·T ≤ 0
-        #
-        # Enforces exponential kinetic-energy decay T(t) ≤ T(t0)·exp(-2α·t)
-        # during double-support. T = 0.5 * dq_j^T * H_jj * dq_j uses the
-        # joint block of the mass matrix (the full v=[dq_t; dq] is
-        # constrained by welds at both EEs so only the joint kinetic
-        # energy matters here). Linear in τ_q only:
-        #
-        #     [0, 0, 0, dq]^T · z ≤ -2α·T
-        if passivity_active and cfg.alpha_passivity > 0:
-            H_jj = H_robot[6:, 6:]
-            T_kin = 0.5 * float(dq @ H_jj @ dq)
-            A_pass = np.zeros((1, n))
-            A_pass[0, idx['tau'][0]: idx['tau'][1]] = dq
-            # + W_budget relaxes the strict ≤0 RHS to allow bounded positive
-            # joint work. Piste A LOT A passes an envelope-coupled per-tick
-            # W_budget (kwarg); else the constant cfg.passivity_W_budget
-            # (dock-floor audit; default 0 ⇒ strict, byte-identical).
-            W_budget = (passivity_W_budget if passivity_W_budget is not None
-                        else cfg.passivity_W_budget)
-            b_pass = np.array([-2.0 * cfg.alpha_passivity * T_kin + W_budget])
-            qp.add_inequality_constraint(A_pass, b_pass)
-
-        # ============================================================ #
-        #  BOUNDS                                                       #
-        # ============================================================ #
-
-        lb = np.full(n, -np.inf)
-        ub = np.full(n, np.inf)
-
-        # Joint acceleration bounds
-        lb[idx['qdd'][0]: idx['qdd'][1]] = -cfg.qdd_max
-        ub[idx['qdd'][0]: idx['qdd'][1]] = cfg.qdd_max
-
-        # Joint torque bounds
-        lb[idx['tau'][0]: idx['tau'][1]] = -cfg.tau_max
-        ub[idx['tau'][0]: idx['tau'][1]] = cfg.tau_max
-
-        # Contact wrench bounds (zero for inactive contacts)
-        for j in range(cfg.nc_max):
-            s = idx['lambda'][0] + j * 6
-            if contact_config.active_contacts[j]:
-                lb[s: s + 3] = -cfg.f_max
-                ub[s: s + 3] = cfg.f_max
-                lb[s + 3: s + 6] = -cfg.tau_contact_max
-                ub[s + 3: s + 6] = cfg.tau_contact_max
-            else:
-                lb[s: s + 6] = 0.0
-                ub[s: s + 6] = 0.0
-
-        # M5 hw slack bounds: non-negativity when constraint is active,
-        # pinned to 0 otherwise.
-        if hw_constraint_active:
-            lb[idx['slack_hw_up'][0]: idx['slack_hw_up'][1]] = 0.0
-            ub[idx['slack_hw_up'][0]: idx['slack_hw_up'][1]] = np.inf
-            lb[idx['slack_hw_lo'][0]: idx['slack_hw_lo'][1]] = 0.0
-            ub[idx['slack_hw_lo'][0]: idx['slack_hw_lo'][1]] = np.inf
-        else:
-            lb[idx['slack_hw_up'][0]: idx['slack_hw_up'][1]] = 0.0
-            ub[idx['slack_hw_up'][0]: idx['slack_hw_up'][1]] = 0.0
-            lb[idx['slack_hw_lo'][0]: idx['slack_hw_lo'][1]] = 0.0
-            ub[idx['slack_hw_lo'][0]: idx['slack_hw_lo'][1]] = 0.0
-
-        qp.set_bounds(lb, ub)
+        self._set_variable_bounds(qp, contact_config, hw_constraint_active)
 
         # ============================================================ #
         #  TASKS                                                        #
         # ============================================================ #
 
         dq_robot = np.concatenate([dq_t, dq])
-
-        # ──────────────────────────────────────────────────────────── #
-        # Helper: build the CoM cost row `J_com @ qdd = a_com_des - Jdq`.
-        # This is the linear centroidal-momentum (T-MOM) task in CoM-Jacobian
-        # form, consumed by the SS stack below.
-        # ──────────────────────────────────────────────────────────── #
-        r_com_actual = r_com if r_com is not None else np.zeros(3)
-        v_com_actual = J_com @ dq_robot
-        Kp_com_mat = np.diag(cfg.Kp_com)
-        Kd_com_mat = np.diag(cfg.Kd_com)
-        a_com_des = (a_com_ff
-                     + Kp_com_mat @ (r_com_ref - r_com_actual)
-                     + Kd_com_mat @ (v_com_ref - v_com_actual))
-        A_com = np.zeros((3, n))
-        A_com[:, idx['qdd_t'][0]: idx['qdd_t'][1]] = J_com[:, :6]
-        A_com[:, idx['qdd'][0]: idx['qdd'][1]] = J_com[:, 6:]
-        b_com = a_com_des - Jdot_dq_com
+        A_com, b_com = self._com_task_rows(
+            J_com, Jdot_dq_com, dq_robot, r_com, r_com_ref, v_com_ref,
+            a_com_ff)
 
         # ── SS: the two-task stack — THE canonical single-support controller ──
         # T-MOM linear (ss_alpha_mom) + 6-D torso-pose on J_torso
@@ -857,6 +660,256 @@ class WholeBodyQP:
     # ------------------------------------------------------------------ #
     #  Private helpers                                                     #
     # ------------------------------------------------------------------ #
+
+    # ------------------------------------------------------------------ #
+    #  QP assembly helpers                                                 #
+    #                                                                      #
+    #  Extracted verbatim from solve() (CLEANUP-11). They only APPEND to   #
+    #  the `qp` accumulator — no shared state is mutated — so the call     #
+    #  order in solve() is the assembly order.                             #
+    # ------------------------------------------------------------------ #
+
+    def _add_equality_constraints(
+        self, qp, H_robot, C_robot, J_contacts, Jdot_dq_contacts,
+        contact_config,
+    ) -> None:
+        """Full robot dynamics + the bilateral contact-acceleration constraint."""
+        cfg = self.config
+        idx = self._idx
+        n = self._n_vars
+        nq = cfg.nq
+        n_robot = 6 + nq  # dimension of q̈_robot = [q̈_t; q̈]
+
+
+        # 1. Full robot dynamics: H q̈_robot + C = B_u τ_q + J_robot^T λ
+        #    → [H, -J_robot^T, -B_u] [q̈_robot; λ; τ_q] = -C
+        #
+        # Decision vector z = [q̈_t, q̈, λ, τ_q]
+        # q̈_robot = [q̈_t; q̈] are the first (6+nq) components
+
+        A_dyn = np.zeros((n_robot, n))
+
+        # H_robot @ q̈_robot
+        A_dyn[:, idx['qdd_t'][0]: idx['qdd_t'][1]] = H_robot[:, :6]
+        A_dyn[:, idx['qdd'][0]: idx['qdd'][1]] = H_robot[:, 6:]
+
+        # -J_robot^T @ λ  (only active contacts contribute)
+        n_lambda = self._dim_lambda
+        J_robot_T = np.zeros((n_robot, n_lambda))
+        if J_contacts is not None and J_contacts.size > 0:
+            # J_contacts is (6·nc_active, n_robot) for active contacts
+            # We need to place it in the right columns of the full λ vector
+            contact_idx = 0
+            for j in range(cfg.nc_max):
+                if contact_config.active_contacts[j]:
+                    rows = slice(contact_idx * 6, (contact_idx + 1) * 6)
+                    J_robot_T[:, j * 6: (j + 1) * 6] = J_contacts[rows, :].T
+                    contact_idx += 1
+
+        A_dyn[:, idx['lambda'][0]: idx['lambda'][1]] = -J_robot_T
+
+        # -B_u @ τ_q  (B_u = [0_{6×nq}; I_nq])
+        A_dyn[6:, idx['tau'][0]: idx['tau'][1]] = -np.eye(nq)
+
+        b_dyn = -C_robot
+
+        qp.add_equality_constraint(A_dyn, b_dyn)
+
+        # 2. Contact acceleration constraint: J_contact q̈_robot = -J̇_contact q̇_robot
+        if J_contacts is not None and J_contacts.size > 0:
+            nc_active_rows = J_contacts.shape[0]
+            A_contact = np.zeros((nc_active_rows, n))
+            A_contact[:, idx['qdd_t'][0]: idx['qdd_t'][1]] = J_contacts[:, :6]
+            A_contact[:, idx['qdd'][0]: idx['qdd'][1]] = J_contacts[:, 6:]
+
+            b_contact = np.zeros(nc_active_rows)
+            if Jdot_dq_contacts is not None:
+                b_contact = -Jdot_dq_contacts
+
+            qp.add_equality_constraint(A_contact, b_contact)
+
+    def _add_inequality_constraints(
+        self, qp, H_robot, dq, r_com, hw_current, hw_min, hw_max,
+        L_com_current, contact_config, passivity_active, passivity_W_budget,
+    ) -> bool:
+        """Momentum box (+ h_w slack), L_com box, Ḣ_s rate box, passivity.
+
+        Returns ``hw_constraint_active`` — the bounds block needs it to decide
+        whether the slack variables are free or pinned to zero.
+        """
+        cfg = self.config
+        idx = self._idx
+        n = self._n_vars
+
+
+        # 1. Momentum safety (M5 soft slack): h_min ≤ hw - dt·M_λ·λ ≤ h_max
+        #    With slack s_up, s_lo ≥ 0:
+        #    Upper: -dt·M_λ·λ - s_up ≤ h_max - hw
+        #    Lower:  dt·M_λ·λ - s_lo ≤ hw - h_min
+        #    Bound: s_up, s_lo ≥ 0  (set later in the bounds block)
+        #    Cost: w_hw_slack * (||s_up||² + ||s_lo||²)  (added as a task)
+        #
+        # When h_w is within the box, both slacks go to 0 and the
+        # constraint is effectively hard. When physical h_w is beyond
+        # the box (e.g., during actuator saturation), the slack lets
+        # the QP stay feasible while the heavy penalty drives the
+        # slack toward zero — giving the maximum corrective wrench.
+        hw_constraint_active = (
+            hw_current is not None and hw_min is not None
+            and r_com is not None)
+        if hw_constraint_active:
+            M_lambda = compute_momentum_map(r_com, contact_config)
+
+            A_mom_upper = np.zeros((3, n))
+            A_mom_upper[:, idx['lambda'][0]: idx['lambda'][1]] = -cfg.dt_qp * M_lambda
+            A_mom_upper[:, idx['slack_hw_up'][0]: idx['slack_hw_up'][1]] = -np.eye(3)
+            b_mom_upper = hw_max - hw_current
+
+            A_mom_lower = np.zeros((3, n))
+            A_mom_lower[:, idx['lambda'][0]: idx['lambda'][1]] = cfg.dt_qp * M_lambda
+            A_mom_lower[:, idx['slack_hw_lo'][0]: idx['slack_hw_lo'][1]] = -np.eye(3)
+            b_mom_lower = hw_current - hw_min
+
+            qp.add_inequality_constraint(
+                np.vstack([A_mom_upper, A_mom_lower]),
+                np.concatenate([b_mom_upper, b_mom_lower])
+            )
+
+            # 2. Robot angular momentum box: |L_com + dt·M_λ·λ| ≤ L_max
+            if np.isfinite(cfg.L_max) and L_com_current is not None:
+                A_L_upper = np.zeros((3, n))
+                A_L_upper[:, idx['lambda'][0]: idx['lambda'][1]] = cfg.dt_qp * M_lambda
+                b_L_upper = cfg.L_max * np.ones(3) - L_com_current
+
+                A_L_lower = np.zeros((3, n))
+                A_L_lower[:, idx['lambda'][0]: idx['lambda'][1]] = -cfg.dt_qp * M_lambda
+                b_L_lower = cfg.L_max * np.ones(3) + L_com_current
+
+                qp.add_inequality_constraint(
+                    np.vstack([A_L_upper, A_L_lower]),
+                    np.concatenate([b_L_upper, b_L_lower])
+                )
+
+            # 3. Momentum rate box: |Ḣ_s| ≤ τ_w_max.
+            # Proxy (default): Ḣ_s ≈ M_λ·λ (lever from robot CoM — omits the
+            # orbital term r_com×Σf). Piste A LOT B (qp_envelope_exact): use
+            # the EXACT origin-referenced Ḣ_s = M_exact·λ, M_exact the
+            # momentum map with levers from O_s (= compute_momentum_map at
+            # r_com=0). Stays LINEAR in λ (r_com is a per-tick parameter).
+            if np.isfinite(cfg.tau_w_max):
+                if cfg.qp_envelope_exact:
+                    M_env = compute_momentum_map(np.zeros(3), contact_config)
+                else:
+                    M_env = M_lambda
+                A_Ld_upper = np.zeros((3, n))
+                A_Ld_upper[:, idx['lambda'][0]: idx['lambda'][1]] = M_env
+                b_Ld_upper = cfg.tau_w_max * np.ones(3)
+
+                A_Ld_lower = np.zeros((3, n))
+                A_Ld_lower[:, idx['lambda'][0]: idx['lambda'][1]] = -M_env
+                b_Ld_lower = cfg.tau_w_max * np.ones(3)
+
+                qp.add_inequality_constraint(
+                    np.vstack([A_Ld_upper, A_Ld_lower]),
+                    np.concatenate([b_Ld_upper, b_Ld_lower])
+                )
+
+        # 4. Passivity constraint (M2, DS only): dq_j^T * τ_q + 2α·T ≤ 0
+        #
+        # Enforces exponential kinetic-energy decay T(t) ≤ T(t0)·exp(-2α·t)
+        # during double-support. T = 0.5 * dq_j^T * H_jj * dq_j uses the
+        # joint block of the mass matrix (the full v=[dq_t; dq] is
+        # constrained by welds at both EEs so only the joint kinetic
+        # energy matters here). Linear in τ_q only:
+        #
+        #     [0, 0, 0, dq]^T · z ≤ -2α·T
+        if passivity_active and cfg.alpha_passivity > 0:
+            H_jj = H_robot[6:, 6:]
+            T_kin = 0.5 * float(dq @ H_jj @ dq)
+            A_pass = np.zeros((1, n))
+            A_pass[0, idx['tau'][0]: idx['tau'][1]] = dq
+            # + W_budget relaxes the strict ≤0 RHS to allow bounded positive
+            # joint work. Piste A LOT A passes an envelope-coupled per-tick
+            # W_budget (kwarg); else the constant cfg.passivity_W_budget
+            # (dock-floor audit; default 0 ⇒ strict, byte-identical).
+            W_budget = (passivity_W_budget if passivity_W_budget is not None
+                        else cfg.passivity_W_budget)
+            b_pass = np.array([-2.0 * cfg.alpha_passivity * T_kin + W_budget])
+            qp.add_inequality_constraint(A_pass, b_pass)
+
+        return hw_constraint_active
+
+    def _set_variable_bounds(self, qp, contact_config,
+                             hw_constraint_active: bool) -> None:
+        """Box bounds on q̈, τ_q, the contact wrenches and the h_w slacks."""
+        cfg = self.config
+        idx = self._idx
+        n = self._n_vars
+
+
+        lb = np.full(n, -np.inf)
+        ub = np.full(n, np.inf)
+
+        # Joint acceleration bounds
+        lb[idx['qdd'][0]: idx['qdd'][1]] = -cfg.qdd_max
+        ub[idx['qdd'][0]: idx['qdd'][1]] = cfg.qdd_max
+
+        # Joint torque bounds
+        lb[idx['tau'][0]: idx['tau'][1]] = -cfg.tau_max
+        ub[idx['tau'][0]: idx['tau'][1]] = cfg.tau_max
+
+        # Contact wrench bounds (zero for inactive contacts)
+        for j in range(cfg.nc_max):
+            s = idx['lambda'][0] + j * 6
+            if contact_config.active_contacts[j]:
+                lb[s: s + 3] = -cfg.f_max
+                ub[s: s + 3] = cfg.f_max
+                lb[s + 3: s + 6] = -cfg.tau_contact_max
+                ub[s + 3: s + 6] = cfg.tau_contact_max
+            else:
+                lb[s: s + 6] = 0.0
+                ub[s: s + 6] = 0.0
+
+        # M5 hw slack bounds: non-negativity when constraint is active,
+        # pinned to 0 otherwise.
+        if hw_constraint_active:
+            lb[idx['slack_hw_up'][0]: idx['slack_hw_up'][1]] = 0.0
+            ub[idx['slack_hw_up'][0]: idx['slack_hw_up'][1]] = np.inf
+            lb[idx['slack_hw_lo'][0]: idx['slack_hw_lo'][1]] = 0.0
+            ub[idx['slack_hw_lo'][0]: idx['slack_hw_lo'][1]] = np.inf
+        else:
+            lb[idx['slack_hw_up'][0]: idx['slack_hw_up'][1]] = 0.0
+            ub[idx['slack_hw_up'][0]: idx['slack_hw_up'][1]] = 0.0
+            lb[idx['slack_hw_lo'][0]: idx['slack_hw_lo'][1]] = 0.0
+            ub[idx['slack_hw_lo'][0]: idx['slack_hw_lo'][1]] = 0.0
+
+        qp.set_bounds(lb, ub)
+
+    def _com_task_rows(self, J_com, Jdot_dq_com, dq_robot, r_com, r_com_ref,
+                       v_com_ref, a_com_ff):
+        """Build the CoM cost row ``J_com @ qdd = a_com_des - J̇dq``.
+
+        This is the linear centroidal-momentum (T-MOM) task in CoM-Jacobian
+        form. Returned as ``(A_com, b_com)`` and consumed by both the SS
+        two-task stack and the DS centroidal task.
+        """
+        cfg = self.config
+        idx = self._idx
+        n = self._n_vars
+
+        r_com_actual = r_com if r_com is not None else np.zeros(3)
+        v_com_actual = J_com @ dq_robot
+        Kp_com_mat = np.diag(cfg.Kp_com)
+        Kd_com_mat = np.diag(cfg.Kd_com)
+        a_com_des = (a_com_ff
+                     + Kp_com_mat @ (r_com_ref - r_com_actual)
+                     + Kd_com_mat @ (v_com_ref - v_com_actual))
+        A_com = np.zeros((3, n))
+        A_com[:, idx['qdd_t'][0]: idx['qdd_t'][1]] = J_com[:, :6]
+        A_com[:, idx['qdd'][0]: idx['qdd'][1]] = J_com[:, 6:]
+        b_com = a_com_des - Jdot_dq_com
+
+        return A_com, b_com
 
     def _compute_indices(self) -> Dict[str, Tuple[int, int]]:
         """Compute start/end indices for each variable block in z.

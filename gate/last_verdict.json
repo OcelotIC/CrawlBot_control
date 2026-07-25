@@ -1,14 +1,14 @@
 {
   "verdict": "PASS",
   "baseline": "bfd5509 (main HEAD at founding)",
-  "seconds_total": 151.3,
+  "seconds_total": 142.8,
   "checks": {
     "canonical_replay": {
       "status": "PASS",
       "replay": {
         "tag": "replay",
         "returncode": 0,
-        "seconds": 145.1,
+        "seconds": 140.1,
         "stdout_tail": [
           "",
           "Structure drift over run",
