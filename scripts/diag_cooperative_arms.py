@@ -259,7 +259,6 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
          aocs_active_in_interstep: bool = True,
          interstep_hw_refresh: bool = True,
          interstep_settle_alpha_wrench: float = 0.0,
-         interstep_settle_alpha_sigf: float = 0.0,
          interstep_settle_epsilon_v: float = 0.0,
          preplanner_tstep_standoff_gain: float = 0.0,
          preplanner_tstep_standoff_knee: float = 1e9,
@@ -329,8 +328,6 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     cfg.interstep_hw_refresh = bool(interstep_hw_refresh)
     # J2 chatter fix: settle-only α_wrench in the inter-step DS QP (0 = off).
     cfg.interstep_settle_alpha_wrench = float(interstep_settle_alpha_wrench)
-    # J2 chatter fix (principled): settle-only Σf=f1+f2 penalty (0 = off).
-    cfg.interstep_settle_alpha_sigf = float(interstep_settle_alpha_sigf)
     # J2 close (POINT A): dock-tolerance-derived inter-step settle exit ε_v
     # (0 = off = byte-identical 1 mm/s).
     cfg.interstep_settle_epsilon_v = float(interstep_settle_epsilon_v)
@@ -793,10 +790,6 @@ if __name__ == '__main__':
                              'DS QP (0=off=byte-identical). >0 makes the λ-cost '
                              'strictly convex ⇒ unique min-norm wrench, breaking the '
                              'period-2 active-set chatter.')
-    parser.add_argument('--interstep-settle-alpha-sigf', type=float, default=0.0,
-                        help='J2 chatter fix (principled): settle-only penalty on the '
-                             'net contact force Σf=f1+f2=m·a_com (0=off). Removes the '
-                             'flat direction in the Σf sign by construction.')
     parser.add_argument('--preplanner-tstep-standoff-gain', type=float, default=0.0,
                         help='STEP5-MARGIN: dock-margin safety factor. If '
                              '|r_com_0|>knee, T_step *= (1 + gain). 0 = off (default).')
@@ -852,7 +845,6 @@ if __name__ == '__main__':
              aocs_active_in_interstep=args.aocs_active_in_interstep,
              interstep_hw_refresh=args.interstep_hw_refresh,
              interstep_settle_alpha_wrench=args.interstep_settle_alpha_wrench,
-             interstep_settle_alpha_sigf=args.interstep_settle_alpha_sigf,
              interstep_settle_epsilon_v=args.interstep_settle_epsilon_v,
              preplanner_tstep_standoff_gain=args.preplanner_tstep_standoff_gain,
              preplanner_tstep_standoff_knee=args.preplanner_tstep_standoff_knee,

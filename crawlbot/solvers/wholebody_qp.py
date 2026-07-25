@@ -81,7 +81,6 @@ class WholeBodyQPConfig:
     alpha_posture: float = 1e2    # Posture regulation
     alpha_wrench: float = 1e1     # Wrench tracking (from NMPC)
     alpha_torque: float = 1e0     # Joint torque minimization
-    alpha_reaction: float = 0.0   # Reaction null-space (minimize base disturbance from swing arm)
     alpha_reg: float = 1e-2       # Acceleration regularization (lowest)
     alpha_lambda_int: float = 0.0  # Internal-stress regularization (DS only).
     # ‖(I − G⁺G)·λ‖² where G (6×12) maps λ → net wrench on the structure.
@@ -144,16 +143,6 @@ class WholeBodyQPConfig:
     # split. Default OFF = legacy path (bit-identical).
     ss_two_task_mode: bool = False
     alpha_torso_pose: float = 1e3
-
-    # ── Stance-thrust inertial-coupling correction (experimental) ───
-    # Adds (J_c_stance[:,:6])^{-T} · M_fj · ddq_j_prev to the stance
-    # slot of the wrench reference, intending to feed-forward the
-    # floating-base/joint inertial coupling. Empirically REGRESSES
-    # step 0 (TIMEOUT 12.1 mm vs cooperative-baseline DOCK 4.55 mm) —
-    # see results/diag_cooperative_arms_thrust/. Kept off by default
-    # and isolated behind its own flag so the cooperative-arms
-    # baseline isn't degraded.
-    stance_thrust_correction: bool = False
 
     # ── Passivity constraint (DS only) ──
     alpha_passivity: float = 1.0  # Energy decay rate α [1/s] (α < 50 at 100 Hz)
@@ -269,13 +258,6 @@ class WholeBodyQP:
         self._tube_last_violated: bool = False
 
         # Stance-thrust correction state (cooperative-arms mode).
-        # ddq_j from the previous WBC solve, used to feed-forward the
-        # inertial floating-base/joint coupling M_fj @ ddq_j into the
-        # stance contact wrench reference. One WBC tick (~10 ms) of
-        # delay; acceptable at 100 Hz. Zero on first solve.
-        self._ddq_j_prev: np.ndarray = np.zeros(nq)
-        self._stance_thrust_corr_calls: int = 0
-        self._stance_thrust_corr_max_norm: float = 0.0
 
         # hw-slack telemetry (always populated). After each QP solve we
         # record the norms of the upper/lower slack variables; non-zero
@@ -344,9 +326,6 @@ class WholeBodyQP:
         R_torso_ref: Optional[np.ndarray] = None,    # (3,3) desired torso rotation
         v_torso_ref: Optional[np.ndarray] = None,    # (6,) desired torso twist [lin(3), ang(3)]
         a_torso_ff: Optional[np.ndarray] = None,     # (6,) feedforward torso accel [lin(3), ang(3)]
-        # Reaction null-space (minimize base disturbance from swing arm)
-        H_base_swing: Optional[np.ndarray] = None,  # (6, n_swing) coupling block
-        swing_v_slice: Optional[slice] = None,       # velocity-space slice of swing arm joints
         # DS settling mode (skip torso/CoM, damp velocities)
         settle_mode: bool = False,
         # M2 passivity constraint: enforce dq_j^T*tau_q + 2*alpha*T <= 0
@@ -366,16 +345,6 @@ class WholeBodyQP:
         # (byte-identical). Passed ONLY from the inter-step settle loop, so SS
         # and the _step DWELL are untouched.
         settle_alpha_wrench: Optional[float] = None,
-        # Chatter fix (J2, principled): explicit penalty on the NET contact
-        # force Σf = f1+f2 = m·a_com. The settle holds the welded arms while
-        # dissipating joint KE ⇒ no CoM acceleration ⇒ Σf≈0. The QP cost
-        # currently leaves a FLAT direction in the sign of Σf (the chatter
-        # axis: +6 N vs −6 N equal-cost). α_Σf·‖Σf‖² removes that flat
-        # direction BY CONSTRUCTION (Σf=0 is the unique minimizer of the
-        # term), so Σf≈0 falls out of the cost rather than from min-norm
-        # selection. None ⇒ off. DS (nc==2) + settle only; passed only from
-        # the inter-step loop.
-        settle_alpha_sigf: Optional[float] = None,
     ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, QPSolveInfo]:
         """Solve the whole-body QP.
 
@@ -1143,43 +1112,6 @@ class WholeBodyQP:
         A_wrench[:, idx['lambda'][0]: idx['lambda'][1]] = np.eye(self._dim_lambda)
         b_wrench = lambda_ref.copy()
 
-        # Stance-thrust inertial-coupling correction (cooperative-arms mode).
-        # The NMPC reference f_stance_nmpc captures momentum-shaping intent
-        # at the slow rate. At the WBC rate it doesn't see the
-        # joint-acceleration coupling M_fj @ ddq_j that the floating base
-        # generates from arm motion. Add
-        #     Δλ_stance = (J_c_stance[:, :6])^{-T} · M_fj · ddq_j_prev
-        # to the stance slot of b_wrench so the QP biases the contact
-        # toward producing the wrench the floating base actually needs to
-        # absorb the joint reaction. Gated on:
-        #   • cooperative_arms_mode (opt-in)
-        #   • not settle_mode (SS only, where exactly one EE is welded)
-        #   • exactly one active contact (the stance)
-        # ddq_j_prev introduces ~10 ms of delay; acceptable at 100 Hz.
-        if (cfg.stance_thrust_correction and not settle_mode
-                and J_contacts is not None and J_contacts.size > 0):
-            nc_active = J_contacts.shape[0] // 6
-            if nc_active == 1:
-                # Find the active contact slot j.
-                j_stance = next(
-                    (j for j in range(cfg.nc_max)
-                     if contact_config.active_contacts[j]),
-                    None)
-                if j_stance is not None:
-                    M_fj = H_robot[:6, 6:]                    # (6, nq)
-                    rhs_ff = M_fj @ self._ddq_j_prev          # (6,)
-                    J_c_ff = J_contacts[0:6, :6]              # (6, 6)
-                    try:
-                        delta_lambda = np.linalg.solve(J_c_ff.T, rhs_ff)
-                    except np.linalg.LinAlgError:
-                        delta_lambda = np.linalg.lstsq(
-                            J_c_ff.T, rhs_ff, rcond=1e-6)[0]
-                    b_wrench[j_stance * 6: (j_stance + 1) * 6] += delta_lambda
-                    self._stance_thrust_corr_calls += 1
-                    self._stance_thrust_corr_max_norm = max(
-                        self._stance_thrust_corr_max_norm,
-                        float(np.linalg.norm(delta_lambda)))
-
         # Chatter fix: settle-only α_wrench boost (strictly convex ⇒ unique
         # min-norm λ; breaks the period-2 active-set degeneracy). Localized to
         # settle_mode and only when the caller passes an override.
@@ -1187,21 +1119,6 @@ class WholeBodyQP:
                if (settle_mode and settle_alpha_wrench is not None)
                else cfg.alpha_wrench)
         qp.add_task(A_wrench, b_wrench, _aw, priority=4)
-
-        # --- Task 3d: explicit net-force (Σf = m·a_com) penalty (chatter fix) ---
-        # Principled settle regularization: penalize the NET contact force
-        # Σf = f1 + f2 directly, expressing "hold ⇒ no CoM acceleration". This
-        # removes the flat direction in the sign of Σf at the source (Σf=0 is
-        # the unique minimizer), so Σf≈0 by construction — not via min-norm
-        # selection of the Tikhonov. Settle + DS (two contacts) only; passed
-        # only from the inter-step loop.
-        if (settle_mode and settle_alpha_sigf is not None
-                and contact_config.nc == 2):
-            lo = idx['lambda'][0]
-            A_sigf = np.zeros((3, n))
-            A_sigf[:, lo + 0: lo + 3] = np.eye(3)     # f1
-            A_sigf[:, lo + 6: lo + 9] = np.eye(3)     # f2  ⇒ A·z = f1 + f2 = Σf
-            qp.add_task(A_sigf, np.zeros(3), settle_alpha_sigf, priority=4)
 
         # --- Task 3c: DS internal-stress regularization ---
         # In DS both grippers are welded → contact-wrench space is 12-D
@@ -1243,24 +1160,6 @@ class WholeBodyQP:
             b_lint = np.zeros(12)
             qp.add_task(A_lint, b_lint,
                         cfg.alpha_lambda_int, priority=4)
-
-        # --- Task 3b: Reaction null-space (minimize base disturbance from swing arm) ---
-        # Penalizes ||H_bt @ qdd_swing||² where H_bt is the base-swing coupling.
-        # This makes the QP prefer swing arm motions that don't torque the base.
-        if (cfg.alpha_reaction > 0 and H_base_swing is not None
-                and swing_v_slice is not None):
-            n_sw = swing_v_slice.stop - swing_v_slice.start
-            # Map swing arm qdd to base reaction: tau_base = H_bt @ qdd_swing
-            # In the QP, qdd_swing is part of the qdd block.
-            # qdd indices in z: idx['qdd'][0] + (swing_v_slice.start - 6)
-            # because qdd block starts after qdd_t(6), and swing_v_slice
-            # is in velocity space (starting from 6 for first arm joint).
-            sw_offset = swing_v_slice.start - 6  # offset within qdd block
-            A_react = np.zeros((6, n))
-            A_react[:, idx['qdd'][0] + sw_offset:
-                       idx['qdd'][0] + sw_offset + n_sw] = H_base_swing
-            b_react = np.zeros(6)
-            qp.add_task(A_react, b_react, cfg.alpha_reaction, priority=4)
 
         # --- Task 4: Joint torque minimization ---
         A_torque = np.zeros((nq, n))
@@ -1335,11 +1234,6 @@ class WholeBodyQP:
             }
         else:
             self.last_torso_debug = None
-
-        # Cache joint qdd for next-cycle stance-thrust correction.
-        # Updated unconditionally (cheap); the read site is gated by
-        # cooperative_arms_mode + not settle_mode + nc_active == 1.
-        self._ddq_j_prev = qdd_opt.copy()
 
         return qdd_t_opt, qdd_opt, lambda_opt, tau_q_opt, info
 

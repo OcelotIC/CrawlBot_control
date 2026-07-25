@@ -165,13 +165,6 @@ class SimConfig:
     # Applied only in _run_ds_passivity_loop (SS and the _step DWELL untouched).
     interstep_settle_alpha_wrench: float = 0.0
 
-    # Chatter fix (J2, principled): explicit penalty α_Σf·‖Σf‖² on the net
-    # contact force Σf=f1+f2=m·a_com in the inter-step DS settle QP. Expresses
-    # "hold ⇒ no CoM acceleration" and removes the flat direction in the Σf
-    # sign BY CONSTRUCTION (vs the Tikhonov ‖λ‖², which only recovers Σf≈0
-    # because the two vertices are A≈−B). 0.0 ⇒ off (byte-identical). DS-settle
-    # only; passed only from _run_ds_passivity_loop.
-    interstep_settle_alpha_sigf: float = 0.0
 
     # When True, the gait-phase loop breaks out of the multi-step
     # traversal as soon as a step ABORTs (dock_timeout or
@@ -217,7 +210,6 @@ class SimConfig:
     # joint-acceleration coupling at the contact; in practice it
     # regressed step 0 to TIMEOUT 12.1 mm. Kept available behind this
     # flag for future investigation.
-    stance_thrust_correction: bool = False
 
     # ── Option D: torso linear soft tube ────────────────────────
     # When r_tube > 0, the WBC torso P1 task is split:
@@ -330,7 +322,6 @@ class SimConfig:
     ss_alpha_ee: float = 1e3       # CANONICAL-2p5 / Add-5 freeze (was 3e3)
     ss_alpha_posture: float = 2e1
     ss_alpha_wrench: float = 1.0   # regulariser-floor tier (Add-5 freeze; was 1e-2). Keep ≤1: 1e2 penalised contact forces (the only actuation path through the stance weld) and attenuated the torso task 7x (see scripts/test_qp_tracking.py)
-    ss_alpha_reaction: float = 0.0   # Reaction null-space (0 = disabled)
     ss_alpha_lambda_int: float = 0.0  # Internal-stress regularization on
     # the welded-loop λ in DS (both contacts active). No effect in SS
     # (single contact has no internal-stress null space). 0 ⇒ legacy.

@@ -440,7 +440,7 @@ class SimulationLoop:
         # bring the EE to zero velocity at the target without gain ramps.
         self.qp_ss = self._build_qp(
             cfg.ss_alpha_com, cfg.ss_alpha_torso, cfg.ss_alpha_ee,
-            cfg.ss_alpha_posture, cfg.ss_alpha_wrench, cfg.ss_alpha_reaction,
+            cfg.ss_alpha_posture, cfg.ss_alpha_wrench,
             cfg.ss_Kp_com, cfg.ss_Kd_com,
             cfg.ss_Kp_torso, cfg.ss_Kd_torso,
             cfg.ss_Kp_ee, cfg.ss_Kd_ee,
@@ -793,10 +793,7 @@ class SimulationLoop:
                     passivity_active=True,
                     settle_alpha_wrench=(cfg.interstep_settle_alpha_wrench
                                          if cfg.interstep_settle_alpha_wrench > 0
-                                         else None),
-                    settle_alpha_sigf=(cfg.interstep_settle_alpha_sigf
-                                       if cfg.interstep_settle_alpha_sigf > 0
-                                       else None))
+                                         else None))
                 tau = np.clip(tau, -cfg.tau_max, cfg.tau_max)
             except Exception:
                 tau = -fallback_Kd * rs.dq_joints
@@ -1133,7 +1130,7 @@ class SimulationLoop:
         # Energy / passivity
         log.T_kinetic.append(0.5 * float(rs.v @ rs.H @ rs.v))
 
-    def _build_qp(self, ac, at, ae, ap, aw, ar_react,
+    def _build_qp(self, ac, at, ae, ap, aw,
                    kpc, kdc, kpt, kdt, kpe, kde,
                    kpe_ang=5.0, kde_ang=3.0):
         cfg = self.cfg
@@ -1147,7 +1144,6 @@ class SimulationLoop:
             alpha_torso=at,
             alpha_ee=ae,
             alpha_posture=ap, alpha_wrench=aw,
-            alpha_reaction=ar_react,
             # CANONICAL-2p5 / Add-5 freeze: torque-min must stay ≳5× the
             # accel-reg floor or SS redundancy resolution degrades to a
             # step-0 dock timeout (PHASE_COPRIORITY_1000 Addendum 5).
@@ -1194,7 +1190,7 @@ class SimulationLoop:
             ss_alpha_tl_weak=cfg.ss_alpha_tl_weak,
             ss_two_task_mode=cfg.ss_two_task_mode,
             alpha_torso_pose=cfg.alpha_torso_pose,
-            stance_thrust_correction=cfg.stance_thrust_correction)
+            )
         qp = WholeBodyQP(c)
         qp.set_nominal_posture(self.q_dock_init[self.robot.joints_q_slice])
         return qp
@@ -3030,11 +3026,6 @@ class SimulationLoop:
                               v_ee_ref=np.concatenate([sr.v_ee, sr.omega_ee]),
                               a_ee_ff=np.concatenate([sr.a_ee, sr.alpha_ee]))
 
-            # Reaction null-space: coupling block H_base ← swing_arm
-            sw_slice = (self.robot.arm_b_v_slice if swing_arm == 'b'
-                        else self.robot.arm_a_v_slice)
-            H_bs = rs.H[:6, sw_slice]
-
             # M2: enable passivity inequality during DS (settling) when the
             # reworked task stack is active. settle_mode already bypasses
             # torso/EE tasks; passivity just adds dq^T*tau_q + 2α*T ≤ 0.
@@ -3086,7 +3077,6 @@ class SimulationLoop:
                     hw_current=hw,
                     hw_min=-cfg.hw_qp_tight, hw_max=cfg.hw_qp_tight,
                     r_com=rs.r_com, L_com_current=rs.L_com,
-                    H_base_swing=H_bs, swing_v_slice=sw_slice,
                     settle_mode=settle_mode,
                     passivity_active=passivity_active,
                     ds_centroidal_active=ds_centroidal_active,
