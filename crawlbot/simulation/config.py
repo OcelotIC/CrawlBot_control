@@ -316,7 +316,6 @@ class SimConfig:
     # task tracks the moving target; the torso-ori task holds; the posture
     # task holds q_nominal. 0.0 = hold (default; unchanged). >0 exercises
     # the moving-CoM-under-strict-passivity conflict (J2 #2).
-    ds_mobile_com_magnitude: float = 0.0
 
     # Dock-floor passivity audit. ────────────────────────────────────
     # The SS convergence-hold window (the last-mm dock close) runs
@@ -417,7 +416,6 @@ class SimConfig:
     # which matches reality (live arm joints) AND has no base-position
     # feedback, so F-SAT becomes unnecessary. Default False = legacy
     # world-frame delta (bit-identical ablation).
-    use_local_delta_mapping: bool = False
 
     # ── M7 Manipulability-IK-1: trajectory-aware IK (Candidate 1) ──
     # When True, sim_loop builds an additional torso_map_traj dict

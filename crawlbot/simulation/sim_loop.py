@@ -2090,39 +2090,12 @@ class SimulationLoop:
                             self.mj_data.qpos, self.mj_data.qvel)
                         rs_d = self.robot.update(pq_d, pv_d)
                         t_dwell_end = t + _dwell_target
-                        if cfg.ds_mobile_com_magnitude > 0.0:
-                            # α (J2 #2): CoM-mobile DS. Translate the CoM toward
-                            # the next swing arm's target anchor (held ori +
-                            # posture) via the existing trajectory machinery —
-                            # NOT a mode. set_hold is the degenerate constant
-                            # case; here the CoM content is non-constant.
-                            p0 = rs_d.oMf_torso.translation.copy()
-                            R0 = rs_d.oMf_torso.rotation.copy()
-                            com0 = rs_d.r_com.copy()
-                            anchors = (self.sched.anchors_a if swing_arm == 'a'
-                                       else self.sched.anchors_b)
-                            anchor_next = np.asarray(anchors[target_idx],
-                                                     dtype=float)
-                            dirvec = anchor_next - com0
-                            nrm = float(np.linalg.norm(dirvec))
-                            offset = (cfg.ds_mobile_com_magnitude * dirvec / nrm
-                                      if nrm > 1e-6 else np.zeros(3))
-                            # CoM + torso position translate by `offset`
-                            # (constant δ_com ⇒ r_com(t)=p(t)+R·δ translates);
-                            # orientation held at global R_flat (both waypoints).
-                            self.torso_planner.set_from_waypoints(
-                                t, t_dwell_end,
-                                [(p0, self._R_torso_flat),
-                                 (p0 + offset, self._R_torso_flat)],
-                                [com0, com0 + offset])
-                            if verbose:
-                                print(f"  DS-mobile: CoM +{nrm and cfg.ds_mobile_com_magnitude:.3f}m "
-                                      f"toward anchor {swing_arm}{target_idx}")
-                        else:
-                            self.torso_planner.set_hold(
-                                rs_d.oMf_torso.translation.copy(),
-                                self._R_torso_flat.copy(),
-                                r_com=rs_d.r_com.copy())
+                        # CLEANUP-14: ds_mobile_com_magnitude was 0.0 on the canonical;
+                        # the CoM-mobile DS variant never ran. Hold the welded state.
+                        self.torso_planner.set_hold(
+                            rs_d.oMf_torso.translation.copy(),
+                            self._R_torso_flat.copy(),
+                            r_com=rs_d.r_com.copy())
                         # Use stance pair from the upcoming SS phase as the
                         # contact config (both arms welded → DOUBLE).
                         last_sa_d = stance_a
@@ -2851,41 +2824,21 @@ class SimulationLoop:
                 # smoothly at WBC rate via the existing interpolation.
                 ratio = self.mapping.ratio
                 m_b = self.mapping.m_b
-                if cfg.use_local_delta_mapping:
-                    # Loop-free: r_b_ref = r_com_ref - D_local(q)/m_total.
-                    # D_local is base-position invariant -> no mapping->q
-                    # feedback even with live q (and no q_planned mismatch).
-                    # Computed every WBC tick (NOT F-RATE cached): the
-                    # 10Hz caching existed only to break the base-position
-                    # feedback loop, which D_local does not have. Caching
-                    # would instead STEP D_local at NMPC boundaries and
-                    # re-introduce reference jitter.
-                    m_total = self.mapping.m_total
-                    _delta_q = np.asarray(
-                        self.mapping.compute_delta_local(rs.q), dtype=float)
-                    _delta_dot = np.asarray(
-                        self.mapping.compute_delta_local_dot(rs.q, rs.v),
-                        dtype=float)
-                    # Keep the telemetry cache vars populated (the block
-                    # below copies self._mapping_cache_delta).
-                    self._mapping_cache_delta = _delta_q.copy()
-                    self._mapping_cache_delta_dot = _delta_dot.copy()
-                    r_b_ref_m = rp_interp - _delta_q / m_total
-                    v_b_ref_m = vp_interp - _delta_dot / m_total
-                    a_b_ff_m = af_for_mapping
-                else:
-                    if qs == 0 or self._mapping_cache_delta is None:
-                        self._mapping_cache_delta = np.asarray(
-                            self.mapping.compute_delta(rs.q),
-                            dtype=float).copy()
-                        self._mapping_cache_delta_dot = np.asarray(
-                            self.mapping.compute_delta_dot(rs.q, rs.v),
-                            dtype=float).copy()
-                    _delta_q = self._mapping_cache_delta
-                    _delta_dot = self._mapping_cache_delta_dot
-                    r_b_ref_m = ratio * rp_interp - _delta_q / m_b
-                    v_b_ref_m = ratio * vp_interp - _delta_dot / m_b
-                    a_b_ff_m = ratio * af_for_mapping
+                # CLEANUP-14: use_local_delta_mapping was False on the canonical, so
+                # only the cached-delta path below ever ran. The loop-free D_local
+                # variant and its flag were removed.
+                if qs == 0 or self._mapping_cache_delta is None:
+                    self._mapping_cache_delta = np.asarray(
+                        self.mapping.compute_delta(rs.q),
+                        dtype=float).copy()
+                    self._mapping_cache_delta_dot = np.asarray(
+                        self.mapping.compute_delta_dot(rs.q, rs.v),
+                        dtype=float).copy()
+                _delta_q = self._mapping_cache_delta
+                _delta_dot = self._mapping_cache_delta_dot
+                r_b_ref_m = ratio * rp_interp - _delta_q / m_b
+                v_b_ref_m = ratio * vp_interp - _delta_dot / m_b
+                a_b_ff_m = ratio * af_for_mapping
                 # F-SAT: cap the per-WBC-tick r_b_ref increment at the
                 # *planned* torso-reference velocity (|v_b_ref_m|, already
                 # feasibility-bounded by the pre-planner CoM trajectory)
@@ -3021,10 +2974,6 @@ class SimulationLoop:
             # NMPC envelope path constraint enforces). A pre-solve scalar that
             # opens the strict passivity RHS only by the planned envelope
             # headroom. β=0 ⇒ None ⇒ strict (byte-identical).
-            # Piste-A envelope-coupled passivity budget removed in CLEANUP-13:
-            # ds_passivity_beta is 0.0 on the canonical, so this stayed None
-            # and the QP always saw the strict passivity RHS.
-            _pisteA_W = None
             try:
                 qdd_t_qp, qdd_qp, lambda_qp_sol, tau, _ = qp.solve(
                     dq_t=rs.dq_torso,
@@ -3040,7 +2989,8 @@ class SimulationLoop:
                     settle_mode=settle_mode,
                     passivity_active=passivity_active,
                     ds_centroidal_active=ds_centroidal_active,
-                    passivity_W_budget=_pisteA_W,
+                    # strict passivity RHS (the Piste-A budget was removed)
+                    passivity_W_budget=None,
                     **tkw, **ek)
             except Exception as _qp_exc:
                 # Surface QP failures (silent swallow -> zero torque is
@@ -3061,38 +3011,6 @@ class SimulationLoop:
             #               (→ τ_w_max ⇒ envelope binding),
             #   com_err    = ‖r_com − cref_r‖  (tracking),
             #   qp_ok / nmpc_status  (feasibility).
-            if (cfg.ds_mobile_com_magnitude > 0.0 and settle_mode
-                    and ds_centroidal_active):
-                dqj = rs.dq_joints
-                T_kin = 0.5 * float(dqj @ rs.H[6:, 6:] @ dqj)
-                pass_resid = float(dqj @ tau + 2.0 * cfg.alpha_passivity * T_kin)
-                lam = np.asarray(lambda_qp_sol, dtype=float)
-                rCa = np.asarray(self.sched.anchors_a[stance_a], dtype=float)
-                rCb = np.asarray(self.sched.anchors_b[stance_b], dtype=float)
-                Hdot = (np.cross(rCa, lam[0:3]) + lam[3:6]
-                        + np.cross(rCb, lam[6:9]) + lam[9:12])
-                # Next swing arm's Jacobian manipulability (byproduct: does
-                # "rapprocher" improve conditioning?). Arm-block of the tool
-                # Jacobian; sqrt(det(J Jᵀ)).
-                J_sw = (np.asarray(rs.J_tool_a) if swing_arm == 'a'
-                        else np.asarray(rs.J_tool_b))
-                sl_sw = (self.robot.arm_a_v_slice if swing_arm == 'a'
-                         else self.robot.arm_b_v_slice)
-                J_arm = J_sw[:, sl_sw]
-                JJt = J_arm @ J_arm.T
-                manip = float(np.sqrt(max(np.linalg.det(JJt), 0.0)))
-                log.ds_mobile_trace.append({
-                    't': round(float(t), 3),
-                    'com_err': float(np.linalg.norm(
-                        rs.r_com - np.asarray(cref_r, dtype=float))),
-                    'pass_resid': pass_resid,
-                    'dq_tau': float(dqj @ tau),   # joint mech. power (>0 ⇒ +work)
-                    'W_budget': (float(_pisteA_W) if _pisteA_W is not None
-                                 else 0.0),       # Piste A per-tick budget
-                    'Hdot_inf': float(np.max(np.abs(Hdot))),
-                    'swing_manip': manip,
-                    'qp_ok': bool(qp_ok),
-                    'nmpc_status': int(nmpc_status_code)})
 
             # Dock-floor audit: per-SS-tick joint mechanical power + dock
             # distance, to confirm whether the arm does positive work

@@ -253,7 +253,7 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
          ss_kp_torso: float = 6.0, ss_kd_torso: float = 5.0,
          dock_twist_max: float = None, dock_gate_linear: bool = False,
          weld_radius: float = None,
-         ds_mobile_com_magnitude: float = None, dt_ds: float = None,
+         dt_ds: float = None,
          dock_hold_passivity_on: bool = False, passivity_W_budget: float = None,
          log_dock_work: bool = False,
          qp_envelope_exact: bool = False,
@@ -465,12 +465,9 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     # None ⇒ config weld_radius (0.005 m).
     if weld_radius is not None:
         cfg.weld_radius = float(weld_radius)
-    # α (J2 #2): CoM-mobile DS. dt_ds lengthens the DS so the DWELL fires;
-    # ds_mobile_com_magnitude translates the CoM toward the next anchor.
+    # dt_ds lengthens the DS so the DWELL fires.
     if dt_ds is not None:
         cfg.dt_ds = float(dt_ds)
-    if ds_mobile_com_magnitude is not None:
-        cfg.ds_mobile_com_magnitude = float(ds_mobile_com_magnitude)
     # Dock-floor passivity audit knobs.
     cfg.dock_hold_passivity_on = bool(dock_hold_passivity_on)
     cfg.log_dock_work = bool(log_dock_work)
@@ -745,9 +742,6 @@ if __name__ == '__main__':
                         help='Fix C ε_pos: dock position tolerance [m] '
                              '(default = config 0.005). The gap-couple knob.')
     # α (J2 #2): CoM-mobile DS.
-    parser.add_argument('--ds-mobile-com-magnitude', type=float, default=None,
-                        help='α (J2 #2): translate the CoM this far [m] toward '
-                             'the next anchor during the DWELL (0=hold).')
     parser.add_argument('--dt-ds', type=float, default=None,
                         help='α (J2 #2): DS phase duration [s] (default 0.5; '
                              '>~1.5 triggers the DWELL where moving-CoM runs).')
@@ -823,7 +817,6 @@ if __name__ == '__main__':
              dock_twist_max=args.dock_twist_max,
              dock_gate_linear=args.dock_gate_linear,
              weld_radius=args.weld_radius,
-             ds_mobile_com_magnitude=args.ds_mobile_com_magnitude,
              dt_ds=args.dt_ds,
              dock_hold_passivity_on=args.dock_hold_passivity_on,
              passivity_W_budget=args.passivity_w_budget,
