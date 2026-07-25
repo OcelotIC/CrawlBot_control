@@ -64,7 +64,6 @@ class SimConfig:
     gmo_d_contact: float = 0.005       # -> CONTACT [m] (matches weld_radius)
     gmo_d_reset: float = 0.030         # -> NO_CONTACT [m]
     gmo_debounce_count: int = 3        # -> CONFIRMED [cycles @ 100Hz = 30ms]
-    use_gmo_dock: bool = False          # False=legacy kinematic, True=GMO
 
     # ── Momentum constraints (NMPC + QP) ────────────────────────
     hw_init: np.ndarray = field(default_factory=lambda: np.zeros(3))
@@ -333,7 +332,6 @@ class SimConfig:
     # LOT A — per-tick DS passivity budget W_budget = β·α·max(0, τ_w,max −
     #   ‖Ḣ_s(lambda_ref)‖∞), using the NMPC-exact planned Ḣ_s. β (this knob)
     #   is dimensionless; β=0 ⇒ W_budget=0 ⇒ strict passivity (byte-identical).
-    ds_passivity_beta: float = 0.0
     # LOT B — FLAG 2: the QP momentum-rate envelope box uses the EXACT Ḣ_s
     #   (origin-referenced, |M_exact·λ|, M_exact = momentum map with levers
     #   from O_s) instead of the |M_λ·λ| proxy (lever-from-robot-CoM, which
@@ -509,7 +507,6 @@ class SimConfig:
     #   (a) T < T_settle, or
     #   (b) T stops decreasing (plateau detection), or
     #   (c) n_settle_max_steps reached (safety cap).
-    n_settle_damping_steps: int = 0         # stage 1: skipped — manipulability-optimized init places arms near weld equilibrium, no impulse to absorb; stage 2 passivity QP holds posture
     Kd_settle_damping: float = 20.0         # Nm·s/rad per joint (stage 1)
     n_settle_max_steps: int = 1000          # stage 2: safety cap
     settle_epsilon_v: float = 1e-3          # target ‖dq_full‖ bound [m/s]

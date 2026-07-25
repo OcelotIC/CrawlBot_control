@@ -256,7 +256,7 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
          ds_mobile_com_magnitude: float = None, dt_ds: float = None,
          dock_hold_passivity_on: bool = False, passivity_W_budget: float = None,
          log_dock_work: bool = False,
-         ds_passivity_beta: float = None, qp_envelope_exact: bool = False,
+         qp_envelope_exact: bool = False,
          aocs_active_in_interstep: bool = True,
          interstep_hw_refresh: bool = True,
          interstep_settle_alpha_wrench: float = 0.0,
@@ -477,8 +477,6 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     if passivity_W_budget is not None:
         cfg.passivity_W_budget = float(passivity_W_budget)
     # Piste A (J2 #3): envelope-coupled budget (β) + exact Ḣ_s box.
-    if ds_passivity_beta is not None:
-        cfg.ds_passivity_beta = float(ds_passivity_beta)
     cfg.qp_envelope_exact = bool(qp_envelope_exact)
     # Output-dir override (memo §7: new runs → new dirs; prior committed
     # baselines stay read-only). Accepts a name under results/ or an abs path.
@@ -763,9 +761,6 @@ if __name__ == '__main__':
     parser.add_argument('--log-dock-work', action='store_true',
                         help='dock-floor: trace per-SS-tick dqⱼᵀτ_q + d + passivity.')
     # Piste A (J2 #3).
-    parser.add_argument('--ds-passivity-beta', type=float, default=None,
-                        help='Piste A LOT A: β for the envelope-coupled passivity '
-                             'budget W=β·α·max(0,τ_w_max−‖Ḣ_s(λ_ref)‖∞). 0=strict.')
     parser.add_argument('--qp-envelope-exact', action='store_true',
                         help='Piste A LOT B (FLAG 2): exact origin-referenced Ḣ_s '
                              'envelope box (vs the |M_λ·λ| proxy).')
@@ -833,7 +828,6 @@ if __name__ == '__main__':
              dock_hold_passivity_on=args.dock_hold_passivity_on,
              passivity_W_budget=args.passivity_w_budget,
              log_dock_work=args.log_dock_work,
-             ds_passivity_beta=args.ds_passivity_beta,
              qp_envelope_exact=args.qp_envelope_exact,
              aocs_active_in_interstep=args.aocs_active_in_interstep,
              interstep_hw_refresh=args.interstep_hw_refresh,

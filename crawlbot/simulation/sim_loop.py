@@ -471,10 +471,9 @@ class SimulationLoop:
             debounce_count=cfg.gmo_debounce_count)
         self.gmo = GeneralizedMomentumObserver(obs_cfg)
         self.contact_sm = ContactStateMachine(obs_cfg)
-        self._contact_confirmed = False
 
         # ── Two-stage setup settling ──────────────────────────────────
-        # Stage 1: strong joint-velocity damping for n_settle_damping_steps
+        # Stage 1 (open-loop damping) removed - see _settle_setup.
         #          steps to absorb the weld activation impulse.
         # Stage 2: M2 QP with settle_mode + passivity_active, exit when
         #          T_kin < 0.5·epsilon_v²·lambda_min(H).
@@ -487,7 +486,6 @@ class SimulationLoop:
         print(f"  Robot mass:     {rs0.total_mass:.1f} kg")
         print(f"  RWA model:      {'YES (3 wheels)' if self.has_rwa else 'NO'}")
         print(f"  AOCS estimator: {'H_{r/O}' if cfg.aocs_use_H_estimator else 'L_dot (legacy)'}")
-        print(f"  GMO dock:       {'YES' if cfg.use_gmo_dock else 'NO (legacy kinematic)'}")
         print(f"  NMPC:           {1/cfg.dt_nmpc:.0f} Hz, N={cfg.nmpc_N}")
         print(f"  QP:             {1/cfg.dt_qp:.0f} Hz, {self.n_qp_per_nmpc} per NMPC")
         print(f"  Gait:           {n_steps} step(s), "
@@ -512,7 +510,6 @@ class SimulationLoop:
         """Two-stage setup-phase settling.
 
         Stage 1 — weld-snap absorption (open-loop damping):
-            Apply tau_j = -Kd * dq_j for n_settle_damping_steps steps.
             No QP. Purpose: dissipate the large constraint-force impulse
             from the weld activation (~300 N) which the QP cannot handle
             gracefully because the initial constraint violation is large.
@@ -531,7 +528,6 @@ class SimulationLoop:
             'initial_vcom', 'initial_Lcom'
         """
         cfg = self.cfg
-        n_j = self.robot.n_joints
         dt = cfg.dt_qp
 
         log = {
@@ -552,24 +548,11 @@ class SimulationLoop:
         T_initial = _kinetic_energy(rs0.v, rs0.H)
         log['T_start'] = T_initial
 
-        # ── Stage 1: open-loop damping ────────────────────────────────
-        Kd = cfg.Kd_settle_damping
-        for k in range(cfg.n_settle_damping_steps):
-            dq_j = self.mj_data.qvel[
-                -n_j - (3 if self.has_rwa else 0):
-                None if not self.has_rwa else -3]
-            tau_damp = np.clip(-Kd * dq_j, -cfg.tau_max, cfg.tau_max)
-            self.mj_data.ctrl[:n_j] = tau_damp
-            mujoco.mj_step(self.mj_model, self.mj_data)
-            log['stage1_steps'] += 1
-
-            if k % 5 == 0:
-                pq, pv = mujoco_to_pinocchio(
-                    self.mj_data.qpos, self.mj_data.qvel)
-                rs = self.robot.update(pq, pv)
-                T = _kinetic_energy(rs.v, rs.H)
-                log['t_log'].append(k * dt)
-                log['T_log'].append(T)
+        # Stage 1 (open-loop joint-velocity damping) was removed in
+        # CLEANUP-13: n_settle_damping_steps is 0 on the canonical, so the
+        # loop never executed. The manipulability-optimized init places the
+        # arms near weld equilibrium (no impulse to absorb) and the stage-2
+        # passivity QP holds posture.
 
         # ── Stage 2: passivity-constrained QP ─────────────────────────
         # Delegated to the shared _run_ds_passivity_loop() helper so the
@@ -1323,10 +1306,7 @@ class SimulationLoop:
             vel_ok = twist_norm < cfg.dock_twist_max
         else:
             vel_ok = self._gripper_speed(swing_arm) < cfg.dock_vel_max
-        if cfg.use_gmo_dock:
-            docked = self._contact_confirmed and ori_ok and vel_ok
-        else:
-            docked = pos_ok and ori_ok and vel_ok
+        docked = pos_ok and ori_ok and vel_ok
         if log is not None:
             log.dock_gate_trace.append({
                 't': round(float(t), 3), 'step': int(step_idx),
@@ -2222,7 +2202,6 @@ class SimulationLoop:
                     rs_r = self.robot.update(pq_r, pv_r)
                     self.gmo.reset(rs_r.H, rs_r.v)
                     self.contact_sm.reset()
-                    self._contact_confirmed = False
                     _, _, oMf_release = self._get_ee_data(rs_r, swing_arm)
                     self.swing_planner.set_swing_orientation(
                         oMf_release.rotation)
@@ -2298,8 +2277,7 @@ class SimulationLoop:
                                     'ori_deg': round(ori_err_deg, 2),
                                     'twist': round(twist_norm, 6),
                                     'arm': swing_arm, 'anchor': target_idx,
-                                    'method': ('gmo' if cfg.use_gmo_dock
-                                               else 'kinematic')})
+                                    'method': 'kinematic'})
                                 self._capture_snapshot(
                                     log, t, f'dock_step{step_idx}')
                                 if verbose:
@@ -2348,8 +2326,7 @@ class SimulationLoop:
                                     'ori_deg': round(ori_err_deg, 2),
                                     'twist': round(twist_norm, 6),
                                     'arm': swing_arm, 'anchor': target_idx,
-                                    'method': ('gmo' if cfg.use_gmo_dock
-                                               else 'kinematic')})
+                                    'method': 'kinematic'})
                                 self._capture_snapshot(
                                     log, t, f'dock_step{step_idx}')
                                 if verbose:
@@ -3044,17 +3021,10 @@ class SimulationLoop:
             # NMPC envelope path constraint enforces). A pre-solve scalar that
             # opens the strict passivity RHS only by the planned envelope
             # headroom. β=0 ⇒ None ⇒ strict (byte-identical).
+            # Piste-A envelope-coupled passivity budget removed in CLEANUP-13:
+            # ds_passivity_beta is 0.0 on the canonical, so this stayed None
+            # and the QP always saw the strict passivity RHS.
             _pisteA_W = None
-            if cfg.ds_passivity_beta > 0.0 and passivity_active:
-                _lr = np.asarray(lr, dtype=float)
-                _rCa = np.asarray(self.sched.anchors_a[stance_a], dtype=float)
-                _rCb = np.asarray(self.sched.anchors_b[stance_b], dtype=float)
-                _Hs_plan = (np.cross(_rCa, _lr[0:3]) + _lr[3:6]
-                            + np.cross(_rCb, _lr[6:9]) + _lr[9:12])
-                _margin = max(0.0, cfg.tau_w_max
-                              - float(np.max(np.abs(_Hs_plan))))
-                _pisteA_W = (cfg.ds_passivity_beta * cfg.alpha_passivity
-                             * _margin)
             try:
                 qdd_t_qp, qdd_qp, lambda_qp_sol, tau, _ = qp.solve(
                     dq_t=rs.dq_torso,
@@ -3463,19 +3433,6 @@ class SimulationLoop:
             tau_applied[6:6 + self.robot.n_joints] = tau
             self.gmo.update(rs2.H, rs2.v, rs2.C_matrix, tau_applied)
 
-            # Contact state machine (EXT phase only)
-            # M7: GMO-based contact detection runs throughout SS (the
-            # EXT phase no longer exists; dock detection is continuous).
-            if phase == 'SS' and cfg.use_gmo_dock:
-                from crawlbot.estimation.contact_estimator import ContactState
-                d_gmo = self._gripper_distance(swing_arm, target_anchor)
-                sw_slice = (self.robot.arm_b_v_slice if swing_arm == 'b'
-                            else self.robot.arm_a_v_slice)
-                r_norm = self.gmo.swing_residual_norm(sw_slice)
-                cs = self.contact_sm.update(r_norm, d_gmo)
-                if cs == ContactState.CONFIRMED and not self._contact_confirmed:
-                    self._contact_confirmed = True
-
             if self.has_rwa:
                 hw = cfg.rwa_I_w * self.mj_data.qvel[6:9].copy()
             else:
@@ -3594,20 +3551,14 @@ class SimulationLoop:
             log.rw_speed.append(np.zeros(3))
             log.transport_term_mag.append(0.0)
 
-        # H_{r/O} estimator diagnostics
-        if self.has_rwa and cfg.aocs_use_H_estimator:
-            log.H_rO.append(self.H_estimator.H_rO.copy())
-            log.H_dot_est.append(self.H_estimator.H_dot.copy())
-            log.omega_struct.append(_omega_s_last.copy())
-            # MuJoCo ground truth: constraint torque on structure about O
-            mujoco.mj_forward(self.mj_model, self.mj_data)
-            log.qfrc_constraint_torque.append(
-                self.mj_data.qfrc_constraint[3:6].copy())
-        else:
-            log.H_rO.append(np.zeros(3))
-            log.H_dot_est.append(np.zeros(3))
-            log.omega_struct.append(np.zeros(3))
-            log.qfrc_constraint_torque.append(np.zeros(3))
+        # H_{r/O} estimator diagnostics — the estimator branch was removed in
+        # CLEANUP-13 (aocs_use_H_estimator is False on the canonical, so only
+        # the zero-fill path ever ran). The channels stay so the log schema is
+        # unchanged.
+        log.H_rO.append(np.zeros(3))
+        log.H_dot_est.append(np.zeros(3))
+        log.omega_struct.append(np.zeros(3))
+        log.qfrc_constraint_torque.append(np.zeros(3))
         log.tau.append(tau_last.copy())
         log.tau_max_joint.append(float(np.max(np.abs(tau_last))))
         log.struct_pos.append(self.mj_data.qpos[0:3].copy())
