@@ -43,10 +43,10 @@ Reference:
 import numpy as np
 import pinocchio as pin
 from dataclasses import dataclass, field
-from typing import Optional, Tuple, Dict, Any
+from typing import Optional, Tuple, Dict
 
 from .hierarchical_qp import HierarchicalQP, QPSolveInfo
-from .contact_phase import ContactConfig, ContactPhase, skew, compute_momentum_map
+from .contact_phase import ContactConfig, skew, compute_momentum_map
 
 
 @dataclass
@@ -248,14 +248,6 @@ class WholeBodyQP:
         self._q_nominal = np.zeros(nq)
 
         # Option D tube telemetry (populated by solve() when r_tube > 0).
-        # _tube_total_calls    : total QP solves with torso task active
-        # _tube_violations     : solves where ||e_lin|| > r_tube (linear active)
-        # _tube_max_e_lin_m    : max ||e_lin|| observed [m]
-        # _tube_last_violated  : last solve outcome (True if violated)
-        self._tube_total_calls: int = 0
-        self._tube_violations: int = 0
-        self._tube_max_e_lin_m: float = 0.0
-        self._tube_last_violated: bool = False
 
         # Stance-thrust correction state (cooperative-arms mode).
 
@@ -441,8 +433,6 @@ class WholeBodyQP:
         if J_contacts is not None and J_contacts.size > 0:
             # J_contacts is (6·nc_active, n_robot) for active contacts
             # We need to place it in the right columns of the full λ vector
-            nc_active = J_contacts.shape[0] // 6
-            col_offset = 0
             contact_idx = 0
             for j in range(cfg.nc_max):
                 if contact_config.active_contacts[j]:
@@ -690,309 +680,15 @@ class WholeBodyQP:
                         cfg.Kp_posture * (self._q_nominal - q) - cfg.Kd_posture * dq,
                         cfg.alpha_posture, priority=3)
 
-        # --- Task 1: Legacy CoM tracking (skipped in M2 stack) ---
-        if (cfg.alpha_com > 0 and not settle_mode and not cfg.use_m2_stack
-                and not _two_task):
-            qp.add_task(A_com, b_com, cfg.alpha_com, priority=1)
-
-        # --- Task 1b: Torso 6D tracking (primary P1 task in M2 stack) ---
-        # Controls both position and orientation of the torso body frame.
-        # a_torso_des = [a_lin_ff + Kp_lin(p_ref - p) + Kd_lin(v_ref - v);
-        #                a_ang_ff + Kp_ang(log3(R^T R_ref)) + Kd_ang(ω_ref - ω)]
-        torso_task_active = (
-            (cfg.alpha_torso > 0 or cfg.use_m2_stack)
-            and J_torso is not None
-            and p_torso_ref is not None
-            and not settle_mode
-            and not _two_task
-        )
-        A_torso = None
-        b_torso = None
-        # Initialized here (not only inside the torso block) so the
-        # cooperative-linear references at the P2 / posture stages are
-        # always bound — when torso_task_active is False (settle_mode,
-        # e.g. the terminal DS after the last dock) the block below is
-        # skipped, and these stayed undefined -> UnboundLocalError.
-        _coop_A_lin = None
-        _coop_b_lin = None
-        if torso_task_active:
-            Kp_t = np.diag(cfg.Kp_torso)   # (6,6)
-            Kd_t = np.diag(cfg.Kd_torso)   # (6,6)
-
-            v_torso_actual = J_torso @ dq_robot  # (6,): [lin(3), ang(3)]
-            p_t = p_torso if p_torso is not None else np.zeros(3)
-            e_pos = p_torso_ref - p_t
-            R_t = R_torso if R_torso is not None else np.eye(3)
-            R_ref_t = R_torso_ref if R_torso_ref is not None else np.eye(3)
-            e_ori = pin.log3(R_t.T @ R_ref_t)
-            e_6d = np.concatenate([e_pos, e_ori])
-
-            v_ref_t = v_torso_ref if v_torso_ref is not None else np.zeros(6)
-            a_ff_t = a_torso_ff if a_torso_ff is not None else np.zeros(6)
-            a_torso_des = a_ff_t + Kp_t @ e_6d + Kd_t @ (v_ref_t - v_torso_actual)
-
-            jdq = Jdot_dq_torso if Jdot_dq_torso is not None else np.zeros(6)
-            A_torso_full = np.zeros((6, n))
-            A_torso_full[:, idx['qdd_t'][0]: idx['qdd_t'][1]] = J_torso[:, :6]
-            A_torso_full[:, idx['qdd'][0]: idx['qdd'][1]] = J_torso[:, 6:]
-            b_torso_full = a_torso_des - jdq
-
-            # Effective weight in M2 stack (sim_loop sets alpha_torso via config;
-            # in pure M2 testing, fall back to 1e3 if user left alpha_torso=0).
-            w_torso = cfg.alpha_torso if cfg.alpha_torso > 0 else 1e3
-
-            # ── Cooperative-arms mode: split angular/linear ───────────
-            # Angular goes to P1 at alpha_torso_ang (strict equality
-            # strength). Linear is stashed and added later as a P2
-            # weighted-LS co-contributor with EE (same null-space
-            # projection N_torso_ang). The "effective" A_torso /
-            # b_torso / J_torso_eff used downstream collapse to the
-            # angular 3D subset — matching the inside-tube branch.
-            # Stance-arm thrust still flows passively via the dynamics
-            # equality (no explicit cost on stance thrust).
-            #
-            # In settle_mode the EE task is dropped (DS memo §5), so the
-            # angular/linear split has no co-equal partner. Fall through
-            # to the legacy full-6D-at-P1 branch instead — that is the
-            # actual "torso 6D as the only task" DS architecture.
-            _coop_A_lin = None
-            _coop_b_lin = None
-            if cfg.cooperative_arms_mode and not settle_mode:
-                A_torso_ang = A_torso_full[3:, :]
-                b_torso_ang = b_torso_full[3:]
-                _coop_A_lin = A_torso_full[:3, :]
-                _coop_b_lin = b_torso_full[:3]
-                # P1 — angular only, strict-equality strength
-                qp.add_task(A_torso_ang, b_torso_ang,
-                            cfg.alpha_torso_ang, priority=1)
-                # Effective torso (used for N_torso, EE FF, residuals)
-                A_torso = A_torso_ang
-                b_torso = b_torso_ang
-                J_torso_eff = J_torso[3:, :]
-                a_torso_des_eff = a_torso_des[3:]
-                # Skip Option D and legacy paths.
-                continue_torso_block = False
-            else:
-                continue_torso_block = True
-
-            # ── Option D: torso linear soft tube ──────────────────────
-            # r_tube > 0 splits the 6D task: angular stays at full weight,
-            # linear is gated by ||p_torso - p_ref|| > r_tube with the
-            # violation-magnitude weight. Inside the tube the linear task
-            # is skipped entirely, and the effective A_torso (used for
-            # null-space projections and EE feedforward downstream)
-            # collapses to the 3 angular rows — freeing the linear-base
-            # DOFs for EE tracking.
-            r_tube = float(getattr(cfg, 'r_tube', 0.0))
-            if continue_torso_block and r_tube > 0.0:
-                e_lin_norm = float(np.linalg.norm(e_pos))
-                linear_active = (e_lin_norm > r_tube)
-
-                A_torso_ang = A_torso_full[3:, :]   # (3, n)
-                b_torso_ang = b_torso_full[3:]      # (3,)
-                A_torso_lin = A_torso_full[:3, :]   # (3, n)
-                b_torso_lin = b_torso_full[:3]      # (3,)
-
-                # Angular task is always enforced at the full weight.
-                qp.add_task(A_torso_ang, b_torso_ang, w_torso, priority=1)
-
-                if linear_active:
-                    # Outside the tube: add linear task with weight that
-                    # scales linearly with the squared-violation; this is
-                    # the QP-friendly surrogate for the user-specified
-                    # quartic cost w_tube * (|e|² - r²)² in position space.
-                    violation_sq = max(0.0, e_lin_norm ** 2 - r_tube ** 2)
-                    w_lin = float(cfg.w_tube_lin) * violation_sq
-                    if w_lin > 0.0:
-                        qp.add_task(
-                            A_torso_lin, b_torso_lin, w_lin, priority=1)
-                    # Effective task (for null-space / FF) stays 6D.
-                    A_torso = A_torso_full
-                    b_torso = b_torso_full
-                    J_torso_eff = J_torso
-                    a_torso_des_eff = a_torso_des
-                else:
-                    # Inside the tube: angular-only for projections / FF.
-                    A_torso = A_torso_ang
-                    b_torso = b_torso_ang
-                    J_torso_eff = J_torso[3:, :]
-                    a_torso_des_eff = a_torso_des[3:]
-
-                self._tube_total_calls += 1
-                if linear_active:
-                    self._tube_violations += 1
-                self._tube_max_e_lin_m = max(
-                    self._tube_max_e_lin_m, e_lin_norm)
-                self._tube_last_violated = bool(linear_active)
-            elif continue_torso_block:
-                # Legacy: full 6D equality task at P1.
-                qp.add_task(A_torso_full, b_torso_full, w_torso, priority=1)
-                A_torso = A_torso_full
-                b_torso = b_torso_full
-                J_torso_eff = J_torso
-                a_torso_des_eff = a_torso_des
-
-        # ──────────────────────────────────────────────────────────── #
-        # Null-space projectors used by the rest of the M2 stack
-        # N_torso   = I − A_torso^+ A_torso  (projects x into null(A_torso))
-        # N_torso_ee = N_torso · (I − (A_ee·N_torso)^+ (A_ee·N_torso))
-        #           (further projects out EE subspace so lower-priority
-        #           tasks don't interfere with either torso or EE)
-        # These are shared between the EE task (priority 2) and the
-        # posture task (priority 3). Under the M2 stack this gives
-        # geometric isolation regardless of the task weights, so the
-        # HierarchicalQP weight_ratio can stay at 1.
-        # ──────────────────────────────────────────────────────────── #
-        N_torso = None
-        A_torso_pinv = None
-        if cfg.use_m2_stack and A_torso is not None:
-            A_torso_pinv = np.linalg.pinv(A_torso, rcond=1e-8)
-            N_torso = np.eye(n) - A_torso_pinv @ A_torso
-
-        # --- Task 2: End-effector 6D tracking (swing arm, optional) ---
-        # In the M2 stack the EE task is projected into the null space of
-        # the torso task via N_torso = I - J_torso^+ @ J_torso. This ensures
-        # EE tracking does not interfere with torso tracking.
-        A_ee = None
-        b_ee = None
-        A_ee_proj = None
-        b_ee_res = None
-        # The EE 6D task is the SWING arm — meaningless during DS where
-        # both arms are welded. Drop entirely in settle_mode per the DS
-        # task-stack rework (DS_ACTIVE_CONTROL_MEMO_2026-06.md §5).
-        # Stage 2 of that memo's rollout: WBC task-stack swap only.
-        if (J_ee is not None and p_ee_ref is not None and not settle_mode
-                and not _two_task):
-            jdq_ee = Jdot_dq_ee if Jdot_dq_ee is not None else np.zeros(6)
-
-            v_ee_actual = J_ee @ dq_robot  # (6,): [lin(3), ang(3)]
-
-            p_ee_actual = p_ee if p_ee is not None else np.zeros(3)
-            e_pos_ee = p_ee_ref - p_ee_actual
-
-            R_ee_actual = R_ee if R_ee is not None else np.eye(3)
-            R_ee_ref_actual = R_ee_ref if R_ee_ref is not None else np.eye(3)
-            e_ori_ee = pin.log3(R_ee_actual.T @ R_ee_ref_actual)
-
-            e_6d_ee = np.concatenate([e_pos_ee, e_ori_ee])
-            Kp_ee_full = np.diag(np.concatenate([cfg.Kp_ee, cfg.Kp_ee_ang]))
-            Kd_ee_full = np.diag(np.concatenate([cfg.Kd_ee, cfg.Kd_ee_ang]))
-
-            v_ref_ee = v_ee_ref if v_ee_ref is not None else np.zeros(6)
-            a_ff_ee = a_ee_ff if a_ee_ff is not None else np.zeros(6)
-
-            # M7 v17: task-consistent feedforward. When the torso accelerates
-            # at a_torso_des, the EE sees J_ee · J_torso^+ · a_torso_des of
-            # induced motion through the shared floating base. Pre-add this
-            # to the EE feedforward so the PD doesn't have to chase the
-            # coupling reactively. J_torso^+ is the damped pseudo-inverse
-            # (rcond=1e-8), matching the one used for the null-space
-            # projector above.
-            if torso_task_active and J_torso is not None:
-                # Use the effective torso Jacobian / desired-acceleration
-                # (3D angular only when the Option D tube is satisfied;
-                # full 6D otherwise — matches the null-space projection).
-                J_torso_pinv = np.linalg.pinv(J_torso_eff, rcond=1e-8)
-                a_ff_ee = a_ff_ee + J_ee @ J_torso_pinv @ a_torso_des_eff
-
-            a_ee_des = a_ff_ee + Kp_ee_full @ e_6d_ee + Kd_ee_full @ (v_ref_ee - v_ee_actual)
-
-            A_ee = np.zeros((6, n))
-            A_ee[:, idx['qdd_t'][0]: idx['qdd_t'][1]] = J_ee[:, :6]
-            A_ee[:, idx['qdd'][0]: idx['qdd'][1]] = J_ee[:, 6:]
-            b_ee = a_ee_des - jdq_ee
-
-            # Null-space projection against the torso task: replace (A_ee,b_ee)
-            # with (N_torso @ A_ee, b_ee residual). Because we only scale
-            # the rows of the cost, the QP solution is equivalent to
-            # strict prioritization even when α_ee > α_torso.
-            apply_null_space = (
-                (cfg.use_m2_stack or cfg.ee_null_space)
-                and N_torso is not None
-            )
-            if apply_null_space:
-                A_ee_proj = A_ee @ N_torso
-                b_ee_res = b_ee - A_ee @ A_torso_pinv @ b_torso
-                qp.add_task(A_ee_proj, b_ee_res, cfg.alpha_ee, priority=2)
-            else:
-                A_ee_proj = A_ee
-                b_ee_res = b_ee
-                qp.add_task(A_ee, b_ee, cfg.alpha_ee, priority=2)
-        else:
-            A_ee_proj = None
-            b_ee_res = None
-
-        # --- Cooperative-arms P2: torso LINEAR (co-equal with EE) ---
-        # Projected through the SAME N_torso (= N_torso_ang) used for EE
-        # so the two P2 tasks share a null-space frame. The QP arbitrates
-        # between them via alpha_torso_lin vs alpha_ee — at the defaults
-        # (500 vs 3000) EE dominates 6:1 on body-linear motion, letting
-        # the swing arm pull the body forward when reach margin demands.
-        A_coop_lin_proj = None
-        b_coop_lin_res = None
-        if (cfg.cooperative_arms_mode and _coop_A_lin is not None
-                and N_torso is not None and A_torso_pinv is not None):
-            if cfg.ss_centroidal_momentum_task and not settle_mode:
-                # ── T-MOM v1 (memo SS_CENTROIDAL_MOMENTUM_TASK_2026-06 §2.1) ──
-                # The linear centroidal-momentum task REPLACES the torso-linear
-                # P2 channel. A_com/b_com (built above) is exactly that task in
-                # CoM-Jacobian form:  J_com·q̈ = a_com_des − J̇_com·q̇,  with
-                # J_com = [A_G]_lin/m and J̇_com·q̇ = [Ȧ_G]_lin·q̇/m, i.e.
-                # [A_G]_lin·q̈ + [Ȧ_G]_lin·q̇ = m·a_com_des up to the mass scalar
-                # (folded into α_mom). a_com_des = a_com_ff + Kp(r*−r̂) + Kd(v*−v̂)
-                # tracks the NMPC centroidal plan — no state-dependent reference
-                # (algebraic loop / F-SAT removed on this channel). Projected
-                # through the same N_torso (= N_torso_ang) as EE so the two P2
-                # tasks share a null-space frame.
-                A_mom_proj = A_com @ N_torso
-                b_mom_res = b_com - A_com @ A_torso_pinv @ b_torso
-                qp.add_task(A_mom_proj, b_mom_res,
-                            cfg.ss_alpha_mom, priority=2)
-                # Variant B: optional weak torso-linear regulariser (α_tl_weak>0
-                # ⇒ retain the quintic torso ref as a posture preference one
-                # order below α_mom). Variant A (default, α_tl_weak=0) leaves
-                # torso position a pure outcome of weld+P1+momentum+posture.
-                if cfg.ss_alpha_tl_weak > 0.0:
-                    A_coop_lin_proj = _coop_A_lin @ N_torso
-                    b_coop_lin_res = (_coop_b_lin
-                                      - _coop_A_lin @ A_torso_pinv @ b_torso)
-                    qp.add_task(A_coop_lin_proj, b_coop_lin_res,
-                                cfg.ss_alpha_tl_weak, priority=2)
-            else:
-                A_coop_lin_proj = _coop_A_lin @ N_torso
-                b_coop_lin_res = _coop_b_lin - _coop_A_lin @ A_torso_pinv @ b_torso
-                qp.add_task(A_coop_lin_proj, b_coop_lin_res,
-                            cfg.alpha_torso_lin, priority=2)
-
-        # --- Task 2b: Soft CoM residual (M2 stack only) ---
-        # Quadratic cost α_com_soft * ||J_com @ qdd - a_com_des||² with
-        # desired acceleration from NMPC ff + PD (NOT from the mapping).
-        # Weight is deliberately small (1-10) so it biases the residual
-        # null-space DOFs toward momentum-consistent trajectories
-        # without overriding the torso or EE tasks.
-        #
-        # With weight_ratio=1 the soft CoM is directly visible, and
-        # since J_com rows correlate with J_torso rows through the
-        # mass ratio, we null-space project it into N(A_torso) ∩ N(A_ee)
-        # — same as the posture task — so it never degrades the torso
-        # or EE targets.
-        if (cfg.use_m2_stack and cfg.alpha_com_soft > 0 and not settle_mode
-                and not _two_task):
-            if A_torso is not None:
-                if A_ee is not None:
-                    A_combo_com = np.vstack([A_torso, A_ee])
-                    b_combo_com = np.concatenate([b_torso, b_ee])
-                else:
-                    A_combo_com = A_torso
-                    b_combo_com = b_torso
-                A_combo_com_pinv = np.linalg.pinv(A_combo_com, rcond=1e-8)
-                N_com = np.eye(n) - A_combo_com_pinv @ A_combo_com
-                A_com_proj = A_com @ N_com
-                b_com_res = b_com - A_com @ A_combo_com_pinv @ b_combo_com
-                qp.add_task(A_com_proj, b_com_res,
-                            cfg.alpha_com_soft, priority=4)
-            else:
-                qp.add_task(A_com, b_com, cfg.alpha_com_soft, priority=4)
+        # NOTE: the legacy pre-two-task SS stack (legacy CoM task, torso 6-D
+        # P1 task, the cooperative angular/linear split, the Option D linear
+        # soft tube, the null-space-projected swing-EE task, the cooperative
+        # P2 torso-linear channel with T-MOM v1, and the soft-CoM residual)
+        # was removed in CLEANUP-6. On the frozen canonical config every one
+        # of those blocks was unreachable: in SS `_two_task` gates them off,
+        # and in DS `settle_mode` does. The surviving SS controller is the
+        # two-task stack above; DS is served by the centroidal-DS tasks and
+        # the settle task below.
 
         # --- Task 3: Posture regulation ---
         # q̈_posture = Kp_post (q_nom - q) + Kd_post (0 - dq)
@@ -1011,50 +707,16 @@ class WholeBodyQP:
             A_posture[:, idx['qdd'][0]: idx['qdd'][1]] = np.eye(nq)
             b_posture = qdd_posture
 
-            # M2: project posture into null(A_torso) ∩ null(A_ee) so
-            # that its contribution to q̈ perturbs NEITHER the torso
-            # task nor the EE task. This is what makes weight_ratio=1
-            # safe — task isolation is geometric, not via weight
-            # scaling.
-            #
-            #   A_combo = [A_torso; A_ee]
-            #   N_combo = I − A_combo^+ A_combo
-            #
-            # We also subtract the "particular solution" contribution
-            # so the posture residual is consistent with the torso / EE
-            # targets:
-            #   b_posture_res = b_posture − A_posture · A_combo^+ · b_combo
-            if cfg.use_m2_stack and A_torso is not None:
-                # Cooperative-arms: include A_torso_lin (the P2 linear task)
-                # in the combined null-space basis so posture doesn't fight
-                # either component of the split torso task. rcond=1e-4 on
-                # the combined 12×n pinv handles the wider conditioning of
-                # the stacked Jacobian (individual task pinvs above stay at
-                # the tighter rcond=1e-8).
-                rows = [A_torso]
-                rhs = [b_torso]
-                if (cfg.cooperative_arms_mode and _coop_A_lin is not None):
-                    rows.append(_coop_A_lin)
-                    rhs.append(_coop_b_lin)
-                if A_ee is not None:
-                    rows.append(A_ee)
-                    rhs.append(b_ee)
-                A_combo = np.vstack(rows)
-                b_combo = np.concatenate(rhs)
-                _rcond = 1e-4 if cfg.cooperative_arms_mode else 1e-8
-                A_combo_pinv = np.linalg.pinv(A_combo, rcond=_rcond)
-                N_combo = np.eye(n) - A_combo_pinv @ A_combo
-                A_posture_proj = A_posture @ N_combo
-                b_posture_res = b_posture - A_posture @ A_combo_pinv @ b_combo
-                _post_w = (cfg.ds_alpha_posture if _posture_in_ds
-                           else cfg.alpha_posture)
-                qp.add_task(A_posture_proj, b_posture_res,
-                            _post_w, priority=3)
-            else:
-                _post_w = (cfg.ds_alpha_posture if _posture_in_ds
-                           else cfg.alpha_posture)
-                qp.add_task(A_posture, b_posture,
-                            _post_w, priority=3)
+            # Posture is added unprojected. The M2 null-space projection
+            # against [A_torso; A_ee] was removed with the legacy SS stack:
+            # those task matrices only ever existed on the pre-two-task
+            # path, so on the canonical config the projected branch was
+            # unreachable (A_torso is None in DS and the two-task SS stack
+            # gates this whole block off).
+            _post_w = (cfg.ds_alpha_posture if _posture_in_ds
+                       else cfg.alpha_posture)
+            qp.add_task(A_posture, b_posture,
+                        _post_w, priority=3)
 
         # --- Task 3b: DS joint-space settle (damp all velocities to zero) ---
         # In settle mode, torso/CoM tasks are skipped (they conflict with
@@ -1217,23 +879,11 @@ class WholeBodyQP:
         except (KeyError, IndexError, ValueError):
             pass
 
-        # --- Debug capture: torso task pre- vs post-solve (M7 diagnosis) ---
-        if torso_task_active and A_torso is not None:
-            qdd_full = np.concatenate([qdd_t_opt, qdd_opt])
-            x_dd_torso_post = J_torso @ qdd_full
-            self.last_torso_debug = {
-                'a_torso_des_pre': a_torso_des.copy(),   # PD+ff target (6,)
-                'x_dd_torso_post': x_dd_torso_post.copy(),  # J_torso @ qdd_opt (6,)
-                'e_pos': e_pos.copy(), 'e_ori': e_ori.copy(),
-                'v_torso_actual': v_torso_actual.copy(),
-                'v_ref_t': v_ref_t.copy(),
-                'a_ff_t': a_ff_t.copy(),
-                'Kp_t_diag': cfg.Kp_torso.copy(),
-                'Kd_t_diag': cfg.Kd_torso.copy(),
-                'Jdot_dq_torso': jdq.copy(),
-            }
-        else:
-            self.last_torso_debug = None
+        # Torso-task debug capture removed with the legacy SS stack: every
+        # quantity it reported (a_torso_des, e_pos/e_ori, v_ref_t, a_ff_t)
+        # existed only on the pre-two-task path. Consumers read it via
+        # getattr(..., None), so leaving it None is compatible.
+        self.last_torso_debug = None
 
         return qdd_t_opt, qdd_opt, lambda_opt, tau_q_opt, info
 
