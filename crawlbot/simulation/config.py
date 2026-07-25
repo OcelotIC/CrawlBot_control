@@ -290,6 +290,17 @@ class SimConfig:
     nmpc_tau_max: float = 8.0
     nmpc_Wv: float = 10.0
     nmpc_p_max: float = 50.0      # Linear momentum bound [kg·m/s]
+    # Centroidal-NMPC cost weights (Eq. VI-E.17). These were
+    # CentroidalNMPCConfig defaults that sim_loop never overrode — i.e.
+    # canonical values living silently outside SimConfig (CLEANUP-2 finding
+    # F5, Rule 5). Hoisted verbatim: the numbers below ARE the frozen
+    # canonical ones, so the plant is unchanged.
+    nmpc_Wr: float = 100.0        # CoM position tracking (stage)
+    nmpc_Wu_f: float = 0.01       # contact-force regularization
+    nmpc_Wu_tau: float = 0.001    # contact-torque regularization
+    nmpc_Qf_r: float = 1000.0     # terminal CoM position
+    nmpc_Qf_v: float = 100.0      # terminal CoM velocity
+    nmpc_Qf_L: float = 10.0       # terminal L_com tracking
     t_settle_final: float = 20.0
     # Inter-step settle (between successive locomotion steps).
     # Spec §7.1.1 mandates an energy-based exit, not a fixed timer: after a

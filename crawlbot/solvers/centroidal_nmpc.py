@@ -7,7 +7,12 @@ trajectories that respect the spacecraft reaction wheel envelope.
 
 Architecture:
     Stage 1 of the two-stage controller (see Chelikh et al., IEEE Access 2024).
-    Runs at 20 Hz with a 1-second prediction horizon (N=20, dt=0.05s).
+    On the frozen canonical config it runs at 10 Hz with a 0.8 s prediction
+    horizon (N=8, dt=0.1s), driven from SimConfig.
+
+    NOTE: the CentroidalNMPCConfig defaults below are NOT the canonical
+    values — sim_loop overrides every physically-significant field from
+    SimConfig (see _sim_loop CentroidalNMPCConfig(...) construction).
 
 State vector (nx=9):
     x = [r_com (3), v_com (3), L_com (3)]
@@ -30,7 +35,9 @@ Parameters (np=18):
     - r_C1, r_C2:      Contact point positions in R_s
     - c_simple:        Measured conservation constant (§4.5-4.6)
                        c_simple = h_w_0 + L_com_0 + r_com_0 × m·v_com_0
-    - L_ref:           L_com tracking reference (from TorsoPlanner, stub=0)
+    - L_ref:           L_com tracking reference — LIVE, supplied per solve
+                       from TorsoPlanner.l_com_reference_at(t_mid); used in
+                       both the stage and terminal cost (not a stub)
 
 Constraints:
     - Dynamics:  RK4 integration of centroidal equations
@@ -69,6 +76,8 @@ class CentroidalNMPCConfig:
     All physical parameters needed to instantiate the problem.
     """
     # Robot properties
+    # NOTE: placeholder default — the canonical robot is 71.056 kg, supplied
+    # by sim_loop from the loaded model. Do not treat 90.0 as physical.
     robot_mass: float = 90.0                 # Total robot mass [kg]
 
     # Horizon
@@ -199,7 +208,7 @@ class CentroidalNMPC:
             r_ref = p[0:3]
             v_ref = p[3:6]
             # p[6:12] are contact positions, p[12:15] is c_simple,
-            # p[15:18] is L_com_ref (stubbed to zero for M3).
+            # p[15:18] is L_com_ref (live TorsoPlanner reference).
             L_ref = p[15:18]
 
             e_r = r_com - r_ref
@@ -244,7 +253,13 @@ class CentroidalNMPC:
         f_max_sq = cfg.f_max ** 2
         tau_max_sq = cfg.tau_max ** 2
 
-        p_max_sq = (cfg.p_max ** 2) if np.isfinite(cfg.p_max) else np.inf
+        # Emit a constraint row only when its bound is finite. An infinite
+        # bound previously produced a constant `-inf` row handed to IPOPT
+        # (CLEANUP-2 finding F7). Canonically tau_w_max and p_max are both
+        # finite, so the emitted row set — and hence the NLP — is unchanged.
+        tau_w_finite = bool(np.isfinite(cfg.tau_w_max))
+        p_max_finite = bool(np.isfinite(cfg.p_max))
+        p_max_sq = (cfg.p_max ** 2) if p_max_finite else None
         enforce_hw = bool(cfg.enforce_hw_conservation)
         h_max_tight = np.asarray(cfg.h_max_tight, dtype=float).reshape(3)
 
@@ -276,17 +291,18 @@ class CentroidalNMPC:
             # lever-from-robot-CoM and bounded only the spin-rate part
             # of the robot-momentum-rate — wrong quantity at non-zero
             # standoff (campaign §9 documents the divergence).
-            H_dot_s = (ca.cross(r_C1, f1) + tau1 +
-                       ca.cross(r_C2, f2) + tau2)
-            tw = cfg.tau_w_max
-            Hdot_s_ineq = ca.vertcat(H_dot_s - tw, -H_dot_s - tw)
+            parts = [soc]
 
-            parts = [soc, Hdot_s_ineq]
+            if tau_w_finite:
+                H_dot_s = (ca.cross(r_C1, f1) + tau1 +
+                           ca.cross(r_C2, f2) + tau2)
+                tw = cfg.tau_w_max
+                parts.append(ca.vertcat(H_dot_s - tw, -H_dot_s - tw))
 
             # Linear momentum constraint: ||m·v_com||² ≤ p_max²
-            p_lin = m * v_com
-            p_ineq = ca.dot(p_lin, p_lin) - p_max_sq
-            parts.append(p_ineq)
+            if p_max_finite:
+                p_lin = m * v_com
+                parts.append(ca.dot(p_lin, p_lin) - p_max_sq)
 
             # ── M3: RWA conservation-law box (Option B) ───────────────
             # h_w^s(k) ≈ c_simple - L_com(k) - r_com(k) × m·v_com(k)
@@ -301,7 +317,9 @@ class CentroidalNMPC:
 
             return ca.vertcat(*parts)
 
-        ng_path = 4 + 6 + 1  # 4 SOC + 6 Ḣ_s bilateral + 1 linear momentum
+        # 4 SOC + 6 Ḣ_s bilateral + 1 linear momentum (canonically 11); the
+        # latter two groups are omitted when their bound is infinite (F7).
+        ng_path = 4 + (6 if tau_w_finite else 0) + (1 if p_max_finite else 0)
         if enforce_hw:
             ng_path += 6        # + 6 hw bilateral
         nmpc.set_path_constraints(path_constraints, ng=ng_path)
@@ -420,24 +438,10 @@ class CentroidalNMPC:
         # --- Assemble initial state (NX=9, no hw) ---
         x0 = np.concatenate([r_com, v_com, L_com])
 
-        # --- Compute c_simple (M3 conservation constant) ---
-        # c_simple = h_w_0 + L_com_0 + r_com_0 × m·v_com_0
-        # Drag terms are assumed small for Option B and absorbed via
-        # h_max_tight (see spec §4.6 and the Option B reduction).
-        c_simple = self.compute_c_simple(r_com, v_com, L_com, hw_current)
-
-        # --- L_com reference (stub to zero for M3) ---
-        L_ref = (np.asarray(L_com_ref, dtype=float).reshape(3)
-                 if L_com_ref is not None else np.zeros(3))
-
-        # --- Assemble parameters ---
-        params = np.concatenate([
-            r_com_ref, v_com_ref,
-            contact_config.r_contact_A,
-            contact_config.r_contact_B,
-            c_simple,
-            L_ref,
-        ])
+        # --- Assemble parameters (single source: _assemble_params) ---
+        params = self._assemble_params(
+            r_com, v_com, L_com, r_com_ref, v_com_ref,
+            contact_config, hw_current, L_com_ref)
 
         # --- Solve ---
         x_opt, u_opt, info = self._nmpc.solve(
@@ -586,16 +590,9 @@ class CentroidalNMPC:
         self._apply_contact_bounds(contact_config)
 
         x0 = np.concatenate([r_com, v_com, L_com])
-        c_simple = self.compute_c_simple(r_com, v_com, L_com, hw_current)
-        L_ref = (np.asarray(L_com_ref, dtype=float).reshape(3)
-                 if L_com_ref is not None else np.zeros(3))
-        params = np.concatenate([
-            r_com_ref, v_com_ref,
-            contact_config.r_contact_A,
-            contact_config.r_contact_B,
-            c_simple,
-            L_ref,
-        ])
+        params = self._assemble_params(
+            r_com, v_com, L_com, r_com_ref, v_com_ref,
+            contact_config, hw_current, L_com_ref)
 
         x_opt, u_opt, info = self._nmpc.solve(
             x0, params=params, warm_start=warm_start)
@@ -628,6 +625,41 @@ class CentroidalNMPC:
     #  Private                                                             #
     # ------------------------------------------------------------------ #
 
+    def _assemble_params(
+        self,
+        r_com: np.ndarray,
+        v_com: np.ndarray,
+        L_com: np.ndarray,
+        r_com_ref: np.ndarray,
+        v_com_ref: np.ndarray,
+        contact_config: ContactConfig,
+        hw_current: Optional[np.ndarray],
+        L_com_ref: Optional[np.ndarray],
+    ) -> np.ndarray:
+        """Build the NP=18 parameter vector.
+
+        p = [r_ref(3), v_ref(3), r_C1(3), r_C2(3), c_simple(3), L_ref(3)]
+
+        Single source shared by solve() and get_full_trajectory(), which
+        previously assembled this identically in two places — so a change to
+        NP had to be made twice (CLEANUP-2 finding F9).
+
+        c_simple = h_w_0 + L_com_0 + r_com_0 × m·v_com_0 is the Option B
+        conservation constant; drag terms are assumed small and absorbed via
+        h_max_tight (spec §4.6). It is only *read* by the NLP when
+        enforce_hw_conservation is True.
+        """
+        c_simple = self.compute_c_simple(r_com, v_com, L_com, hw_current)
+        L_ref = (np.asarray(L_com_ref, dtype=float).reshape(3)
+                 if L_com_ref is not None else np.zeros(3))
+        return np.concatenate([
+            r_com_ref, v_com_ref,
+            contact_config.r_contact_A,
+            contact_config.r_contact_B,
+            c_simple,
+            L_ref,
+        ])
+
     def _apply_contact_bounds(self, contact_config: ContactConfig) -> None:
         """Update control bounds based on active contacts.
 
@@ -652,21 +684,9 @@ class CentroidalNMPC:
             u_min[9:12] = -cfg.tau_max
             u_max[9:12] = cfg.tau_max
 
-        self._nmpc.u_min = u_min
-        self._nmpc.u_max = u_max
-
-        # Update the stored bounds in the built solver
-        # Rebuild lbw/ubw for control components
-        if self._nmpc._lbw is not None:
-            nx = self.NX
-            nu = self.NU
-            for k in range(cfg.N):
-                # Layout: [X0, U0, X1, U1, ..., X_N]
-                # Offset to U_k: nx + k*(nx+nu) + ... 
-                # More precisely: first nx (X0), then for each k: nu (Uk) + nx (Xk+1)
-                u_start = nx + k * (nx + nu)
-                self._nmpc._lbw[u_start: u_start + nu] = u_min
-                self._nmpc._ubw[u_start: u_start + nu] = u_max
+        # Delegate to the solver: the decision-vector layout is its concern,
+        # not ours (CLEANUP-2 finding F10).
+        self._nmpc.apply_control_bounds_all_stages(u_min, u_max)
 
     def __repr__(self) -> str:
         status = "built" if self._built else "not built"

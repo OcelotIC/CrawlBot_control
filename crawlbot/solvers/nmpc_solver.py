@@ -217,6 +217,32 @@ class NMPCSolver:
         self.u_min = np.asarray(u_min).ravel()
         self.u_max = np.asarray(u_max).ravel()
 
+    def apply_control_bounds_all_stages(
+        self, u_min: np.ndarray, u_max: np.ndarray
+    ) -> None:
+        """Rewrite the per-stage control bounds of an ALREADY-BUILT solver.
+
+        `set_control_bounds()` only affects a subsequent `build()`. This
+        method updates the bounds baked into the decision-vector bound
+        arrays, so a caller can change control limits between solves
+        without rebuilding the NLP — used for contact-phase switching,
+        where inactive contacts are pinned to zero.
+
+        The decision-vector layout stays private to this class:
+        [X0, U0, X1, U1, ..., X_{N-1}, U_{N-1}, X_N], so U_k begins at
+        nx + k*(nx+nu). (Previously each caller re-derived this offset
+        and wrote _lbw/_ubw directly — CLEANUP-2 finding F10.)
+        """
+        self.u_min = np.asarray(u_min).ravel()
+        self.u_max = np.asarray(u_max).ravel()
+        if self._lbw is None:
+            return
+        nx, nu = self.nx, self.nu
+        for k in range(self.N):
+            u_start = nx + k * (nx + nu)
+            self._lbw[u_start: u_start + nu] = self.u_min
+            self._ubw[u_start: u_start + nu] = self.u_max
+
     def set_parameters(self, np_: int) -> None:
         """Redefine the parameter vector dimension.
 
@@ -440,7 +466,7 @@ class NMPCSolver:
             solve_args['lam_x0'] = ca.DM(self._lam_x0_prev)
 
         # Capture warm-start state for diagnostics BEFORE the solve
-        # (the self._w0_prev / lam*_prev fields are overwritten below).
+        # (the self._w0_prev / lam*_prev fields may be overwritten below).
         _diag_warm_x = bool(warm_start and self._w0_prev is not None)
         _diag_warm_duals = bool('lam_g0' in solve_args)
 
@@ -449,11 +475,6 @@ class NMPCSolver:
         # --- Extract solution ---
         w_opt = np.array(sol['x']).ravel()
         x_opt, u_opt = self._parse_solution(w_opt)
-
-        # --- Store for warm-start ---
-        self._w0_prev = w_opt
-        self._lam_g0_prev = np.array(sol['lam_g']).ravel()
-        self._lam_x0_prev = np.array(sol['lam_x']).ravel()
 
         # --- Info ---
         stats = self._solver.stats()
@@ -465,6 +486,18 @@ class NMPCSolver:
             solve_time_ms=(time.perf_counter() - t_start) * 1000.0,
             solver_stats=stats,
         )
+
+        # --- Store for warm-start: ONLY on success ---
+        # A failed solve's iterate is not a usable initial guess. Seeding the
+        # next solve (and, worse, its duals) from an infeasible point can
+        # entrench the infeasibility instead of recovering from it. On failure
+        # we therefore retain the last SUCCESSFUL warm start; CentroidalNMPC
+        # pairs that with its shifted-trajectory fallback (M5), which is the
+        # designed recovery path.
+        if info.success:
+            self._w0_prev = w_opt
+            self._lam_g0_prev = np.array(sol['lam_g']).ravel()
+            self._lam_x0_prev = np.array(sol['lam_x']).ravel()
 
         # --- Per-cycle diagnostic log ---
         # Captures iter/status/time and warm-start state per solve. Used by
