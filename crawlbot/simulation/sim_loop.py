@@ -770,7 +770,7 @@ class SimulationLoop:
                 # Phase B). No control change — value is not consumed
                 # downstream of this branch.
                 _, _, lambda_qp_sol, tau, _ = qp.solve(
-                    q_t=rs.q_torso, dq_t=rs.dq_torso,
+                    dq_t=rs.dq_torso,
                     q=rs.q_joints, dq=rs.dq_joints,
                     r_com_ref=rs.r_com, v_com_ref=np.zeros(3),
                     lambda_ref=np.zeros(12), a_com_ff=np.zeros(3),
@@ -3057,7 +3057,7 @@ class SimulationLoop:
                              * _margin)
             try:
                 qdd_t_qp, qdd_qp, lambda_qp_sol, tau, _ = qp.solve(
-                    q_t=rs.q_torso, dq_t=rs.dq_torso,
+                    dq_t=rs.dq_torso,
                     q=rs.q_joints, dq=rs.dq_joints,
                     r_com_ref=rp_interp, v_com_ref=vp_interp,
                     lambda_ref=lr, a_com_ff=af,

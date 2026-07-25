@@ -8,7 +8,8 @@ constraints, and momentum safety bounds.
 
 Architecture:
     Stage 2 of the two-stage controller (see Chelikh et al., IEEE Access 2024).
-    Runs at 125 Hz with instantaneous (single time-step) optimization.
+    Instantaneous (single time-step) optimization, run at 1/dt_qp — 100 Hz on
+    the frozen canonical config.
 
 Decision variables:
     z = [q̈_t (6), q̈ (nq), λ (6·nc_max), τ_q (nq)]
@@ -29,12 +30,29 @@ Inequality constraints:
     2. Joint torque limits:    τ_min ≤ τ_q ≤ τ_max
     3. Joint acceleration limits (from barrier functions)
 
-Tasks (weighted hierarchy, Eq. VI-F.6):
-    Priority 1 (α=10³): CoM tracking
-    Priority 2 (α=10²): Posture regulation
-    Priority 3 (α=10¹): Contact wrench tracking (from NMPC)
-    Priority 4 (α=10⁰): Joint torque minimization
-    Priority 5 (α=10⁻²): Acceleration regularization
+Tasks (fully WEIGHTED — no null-space projection anywhere; at weight_ratio=1
+the α magnitudes ARE the hierarchy and `priority=` is a nominal label):
+
+    Single support (the two-task stack, Phase-2.1 — the canonical controller)
+        T-MOM linear      α = ss_alpha_mom       (400)
+        torso-pose 6-D    α = alpha_torso_pose   (2000)
+        swing-EE 6-D      α = alpha_ee           (1000)
+        posture           α = alpha_posture      (20)
+
+    Double support
+        joint-space settle, or — when ds_centroidal_mode — CoM 3-D +
+        torso-angular 3-D + posture, with energy dissipation handled by the
+        passivity *inequality* rather than a cost.
+        internal-stress regularization on the welded-loop λ (alpha_lambda_int)
+
+    All phases
+        contact-wrench tracking (alpha_wrench), joint-torque minimization
+        (alpha_torque), acceleration regularization (alpha_reg, the cost
+        floor), h_w slack penalty (w_hw_slack)
+
+    Canonical α ordering: torso-pose 2000 > EE 1000 > T-MOM 400 > posture 20
+    > torque 5 > accel-reg 1 ≈ wrench 1. Keep torque-min ≳ 5× the accel-reg
+    floor (see SimConfig / the CANONICAL-2p5 freeze).
 
 Reference:
     Eq. (VI-F.1)-(VI-F.11) of the paper.
@@ -67,11 +85,12 @@ class WholeBodyQPConfig:
     method: str = 'weighted'      # 'weighted' or 'strict'
     solver: str = 'qpoases'
     # HierarchicalQP weight ratio between priority levels.
-    # With the M2 null-space-projected task stack, task isolation is
-    # provided geometrically by the projections N_torso, N_torso·N_ee,
-    # etc. — NOT by weight scaling. weight_ratio = 1.0 therefore lets
-    # every task use its face-value α. Legacy (non-M2) users that
-    # rely on priority-by-scaling should override this to ~1000.
+    # The task stack is fully WEIGHTED — there is no null-space projection
+    # anywhere in this file. At weight_ratio = 1.0 each task enters the cost
+    # at its face-value α, so the α magnitudes ARE the hierarchy and the
+    # `priority=` arguments are nominal labels only. Do not raise this: at
+    # weight_ratio > 1 the priority integers start scaling the weights too
+    # and the tuned α ratios stop meaning what they say.
     weight_ratio: float = 1.0
 
     # Task weights (Eq. VI-F.6)
@@ -105,17 +124,11 @@ class WholeBodyQPConfig:
     # posture (alpha_posture). All WEIGHTED, with NO null-space projection,
     # so at weight_ratio=1 the α magnitudes ARE the hierarchy.
     #
-    # CLEANUP-6/7 removed the stacks this superseded — the legacy CoM and
-    # torso-6D P1 tasks, the cooperative angular/linear split, the Option D
-    # linear soft tube, the null-space-projected EE task, T-MOM v1 and the
-    # soft-CoM residual — together with their config fields
-    # (alpha_com, alpha_torso, use_m2_stack, alpha_com_soft, ee_null_space,
-    # r_tube, w_tube_lin, cooperative_arms_mode, alpha_torso_ang,
-    # alpha_torso_lin, ss_centroidal_momentum_task, ss_alpha_tl_weak), all
-    # of which were provably unread on the frozen canonical config.
-    # NOTE: SimConfig.use_m2_stack is NOT dead — it still gates the
-    # torso-reference routing and DS passivity in sim_loop. Only the QP-side
-    # copy was removed.
+    # CLEANUP-6/7 removed the stacks this superseded (legacy CoM / torso-6D
+    # P1, the cooperative split, the Option D tube, the projected EE task,
+    # T-MOM v1, the soft-CoM residual) and their config fields.
+    # NOTE: SimConfig.use_m2_stack survives — it gates torso-reference
+    # routing and DS passivity in sim_loop. Only the QP-side copy was removed.
     ss_two_task_mode: bool = False
     ss_alpha_mom: float = 5e2
     alpha_torso_pose: float = 1e3
@@ -223,10 +236,6 @@ class WholeBodyQP:
         # Nominal posture (set by user, default: zero)
         self._q_nominal = np.zeros(nq)
 
-        # Option D tube telemetry (populated by solve() when r_tube > 0).
-
-        # Stance-thrust correction state (cooperative-arms mode).
-
         # hw-slack telemetry (always populated). After each QP solve we
         # record the norms of the upper/lower slack variables; non-zero
         # values mean the momentum-box safety constraint was active and
@@ -250,7 +259,6 @@ class WholeBodyQP:
     def solve(
         self,
         # Robot state
-        q_t: np.ndarray,
         dq_t: np.ndarray,
         q: np.ndarray,
         dq: np.ndarray,
@@ -318,8 +326,6 @@ class WholeBodyQP:
 
         Parameters
         ----------
-        q_t : ndarray (7,)
-            Torso pose [quaternion(4), position(3)]. Used for state only.
         dq_t : ndarray (6,)
             Torso twist [angular(3), linear(3)].
         q : ndarray (nq,)
@@ -377,11 +383,10 @@ class WholeBodyQP:
         n_robot = 6 + nq  # dimension of q̈_robot = [q̈_t; q̈]
 
         # --- Build QP ---
-        # weight_ratio is taken from the config. In the M2 task stack
-        # task isolation comes from null-space projection (N_torso,
-        # N_torso·N_ee, ...), NOT from weight scaling, so the default
-        # weight_ratio = 1 lets every task use its face-value α. See
-        # WholeBodyQPConfig.weight_ratio and the P1→P6 stack below.
+        # weight_ratio comes from the config and is 1 on the canonical: the
+        # stack is fully weighted, so each task enters at its face-value α
+        # and the `priority=` labels below do not scale anything.
+        # See WholeBodyQPConfig.weight_ratio.
         qp = HierarchicalQP(
             n_vars=n, method=cfg.method, solver=cfg.solver,
             weight_ratio=cfg.weight_ratio,
@@ -586,8 +591,9 @@ class WholeBodyQP:
         dq_robot = np.concatenate([dq_t, dq])
 
         # ──────────────────────────────────────────────────────────── #
-        # Helper: build the CoM cost row `J_com @ qdd = a_com_des - Jdq`
-        # (used for legacy Task 1 and M2 soft CoM)
+        # Helper: build the CoM cost row `J_com @ qdd = a_com_des - Jdq`.
+        # This is the linear centroidal-momentum (T-MOM) task in CoM-Jacobian
+        # form, consumed by the SS stack below.
         # ──────────────────────────────────────────────────────────── #
         r_com_actual = r_com if r_com is not None else np.zeros(3)
         v_com_actual = J_com @ dq_robot
@@ -601,7 +607,7 @@ class WholeBodyQP:
         A_com[:, idx['qdd'][0]: idx['qdd'][1]] = J_com[:, 6:]
         b_com = a_com_des - Jdot_dq_com
 
-        # ── Phase-2.1 two-task fully-weighted stack ──────────────────────
+        # ── SS: the two-task stack — THE canonical single-support controller ──
         # T-MOM linear (ss_alpha_mom) + 6-D torso-pose on J_torso
         # (alpha_torso_pose; TorsoPlanner quintic+SLERP reference, NO δ) +
         # swing-EE (alpha_ee) + posture (alpha_posture). All WEIGHTED with NO
@@ -645,10 +651,10 @@ class WholeBodyQP:
                 v_re = v_ee_ref if v_ee_ref is not None else np.zeros(6)
                 a_fe = a_ee_ff if a_ee_ff is not None else np.zeros(6)
                 a_e_des = a_fe + Kp_e @ e6e + Kd_e @ (v_re - v_ee_act)
-                A_ee2 = np.zeros((6, n))
-                A_ee2[:, idx['qdd_t'][0]: idx['qdd_t'][1]] = J_ee[:, :6]
-                A_ee2[:, idx['qdd'][0]: idx['qdd'][1]] = J_ee[:, 6:]
-                qp.add_task(A_ee2, a_e_des - jdq_ee, cfg.alpha_ee, priority=2)
+                A_ee_task = np.zeros((6, n))
+                A_ee_task[:, idx['qdd_t'][0]: idx['qdd_t'][1]] = J_ee[:, :6]
+                A_ee_task[:, idx['qdd'][0]: idx['qdd'][1]] = J_ee[:, 6:]
+                qp.add_task(A_ee_task, a_e_des - jdq_ee, cfg.alpha_ee, priority=2)
             # (4) Posture — redundancy resolution (low weight, unprojected).
             A_post = np.zeros((nq, n))
             A_post[:, idx['qdd'][0]: idx['qdd'][1]] = np.eye(nq)
@@ -656,17 +662,7 @@ class WholeBodyQP:
                         cfg.Kp_posture * (self._q_nominal - q) - cfg.Kd_posture * dq,
                         cfg.alpha_posture, priority=3)
 
-        # NOTE: the legacy pre-two-task SS stack (legacy CoM task, torso 6-D
-        # P1 task, the cooperative angular/linear split, the Option D linear
-        # soft tube, the null-space-projected swing-EE task, the cooperative
-        # P2 torso-linear channel with T-MOM v1, and the soft-CoM residual)
-        # was removed in CLEANUP-6. On the frozen canonical config every one
-        # of those blocks was unreachable: in SS `_two_task` gates them off,
-        # and in DS `settle_mode` does. The surviving SS controller is the
-        # two-task stack above; DS is served by the centroidal-DS tasks and
-        # the settle task below.
-
-        # --- Task 3: Posture regulation ---
+        # ── Posture regulation — SS (when the two-task stack is off) and DS ──
         # q̈_posture = Kp_post (q_nom - q) + Kd_post (0 - dq)
         # Skipped in settle_mode (legacy joint-vel-damping path) because
         # the settle task already dampens velocities and posture would
@@ -683,18 +679,13 @@ class WholeBodyQP:
             A_posture[:, idx['qdd'][0]: idx['qdd'][1]] = np.eye(nq)
             b_posture = qdd_posture
 
-            # Posture is added unprojected. The M2 null-space projection
-            # against [A_torso; A_ee] was removed with the legacy SS stack:
-            # those task matrices only ever existed on the pre-two-task
-            # path, so on the canonical config the projected branch was
-            # unreachable (A_torso is None in DS and the two-task SS stack
-            # gates this whole block off).
+            # Added unprojected — the stack is weighted, not projected.
             _post_w = (cfg.ds_alpha_posture if _posture_in_ds
                        else cfg.alpha_posture)
             qp.add_task(A_posture, b_posture,
                         _post_w, priority=3)
 
-        # --- Task 3b: DS joint-space settle (damp all velocities to zero) ---
+        # ── DS: joint-space settle (damp all velocities to zero) ──
         # In settle mode, torso/CoM tasks are skipped (they conflict with
         # the constrained equilibrium). This task drives all joint velocities
         # to zero via pure damping. No position term — with 8 DOF remaining
@@ -711,7 +702,7 @@ class WholeBodyQP:
             b_settle = -cfg.Kd_settle * dq
             qp.add_task(A_settle, b_settle, cfg.alpha_settle, priority=1)
 
-        # --- Centroidal-DS tasks (cfg.ds_centroidal_mode + settle_mode) ---
+        # ── DS: centroidal tasks — CoM 3-D + torso-angular 3-D ──
         # 6-D centroidal tracking during DS: CoM 3D + torso angular 3D.
         # The captured Stage 3 reference (r_torso_ref, R_torso_ref, r_com_ref)
         # becomes load-bearing here. Energy dissipation is enforced by
@@ -745,7 +736,7 @@ class WholeBodyQP:
                 qp.add_task(A_torso_ang, b_torso_ang,
                             cfg.ds_alpha_torso_ori, priority=1)
 
-        # --- Task 3: Contact wrench tracking ---
+        # ── Contact-wrench tracking (all phases) ──
         A_wrench = np.zeros((self._dim_lambda, n))
         A_wrench[:, idx['lambda'][0]: idx['lambda'][1]] = np.eye(self._dim_lambda)
         b_wrench = lambda_ref.copy()
@@ -758,7 +749,7 @@ class WholeBodyQP:
                else cfg.alpha_wrench)
         qp.add_task(A_wrench, b_wrench, _aw, priority=4)
 
-        # --- Task 3c: DS internal-stress regularization ---
+        # ── DS: internal-stress regularization on the welded-loop λ ──
         # In DS both grippers are welded → contact-wrench space is 12-D
         # while only 6-D acts on the robot CoM dynamics. The remaining
         # 6-D subspace is internal stress: combinations of (f_A, τ_A,
@@ -799,14 +790,14 @@ class WholeBodyQP:
             qp.add_task(A_lint, b_lint,
                         cfg.alpha_lambda_int, priority=4)
 
-        # --- Task 4: Joint torque minimization ---
+        # ── Joint-torque minimization (all phases) ──
         A_torque = np.zeros((nq, n))
         A_torque[:, idx['tau'][0]: idx['tau'][1]] = np.eye(nq)
         b_torque = np.zeros(nq)
 
         qp.add_task(A_torque, b_torque, cfg.alpha_torque, priority=5)
 
-        # --- Task 5: Acceleration regularization ---
+        # ── Acceleration regularization — the cost floor (all phases) ──
         A_reg = np.zeros((6 + nq, n))
         A_reg[:6, idx['qdd_t'][0]: idx['qdd_t'][1]] = np.eye(6)
         A_reg[6:, idx['qdd'][0]: idx['qdd'][1]] = np.eye(nq)
@@ -814,7 +805,7 @@ class WholeBodyQP:
 
         qp.add_task(A_reg, b_reg, cfg.alpha_reg, priority=6)
 
-        # --- M5 Task: hw slack penalty ---
+        # ── h_w slack penalty (momentum-box softening) ──
         # Drive the slack variables to zero as fast as the actuator
         # limits allow. NOTE: at weight_ratio=1 the priority integer is
         # inert — the α magnitudes alone set the hierarchy, so this task
