@@ -12,7 +12,25 @@ one latent solver-state bug — not about the model.
 
 ---
 
-## F1 — The whole wheel-momentum path into the NMPC is dead on the canonical *(highest value)*
+## ⛔ F1 IS RETRACTED — see CLEANUP-4. The h_w path is **LIVE** on the canonical.
+
+**This finding was wrong.** The canonical config is not bare `SimConfig()`: `dca.main` takes
+`cfg = r_single._make_m7_config()` (`diag_cooperative_arms.py:268`), and
+`run_m7_single_step.py:49` sets **`enforce_hw_conservation=True`** with
+`h_max_tight=[5,5,5]`, `kappa_terminal=1.0`. Instrumenting `build()` during a real run
+reports `enforce_hw=True, ng_path=17, ng_term=6` — the M3 RWA box **and** its terminal
+constraint are active, and line-coverage of a full canonical replay confirms the block
+executes.
+
+The error: the probe below proved the *conditional* behaviour correctly (h_w is ignored when
+the flag is off), but the flag's canonical value was inferred from the dataclass default
+instead of traced through `dca`. Consequently `compute_c_simple`, the `hw_current` argument,
+`h_max_tight`, `kappa_terminal`, and `sim_loop.py`'s `hw_for_nmpc` computation are **all
+live** — and "Tier B" is **not** a removal candidate at all: it is live canonical code
+implementing the published B2 Option-B mechanism. The original text is kept below for the
+record.
+
+### (retracted) F1 — original claim
 
 `enforce_hw_conservation=False` canonically ⇒ `c_simple` (`p[12:15]`) is referenced by **no**
 expression in the NLP. Proven behaviourally:
