@@ -89,8 +89,10 @@ after :  228 tests collected            -> no error
 
 ## 3. What this does *not* fix
 
-The 12 pre-existing suite problems are untouched — the collection error was the
-one that stopped the run, not one of the failures. After this pass:
+The 12 suite problems are untouched — the collection error was the one that
+stopped the run, not one of the failures. ("pre-existing" here was inherited from
+CLEANUP-25 and is **wrong**: CLEANUP-27 §4 measures 11 of the 12 as this
+chantier's own breakage.) After this pass:
 
 ```
 9 failed, 196 passed, 4 skipped, 3 errors

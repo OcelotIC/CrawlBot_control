@@ -80,7 +80,7 @@ suite would delete the proof that F2 stays fixed.
 | file | tests | verdict |
 |---|---:|---|
 `test_mid_waypoint_reshape.py` | 4 | **3 retire** (`FileNotFoundError` — fixtures for the reshape path removed in CLEANUP-15). **1 keep**: `test_torso_planner_piecewise_continuous` checks live TorsoPlanner C0 continuity and `v=a=0` at the seam — move it to `test_planners_6d.py` |
-`test_reworked_qp.py` | 8 | **all 8 failing.** `TestT8SoftCoMEffect` tests `alpha_com_soft`, which is **0.0 canonically — the feature is off**. The other 7 (T7 tracking, T9 residual, T10 passivity, Phase-2.0 TMOM ×4) test the QP at component level against thresholds that predate the 2.5 freeze. Needs per-test diagnosis (§4) |
+`test_reworked_qp.py` | 8 | **all 8 failing — one cause, diagnosed in §4:** the shared `_build_qp` helper passes 9 kwargs this chantier deleted from `WholeBodyQPConfig`. `TypeError` at `tests/test_reworked_qp.py:87`; no test body runs. They passed before CLEANUP-6 |
 `test_trajectory_aware_ik.py` | 4 | passes, but exercises `manipulability_config_trajectory` / `precompute_torso_map` — orphaned from `sim_loop` by CLEANUP-15. **The only coverage of those functions.** Keep *only* if those functions are kept |
 `test_diagnostics.py` | 10 | smoke tests for `crawlbot/diagnostics/`, which the canonical never runs. **The only thing exercising that package.** Its fate follows the package's (CLAUDE.md rule 3 question) |
 
@@ -129,12 +129,18 @@ package goes, the suite's unique coverage falls from 1 039 to ~413 statements
 
 ### Two findings the coverage diff produced on its own
 
-**`wholebody_qp.py`: suite-only = 0.** The 8 failing `test_reworked_qp` tests add
-**zero reach** — every line they touch, the canonical already executes (256
-gate-only lines). Their value is therefore purely as *correctness assertions* on
-already-exercised code, not as coverage. That is a legitimate kind of value, but
-it is a weaker case than "they test what nothing else does", and it should be
-argued on its merits rather than on coverage.
+**`wholebody_qp.py`: suite-only = 0.**
+
+```
+stmts 330 | gate 319 | suite 63 | both 63 | suite-only 0 | gate-only 256
+```
+
+The 8 `test_reworked_qp` tests add **zero reach**. Read at the time as "every
+line they touch, the canonical already executes" — §4 shows the real reason:
+**they crash in the fixture, so no test body executes at all.** The 63 lines the
+suite does reach are import-time and other files' incidental use. The correct
+statement is not "their value is assertions rather than coverage" — it is that
+they currently assert nothing, and `WholeBodyQP` has **no live component test**.
 
 **`_solve_strict` is covered by nothing, and `CARRYOVER` §B2 is wrong about why
 it is kept.** §B2 justifies keeping it as having *"2 test users + 6 script
@@ -170,23 +176,85 @@ was kept in CLEANUP-16 on the correct principle that unused ≠ retired — but
 
 ---
 
-## 4. The `test_reworked_qp.py` question
+## 4. The `test_reworked_qp.py` question — answered
 
-All 8 fail, and they are the only component-level tests of the **canonical
-controller itself** (`WholeBodyQP`). That combination is uncomfortable: the most
-important module has the least trustworthy tests.
+This section originally listed three possibilities per test — stale thresholds,
+feature-off, or a real defect — and called separating them "the next piece of
+work". Asked for links to the 8 tests, running them printed the answer in one
+line. **None of the three is right.**
 
-Three possibilities per test, and they need separating before any action:
+### One cause, eight reported failures
 
-1. **thresholds predate the 2.5 freeze** — the test is right in spirit, its
-   numbers are stale. Fix the numbers.
-2. **the feature under test is off** — `TestT8SoftCoMEffect` with
-   `alpha_com_soft = 0.0`. Retire.
-3. **a real defect** — the QP does not do what the test says. Would be serious.
+```
+E  TypeError: WholeBodyQPConfig.__init__() got an unexpected keyword argument 'alpha_com'
+   tests/test_reworked_qp.py:87
+```
 
-Nothing in this audit distinguishes (1) from (3), and guessing is exactly what
-this chantier has been correcting. **That is the next piece of work**, and it is
-worth doing precisely because these 8 sit on the canonical controller.
+Identical for all 8. They share one helper, `_build_qp`, and it dies constructing
+the config — line 87, the first kwarg. **No test body executes.** The 8 entries in
+the failure list are 8 collections of the same crash, not 8 findings.
+
+Diffing the helper's kwargs against the live dataclass, **9 of 11 named fields no
+longer exist**:
+
+```
+MISSING: alpha_com  alpha_com_soft  alpha_torso  alpha_torso_ang
+         cooperative_arms_mode  ee_null_space  use_m2_stack
+         ss_centroidal_momentum_task  ss_alpha_tl_weak
+PRESENT: alpha_ee  alpha_posture  alpha_reg  alpha_torque  alpha_wrench
+         alpha_passivity  ss_alpha_mom  tau_max  L_max  dt_qp  nq
+```
+
+Those 9 are the M2 / cooperative-split / pre-two-task config surface, removed by
+**CLEANUP-6 `4e2e8da`** ("excise the legacy pre-two-task SS task stack") and
+**CLEANUP-9 `772b556`**. The tests were built on it and were never repointed.
+
+### Measured, not inferred: they passed before CLEANUP-6
+
+Clean worktree at `4e2e8da^` (= `7f60403`), same interpreter and env:
+
+```
+$ pytest tests/test_reworked_qp.py -q
+8 passed in 95.28s
+
+$ pytest tests/test_coarse_preplanner.py -q
+1 failed, 18 passed          <- test_far_infeasible_under_tight_rate
+```
+
+So of the 9 "diagnose then decide" tests:
+
+| | verdict |
+|---|---|
+| `test_reworked_qp` ×8 | **this chantier broke them.** Regression from CLEANUP-6/9, not pre-existing |
+| `test_far_infeasible_under_tight_rate` | **genuinely pre-existing** — fails at `4e2e8da^` too. Already on CLAUDE.md's Remaining Work as an envelope-semantics question at cap 2.5 |
+
+### The correction this forces
+
+CLEANUP-25 §4 and CLAUDE.md both called all 12 suite problems "pre-existing",
+attributing *at least four* to the chantier. The true count is **at least
+twelve**: 3 `mid_waypoint_reshape` + 1 `fk_reference_consistency` + **these 8**.
+Only `test_far_infeasible_under_tight_rate` predates the chantier.
+
+Rule 7 says re-run the suite after modifying a core module and fix what breaks.
+CLEANUP-6 removed 9 config fields and did not. The failure then propagated as a
+*claim*: "pre-existing" was written down once and inherited three reports deep,
+which is the exact pattern this chantier keeps finding. **Sixth instance**, and the
+first where the false inherited claim was mine rather than the repository's.
+
+### What the fix actually is
+
+Not "diagnose 8 tests". Two decisions on one helper:
+
+- **T7 / T8 / T9 / T10** drive the M2 stack (`use_m2_stack=True`, `ee_null_space`,
+  `alpha_com_soft`) — a removed architecture. **Retire**, same class as
+  `test_fk_reference_consistency` in CLEANUP-26: repairing them means restoring
+  the feature.
+- **`TestPhase20TMOM` ×4** test the **T-MOM task, which is canonical and live**
+  (α = 400). They reach it through the removed `cooperative_arms_mode` scaffolding,
+  but the task under test is real. **Port the helper to the two-task API** — that
+  is the one action here that would give `wholebody_qp.py` its first working
+  component test, and it is worth doing for exactly the reason §3 gives: the
+  module the paper rests on currently has none.
 
 ---
 
@@ -203,12 +271,16 @@ Concretely:
 | action | tests |
 |---|---:|
 | **keep as-is** (A + B + C) | **154** |
-| **retire** — `test_mid_waypoint_reshape` ×3, `test_reworked_qp` ×8 | 11 |
+| **retire** — `test_mid_waypoint_reshape` ×3, `test_reworked_qp` T7/T8/T9/T10 ×4 (M2 stack removed, §4) | 7 |
+| **port to the two-task API** — `TestPhase20TMOM` ×4: the T-MOM task is live; only their helper is stale (§4) | 4 |
 | **move** — `test_torso_planner_piecewise_continuous` → `test_planners_6d.py` | 1 |
-| **diagnose then decide** — the 8 `test_reworked_qp` (§4) + `test_far_infeasible` | 9 |
+| **open question** — `test_far_infeasible_under_tight_rate`, the one genuinely pre-existing failure | 1 |
 | **fate follows their subject** — `test_diagnostics` (10), `test_trajectory_aware_ik` (4) | 14 |
 
-**And gate it.** Once the retirees are gone and §4 is diagnosed, the suite should
+Doing the port and the retirements takes the suite from 9 failures to 1, and that
+1 is the only one that was ever a question about the controller.
+
+**And gate it.** Once the retirees are gone and §4's port is done, the suite should
 be green and then *enforced* — otherwise it drifts again, exactly as it drifted
 from a documented "2 failures" to a measured 12 without anyone noticing. A suite
 nobody runs is not a safety net; it is a claim about a safety net.

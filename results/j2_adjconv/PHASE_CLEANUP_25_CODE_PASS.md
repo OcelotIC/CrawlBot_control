@@ -157,6 +157,13 @@ own removals account for at least four of these (the `mid_waypoint_reshape`
 fixtures and `constrained_geodesic`). Since the suite is not gated, nothing
 reported the drift.
 
+> **Corrected in CLEANUP-27 §4:** "at least four" is wrong — it is **eleven of the
+> twelve**. The 8 `test_reworked_qp` failures are also this chantier's, from the
+> CLEANUP-6/9 removal of 9 `WholeBodyQPConfig` fields their shared helper still
+> passes; measured `8 passed` at `4e2e8da^`. Only
+> `test_far_infeasible_under_tight_rate` predates the chantier. The
+> "pre-existing" label below was inherited, not measured.
+
 **Not fixed here.** Each needs its own diagnosis — several are testing features
 deliberately removed or disabled, which is a decision about what the suite should
 cover, not a bug to patch.
