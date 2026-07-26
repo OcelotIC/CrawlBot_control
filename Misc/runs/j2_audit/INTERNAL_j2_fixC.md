@@ -4,7 +4,7 @@
 kills the impact) and **zero weld-relative pose error** (kills the residual angular gap-couple, the 0.0040
 N·m·s). The design favors a **terminal NMPC constraint**, but the NMPC state is only `[r_com, v_com, L_com]`.
 Can the constraint live there, or must it attach to (b) the swing planner / (c) the dock gate? READ-ONLY,
-branch `j2/ds-active-rework`. Reproducer `scripts/audit_fixC.py`: **13/13**.
+branch `j2/ds-active-rework`. Reproducer `Misc/scripts/audit_fixC.py`: **13/13**.
 
 **VERDICT — (a) is NOT formulable; route Fix C to (c) as the hard guard, backed by (b) as the driver.**
 
@@ -116,12 +116,12 @@ weld-relative constraint twist Jc·v⁻**."* Refinements on `ae0673e`:
 
 ## Reproducer
 
-`scripts/audit_fixC.py` — READ-ONLY. Source anchors (Q1/Q4 reuse points, NMPC state/params, swing terminal,
+`Misc/scripts/audit_fixC.py` — READ-ONLY. Source anchors (Q1/Q4 reuse points, NMPC state/params, swing terminal,
 dock gate) + the **real-robot many-to-one demo**: builds `RobotInterface` from the canonical URDF, computes
 `A_G` and `J_tool`, and shows a `δv ∈ null(A_G)` leaves `[v_com,L_com]` fixed (‖A_G·δv‖≈5e-16) while moving
 the gripper (‖J_tool·δv‖≈1.0).
 ```
-MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/audit_fixC.py
+MUJOCO_GL=disabled PYTHONPATH=. python3 Misc/scripts/audit_fixC.py
 → VERDICT: 13/13 checks confirmed.  (a) NOT formulable; route to (c) guard + (b) driver.  (exit 0)
 ```
 

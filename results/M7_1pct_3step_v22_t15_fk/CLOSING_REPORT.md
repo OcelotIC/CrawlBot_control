@@ -2,7 +2,7 @@
 
 **Branch:** `claude/step2-path-diagnostic` @ `2ab2cf5`
 **Plan:** `/root/.claude/plans/magical-munching-book.md`
-**Synthesis:** `docs/architecture/T15_step2_diagnosis_and_resolution.md`
+**Synthesis:** `Misc/reports/architecture/T15_step2_diagnosis_and_resolution.md`
 **Period:** 2026-04-26 → 2026-04-27.
 **Status:** §7 reference-architecture rework delivered; structural
 failure mode eliminated; closed-loop steps 0/1 dock at d ≤ 4.85 mm
@@ -206,9 +206,9 @@ Phase 6, which has not happened (step-2 residual issue blocks it).
 
 | Runner | Config delta | Outcome |
 |---|---|---|
-| `scripts/run_m7_v22_1pct_3step_t15_fk.py` | `reference_source='joint_space_fk'` | Steps 0/1 dock at 2.91 / 4.85 mm; step 2 timeout 412 mm |
-| `scripts/run_m7_v22_1pct_3step_t15_fk_aocs_off.py` | + `diag_disable_aocs=True` | Identical to baseline (412 mm) — AOCS not binding |
-| `scripts/run_m7_v22_1pct_3step_t15_fk_long.py` | + `preplanner_a_cruise_max=0.005`, `t_ss_margin=5.0` | Step 2 *worse* (432 mm) — time budget not binding |
+| `Misc/scripts/run_m7_v22_1pct_3step_t15_fk.py` | `reference_source='joint_space_fk'` | Steps 0/1 dock at 2.91 / 4.85 mm; step 2 timeout 412 mm |
+| `Misc/scripts/run_m7_v22_1pct_3step_t15_fk_aocs_off.py` | + `diag_disable_aocs=True` | Identical to baseline (412 mm) — AOCS not binding |
+| `Misc/scripts/run_m7_v22_1pct_3step_t15_fk_long.py` | + `preplanner_a_cruise_max=0.005`, `t_ss_margin=5.0` | Step 2 *worse* (432 mm) — time budget not binding |
 
 `scripts/run_m7_single_step.run_case` was extended with a
 `diag_disable_aocs: bool = False` kwarg that sets
@@ -235,7 +235,7 @@ Per plan scope:
 
 ### §2.1  Phase-0 pre-flight (commits `b924ded`, `eb38c72`)
 
-`scripts/diagnostic_stance_deviation_along_geodesic.py` evaluates
+`Misc/scripts/diagnostic_stance_deviation_along_geodesic.py` evaluates
 the smoother's output against the 50 mm stance-deviation gate from
 plan §4.0, and benchmarks four candidate algorithms on the actual
 T15 (q_start, q_end) pairs (re-running
@@ -415,7 +415,7 @@ all four at their commanded values at every τ_k.
 ### §4.2  What the QP actually gets — the overriding policy
 
 The runner inherits `cfg.mapping_bypass_in_ss = True` from the IK-fix
-T15 baseline (line 102 of `scripts/run_m7_v22_1pct_3step_t15_fk.py`,
+T15 baseline (line 102 of `Misc/scripts/run_m7_v22_1pct_3step_t15_fk.py`,
 copied verbatim from `run_m7_v22_1pct_3step_t15_ik_fix.py`).
 
 In `crawlbot/simulation/sim_loop.py:2027–2034`, this flag triggers:
@@ -657,7 +657,7 @@ issue.
 
 ### §5.1  AOCS-off ablation (Phase 5b)
 
-`scripts/run_m7_v22_1pct_3step_t15_fk_aocs_off.py` ran T15-FK with
+`Misc/scripts/run_m7_v22_1pct_3step_t15_fk_aocs_off.py` ran T15-FK with
 `sim._diag_disable_aocs = True`, forcing reaction-wheel torque to
 zero every QP tick.
 
@@ -677,7 +677,7 @@ compensation.
 
 ### §5.2  Long time-budget ablation (Phase 5c)
 
-`scripts/run_m7_v22_1pct_3step_t15_fk_long.py` halved the cruise
+`Misc/scripts/run_m7_v22_1pct_3step_t15_fk_long.py` halved the cruise
 acceleration limit (`preplanner_a_cruise_max: 0.01 → 0.005 m/s²`)
 and increased the SS grace margin (`t_ss_margin: 1.0 → 5.0 s`).
 
@@ -854,10 +854,10 @@ origin/main
 | `crawlbot/simulation/sim_loop.py` | edited | +70 |
 | `crawlbot/simulation/config.py` | edited | +5 |
 | `tests/test_fk_reference_consistency.py` | new | +510 |
-| `scripts/diagnostic_stance_deviation_along_geodesic.py` | new | +400 (Phase 0) |
-| `scripts/run_m7_v22_1pct_3step_t15_fk.py` | new | +170 |
-| `scripts/run_m7_v22_1pct_3step_t15_fk_aocs_off.py` | new | +170 |
-| `scripts/run_m7_v22_1pct_3step_t15_fk_long.py` | new | +170 |
+| `Misc/scripts/diagnostic_stance_deviation_along_geodesic.py` | new | +400 (Phase 0) |
+| `Misc/scripts/run_m7_v22_1pct_3step_t15_fk.py` | new | +170 |
+| `Misc/scripts/run_m7_v22_1pct_3step_t15_fk_aocs_off.py` | new | +170 |
+| `Misc/scripts/run_m7_v22_1pct_3step_t15_fk_long.py` | new | +170 |
 | `scripts/run_m7_single_step.py` | edited | +6 (`diag_disable_aocs` kwarg) |
 
 ### §8.4  Run artefacts

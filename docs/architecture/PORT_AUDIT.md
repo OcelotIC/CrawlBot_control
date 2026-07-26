@@ -25,7 +25,7 @@ Pinocchio model the controller computes on. They are **two separate files of dif
 - The URDF is robot-only and mesh-based: `VISPA_crawling_fixed.urdf:15-16` "*Each arm is now 7-DOF →
   total actuated joints = 14 (Pinocchio nq = 21, nv = 20 with free-flyer base)*"; meshes at
   `VISPA_crawling_fixed.urdf:27` `<mesh filename="meshes/torso.stl"/>` (MJCF uses primitive geoms
-  only). Corroborated: `docs/force_estimator_note.md:330` "*Le modèle Pinocchio (URDF) ne contient
+  only). Corroborated: `Misc/reports/force_estimator_note.md:330` "*Le modèle Pinocchio (URDF) ne contient
   que le robot (torso + 2 bras).*"
 - Model **paths** are not centralized — each runner re-declares them as module constants:
   `scripts/diag_cooperative_arms.py:49` `MJCF = os.path.join(_root, 'models', 'VISPA_crawling_rwa3.xml')`
@@ -216,7 +216,7 @@ re-validated, not copied:
   (`config.py:292`), preplanner f_max 25 / tau_max 8 (`config.py:254-255`).
 - **Swing** clearance 0.03 m (`config.py:409`) + timing fractions (`config.py:536,545`).
 - **Task PD gains** ss_Kp/Kd_com/torso/ee (`config.py:399-406`).
-- **CoM-z standoff** −0.35 m (`config.py:458`) — from `scripts/diag_standoff_feasibility.py` for this
+- **CoM-z standoff** −0.35 m (`config.py:458`) — from `Misc/scripts/diag_standoff_feasibility.py` for this
   arm reach.
 - **Dock gate** weld_radius 5 mm (`config.py:35`), ori 5° (`config.py:42`), twist 0.05 (`config.py:58`)
   — the docking-mechanism capture radius.

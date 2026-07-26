@@ -6,7 +6,7 @@ submatrix of the full LOCAL_WORLD_ALIGNED frame Jacobian at the
 across the T15 bug1fix_vel run, SVD / conditioning / manipulability
 tabulated per sample, per step. No simulation, no source edits.
 
-**Script.** `scripts/diagnostics/t15_post4_singularity.py`
+**Script.** `Misc/scripts/diagnostics/t15_post4_singularity.py`
 (standalone: reads run outputs + Pinocchio). Execution time 0.22 s
 on 130 samples. No numerical warnings.
 

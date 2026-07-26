@@ -100,7 +100,7 @@ follow:
 - `all_steps_w.png` — multi-panel manipulability comparison
   across all 3 steps.
 
-Script: `scripts/diagnostic_step2_path_geometry.py`. Runtime ~30 s.
+Script: `Misc/scripts/diagnostic_step2_path_geometry.py`. Runtime ~30 s.
 
 ---
 

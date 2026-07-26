@@ -62,7 +62,7 @@ uniformly-spaced τ samples. Path lengths computed by summing
 ‖p[k+1] − p[k]‖ over the world-frame xyz of torso and
 swing-EE.
 
-The script: `scripts/diagnostic_stance_deviation_along_geodesic.py`.
+The script: `Misc/scripts/diagnostic_stance_deviation_along_geodesic.py`.
 
 ---
 

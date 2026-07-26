@@ -58,7 +58,7 @@ Independently dead, unrelated to the override mechanism:
 
 - **`adaptive_reference_at`** — 42 dead statements over 84 lines, **zero callers anywhere** in
   `crawlbot/`, `scripts/` or `tests/`.
-- **`swing_trajectory`** — 14 dead; only caller is `scripts/test_integration.py`.
+- **`swing_trajectory`** — 14 dead; only caller is `Misc/scripts/test_integration.py`.
 
 ## `TorsoPlanner`: FK methods + methods orphaned by our own earlier passes
 
@@ -107,7 +107,7 @@ safe, because most of it is not merely unreachable but *never even imported*.
 Steps 1–2 should land together (step 2 removes the only referents of step 1). Each step
 gate-verified byte-identical as usual.
 
-**Collateral, as before:** `scripts/test_integration.py` and `scripts/sim_torso6d.py` import
+**Collateral, as before:** `Misc/scripts/test_integration.py` and `Misc/scripts/sim_torso6d.py` import
 `LocomotionPlanner`; `test_integration.py` also calls `swing_trajectory`. Both are legacy
 research scripts already in the "non-functional after cleanup" list in
 `CLEANUP_CARRYOVER.md` §C3.

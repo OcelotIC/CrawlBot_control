@@ -337,12 +337,12 @@ def test_E7_t15_step2_dock_under_fk_mode():
 
     Asserts that the T15 closed-loop run under FK mode docks all
     three steps at d ≤ 5 mm. The actual sim is run by
-    ``scripts/run_m7_v22_1pct_3step_t15_fk.py``; this test validates
+    ``Misc/scripts/run_m7_v22_1pct_3step_t15_fk.py``; this test validates
     the resulting sim_log.
 
     To run the underlying sim:
         PYTHONPATH=. MUJOCO_GL=disabled python3 \\
-            scripts/run_m7_v22_1pct_3step_t15_fk.py
+            Misc/scripts/run_m7_v22_1pct_3step_t15_fk.py
 
     The test loads ``results/M7_1pct_3step_v22_t15_fk/sim_log.json``
     and applies these gates:
@@ -360,7 +360,7 @@ def test_E7_t15_step2_dock_under_fk_mode():
     if not os.path.exists(sim_log_path):
         pytest.skip(
             f"FK-mode T15 sim_log not found at {sim_log_path}; run "
-            f"scripts/run_m7_v22_1pct_3step_t15_fk.py first."
+            f"Misc/scripts/run_m7_v22_1pct_3step_t15_fk.py first."
         )
     import json as _json
     log = _json.load(open(sim_log_path))

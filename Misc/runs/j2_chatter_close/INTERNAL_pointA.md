@@ -2,7 +2,7 @@
 
 Branch `j2/ds-active-rework` (push, never merge, no PR). Touches `crawlbot/` (inter-step settle exit target) —
 **gated, default-off (C6 byte-identical)**. Reproducer: `scripts/diag_cooperative_arms.py
---interstep-settle-epsilon-v <ε_v>` + `scripts/point1_analyze.py`. STOP-GATE A: report the derived ε_v +
+--interstep-settle-epsilon-v <ε_v>` + `Misc/scripts/point1_analyze.py`. STOP-GATE A: report the derived ε_v +
 durations + dock/swing justification BEFORE re-testing run B.
 
 ## DECISIVE OUTPUT

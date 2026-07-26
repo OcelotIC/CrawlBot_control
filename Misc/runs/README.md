@@ -74,7 +74,7 @@ Run artifacts moved out of `results/` by CLEANUP-21 so that `results/` holds onl
 | `diag_cooperative_arms_thrust/` | 9 | 2.0 MB | `brainstorming_reworked_architecture.md` |
 | `M7_1pct_1step_v21_armature_fix_damping_off_mapping_off/` | 14 | 1.8 MB | — |
 | `M7_1pct_1step_v22_with_swing_hold/` | 13 | 1.7 MB | `M7_T12_MEMO.md` |
-| `diagnostic/` | 21 | 1.3 MB | `T15_step2_diagnosis_and_resolution.md`, `CLOSING_REPORT.md` |
+| `Misc/runs/q1_q2/` | 21 | 1.3 MB | `T15_step2_diagnosis_and_resolution.md`, `CLOSING_REPORT.md` |
 | `qp_tracking_test_v20/` | 4 | 1.2 MB | — |
 | `qp_tracking_test_v19/` | 4 | 1.2 MB | — |
 | `qp_tracking_test/` | 4 | 1.2 MB | `M7_TECHNICAL_LOG.md` |

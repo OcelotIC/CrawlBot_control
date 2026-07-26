@@ -15,7 +15,7 @@ caller mirror at `:1178–1179`).
 | Commit SHA | `7c8f01aeeb96e2fbefbc9d2dc8a38d1d3e33ee75` (HEAD of `claude/t15-bug1-fix`) |
 | Base commit | `4435c5d` (`origin/main`) |
 | Commit subject | T15: fix timeline desync in SwingPlanner query |
-| Reproducer script | `scripts/run_m7_v22_1pct_3step_t15.py` (`OUT` temporarily re-pointed to `M7_1pct_3step_v22_t15_bug1fix/`) |
+| Reproducer script | `Misc/scripts/run_m7_v22_1pct_3step_t15.py` (`OUT` temporarily re-pointed to `M7_1pct_3step_v22_t15_bug1fix/`) |
 | Output directory | `Misc/runs/M7_1pct_3step_v22_t15_bug1fix/` |
 
 ### 1.2 Active controller configuration (unchanged from original T15)
@@ -401,7 +401,7 @@ across the board.)
 
 ## §7 Tripwire evaluation
 
-Tripwires defined in `docs/architecture/AOCS_CONCERN_MEMO.md` §6.
+Tripwires defined in `Misc/reports/architecture/AOCS_CONCERN_MEMO.md` §6.
 Evaluated against the Bug1fix run only.
 
 ### 7.1 Tripwire A — SS metric degradation across steps
@@ -532,7 +532,7 @@ free-flying for 20 s after abort — both arms unwelded (see
 | Commit SHA at run | `7c8f01a` (HEAD of `claude/t15-bug1-fix`, 1 commit beyond `origin/main` = `4435c5d`) | PASS |
 | MJCF restored byte-exact | pre md5 = post md5 = `96d229250ca882951f1c0d2516391421` | PASS |
 | Source edits localised to sim_loop.py | +9 lines at two sites in `crawlbot/simulation/sim_loop.py` only | PASS |
-| One run | single invocation of `scripts/run_m7_v22_1pct_3step_t15.py` | PASS |
+| One run | single invocation of `Misc/scripts/run_m7_v22_1pct_3step_t15.py` | PASS |
 
 ### 8.5 Overall
 

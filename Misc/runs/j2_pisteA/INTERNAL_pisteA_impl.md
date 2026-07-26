@@ -103,8 +103,8 @@ MOVING-segment metrics (from `ds_mobile_trace`) + traversal residual + C1/C5/C6:
 
 ## Reproduce
 ```
-bash scripts/run_pisteA_sweep.sh   # β{0,0.25,0.5,1.0} exact + β0 proxy; n=5; mag 0.05; dt_ds 2.5
-MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/audit_pisteA.py b0=results/pa_b0_exact ...
+bash Misc/scripts/run_pisteA_sweep.sh   # β{0,0.25,0.5,1.0} exact + β0 proxy; n=5; mag 0.05; dt_ds 2.5
+MUJOCO_GL=disabled PYTHONPATH=. python3 Misc/scripts/audit_pisteA.py b0=results/pa_b0_exact ...
 ```
 Supporting: `Misc/runs/j2_pisteA/{beta.log, box.log, residual.log, gate_C1-C5.log}`. Raw per-run dirs
 reproducible from the script, not committed.

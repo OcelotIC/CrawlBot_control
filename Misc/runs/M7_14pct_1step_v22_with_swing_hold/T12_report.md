@@ -1,6 +1,6 @@
 # T12 — Single-step dock at mass_ratio = 0.14
 
-Run script: `scripts/run_m7_v22_14pct_with_swing_hold.py`
+Run script: `Misc/scripts/run_m7_v22_14pct_with_swing_hold.py`
 Output dir: `Misc/runs/M7_14pct_1step_v22_with_swing_hold/`
 Generated: 2026-04-21
 
@@ -18,7 +18,7 @@ exactly 1/14 (per user instruction, the principal inertia tensor is scaled by
 the same factor so the shape is preserved). The mutation is applied to the
 MJCF on disk for the duration of the run and byte-exactly restored in the
 `finally` block (same transient-mutation pattern already used for
-`damping`/`armature`; see `scripts/run_m7_v22_with_swing_hold.py`).
+`damping`/`armature`; see `Misc/scripts/run_m7_v22_with_swing_hold.py`).
 
 `models/VISPA_crawling_rwa3.xml` (transient, 3-line context):
 

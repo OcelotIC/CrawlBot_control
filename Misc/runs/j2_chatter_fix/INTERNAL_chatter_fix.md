@@ -2,8 +2,8 @@
 
 **Applies a fix + characterizes two things.** Branch `j2/ds-active-rework` (pushed, never merged). Touches
 `crawlbot/` (the settle QP) — minimal, localized to the inter-step settle, **default-off (byte-identical)**.
-Reproducer `scripts/diag_cooperative_arms.py --interstep-settle-alpha-wrench <ε>` + `scripts/audit_chatter.py`
-+ `scripts/audit_ss_orbital.py`.
+Reproducer `scripts/diag_cooperative_arms.py --interstep-settle-alpha-wrench <ε>` + `Misc/scripts/audit_chatter.py`
++ `Misc/scripts/audit_ss_orbital.py`.
 
 ## DECISIVE OUTPUT
 

@@ -1,7 +1,7 @@
 # Phase DOCK-CAUSE — dock error is a WBC EE-tracking residual, not a reference-gap
 
 **Branch** `j2/ds-active-rework` · read + measure only, NO code change · pushed, never merged.
-Data: `results/j2_adjconv/dockcause_decomp.json`; script `scripts/diag_dockcause_decompose.py`
+Data: `results/j2_adjconv/dockcause_decomp.json`; script `Misc/scripts/diag_dockcause_decompose.py`
 (READ-ONLY on the committed per-step baselines `results/figC_sw_s{k}_x1/sim_log.json` — the ×1 sweep
 runs from TSTEP-DIAG-ALL, each truncated to step k terminal, so step k's dock == the full-run dock).
 

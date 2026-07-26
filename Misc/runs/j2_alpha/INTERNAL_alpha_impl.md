@@ -49,8 +49,8 @@ non-constant. No mode flag, no hold↔mobile switch.
 - **Instrumentation (`ds_mobile_trace`, gated):** per DWELL tick — `pass_resid = dqⱼᵀτ_q + 2α·T_kin` (→0 ⇒
   passivity binding), `Hdot_inf = ‖Σ r_Cj×f_j + τ_j‖∞` from the QP wrench (→ `τ_w,max` ⇒ envelope binding),
   `com_err`, swing-arm `manip = √det(J_arm J_armᵀ)`, `qp_ok`, `nmpc_status`.
-- **diag CLI:** `--ds-mobile-com-magnitude`, `--dt-ds`. Tooling: `scripts/run_alpha_sweep.sh`,
-  `scripts/audit_alpha.py`.
+- **diag CLI:** `--ds-mobile-com-magnitude`, `--dt-ds`. Tooling: `Misc/scripts/run_alpha_sweep.sh`,
+  `Misc/scripts/audit_alpha.py`.
 
 **Strict passivity only** (`passivity_active=True`, RHS ≤ 0 — no Piste A budget, no envelope-box change, no
 FLAG-2 fix). Orientation + posture held (arm-posture-as-moving-DOF is BUILDING, out of scope).
@@ -157,8 +157,8 @@ the trailing-DS arm, two different configs; the per-segment first→last above i
 
 ## Reproduce
 ```
-bash scripts/run_alpha_sweep.sh    # magnitude {0,0.02,0.05,0.10,0.20} + dt_ds{1.5} (n=2) + C1-C5 (n=5)
-MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/audit_alpha.py LABEL=results/<dir> ...
+bash Misc/scripts/run_alpha_sweep.sh    # magnitude {0,0.02,0.05,0.10,0.20} + dt_ds{1.5} (n=2) + C1-C5 (n=5)
+MUJOCO_GL=disabled PYTHONPATH=. python3 Misc/scripts/audit_alpha.py LABEL=results/<dir> ...
 ```
 Supporting: `Misc/runs/j2_alpha/sweep_binding.log`, `gate_C1-C5.log`. Raw per-run sim dirs reproducible from
 the script, not committed (bulk).

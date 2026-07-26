@@ -163,7 +163,7 @@ sub-steps per NMPC tick.
 
 ### 1.4 Unused / legacy modules in the current production path
 
-- `crawlbot/planning/locomotion_planner.py` (`LocomotionPlanner`) is not imported by `sim_loop.py` at HEAD of `claude/t15-bug1-fix`. `sim_loop.py:46` comment reads `# LocomotionPlanner removed — CoM reference comes from TorsoPlanner`. Grep result: referenced only from `scripts/test_integration.py` and `crawlbot/planning/__init__.py` (re-export). Flagging it as **not in scope** for the live reference pipeline.
+- `crawlbot/planning/locomotion_planner.py` (`LocomotionPlanner`) is not imported by `sim_loop.py` at HEAD of `claude/t15-bug1-fix`. `sim_loop.py:46` comment reads `# LocomotionPlanner removed — CoM reference comes from TorsoPlanner`. Grep result: referenced only from `Misc/scripts/test_integration.py` and `crawlbot/planning/__init__.py` (re-export). Flagging it as **not in scope** for the live reference pipeline.
 
 ---
 

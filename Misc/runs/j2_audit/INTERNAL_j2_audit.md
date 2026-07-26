@@ -4,7 +4,7 @@
 the J2 DS-rework spec is built on verified ground. **READ-ONLY** archaeology (no `crawlbot/` change, no
 `main` write, no PR, no implementation). Branch `j2/ds-active-rework` off `ae0673e`. Method: 4 Explore
 sub-agents (one per block) + direct verification of every load-bearing claim. Reproducer:
-`scripts/audit_j2_facts.py`.
+`Misc/scripts/audit_j2_facts.py`.
 
 **TL;DR — the J2 starting position is much stronger than the framing assumed.** The NMPC is **already
 n=2-formulated** and **already drives DS** (terminal + dwell) with **live** solves; the hyperstatic

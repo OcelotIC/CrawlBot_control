@@ -76,3 +76,24 @@ min-over-swing distance, which is a fly-by artifact.
 | `last_verdict.json` | latest run output (founding = baseline) | yes |
 | `_run/` | scratch (re-export CSV) | git-ignored |
 | `results/gate_run_scratch/` | scratch (replay sim_log) | git-ignored |
+
+## Structural checks — `link_audit.py` and `verify_roots.py`
+
+Added by the CLEANUP-20/21/22 restructure; run them after moving anything.
+
+```bash
+PYTHONPATH=. python3 gate/link_audit.py     # exits 1 if a move broke a citation
+PYTHONPATH=. python3 gate/verify_roots.py   # exits 1 if a script's _root is wrong
+```
+
+`link_audit` resolves every repo-relative path cited in tracked `.md`/`.py` and
+splits the failures into BROKEN BY MOVE (a move made the citation stale — the
+only actionable class), DELETED, and DANGLING (never existed). It skips
+gitignored paths and prose ellipses, and requires an *unambiguous* relocation
+before calling something broken: without that, every citation of a common
+basename like `sim_log.json` reads as a false alarm.
+
+`verify_roots` evaluates each script's `_root` expression with `__file__` bound
+to its real path and asserts it equals the repo root. This matters because
+`_root` feeds both `sys.path` *and* path construction (URDF, MJCF, OUT_DIR): a
+wrong `sys.path` fails loudly, a wrong `OUT_DIR` silently writes elsewhere.

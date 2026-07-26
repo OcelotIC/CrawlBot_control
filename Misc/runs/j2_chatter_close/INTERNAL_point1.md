@@ -2,7 +2,7 @@
 
 Branch `j2/ds-active-rework` (push, never merge, no PR). **Characterization-only** — no `crawlbot/` change
 (the committed default-off Σf code from `c9df233` is untouched; C6 byte-identical preserved). Reproducer:
-`scripts/point1_config_sweep.sh` (12 runs) + `scripts/point1_analyze.py` (chatter metrics from `sim_log.json`
+`Misc/scripts/point1_config_sweep.sh` (12 runs) + `Misc/scripts/point1_analyze.py` (chatter metrics from `sim_log.json`
 alone — the net force Σf=λ[0:3]+λ[6:9] sign-flip is the chatter signature, no `postproc_F3F4.csv` needed).
 
 All runs hold AOCS = **`legacy_pid_numerical`** (the run-A FIGURE config), exact-box, and vary only the

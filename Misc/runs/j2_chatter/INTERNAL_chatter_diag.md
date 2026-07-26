@@ -1,7 +1,7 @@
 # INTERNAL — DS inter-step settle chatter: ROOT-CAUSE DIAGNOSIS (no fix)
 
 **Diagnosis only — NO fix applied, NO `crawlbot/` change.** Branch `j2/ds-active-rework` (pushed, never
-merged). Reproducer `scripts/diag_chatter.sh` + `scripts/audit_chatter.py`. The active set is reconstructed
+merged). Reproducer `Misc/scripts/diag_chatter.sh` + `Misc/scripts/audit_chatter.py`. The active set is reconstructed
 **offline** from the logged `lambda_qp` (the exact envelope box `|M_exact·λ| ≤ τ_w_max` has a fixed RHS, so
 no logging hook was needed — flagged: zero crawlbot touch).
 
@@ -106,8 +106,8 @@ H2 ⇒ break the cost degeneracy so the settle QP picks a **unique** vertex on t
 
 ## Reproduce
 ```
-bash scripts/diag_chatter.sh   # baseline + c_curr-frozen (exact box, n=5) + offline analysis
-MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/audit_chatter.py \
+bash Misc/scripts/diag_chatter.sh   # baseline + c_curr-frozen (exact box, n=5) + offline analysis
+MUJOCO_GL=disabled PYTHONPATH=. python3 Misc/scripts/audit_chatter.py \
   base=results/chatter_base cfrozen=results/chatter_cfrozen
 ```
 Supporting: `Misc/runs/j2_chatter/chatter_analysis.log`. Raw run dirs reproducible from the driver, not

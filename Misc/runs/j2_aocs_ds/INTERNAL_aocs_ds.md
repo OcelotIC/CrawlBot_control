@@ -1,7 +1,7 @@
 # INTERNAL — AOCS-during-DS audit: is the structure attitude controller active throughout ALL of DS?
 
 **Read-only map on `ae0673e`, branch `j2/ds-active-rework`. No `crawlbot/` change, no sim run** (the
-empirical tell reuses the committed `Misc/runs/fixA_gate/sim_log.json`). Reproducer `scripts/audit_aocs_ds.py`
+empirical tell reuses the committed `Misc/runs/fixA_gate/sim_log.json`). Reproducer `Misc/scripts/audit_aocs_ds.py`
 (7/7). Raw facts; the step-4 framing is for Idriss + reviewing Claude.
 
 ---
@@ -113,7 +113,7 @@ feedback-only AOCS modes — `legacy_pid_numerical` / `H_est` — which need no 
 
 ## Reproduce
 ```
-MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/audit_aocs_ds.py
+MUJOCO_GL=disabled PYTHONPATH=. python3 Misc/scripts/audit_aocs_ds.py
 ```
 Code anchors: `sim_loop.py:765` (violation), `:930` (tau_w=0 log + comment `:927`), `:3275` (`_step`
 applies AOCS), `:3138` (`aocs_off_in_ds` gate), `config.py:127` (default False). Empirical tell:

@@ -23,7 +23,7 @@ Observer (De Luca 2006, integral form):
 
 Convergence: r_dot = -K_O r + K_O tau_ext  =>  r -> tau_ext = J_c^T f_ext.
 
-See docs/contact_estimator_derivation.md for the full derivation.
+See Misc/reports/contact_estimator_derivation.md for the full derivation.
 """
 
 import numpy as np

@@ -2,7 +2,7 @@
 
 **Export only — NO `crawlbot/` change** (reuses the committed flags; FIX 1/2 are post-hoc from logged fields).
 Branch `j2/ds-active-rework` (pushed, never merged). Reproducer `scripts/export_figure_data.py` (+ driver
-`scripts/run_figdata.sh`). Two runs as tidy CSV + meta JSON; **no plots**. This revision fixes the reference
+`Misc/scripts/run_figdata.sh`). Two runs as tidy CSV + meta JSON; **no plots**. This revision fixes the reference
 columns (FIX 1) and fills the inter-step envelope gap (FIX 2).
 
 ## Deliverables
@@ -134,7 +134,7 @@ torso_pos_{x,y,z}_m, torso_pos_ref_{x,y,z}_m, torso_ori_err_deg | swing_dist_m, 
 
 ## Reproduce
 ```
-bash scripts/run_figdata.sh   # runs A & B (committed flags) → postproc → export both
+bash Misc/scripts/run_figdata.sh   # runs A & B (committed flags) → postproc → export both
 ```
 Raw per-run dirs (`results/figA`, `results/figB`) reproducible from the driver, not committed; the deliverable
 CSV/JSON in `results/j2_figdata/` are.

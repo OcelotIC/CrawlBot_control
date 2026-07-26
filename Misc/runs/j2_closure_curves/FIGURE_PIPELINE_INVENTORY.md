@@ -8,7 +8,7 @@ to the real code. Answers the five brief questions.
 - The only **plot stage that runs today** is the diagnostic plotter `crawlbot/diagnostics/plots.py`
   (`run_diagnostics()`) — it reads a `SimLog` and writes the **PNG** set `fig1_tracking … fig10` directly (no
   CSV intermediary). It is **PNG-only, Agg, no rcParams/PDF/IEEE/fonttype** — diagnostic-grade, not paper-grade.
-- The **publication-quality** plotter `scripts/run_r7_figures.py` exists but is **R7-era and superseded** —
+- The **publication-quality** plotter `Misc/scripts/run_r7_figures.py` exists but is **R7-era and superseded** —
   it plots Lutze-vs-MPC single/3-step from old logs (`sim_lutze_log.json`, `r6_multistep_log.json`), **not** the
   J2 cooperative-arms run, and its outputs are **not committed**.
 - `postprocess_results_figs.py` is a **data postprocessor, NOT a plotter** (writes `postproc_F3F4.csv`, no
@@ -30,7 +30,7 @@ to the real code. Answers the five brief questions.
 - **Invocation:** at the end of a sim (CLAUDE.md: "Call `run_diagnostics()` at the end of every sim"), and
   standalone (`from crawlbot.diagnostics import run_diagnostics; run_diagnostics(json.load(...), out)`).
   **No Makefile / no CI step** (no `Makefile` in the repo).
-- **`scripts/run_r7_figures.py`** — "R7 — Generate publication-quality figures for the VISPA paper":
+- **`Misc/scripts/run_r7_figures.py`** — "R7 — Generate publication-quality figures for the VISPA paper":
   `fig1_single_step_comparison.pdf`, `fig2_multistep_locomotion.pdf`, `fig3_momentum_comparison.pdf`. Requires
   `sim_torso6d_log.json` / `sim_lutze_log.json` / `r6_multistep_log.json` (R6/R7 Lutze-vs-MPC logs) — **not the
   J2 traversal.** Superseded.
@@ -70,7 +70,7 @@ to the real code. Answers the five brief questions.
   use matplotlib defaults (no fixed x/y/z color map). Figure sizes `figsize=(12,10)` / `(12,8)` (screen, not
   column).
 
-**Paper (superseded) — `scripts/run_r7_figures.py`:**
+**Paper (superseded) — `Misc/scripts/run_r7_figures.py`:**
 - `plt.rcParams.update({'font.family':'serif','font.size':9,'axes.labelsize':10,'lines.linewidth':1.2,
   'axes.grid':True,'grid.alpha':0.3,'figure.dpi':300,'savefig.dpi':300,'savefig.bbox':'tight',
   'savefig.pad_inches':0.05})`. **No `pdf.fonttype=42`** (TrueType embedding NOT set; no `usetex`).

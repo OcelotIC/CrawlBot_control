@@ -1,6 +1,6 @@
 # T12-fix — Option A implementation diff
 
-Spec: `docs/architecture/M7_T12_MEMO.md` §5 (Option A — smooth the
+Spec: `Misc/reports/architecture/M7_T12_MEMO.md` §5 (Option A — smooth the
 post-dock position-reference release).
 
 ## Files modified
@@ -48,7 +48,7 @@ future diagnostics can populate it if a clean source becomes available.
 +    # continuous with s(0)=0, s(1)=1, s'(0)=s'(1)=s''(0)=s''(1)=0.
 +    # Set to 0.0 to disable (reverts to the pre-Option-A step
 +    # behavior). Introduced to close the T12 DS1 divergence;
-+    # see docs/architecture/M7_T12_MEMO.md §5.
++    # see Misc/reports/architecture/M7_T12_MEMO.md §5.
 ```
 **One-line summary.** Adds `ds_ramp_duration_s: float = 2.0` with
 inline comments matching the style of `mapping_bypass_in_ss`
@@ -65,7 +65,7 @@ Site 1 — `__init__`, after `_ss_entry_p_torso` declaration:
 +        # Option A (T12 fix, 2026-04-22): post-dock blend state for
 +        # the DS torso position reference. Populated at weld
 +        # activation; cleared on SS entry. See
-+        # cfg.ds_ramp_duration_s and docs/architecture/M7_T12_MEMO.md §5.
++        # cfg.ds_ramp_duration_s and Misc/reports/architecture/M7_T12_MEMO.md §5.
 +        self._ds_ramp_t_start: Optional[float] = None
 +        self._ds_ramp_p_start: Optional[np.ndarray] = None
 +        self._ds_ramp_p_end: Optional[np.ndarray] = None

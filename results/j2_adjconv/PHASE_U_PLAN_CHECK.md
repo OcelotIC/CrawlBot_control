@@ -1,7 +1,7 @@
 # Phase U-PLAN-CHECK — VERDICT: **reframe VALIDATED.** The rate-off U-plan EXCEEDS the envelope (z up to **10.0 = 2×**).
 
 **Branch** `j2/ds-active-rework` · **measurement only, `crawlbot/` untouched, NO canonical change** · pushed, never merged.
-Data: `results/j2_adjconv/uplan_check_result.json`; runner `scripts/diag_uplan_check.py`. Raw run
+Data: `results/j2_adjconv/uplan_check_result.json`; runner `Misc/scripts/diag_uplan_check.py`. Raw run
 `results/figU_plan_check_mom400_Tw1e6` (gitignored). C reference: `nmpc_plan_sat_result.json` (mom 400).
 
 ## Verdict
@@ -79,7 +79,7 @@ demonstration of it, not an artifact of the dynamics.
 | artifact | path |
 |---|---|
 | U result JSON (per-axis, per-step, IPOPT) | `results/j2_adjconv/uplan_check_result.json` |
-| runner | `scripts/diag_uplan_check.py` |
+| runner | `Misc/scripts/diag_uplan_check.py` |
 | C reference (mom 400) | `results/j2_adjconv/nmpc_plan_sat_result.json` |
 | prior canonical rate-off run (source of the 7.48) | `results/figU_rateoff/sim_log.json` |
 

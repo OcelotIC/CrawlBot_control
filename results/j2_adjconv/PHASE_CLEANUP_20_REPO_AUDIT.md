@@ -62,7 +62,7 @@ when rendering is enabled (off on the canonical).
 | `results/` | 1921 | **377 MB** | **15.5 MB load-bearing (4.1 %)** → the main target |
 | `lutze_baseline/` | 10 | tiny | keep — M0 paper baseline (CLEANUP-18 §3) |
 | `benchmarks/` | 6 | tiny | pytest benchmarks; keep or fold into `tests/` |
-| `diagnostic/` | 12 | 0.9 MB | **top-level scratch** — Q1/Q2 outputs → `Misc/` |
+| `Misc/runs/q1_q2/` | 12 | 0.9 MB | **top-level scratch** — Q1/Q2 outputs → `Misc/` |
 | `URDF_models/` | 18 | 1.0 MB | **unused by the canonical** → see §5.1 |
 | root | 8 | small | 4 docs + 4 config files |
 
@@ -196,7 +196,7 @@ what the gate's canonical replay catches.
 
 | # | step | risk | note |
 |---|---|---|---|
-| 1 | `diagnostic/` → `Misc/diagnostics/q1_q2/` | **none** | top-level scratch, zero code references |
+| 1 | `Misc/runs/q1_q2/` → `Misc/runs/q1_q2/` | **none** | top-level scratch, zero code references |
 | 2 | `URDF_models/` → `Misc/models/urdf_legacy/` | **none** | zero references (§5.1) |
 | 3 | Point the four test output dirs at a scratch path | low | **also fixes §C2** |
 | 4 | `results/` residue → `Misc/runs/` | low | 361 MB, 157 directories; keep the 8 load-bearing |

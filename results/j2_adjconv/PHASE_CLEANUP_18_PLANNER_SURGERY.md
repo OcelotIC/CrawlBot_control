@@ -33,7 +33,7 @@ and is untouched. Only the *swing* planner's `add_phase` was dead.
 | method | why dead |
 |---|---|
 | `SwingPlanner.adaptive_reference_at` | zero callers anywhere in `crawlbot/`, `scripts/`, `tests/` |
-| `SwingPlanner.swing_trajectory` | only caller is `scripts/test_integration.py` (legacy) |
+| `SwingPlanner.swing_trajectory` | only caller is `Misc/scripts/test_integration.py` (legacy) |
 | `TorsoPlanner.set_from_waypoints` | orphaned by CLEANUP-14 (the `ds_mobile_com_magnitude` block) |
 | `TorsoPlanner._trapezoidal_params` | zero callers, including internally |
 
@@ -71,8 +71,8 @@ Import-resolving every `crawlbot.*` symbol of each consumer against HEAD:
 
 | consumer | status at HEAD |
 |---|---|
-| `scripts/test_integration.py` | **all imports resolve** |
-| `scripts/sim_torso6d.py` | **all imports resolve** |
+| `Misc/scripts/test_integration.py` | **all imports resolve** |
+| `Misc/scripts/sim_torso6d.py` | **all imports resolve** |
 | **`lutze_baseline/sim_lutze.py`** | **all imports resolve** |
 
 There are **three** consumers, not two; none was on the §C3 list; and none was already broken.

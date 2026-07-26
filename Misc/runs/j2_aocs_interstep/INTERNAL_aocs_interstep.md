@@ -167,8 +167,8 @@ unchanged); the new flag-on path is exercised by the A/B run (5/5 dock, all gate
 
 ## Reproduce
 ```
-bash scripts/run_aocs_interstep_ab.sh    # AOCS on vs off, 5-step, analysis + gate
-MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/audit_aocs_interstep.py on=results/aocs_on off=results/aocs_off
+bash Misc/scripts/run_aocs_interstep_ab.sh    # AOCS on vs off, 5-step, analysis + gate
+MUJOCO_GL=disabled PYTHONPATH=. python3 Misc/scripts/audit_aocs_interstep.py on=results/aocs_on off=results/aocs_off
 ```
 Supporting: `Misc/runs/j2_aocs_interstep/{aocs_ab.log, aocs_gate.log}`. C6 diff: new-code flag-off vs old-code
 `6a718f2` canonical (bit-identical on all physical fields).

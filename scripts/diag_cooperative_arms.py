@@ -83,7 +83,7 @@ def _mutate_mjcf(damping: float, armature: float,
     # Structure mass/inertia: scale by 0.01/mass_ratio relative to the
     # canonical (1%) values. mass_ratio=0.14 => scale 1/14 => structure
     # mass 7110->507.857 kg + inertia x1/14 (the validated T12 mass,
-    # scripts/run_m7_v22_14pct_with_swing_hold.py). hw/tau_w limits are
+    # Misc/scripts/run_m7_v22_14pct_with_swing_hold.py). hw/tau_w limits are
     # NOT scaled (the stress test: same AOCS box at higher disturbance).
     if mass_ratio is not None and abs(mass_ratio - 0.01) > 1e-9:
         scale = 0.01 / mass_ratio
@@ -376,7 +376,7 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     # take the *less-contorted* arm's joint vector and mirror it onto
     # the other arm via the y-symmetry sign pattern
     # S=[-1,-1,-1,-1,-1,-1,+1]. Reproduced by
-    # scripts/diag_qnominal_sweep.py. Sweep result (vs leveled-only
+    # Misc/scripts/diag_qnominal_sweep.py. Sweep result (vs leveled-only
     # ‖q_arm‖=4.05 / max|q|=147° / σ_min·prod=2.43e-2):
     #   zeros  → ‖q‖3.07 max89° prod1.6e-3  (de-contorts but one arm
     #            driven near-singular — rejected)

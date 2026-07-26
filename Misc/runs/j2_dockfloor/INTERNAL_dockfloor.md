@@ -103,8 +103,8 @@ the gripper to **~4.5–4.9 mm** (per-step `[4.94, 4.51, 4.91, 4.61, 4.84]`, wor
 
 ## Reproduce
 ```
-bash scripts/run_dockfloor_sweep.sh   # off / strict / W{0.5,2,10}; n=5; dock-only
-MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/audit_dockfloor.py off=results/df_off strict=results/df_strict ...
+bash Misc/scripts/run_dockfloor_sweep.sh   # off / strict / W{0.5,2,10}; n=5; dock-only
+MUJOCO_GL=disabled PYTHONPATH=. python3 Misc/scripts/audit_dockfloor.py off=results/df_off strict=results/df_strict ...
 ```
 Supporting: `Misc/runs/j2_dockfloor/dock.log`, `residual.log`, `gate_C1-C5.log`. Raw per-run dirs reproducible
 from the script, not committed.

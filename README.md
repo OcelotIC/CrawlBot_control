@@ -37,7 +37,7 @@ spacecraft pointing during crawling.
 pip install pin casadi mujoco numpy matplotlib
 
 # Reproduce the frozen canonical (6-step traversal, C managed + U ablation):
-PYTHONPATH=. MUJOCO_GL=disabled python3 scripts/diag_canonical2p5_run.py
+PYTHONPATH=. MUJOCO_GL=disabled python3 Misc/scripts/diag_canonical2p5_run.py
 
 # Or drive the traversal harness directly — its defaults ARE the canonical
 # caps (tau_w_max = 2.5 in controller AND plant since commit ec41cd9):
@@ -146,7 +146,7 @@ The AOCS provides feedforward rejection of the spin component via
 `τ_w = -L̇_com_est - K_hw · hw_error`. The orbital component is managed by
 the NMPC's trajectory planning (hw box constraint with corrected dynamics).
 
-See `docs/force_estimator_note.md` for the full theoretical derivation.
+See `Misc/reports/force_estimator_note.md` for the full theoretical derivation.
 
 
 ## Canonical Results (frozen τ_w,max = 2.5 canonical, 6-step traversal, 1% mass ratio)

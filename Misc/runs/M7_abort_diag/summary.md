@@ -1,6 +1,6 @@
 # M7 post-abort DS diagnostic decomposition — summary
 
-Four runs per `docs/architecture/M7_DS_DIAGNOSTIC_EXPERIMENTS.md`.
+Four runs per `Misc/reports/architecture/M7_DS_DIAGNOSTIC_EXPERIMENTS.md`.
 Each run toggles at most one `diag_*_on_abort` flag; all other
 parameters identical to the v21 baseline. `τ_q` saturation threshold
 is `0.99 · tau_max = 19.8 Nm`; `τ_w` saturation threshold is

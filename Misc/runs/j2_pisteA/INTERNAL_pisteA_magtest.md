@@ -90,7 +90,7 @@ bounded positive work, β an interpretable knob — **but it is not a CoM-tracki
 
 ## Reproduce
 ```
-bash scripts/run_pisteA_mag_sweep.sh   # mag 0.20 β{0,0.5,1.0,2.0} + mag 0.10 + C1-C5(n=5)
+bash Misc/scripts/run_pisteA_mag_sweep.sh   # mag 0.20 β{0,0.5,1.0,2.0} + mag 0.10 + C1-C5(n=5)
 ```
 Supporting: `magtest_beta_mag0.20.log`, `magtest_beta_mag0.10.log`, `magtest_residual.log`,
 `magtest_gate_C1-C5.log` (this dir). No regression run — no `crawlbot/` change (characterization only;

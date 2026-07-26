@@ -1,6 +1,6 @@
 SS-CENTROIDAL-MOMENTUM TASK — Phase-1.1 run metadata
 ============================================================
-memo            : docs/architecture/SS_CENTROIDAL_MOMENTUM_TASK_2026-06.md
+memo            : Misc/reports/architecture/SS_CENTROIDAL_MOMENTUM_TASK_2026-06.md
 git HEAD        : dcda974  Added spec for proper NMPC to QP mapping
 git branch      : feat/ss-centroidal-momentum-task
 control code    : (clean — crawlbot/ and models/ identical to committed HEAD)

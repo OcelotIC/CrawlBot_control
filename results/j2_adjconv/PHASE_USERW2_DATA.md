@@ -2,7 +2,7 @@
 
 **Branch** `j2/ds-active-rework` · export from the committed run, NO new run, NO canonical change · pushed,
 never merged. Artifacts: `results/j2_adjconv/userw2_timeseries.csv` (1860 ticks), `userw2_envelope_analysis.json`;
-script `scripts/diag_userw2_export.py`.
+script `Misc/scripts/diag_userw2_export.py`.
 
 **Correction up front:** the premise "userw2's realized |Ḣ_s| ≤ 2.50 never reaches the cap → constraint
 inactive → ablation at risk" is **SS-only**. The homogeneous realized Ḣ_s (λ_qp on *all* ticks) peaks at

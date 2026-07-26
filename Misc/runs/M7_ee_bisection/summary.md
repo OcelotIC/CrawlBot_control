@@ -1,6 +1,6 @@
 # M7 — EE position bisection summary
 
-Per `docs/architecture/M7_EE_POSITION_BISECTION.md`. Three
+Per `Misc/reports/architecture/M7_EE_POSITION_BISECTION.md`. Three
 v21-baseline cases share initial state, contact config
 (SINGLE_A), and SwingPlanner EE reference; they differ only
 in which subsystems run during SS. Case D is read from

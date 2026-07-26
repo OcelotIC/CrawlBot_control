@@ -29,7 +29,7 @@ QP receives p_torso_ref frozen at the SS-entry torso position
 v_torso_ref_lin = 0 and a_torso_ff_lin = 0. Angular reference still
 comes from TorsoPlanner. DS phase is unchanged.
 
-scripts/run_m7_v21_mapping_off.py mirrors the v21 baseline runner
+Misc/scripts/run_m7_v21_mapping_off.py mirrors the v21 baseline runner
 with the flag turned on. Output:
 Misc/runs/M7_1pct_1step_v21_mapping_off/.
 
@@ -128,7 +128,7 @@ set).
   comment.
 - Default `False` at introduction, i.e. off-by-default
   instrumentation (not a committed closure).
-- A companion runner script `scripts/run_m7_v21_mapping_off.py`
+- A companion runner script `Misc/scripts/run_m7_v21_mapping_off.py`
   was added in the same commit to exercise it.
 
 *(§2 Rationale follows.)*
@@ -152,7 +152,7 @@ follow-up` (in both the config.py docstring comment and the
 `__init__` field comment) — pointing at `M7_EE_POSITION_BISECTION.md`
 and the technical-log entries below.
 
-### 2.2 Technical log — `docs/architecture/M7_TECHNICAL_LOG.md` §15 "Mapping Bypass in SS — Position Tracking Resolved (2026-04-20)"
+### 2.2 Technical log — `Misc/reports/architecture/M7_TECHNICAL_LOG.md` §15 "Mapping Bypass in SS — Position Tracking Resolved (2026-04-20)"
 
 Directly addresses the motivation. Relevant excerpts:
 
@@ -208,7 +208,7 @@ architectural changes that closed T11:
 >  four findings are model-consistency or reference-generation
 >  fixes at the simulation-controller boundary."
 
-### 2.4 Bisection memo — `docs/architecture/M7_EE_POSITION_BISECTION.md`
+### 2.4 Bisection memo — `Misc/reports/architecture/M7_EE_POSITION_BISECTION.md`
 
 The bisection that motivated the flag. Scope (L4):
 
@@ -233,7 +233,7 @@ introduced to make B_minus reproducible in the production
 sim_loop and, having confirmed the bisection prediction, was
 then kept on as the T11 closure.
 
-### 2.5 T12 memo — `docs/architecture/M7_T12_MEMO.md` §3.4 "Role of `mapping_bypass_in_ss`"
+### 2.5 T12 memo — `Misc/reports/architecture/M7_T12_MEMO.md` §3.4 "Role of `mapping_bypass_in_ss`"
 
 Retrospective assessment from the T12 investigation:
 
@@ -317,10 +317,10 @@ Uses the word "**diagnostic**" to describe the branch.
 
 | Validation | Script | `mapping_bypass_in_ss` set in script? |
 |---|---|---|
-| **Introducing commit companion** | `scripts/run_m7_v21_mapping_off.py` (`sim_loop.py` at 61dcfca) | `cfg.mapping_bypass_in_ss = True` |
-| **T11** (1 %, 1-step) | `scripts/run_m7_v22_with_swing_hold.py` | `cfg.mapping_bypass_in_ss = True` (line 55) |
-| **T12** (14 %, 1-step) | `scripts/run_m7_v22_14pct_with_swing_hold.py` | `cfg.mapping_bypass_in_ss = True` (line 76) |
-| **T15 original** (1 %, 3-step) | `scripts/run_m7_v22_1pct_3step_t15.py` | `cfg.mapping_bypass_in_ss = True` (line 79) |
+| **Introducing commit companion** | `Misc/scripts/run_m7_v21_mapping_off.py` (`sim_loop.py` at 61dcfca) | `cfg.mapping_bypass_in_ss = True` |
+| **T11** (1 %, 1-step) | `Misc/scripts/run_m7_v22_with_swing_hold.py` | `cfg.mapping_bypass_in_ss = True` (line 55) |
+| **T12** (14 %, 1-step) | `Misc/scripts/run_m7_v22_14pct_with_swing_hold.py` | `cfg.mapping_bypass_in_ss = True` (line 76) |
+| **T15 original** (1 %, 3-step) | `Misc/scripts/run_m7_v22_1pct_3step_t15.py` | `cfg.mapping_bypass_in_ss = True` (line 79) |
 | **T15 bug1fix_vel** (Phase 3 rerun) | same script (OUT repointed) | `cfg.mapping_bypass_in_ss = True` |
 
 Every M7 v22 validation run in the T11→T15 series has used
@@ -486,7 +486,7 @@ other warning is present in the module's docstrings.
 
 ### 4.4 Historical evidence on planned-δ vs live-δ behaviour
 
-From `docs/architecture/M7_TECHNICAL_LOG.md` §2 (EE Position
+From `Misc/reports/architecture/M7_TECHNICAL_LOG.md` §2 (EE Position
 Inflation bisection):
 
 > "**Problem with live δ(q_current)**: The arm's tracking error
@@ -652,7 +652,7 @@ they are "independent architectural changes".
 
 Per commit message:
 
-> "Per docs/architecture/M7_T12_MEMO.md §5. Blends the DS torso
+> "Per Misc/reports/architecture/M7_T12_MEMO.md §5. Blends the DS torso
 > linear position reference from the frozen SS-exit pose
 > (_ss_entry_p_torso) to the live mapping.compute output over
 > cfg.ds_ramp_duration_s (default 2.0 s), using the quintic
@@ -887,10 +887,10 @@ interpretation.
 | Source | Created | Last touched | Pre-/post-flag (2026-04-20)? | Pre-/post-T11 (2026-04-21)? | Pre-/post-T12 (2026-04-22)? |
 |---|---|---|---|---|---|
 | `docs/architecture/STATUS.md` | 2026-04-11 | 2026-04-15 | **pre** | **pre** | **pre** |
-| `docs/architecture/M7_EE_POSITION_BISECTION.md` | 2026-04-20 | 2026-04-20 | same-day | pre | pre |
-| `docs/architecture/M7_TECHNICAL_LOG.md` | 2026-04-17 | 2026-04-21 | post | same-day | **pre** |
-| `docs/architecture/M7_T12_MEMO.md` | 2026-04-22 | 2026-04-22 | post | post | post |
-| `docs/architecture/AOCS_CONCERN_MEMO.md` | 2026-04-22 | 2026-04-22 | post | post | post |
+| `Misc/reports/architecture/M7_EE_POSITION_BISECTION.md` | 2026-04-20 | 2026-04-20 | same-day | pre | pre |
+| `Misc/reports/architecture/M7_TECHNICAL_LOG.md` | 2026-04-17 | 2026-04-21 | post | same-day | **pre** |
+| `Misc/reports/architecture/M7_T12_MEMO.md` | 2026-04-22 | 2026-04-22 | post | post | post |
+| `Misc/reports/architecture/AOCS_CONCERN_MEMO.md` | 2026-04-22 | 2026-04-22 | post | post | post |
 | `crawlbot/core/com_to_torso_mapping.py` docstring | 2026-04-16 (mapping v1 commit `103bcc6`) | unchanged | pre | pre | pre |
 | `sim_loop.py:1734` inline "diagnostic bypass" comment | 2026-04-20 (commit `61dcfca`) | unchanged | same-day | pre | pre |
 | `crawlbot/simulation/config.py` docstring on the flag | 2026-04-20 (commit `61dcfca`) | unchanged | same-day | pre | pre |

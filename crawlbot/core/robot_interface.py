@@ -253,7 +253,7 @@ class RobotInterface:
             Structure angular velocity in the structure body frame [rad/s].
             Reserved for future non-inertial frame corrections.
             Currently stored but not used in dynamics computation —
-            see docs/test_findings_report.md for analysis of why Layers 1
+            see Misc/reports/test_findings_report.md for analysis of why Layers 1
             (apparent gravity) and 2 (J̇ correction) destabilize the
             existing controller gains.
 
@@ -339,7 +339,7 @@ class RobotInterface:
         # This is mathematically correct but destabilizes the QP because
         # the controller gains were tuned assuming an inertial frame.
         # Enabling requires re-tuning all QP weights and feedback gains.
-        # See docs/test_findings_report.md for experimental evidence.
+        # See Misc/reports/test_findings_report.md for experimental evidence.
 
         Jdot_dq_tool_a = (dJ_a @ v).copy()
         Jdot_dq_tool_b = (dJ_b @ v).copy()

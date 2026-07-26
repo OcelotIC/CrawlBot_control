@@ -434,7 +434,7 @@ def dock_configuration_fixed_rotation(
         # construction). Tasks: tool_a (6) + tool_b (6) + CoM-z (1). The
         # extra CoM-z row consumes one of the 5 redundant DOFs to hold the
         # crawl height; feasibility for every anchor pair was verified in
-        # scripts/diag_standoff_feasibility.py.
+        # Misc/scripts/diag_standoff_feasibility.py.
         sl = _get_arm_slices(model)
         free = np.r_[0:3,
                      np.arange(sl['arm_a_v'].start, sl['arm_a_v'].stop),
@@ -1200,7 +1200,7 @@ def check_path_feasibility(
     seeded from interpolation otherwise).
 
     This is the same procedure as
-    ``scripts/diagnostic_step2_path_geometry.py`` §1, extracted into
+    ``Misc/scripts/diagnostic_step2_path_geometry.py`` §1, extracted into
     a runtime-callable helper.
 
     Reference construction (matches planner shapes):

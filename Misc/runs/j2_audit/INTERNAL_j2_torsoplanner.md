@@ -3,7 +3,7 @@
 **Goal:** map the TorsoPlanner's mechanics so the Q2 "DS-mobile" design (a **moving** torso-orientation +
 arm-posture reference in the reorientation null space, gait-triggered, **not** CoM transport) stands on
 verified ground. Map only — no design, no implementation. Branch `j2/ds-active-rework`. Reproducer
-`scripts/audit_torsoplanner.py` (**16/16**). The wiring-vs-building call per item, as the J2 audit did.
+`Misc/scripts/audit_torsoplanner.py` (**16/16**). The wiring-vs-building call per item, as the J2 audit did.
 
 **TL;DR — DS-mobile is mostly WIRING for the torso-orientation half and BUILDING for the arm-posture half.**
 The planner's time-varying trajectory machinery (`add_phase`/`reference_at`) already exists and is used in

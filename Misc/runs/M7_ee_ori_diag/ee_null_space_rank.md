@@ -1,6 +1,6 @@
 # M7 — EE angular task vs torso null space (A_swing, t = 3.6 s)
 
-Source matrices: `/home/user/CrawlBot_control/Misc/runs/M7_ee_ori_diag/A_swing_t3p6.npz` (dumped by `scripts/bisect_qp_cascade.py --case A_swing`).
+Source matrices: `/home/user/CrawlBot_control/Misc/runs/M7_ee_ori_diag/A_swing_t3p6.npz` (dumped by `Misc/scripts/bisect_qp_cascade.py --case A_swing`).
 Numerical-rank tolerance: `tol = 1e-08` (applied uniformly).
 Damped pseudo-inverse: `rcond = 1e-8` (matches `wholebody_qp.py:582,620`).
 

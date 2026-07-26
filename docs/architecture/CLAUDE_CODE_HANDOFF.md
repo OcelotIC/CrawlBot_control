@@ -143,7 +143,7 @@ Verify that `robot_interface.py` and all Pinocchio calls are compatible with pin
 - Single canonical MJCF with correct parameters
 - No root-level shim files
 - `pytest tests/ -v` passes
-- Parameter audit documented in `docs/parameter_audit.md`
+- Parameter audit documented in `Misc/reports/parameter_audit.md`
 
 ### Codebase layout (current)
 
@@ -858,7 +858,7 @@ Standalone QP result with all fixes: **24mm EE position, 0.72° torso orientatio
 #### Orientation — LAST BLOCKER
 Torso orientation error has been 29-45° across ALL versions (v12-v21). It persists with zero planned rotation (fixed-rotation IK). It's pure arm-reaction disturbance that the QP rejects perfectly in standalone (0.72°) but fails in closed-loop (45°).
 
-**Next task: orientation-focused bisection.** Same approach as the position bisection (scripts/bisect_qp_cascade.py) but tracking torso_ori_peak as the primary metric. Run cases A (standalone), B (+NMPC+mapping), C (+AOCS), D (full sim_loop). Identify which cascade component inflates orientation error 60×.
+**Next task: orientation-focused bisection.** Same approach as the position bisection (Misc/scripts/bisect_qp_cascade.py) but tracking torso_ori_peak as the primary metric. Run cases A (standalone), B (+NMPC+mapping), C (+AOCS), D (full sim_loop). Identify which cascade component inflates orientation error 60×.
 
 ### Lessons learned during M7 integration
 

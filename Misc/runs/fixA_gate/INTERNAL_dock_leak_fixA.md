@@ -139,9 +139,9 @@ plant** (OFF recovers the Fix-A baseline). Surgical change — only the two refe
 reference:
 - new reference `Misc/runs/ssmom_phase1_baseline_fixA/` = Fix-A plant, `ss_two_task` OFF,
   `legacy_pid_numerical`, 5 steps (+ postproc), generated on branch HEAD;
-- `scripts/gate_phase3.py:19` `BASE` → `ssmom_phase1_baseline_fixA` (also moves C1's per-step-margin and
+- `Misc/scripts/gate_phase3.py:19` `BASE` → `ssmom_phase1_baseline_fixA` (also moves C1's per-step-margin and
   C2's pos/ori limits onto the corrected-plant OFF baseline);
-- `scripts/run_phase3_gate.sh` byte-identical comparison → `ssmom_phase1_baseline_fixA/sim_log.json`.
+- `Misc/scripts/run_phase3_gate.sh` byte-identical comparison → `ssmom_phase1_baseline_fixA/sim_log.json`.
 
 **Re-gated six criteria (vs the Fix-A OFF baseline), branch HEAD:**
 

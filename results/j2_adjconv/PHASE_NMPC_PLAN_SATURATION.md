@@ -2,7 +2,7 @@
 
 **Branch** `j2/ds-active-rework` · **measurement only, `crawlbot/` untouched, NO canonical commit** · pushed, never merged.
 Data: `results/j2_adjconv/nmpc_plan_sat_result.json` (+ `nmpc_plan_sat.csv`); runner
-`scripts/diag_nmpc_plan_saturation.py`. Raw runs `results/figN_mom{400,1000,2000,5000}` (gitignored).
+`Misc/scripts/diag_nmpc_plan_saturation.py`. Raw runs `results/figN_mom{400,1000,2000,5000}` (gitignored).
 
 ## Verdict
 
@@ -91,6 +91,6 @@ both planned and realized Ḣ_s.** Momentum management is an NMPC property; the 
 |---|---|
 | per-weight result JSON | `results/j2_adjconv/nmpc_plan_sat_result.json` |
 | per-weight tidy CSV | `results/j2_adjconv/nmpc_plan_sat.csv` |
-| runner (weight sweep + per-axis + verbatim IPOPT capture) | `scripts/diag_nmpc_plan_saturation.py` |
+| runner (weight sweep + per-axis + verbatim IPOPT capture) | `Misc/scripts/diag_nmpc_plan_saturation.py` |
 
 **STOP for cross-check.** Push only, never merge. `crawlbot/` untouched.

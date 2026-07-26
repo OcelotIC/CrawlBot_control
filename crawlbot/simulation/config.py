@@ -281,7 +281,7 @@ class SimConfig:
     # ── QP weights — Single-support ─────────────────────────────
     ss_alpha_ee: float = 1e3       # CANONICAL-2p5 / Add-5 freeze (was 3e3)
     ss_alpha_posture: float = 2e1
-    ss_alpha_wrench: float = 1.0   # regulariser-floor tier (Add-5 freeze; was 1e-2). Keep ≤1: 1e2 penalised contact forces (the only actuation path through the stance weld) and attenuated the torso task 7x (see scripts/test_qp_tracking.py)
+    ss_alpha_wrench: float = 1.0   # regulariser-floor tier (Add-5 freeze; was 1e-2). Keep ≤1: 1e2 penalised contact forces (the only actuation path through the stance weld) and attenuated the torso task 7x (see Misc/scripts/test_qp_tracking.py)
     ss_alpha_lambda_int: float = 0.0  # Internal-stress regularization on
     # the welded-loop λ in DS (both contacts active). No effect in SS
     # (single contact has no internal-stress null space). 0 ⇒ legacy.
@@ -402,7 +402,7 @@ class SimConfig:
     # fixed-rotation dock IK pins CoM-z = com_z_standoff (structure
     # frame), holding a uniform standoff; x,y stay free to crawl. The
     # value -0.35 m is the worst-direction-manipulability optimum from
-    # scripts/diag_standoff_feasibility.py (sigma_min peak 0.099, torso
+    # Misc/scripts/diag_standoff_feasibility.py (sigma_min peak 0.099, torso
     # clearance >=273mm), feasible for every anchor pair.
     use_com_z_standoff: bool = False        # off by default (bit-identical ablation)
     com_z_standoff: float = -0.35           # [m] target CoM-z in structure frame
@@ -462,7 +462,7 @@ class SimConfig:
     # All three default False. When enabled individually they apply
     # ONLY to the trailing-DS phase entered after a dock_timeout
     # abort — never to SS, never to the pre-SS DS settle, never to
-    # the pre-planner. See docs/architecture/M7_DS_DIAGNOSTIC_EXPERIMENTS.md.
+    # the pre-planner. See Misc/reports/architecture/M7_DS_DIAGNOSTIC_EXPERIMENTS.md.
     diag_freeze_torso_ref_on_abort: bool = False
     # Diagnostic for H_DS2 (POST_ABORT_DIVERGENCE.md).
     # When True, skip dock_configuration + set_hold at sim_loop.py:1365-1375
@@ -500,7 +500,7 @@ class SimConfig:
     # continuous with s(0)=0, s(1)=1, s'(0)=s'(1)=s''(0)=s''(1)=0.
     # Set to 0.0 to disable (reverts to the pre-Option-A step
     # behavior). Introduced to close the T12 DS1 divergence;
-    # see docs/architecture/M7_T12_MEMO.md §5.
+    # see Misc/reports/architecture/M7_T12_MEMO.md §5.
 
     # ── Gait geometry ───────────────────────────────────────────
     gait_anchor_dx: float = 0.8  # Anchor-grid pitch [m]; rewrites MJCF anchor sites to x=(i-3.5)·dx (i=1..6) via _mutate_mjcf

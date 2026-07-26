@@ -120,8 +120,8 @@ to flag-off (the inter-step box never binds), so the default-on change is provab
 
 ## Reproduce
 ```
-bash scripts/run_ccurr.sh   # proxy OFF/ON + exact ON, 5-step, analysis + residual + gate
-MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/audit_ccurr.py \
+bash Misc/scripts/run_ccurr.sh   # proxy OFF/ON + exact ON, 5-step, analysis + residual + gate
+MUJOCO_GL=disabled PYTHONPATH=. python3 Misc/scripts/audit_ccurr.py \
   proxy_off=results/ccurr_proxy_off proxy_on=results/ccurr_proxy_on exact_on=results/ccurr_exact_on
 ```
 Supporting: `Misc/runs/j2_ccurr/{ccurr_analysis.log, ccurr_gate.log, ccurr_residual.log}`. C6 diff: new-code

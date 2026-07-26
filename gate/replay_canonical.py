@@ -3,7 +3,7 @@
 
 Re-runs the frozen *managed* scenario into ``results/gate_run_scratch/`` using
 the EXACT ``dca.main`` kwargs AND the regularization setting that generated the
-committed canonical artifacts (``scripts/diag_canonical2p5_run.py`` C run).
+committed canonical artifacts (``Misc/scripts/diag_canonical2p5_run.py`` C run).
 Writes ``sim_log.json`` there and nothing else — no committed artifact is
 touched (scratch out_dir; the MJCF mutate is a no-op on the canonical and is
 restored under an md5 assert).

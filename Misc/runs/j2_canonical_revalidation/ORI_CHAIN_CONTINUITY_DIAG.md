@@ -6,7 +6,7 @@ to be continuous). Numbers from the canonical run `Misc/runs/figA_canon` (config
 `run_figdata.sh` COMMON + chatter fix); per-tick `q_torso` (realized R), `q_torso_ref` (the controller reference
 R that `reference_at` returned), `e_torso_ori` (the logged metric). The sawtooth itself is corroborated by the
 committed `results/j2_figdata/runA_traversal.csv` `torso_ori_err_deg` column. Reproducer:
-`scripts/diag_ori_chain.py results/<run>`.
+`Misc/scripts/diag_ori_chain.py results/<run>`.
 
 ## Point 1 — the metric uses the SAME reference accessor in DS and SS (NOT a yardstick-mismatch artifact)
 Both error sites compute `angle(reference_at(t).R, R_torso_realized)`:

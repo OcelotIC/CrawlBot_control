@@ -5,7 +5,7 @@
 `ss_alpha_mom=5000, alpha_torso_pose=24000, ss_Kp_torso=3, ss_Kd_torso=2.5, ss_alpha_ee=3000,
 ss_alpha_posture=20`, AOCS `--aocs_mode legacy_pid_numerical --K_omega 50`.
 **Mode:** READ-ONLY (no source/config/MJCF edits; no re-runs). Evidence from committed `21cec74`
-source + existing run artefacts only. Analysis: `scripts/audit_ds_phase2.py`, `audit_ds_phase3.py`.
+source + existing run artefacts only. Analysis: `Misc/scripts/audit_ds_phase2.py`, `audit_ds_phase3.py`.
 **Status: COMPLETE (Phases 1–3).** No design decision is made here — only the evidence.
 
 ---

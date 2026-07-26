@@ -118,7 +118,7 @@ class SimulationLoop:
         # Option A (T12 fix, 2026-04-22): post-dock blend state for
         # the DS torso position reference. Populated at weld
         # activation; cleared on SS entry. See
-        # cfg.ds_ramp_duration_s and docs/architecture/M7_T12_MEMO.md §5.
+        # cfg.ds_ramp_duration_s and Misc/reports/architecture/M7_T12_MEMO.md §5.
         self._ds_ramp_t_start: Optional[float] = None
         self._ds_ramp_p_start: Optional[np.ndarray] = None
         self._ds_ramp_p_end: Optional[np.ndarray] = None

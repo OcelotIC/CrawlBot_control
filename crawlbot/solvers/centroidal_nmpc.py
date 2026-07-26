@@ -52,7 +52,7 @@ Constraints:
                  R_s). Linear in the controls — the decentralized contract
                  with the AOCS. Replaces the historical L̇_com proxy which
                  used lever from robot CoM (wrong quantity at standoff,
-                 see docs/architecture/CAMPAIGN_5STEP_TRAVERSAL_2026-05.md §9).
+                 see Misc/reports/architecture/CAMPAIGN_5STEP_TRAVERSAL_2026-05.md §9).
     - RWA box:   c_simple - L_com(k) - r_com(k) × m·v_com(k) ∈ [-h_max', h_max']
                  (M3 conservation-law, Option B, enforce_hw_conservation=True)
 

@@ -144,8 +144,8 @@ is probably cleaner than repair:
 | `diag_option_d_tube.py` | the `_tube_*` counters |
 | `test_integration.py` (CLEANUP-18) | `SwingPlanner.swing_trajectory` — its only caller |
 
-**Correction (CLEANUP-18).** The CLEANUP-16 audit stated that `scripts/test_integration.py` and
-`scripts/sim_torso6d.py` were "already in the non-functional list §C3". They were **not** on
+**Correction (CLEANUP-18).** The CLEANUP-16 audit stated that `Misc/scripts/test_integration.py` and
+`Misc/scripts/sim_torso6d.py` were "already in the non-functional list §C3". They were **not** on
 this list, and measurement contradicts it: all `crawlbot` imports in *both* scripts — and in
 `lutze_baseline/sim_lutze.py` — resolve at HEAD. Do not assume a script is already broken;
 import-check it. This is what caused step 5 to be reverted (§C5).

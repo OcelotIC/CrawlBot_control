@@ -1,6 +1,6 @@
 # M7 — Armature decomposition, Part 1 summary
 
-Diagnostic only, per `docs/architecture/M7_ARMATURE_DECOMPOSITION.md`.
+Diagnostic only, per `Misc/reports/architecture/M7_ARMATURE_DECOMPOSITION.md`.
 **Part 1 only** — Part 2 has not been run; stop-and-report gate is this
 summary. No commits. No fix.
 
@@ -82,7 +82,7 @@ Part 2 has not been executed. Awaiting Idriss's call.
 
 # M7 — Armature decomposition, Part 2 summary
 
-Per `docs/architecture/M7_ARMATURE_DECOMPOSITION.md` §3. Seven inter-step DS passivity-settle variants; each decouples MJCF damping / MJCF armature / Pinocchio armature. For each variant the MJCF is mutated transiently (restored byte-exactly on exit) and the installed Pinocchio `model.armature` is overridden per-variant after `sim.setup()`. All variants start from the post-setup state with `T_start ≈ 0`.
+Per `Misc/reports/architecture/M7_ARMATURE_DECOMPOSITION.md` §3. Seven inter-step DS passivity-settle variants; each decouples MJCF damping / MJCF armature / Pinocchio armature. For each variant the MJCF is mutated transiently (restored byte-exactly on exit) and the installed Pinocchio `model.armature` is overridden per-variant after `sim.setup()`. All variants start from the post-setup state with `T_start ≈ 0`.
 
 Settle threshold `T_settle = 0.5·ε²·λmin(H)` is recomputed at entry per variant (it depends on the mass matrix, which includes armature). Reported below with each row.
 

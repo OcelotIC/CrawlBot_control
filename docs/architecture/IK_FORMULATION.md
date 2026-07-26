@@ -681,7 +681,7 @@ The corrected formulation per §9 maps to:
 3. **`crawlbot/core/ik.py::manipulability_config_trajectory`:**
    - Optional: implement the §9.3 safety check.
 4. **Test:** the diagnostic fixture
-   `diagnostic/step2_ss_entry_fixture.npz` is the regression test.
+   `Misc/runs/q1_q2/step2_ss_entry_fixture.npz` is the regression test.
    The corrected IK on this fixture should yield
    $w_{\text{worst}} \geq 0.045$ (within the order of the grid
    maximum), with no order-of-magnitude variability across runs.

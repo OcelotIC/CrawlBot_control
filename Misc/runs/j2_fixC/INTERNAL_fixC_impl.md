@@ -151,10 +151,10 @@ planned constraint is untouched). **No C1–C5 regression from the 6-D gate at a
 # implementation regression
 MUJOCO_GL=disabled PYTHONPATH=. python3 -m pytest tests/ -q
 # sweeps (canonical working point; each run ~140 s)
-bash scripts/run_fixC_sweep.sh    # ε_twist ∈ {linear, 0.02,0.05,0.10,0.20}
-bash scripts/run_fixC_sweep2.sh   # ε_twist ∈ {0.004..0.007} + weld_radius ∈ {0.002,0.003,0.004}
+bash Misc/scripts/run_fixC_sweep.sh    # ε_twist ∈ {linear, 0.02,0.05,0.10,0.20}
+bash Misc/scripts/run_fixC_sweep2.sh   # ε_twist ∈ {0.004..0.007} + weld_radius ∈ {0.002,0.003,0.004}
 # residual / twist-pose / firing for any run dir(s)
-MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/audit_fixC_residual.py results/<dir> ...
+MUJOCO_GL=disabled PYTHONPATH=. python3 Misc/scripts/audit_fixC_residual.py results/<dir> ...
 ```
 Supporting logs: `sweep1_residual.log`, `sweep1_gate_C1-C5.log`, `sweep2_residual.log`,
 `sweep2_gate_C1-C5.log` (this dir). Raw per-run sim dirs are reproducible from the scripts and are not

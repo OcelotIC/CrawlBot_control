@@ -14,7 +14,7 @@ decision variable `τ_q` (it *is* the existing passivity row, "Linear in τ_q on
 and a **planned envelope margin** is available as a pre-solve scalar from the NMPC's `lambda_ref` (the NMPC
 solves *before* the QP and its plan already respects the envelope). `τ_q` (passivity) and `λ` (envelope) are
 **distinct decision variables coupled only by the linear equation of motion — no bilinear product** — so
-convexity is preserved. Reproducer `scripts/audit_j2_envelope.py`: **17/17**.
+convexity is preserved. Reproducer `Misc/scripts/audit_j2_envelope.py`: **17/17**.
 
 **Two flags carried into the spec (neither breaks formulability):**
 - **FLAG 1 (units):** the envelope margin is a **torque** [N·m]; the passivity LHS is **power** [W]. So
@@ -146,11 +146,11 @@ Piste C, also QP-formulable, so the fallback is **not** forced by any nonconvexi
 
 ## Reproducer
 
-`scripts/audit_j2_envelope.py` — READ-ONLY. Source anchors (Q1-Q4) + a numeric demo on the real
+`Misc/scripts/audit_j2_envelope.py` — READ-ONLY. Source anchors (Q1-Q4) + a numeric demo on the real
 `compute_momentum_map`: linearity of `L̇_com` in `λ`, the planned margin as a scalar, the transport identity
 `Ḣ_s = L̇_com + r_com×Σf`, and the proxy-vs-exact divergence at a non-zero standoff.
 ```
-MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/audit_j2_envelope.py
+MUJOCO_GL=disabled PYTHONPATH=. python3 Misc/scripts/audit_j2_envelope.py
 → VERDICT: 17/17 checks confirmed.  PISTE A IS FORMULABLE (YES).  (exit 0)
 ```
 

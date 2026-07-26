@@ -222,8 +222,8 @@ per-step loop:
 ### Task 2 — Synchronized trajectory planning
 
 Files:
-- `crawlbot/planners/torso_planner.py`
-- `crawlbot/planners/swing_planner.py`
+- `crawlbot/planning/torso_planner.py`
+- `crawlbot/planning/swing_planner.py`
 
 Both planners must be rewritten (or extended) to accept `T_step` and
 produce a quintic with zero-velocity boundary conditions at both
@@ -237,7 +237,7 @@ change is:
 - Both planners return `v_ref(T_step) = 0` *by construction*.
 
 The coarse pre-planner already estimates `T_step` — wire it through.
-Check `crawlbot/planners/coarse_preplanner.py` for the output field
+Check `crawlbot/planning/coarse_preplanner.py` for the output field
 name (may be `T_step`, `step_duration`, or similar — verify, don't
 guess).
 
@@ -272,9 +272,9 @@ All four runs must dump logs to `results/` and run `run_diagnostics()`.
 
 - `crawlbot/simulation/sim_loop.py` — main loop, to be rewired
 - `crawlbot/simulation/config.py` — SimConfig, remove EXT-related fields
-- `crawlbot/planners/torso_planner.py` — quintic torso trajectory
-- `crawlbot/planners/swing_planner.py` — quintic swing trajectory
-- `crawlbot/planners/coarse_preplanner.py` — centroidal NLP, outputs T_step
+- `crawlbot/planning/torso_planner.py` — quintic torso trajectory
+- `crawlbot/planning/swing_planner.py` — quintic swing trajectory
+- `crawlbot/planning/coarse_preplanner.py` — centroidal NLP, outputs T_step
 - `crawlbot/solvers/wholebody_qp.py` — P1/P3/P4 task stack, null-space projection
 - `crawlbot/solvers/nmpc.py` — centroidal NMPC with conservation-law box
 - `crawlbot/diagnostics/plots.py` — diagnostic plot generation
@@ -321,7 +321,7 @@ All logs + physics traces in `results/M7_1pct_1step_v{4..11}/`.
 
 ### Standalone QP-only diagnosis (no NMPC, no AOCS, no planners)
 
-Script: `scripts/test_qp_tracking.py`. Setup: manipulability-optimized DS
+Script: `Misc/scripts/test_qp_tracking.py`. Setup: manipulability-optimized DS
 init, release arm `b`, drive EE with septic 6D reference (C³-continuous,
 zero vel/acc/jerk at both endpoints). Override QP weights after `setup()`:
 `sim.qp_ss.config.alpha_wrench = 0.01`, `sim.qp_ss.config.alpha_com_soft = 0`.

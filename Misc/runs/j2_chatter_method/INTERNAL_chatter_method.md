@@ -4,7 +4,7 @@ Branch `j2/ds-active-rework` (pushed, never merged). **Decides the DEFINITIVE se
 regeneration brief #2 depends on — so **no canonical run is frozen here**. Touches `crawlbot/` (the settle QP)
 to add a *second, evaluated* regularizer for the head-to-head; **both knobs stay default-off (byte-identical)**.
 Reproducer: `scripts/diag_cooperative_arms.py --qp-envelope-exact [--interstep-settle-alpha-wrench ε |
---interstep-settle-alpha-sigf α] --out-dir …` + `scripts/audit_chatter.py`.
+--interstep-settle-alpha-sigf α] --out-dir …` + `Misc/scripts/audit_chatter.py`.
 
 ---
 

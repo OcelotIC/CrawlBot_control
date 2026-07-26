@@ -2,7 +2,7 @@
 
 Inertias from the canonical model (`models/VISPA_crawling_rwa3.xml`), to convert the dock residual angular
 momentum [N·m·s] → structure rotation rate [rad/s, °/s]. No sim run (model read + one eval at a committed
-dock snapshot). Reproducer: `scripts/calc_struct_inertia.py`. **You do the final conversion** — numbers below.
+dock snapshot). Reproducer: `Misc/scripts/calc_struct_inertia.py`. **You do the final conversion** — numbers below.
 
 ## Table
 

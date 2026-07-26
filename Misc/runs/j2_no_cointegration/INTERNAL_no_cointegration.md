@@ -1,7 +1,7 @@
 # INTERNAL — Non-co-integration audit: h_w is a parameter everywhere / a decision variable nowhere; the c_simple(k) → c_curr template
 
 **Read-only map on `ae0673e`, branch `j2/ds-active-rework`. No `crawlbot/` change, no implementation.**
-Reproducer `scripts/audit_no_cointegration.py` (20/20, code-anchor + runtime structural proof). Two goals:
+Reproducer `Misc/scripts/audit_no_cointegration.py` (20/20, code-anchor + runtime structural proof). Two goals:
 (1) back the paper's decentralization/frugality argument with an evidence table; (2) template the upcoming
 `c_curr` (the QP's per-tick h_w bound input) on the existing `c_simple(k)` frozen-parameter pathway.
 
@@ -105,7 +105,7 @@ refreshed only between MPC steps.** This is the exact pattern `c_curr` must foll
 
 ## Reproduce
 ```
-MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/audit_no_cointegration.py
+MUJOCO_GL=disabled PYTHONPATH=. python3 Misc/scripts/audit_no_cointegration.py
 ```
 Code anchors: `centroidal_nmpc.py:123-125` (NX/NU/NP), `:297,427,510` (c_simple); `nmpc_solver.py:310/325`
 (decision vector), `:439,451` (parameter binding); `wholebody_qp.py:251,1311` (decision vector), `:511,516`

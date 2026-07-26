@@ -135,7 +135,7 @@ fallback**, all KEEP:
 | `phase_at` | 1 | the exactly-at-end edge-case return |
 
 `make_anchor_grid` is dead *on the canonical* (anchors are read from MuJoCo) but live in
-`scripts/diag_m7_swing_velocity.py` — dead-here is not dead-everywhere.
+`Misc/scripts/diag_m7_swing_velocity.py` — dead-here is not dead-everywhere.
 
 **One genuinely dead public method:** `contact_sequence_over_horizon` (19 lines, 1 statement,
 zero callers in `crawlbot/`, `scripts/`, or `tests/`). It reads as NMPC-horizon plumbing that

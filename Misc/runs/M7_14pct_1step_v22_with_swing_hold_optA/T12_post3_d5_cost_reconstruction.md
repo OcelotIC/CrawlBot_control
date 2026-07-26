@@ -3,7 +3,7 @@
 ## Method
 
 The persisted script
-`scripts/diagnostics/t12_post3_d5_cost_reconstruction.py` loads
+`Misc/scripts/diagnostics/t12_post3_d5_cost_reconstruction.py` loads
 `sim_log.json` from two runs (T12 unfixed and T12 Option A), reads
 the per-tick quantities `t`, `nmpc_cost`, `nmpc_status`, `r_com`,
 `r_com_ref`, `v_com`, `v_com_ref`, `L_com`, `L_com_ref`,

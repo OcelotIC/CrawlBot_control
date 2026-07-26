@@ -572,7 +572,7 @@ TMOM_OUTPUT_DIR = 'results/test_scratch/phase2_0_tmom'
 # Tests run at the SHIPPING weight ss_alpha_mom=500 with alpha_wrench=1e-2 (the
 # only harness correction: with no NMPC lambda_ref the default 1e2 penalises the
 # contact force that is the sole means of CoM acceleration through the stance
-# weld — documented in scripts/test_qp_tracking.py:147).
+# weld — documented in Misc/scripts/test_qp_tracking.py:147).
 #  HOLD  (gate, formulation): exact rest + ref=current + zero gravity ⇒
 #         equilibrium qdd=tau=0 and the task row a_com_des=0 is reproduced
 #         exactly. Any motion/residual ⇒ wrong PD sign / state-dependent ref.
@@ -603,7 +603,7 @@ _TMOM_DT = 0.002   # integration step [s]; small enough that Euler error << TOL
 
 def _septic(tau):
     """Jerk-limited scalar profile s(τ), ṡ(τ), s̈(τ) on [0,1] (derivs wrt τ).
-    Same shape as scripts/test_qp_tracking.py, retargeted here to the CoM."""
+    Same shape as Misc/scripts/test_qp_tracking.py, retargeted here to the CoM."""
     if tau <= 0.0:
         return 0.0, 0.0, 0.0
     if tau >= 1.0:
@@ -703,7 +703,7 @@ class TestPhase20TMOM:
         # alpha_wrench=1e-2 (pure regularisation): with NO NMPC lambda_ref the
         # default 1e2 penalises the contact force that is the ONLY way to
         # accelerate the CoM through the stance weld (net external force =
-        # contact force = m·a_com). Same correction as scripts/test_qp_tracking.py.
+        # contact force = m·a_com). Same correction as Misc/scripts/test_qp_tracking.py.
         # alpha_com_soft=0: isolate the T-MOM P2 task as the SOLE CoM driver
         # (the legacy soft-CoM P4 residual would otherwise also touch the CoM).
         qp = _make_m2_qp(robot, q_nominal=q0, cooperative=True, ss_mom=True,

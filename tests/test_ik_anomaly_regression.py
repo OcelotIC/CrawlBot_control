@@ -8,7 +8,7 @@ Pre-fix observation (Phase 4 sim_loop run, T15 step 2 anchor pair (3,4)):
     a warm-start cache.
 
 Post-fix targets (per docs/architecture/IK_FORMULATION.md §9 and
-diagnostic/IK_ANOMALY_REPORT.md §6.2):
+Misc/runs/q1_q2/IK_ANOMALY_REPORT.md §6.2):
     - Output is deterministic in the inputs (cost is a function only
       of torso xyz, not Nelder-Mead history).
     - ``w_end > 1e-3`` always (well above the singular band).

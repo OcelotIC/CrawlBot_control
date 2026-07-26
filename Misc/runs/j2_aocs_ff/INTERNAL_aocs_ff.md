@@ -1,7 +1,7 @@
 # INTERNAL — AOCS feed-forward audit: how `_step` builds the AOCS, and what inter-step re-activation needs
 
 **Read-only map on `ae0673e`, branch `j2/ds-active-rework`. No `crawlbot/` change, no implementation, no
-sim run.** Reproducer `scripts/audit_aocs_ff.py` (22/22). Raw map; the inter-step re-activation brief
+sim run.** Reproducer `Misc/scripts/audit_aocs_ff.py` (22/22). Raw map; the inter-step re-activation brief
 follows. Companion to the AOCS-during-DS audit (which found `_run_ds_passivity_loop` hardcodes the wheels to
 0.0).
 
@@ -162,7 +162,7 @@ note, pre-existing and orthogonal: the `_step` FD-history locals are re-initiali
 
 ## Reproduce
 ```
-MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/audit_aocs_ff.py
+MUJOCO_GL=disabled PYTHONPATH=. python3 Misc/scripts/audit_aocs_ff.py
 ```
 Code anchors: `force_estimator.py:514-595` (legacy_pid_numerical), `:585-592` (the two FF branches), `:369`
 (orbital), `:376` (clip); `sim_loop.py:3126-3136` (DS wrench FF build), `:3225-3229` (θ_s), `:3275` (`_step`

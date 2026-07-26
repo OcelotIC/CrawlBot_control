@@ -61,6 +61,6 @@ The C5 4.930 is **neither** a misleading "one isolated tick" **nor** a sustained
   largest-r_com b-swing) should be confirmed before claiming a hard ±5 guarantee; or add wheel-desaturation /
   retune the SS momentum weight to widen the margin. **Not a sustained-regime blocker; not a non-issue either.**
 
-Reproduce: `MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/dist_hw_torso.py <csv>` over the committed
+Reproduce: `MUJOCO_GL=disabled PYTHONPATH=. python3 Misc/scripts/dist_hw_torso.py <csv>` over the committed
 `results/j2_figdata/runA_traversal.csv` (5-step) or `Misc/runs/j2_canonical_revalidation/run7step_traversal.csv`
 (6-step). The b-swing scaling fit is an inline numpy polyfit over the per-step peaks above. **No code change, no merge.**

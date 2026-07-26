@@ -1,6 +1,6 @@
 SS Centroidal-Momentum Task — Phase 1.2 bit-identical proof (flag OFF)
 ======================================================================
-memo : docs/architecture/SS_CENTROIDAL_MOMENTUM_TASK_2026-06.md (§4 Phase 1.2)
+memo : Misc/reports/architecture/SS_CENTROIDAL_MOMENTUM_TASK_2026-06.md (§4 Phase 1.2)
 
 Baseline : Misc/runs/ssmom_phase1_baseline_main_dcda974   (main HEAD dcda974; pre-T-MOM code path)
 Verify   : results/ssmom_phase1_flagOFF_verify          (new T-MOM code, ss_centroidal_momentum_task=False)

@@ -15,7 +15,7 @@ keys — the tell. The whole closure validation (POINT 1/A, C1–C5 gate, closur
 that wrong config.
 
 ## Canonical config (CONFIRMED = ground truth)
-`scripts/run_figdata.sh` `COMMON` (blob `1cbd69d`, the figure-config authority) **+** the two derived chatter
+`Misc/scripts/run_figdata.sh` `COMMON` (blob `1cbd69d`, the figure-config authority) **+** the two derived chatter
 flags. Verified flag-by-flag against `run_figdata.sh`; reproduced verbatim in `runA_meta.json:run_config`:
 ```
 --ss-two-task --ss-alpha-mom 5000 --alpha-torso-pose 24000 --ss-kp-torso 3 --ss-kd-torso 2.5
@@ -31,7 +31,7 @@ flags. Verified flag-by-flag against `run_figdata.sh`; reproduced verbatim in `r
 | raw sim (the fix run) | `Misc/runs/figA_canon/sim_log.json` | 905 ticks |
 | chatter baselines | `Misc/runs/figA_canon_e0` (α=0), `figA_canon_e1` (α=1), `figA_canon_evb` (ε_v=0) | — |
 | closure curves | `Misc/runs/j2_closure_curves/canonical_curves.csv` | 905 ticks |
-| drivers | `scripts/run_canonical_validation.sh`, `scripts/analyze_canonical_metrics.py` | new |
+| drivers | `Misc/scripts/run_canonical_validation.sh`, `Misc/scripts/analyze_canonical_metrics.py` | new |
 
 ---
 
@@ -54,7 +54,7 @@ within the ±5 N·m·s hardware budget, at 98.6%). The wrong-config validation *
 are byte-identical on this run, so the verdict is signal-independent.)
 
 ### Chatter (POINT 1) — fix transfers to canonical
-`scripts/point1_analyze.py` on the three canonical runs (arm-a settles = the chatterers):
+`Misc/scripts/point1_analyze.py` on the three canonical runs (arm-a settles = the chatterers):
 
 | run | arm-a Σf-flip | arm-a ‖Σf‖med [N] | all_clean |
 |---|---|---|---|

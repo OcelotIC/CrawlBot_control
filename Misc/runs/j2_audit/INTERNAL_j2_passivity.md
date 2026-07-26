@@ -3,7 +3,7 @@
 **Mandate:** the reviewing Claude read the passivity code on a pre-Fix-A clone (`5ada364`) and drew three
 conclusions. Fix A should not have touched the passivity/QP code, so the reading should transfer to the
 Fix-A canonical (`main = ae0673e`) — but that must be **verified**, not assumed. READ-ONLY archaeology +
-a reproducer (`scripts/audit_j2_passivity.py`). No `crawlbot/` change, no `main` write, no PR, no
+a reproducer (`Misc/scripts/audit_j2_passivity.py`). No `crawlbot/` change, no `main` write, no PR, no
 implementation. Branch `j2/ds-active-rework`.
 
 **Bottom line: all three claims CONFIRMED on `ae0673e`; the premise (passivity/QP code unchanged by Fix A)
@@ -175,12 +175,12 @@ observed for the analogous SS case (Claim 3).
 
 ## Reproducer
 
-`scripts/audit_j2_passivity.py` — READ-ONLY. Builds the canonical config via `_make_m7_config()` + the diag
+`Misc/scripts/audit_j2_passivity.py` — READ-ONLY. Builds the canonical config via `_make_m7_config()` + the diag
 overrides; locates every anchor **by text** (line numbers track the live tree); shells out to `git` for the
 premise diff `5ada364..ae0673e`. Asserts all 20 load-bearing facts (premise + config + the three claims).
 
 ```
-MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/audit_j2_passivity.py
+MUJOCO_GL=disabled PYTHONPATH=. python3 Misc/scripts/audit_j2_passivity.py
 → VERDICT: 20/20 checks confirmed.  (exit 0)
 ```
 

@@ -33,7 +33,7 @@ deleting helps — that would need history rewriting, which is a separate decisi
 | dir | tracked files before | after |
 |---|---:|---:|
 | `results/` | **1921** | **119** |
-| `diagnostic/` | 12 | — (moved) |
+| `Misc/runs/q1_q2/` | 12 | — (moved) |
 | `Misc/` | — | **1815** |
 
 `results/` is now **12.2 MB / 119 files**, and holds only what is load-bearing:
@@ -48,7 +48,7 @@ deleting helps — that would need history rewriting, which is a separate decisi
 
 ```
 Misc/
-├── diagnostics/q1_q2/    the former top-level diagnostic/ (12 files)
+├── diagnostics/q1_q2/    the former top-level Misc/runs/q1_q2/ (12 files)
 └── runs/                 160 run directories + 4 loose files (371 MB)
 ```
 

@@ -5,9 +5,9 @@ stored state** from the frozen canonical run `results/figC25_addfive/sim_log.jso
 freeze `32aefaf`). The canonical MJCF **on disk is byte-identical** (CLAUDE.md rule 4 + freeze); the v3 visual
 scene elements are injected into an **in-memory** XML copy (all-primitive model → `from_xml_string`).
 
-Scripts: `scripts/hero_render_v4.py` (injection re-exported from v3 + v4 render-time styling: RWA hidden,
-structured white camera A, full-system dark camera B), `scripts/hero_render_v4_run.py` (driver),
-`scripts/diag_v3_belt.py` (neutrality belt — still valid, see below). Backend: MuJoCo 3.10 osmesa offscreen.
+Scripts: `Misc/scripts/hero_render_v4.py` (injection re-exported from v3 + v4 render-time styling: RWA hidden,
+structured white camera A, full-system dark camera B), `Misc/scripts/hero_render_v4_run.py` (driver),
+`Misc/scripts/diag_v3_belt.py` (neutrality belt — still valid, see below). Backend: MuJoCo 3.10 osmesa offscreen.
 
 ## What changed v3 → v4 (render-time only)
 
@@ -40,7 +40,7 @@ arm alternates by step: step 3 → **Arm A (blue)**, step 4 → **Arm B (red)**.
   (mass 7110) is untouched ⇒ **zero mass/inertia change by construction**.
 - Dark gradient **skybox** asset (rgb1 `0.035 0.045 0.065` → rgb2 `0.005 0.006 0.010`; no stars/Earth) for cam B.
 
-## Neutrality belt — `scripts/diag_v3_belt.py` → `results/j2_adjconv/v3_belt_result.json`
+## Neutrality belt — `Misc/scripts/diag_v3_belt.py` → `results/j2_adjconv/v3_belt_result.json`
 
 Belt runs on `inject_visual()`, which v4 re-exports **byte-for-byte** from v3 (md5
 `97cd24cc7eb68e639bb302dc2724bdf9`). The v4 hero edits (rgba, camera, `geom_group` toggling, alpha-0 hiding)

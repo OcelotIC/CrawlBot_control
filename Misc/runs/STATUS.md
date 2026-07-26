@@ -98,11 +98,11 @@ ss_Kd_ee_ang: 4.5   (was 1.5)
 These were the proximate cause of the first successful dock.
 
 ### 3.6 Diagnostic scripts (new)
-- `scripts/diag_platform_rotation.py` — three-case (LOCK / NOAOCS / AOCS) rotation-source isolation.
-- `scripts/diag_torso_tracking.py` — r_b_ref jump, Jacobian conditioning, saturation fraction, p_torso plot.
-- `scripts/diag_pure_pd.py` — baseline / pure_pd / pure_pd+frozen comparison.
-- `scripts/diag_swing_and_hw.py` — swing docking trajectory + hw/infeas correlation.
-- `scripts/run_m6_baseline.py` — M6 1% runner.
+- `Misc/scripts/diag_platform_rotation.py` — three-case (LOCK / NOAOCS / AOCS) rotation-source isolation.
+- `Misc/scripts/diag_torso_tracking.py` — r_b_ref jump, Jacobian conditioning, saturation fraction, p_torso plot.
+- `Misc/scripts/diag_pure_pd.py` — baseline / pure_pd / pure_pd+frozen comparison.
+- `Misc/scripts/diag_swing_and_hw.py` — swing docking trajectory + hw/infeas correlation.
+- `Misc/scripts/run_m6_baseline.py` — M6 1% runner.
 
 ---
 
@@ -206,11 +206,11 @@ PYTHONPATH=. MUJOCO_GL=osmesa python3 -c "import pinocchio; import mujoco; impor
 PYTHONPATH=. MUJOCO_GL=osmesa python3 -m pytest tests/ -v
 
 # 1% single-step M6 baseline (the first-dock run)
-MUJOCO_GL=osmesa PYTHONPATH=. python3 scripts/run_m6_baseline.py
+MUJOCO_GL=osmesa PYTHONPATH=. python3 Misc/scripts/run_m6_baseline.py
 # -> Misc/runs/M6_baseline_1pct/{metrics.csv, figN.png, sim_log.json}
 
 # 1% three-step traversal
-MUJOCO_GL=osmesa PYTHONPATH=. python3 scripts/run_m6_baseline.py --steps 3
+MUJOCO_GL=osmesa PYTHONPATH=. python3 Misc/scripts/run_m6_baseline.py --steps 3
 # -> Misc/runs/M6_baseline_1pct_3step/
 ```
 
