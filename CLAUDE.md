@@ -34,8 +34,9 @@ PYTHONPATH=. MUJOCO_GL=osmesa python3 -c "import pinocchio; import mujoco; impor
 # 3. Run existing tests
 PYTHONPATH=. MUJOCO_GL=osmesa python3 -m pytest tests/ -x -q --tb=short
 
-# 4. Confirm the documentation matches the code
+# 4. Confirm the documentation and this file's parameter table match the code
 PYTHONPATH=. python3 gate/sync_docs.py --check
+PYTHONPATH=. python3 gate/verify_params.py
 ```
 
 Do not skip these steps. Do not start coding before the environment is verified.
@@ -96,6 +97,7 @@ PYTHONPATH=. python3 gate/sync_docs.py
 PYTHONPATH=. python3 gate/sync_docs.py --check    # docs match the code
 PYTHONPATH=. python3 gate/verify_docs.py          # every file:line + symbol resolves
 PYTHONPATH=. python3 gate/link_audit.py           # no path citation broken
+PYTHONPATH=. python3 gate/verify_params.py        # THIS table's file:line + values
 
 # 4. and the canonical invariant, as always
 MUJOCO_GL=disabled PYTHONPATH=. python3 gate/run_gate.py
@@ -145,16 +147,16 @@ Update this line as work progresses:
 | NMPC horizon N | 8 | — | spec §5.1 |
 | NMPC state dim | 9 | — | spec §5.1 (B2) |
 | NMPC control dim | 12 | — | spec §5.1 |
-| weight_ratio | 1.0 — **α magnitudes ARE the hierarchy** (two-task weighted stack, no null-space projection; priority integers inert) | — | `wholebody_qp.py:75` |
-| **α torso-pose** | **2000** | — | `config.py:351` (Add-5) |
-| **α swing-EE** | **1000** (dock lever; needs ≥ ~1000) | — | `config.py:319` (Add-5) |
-| **α momentum (T-MOM)** | **400** (near-inert on Ḣ_s — NMPC owns the envelope) | — | `config.py:336` (Add-5) |
-| **w hw-slack** | **800** (slacks active only if the hw box is violated) | — | `wholebody_qp.py:181` (Add-5) |
-| **α posture** | **20** | — | `config.py:320` |
-| **α torque-min** | **5** (must stay ≳ 5× accel-reg floor — Rule 14) | — | `sim_loop.py:1145` (QP-construction literal) |
-| **α wrench-track** | **1.0** | — | `config.py:321` (Add-5; was 0.01 pre-freeze) |
-| **α accel-reg** | **1.0** (regularizer floor) | — | `sim_loop.py:1145` |
-| ε (Tikhonov) | 1e-6 (inert: λ_min(H_LS)=1 ≫ ε) | — | `hierarchical_qp.py:97` default |
+| weight_ratio | 1.0 — **α magnitudes ARE the hierarchy** (two-task weighted stack, no null-space projection; priority integers inert) | — | `wholebody_qp.py:94` |
+| **α torso-pose** | **2000** | — | `config.py:303` (Add-5) |
+| **α swing-EE** | **1000** (dock lever; needs ≥ ~1000) | — | `config.py:282` (Add-5) |
+| **α momentum (T-MOM)** | **400** (near-inert on Ḣ_s — NMPC owns the envelope) | — | `config.py:290` (Add-5) |
+| **w hw-slack** | **800** (slacks active only if the hw box is violated) | — | `wholebody_qp.py:159` (Add-5) |
+| **α posture** | **20** | — | `config.py:283` |
+| **α torque-min** | **5** (must stay ≳ 5× accel-reg floor — Rule 14) | — | `sim_loop.py:1126` (QP-construction literal) |
+| **α wrench-track** | **1.0** | — | `config.py:284` (Add-5; was 0.01 pre-freeze) |
+| **α accel-reg** | **1.0** (regularizer floor) | — | `sim_loop.py:1126` |
+| ε (Tikhonov) | 1e-6 (inert: λ_min(H_LS)=1 ≫ ε) | — | `hierarchical_qp.py:98` default |
 | **κ_SS(H)** | ≈ 7.5e3 (530× below the pre-freeze canonical 3.6e6) | — | `canonical2p5_result.json` |
 | α_com_soft | 0.0 | — | Soft-CoM residual disabled (QP has no direct CoM feedback) |
 | CoM shaping | a_cruise_max=**0.0** (off) | — | Pre-planner cruise-accel cap disabled |
@@ -184,7 +186,7 @@ The **5 mm dock gate is the docking-mechanism capture radius** — the 0.01 mm w
 
 ## Known Issues
 
-- **2 pre-existing pytest failures** (identical set before/after the freeze — zero new): `test_far_infeasible_under_tight_rate` (its "tight rate" semantics should be re-examined now that the canonical cap IS 2.5 — follow-up) and `test_E7_t15_step2_dock_under_fk_mode`.
+- **12 pre-existing pytest problems** (9 failed + 3 errors; measured CLEANUP-25, identical before/after that pass). The former "2" was true at the freeze and had not been revisited: the chantier's own removals account for at least four (`test_mid_waypoint_reshape` ×3 fixtures, and `test_fk_reference_consistency`'s collection error from the `constrained_geodesic` deletion). Full list and per-test notes in `results/j2_adjconv/PHASE_CLEANUP_25_CODE_PASS.md` §4. The suite is **not** gated — `gate/run_gate.py` is.
 - **CoM-reference export snaps to the measured CoM at SS→DS entry** — logging convention (`_log_ds_tick` logs e_com=0 with ref:=measured, `sim_loop.py:1038-1041`); reviewer-reported magnitude ~76 mm (not repo-verified — the fulldiag CSV has no CoM-ref channel). Decision pending whether to apply the same terminal-hold fix as the torso export.
 - **Fig-3 conservation quantity ‖L_total‖ is NOT in the fulldiag export** (verified: no `Ltot` column in `c25_fulldiag.csv`; it exists in the `export_figure_data.py` traversal CSVs). Dedicated export pending.
 - `dca.main` sets `cfg.ds_centroidal_mode=True` (`diag_cooperative_arms.py:352`) — the locked config runs centroidal DS everywhere including the trailing settle; flags keyed on it cannot discriminate the DWELL (see TORSO-REF-EXPORT-FIX).

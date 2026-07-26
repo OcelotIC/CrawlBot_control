@@ -141,3 +141,24 @@ they went stale in CLAUDE.md before this existed.
 
 Coverage annotations come from `gate/_run/cov/cov.json`; regenerate it with
 `bash gate/_run/cov_replay.sh` after changing which paths execute.
+
+## Canonical parameter check — `verify_params.py`
+
+```bash
+PYTHONPATH=. python3 gate/verify_params.py    # exit 1 on any mismatch
+```
+
+CLAUDE.md's "Key Parameters" table is the single source of truth for canonical
+values, and every row cites a `file.py:LINE`. Nothing checked those citations, so
+when the chantier shrank `config.py` (610 → 507) and `wholebody_qp.py`
+(1385 → 950), **8 of 14 references drifted 20–50 lines** while the values stayed
+correct — a pointer landing on `ss_Kp_torso = 6.0` while claiming to show
+`alpha_torso_pose = 2000`.
+
+Per row it checks that the file exists and is long enough, that the cited line
+**declares the parameter the row names**, and that the value matches
+**numerically** — so `2e3` in the source satisfies `2000` in the table. A string
+comparison would have raised five false positives on scientific notation.
+
+This closes the gap the documentation pass explicitly left open: paths, lines and
+symbols were verified, numeric values were not.

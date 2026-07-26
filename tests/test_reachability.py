@@ -16,7 +16,11 @@ sys.path.insert(0, _root)
 os.environ.setdefault('MUJOCO_GL', 'disabled')
 
 import pinocchio as pin
-from crawlbot.core.robot_interface import RobotInterface, FRAME_TOOL_A, FRAME_TOOL_B
+from crawlbot.core.robot_interface import RobotInterface
+# NB: do NOT `from ... import FRAME_TOOL_A/B`. Those are module-level 6-DOF
+# defaults (18/32 = Link_6_a / Link_5_b) rebound by `global` only at
+# construction; a by-value import freezes the stale ids and this script then
+# does IK onto a mid-arm link. Use the instance attributes instead.
 from crawlbot.planning.contact_scheduler import ContactScheduler
 from crawlbot.core.ik import dock_configuration, solve_ik
 
@@ -79,7 +83,7 @@ def check_reachability(stance_a_idx, stance_b_idx, swing_arm, target_idx,
         pin.forwardKinematics(model, data, q_dock)
         pin.updateFramePlacements(model, data)
 
-        tool_fid = FRAME_TOOL_A if swing_arm == 'a' else FRAME_TOOL_B
+        tool_fid = robot.frame_tool_a if swing_arm == 'a' else robot.frame_tool_b
         target_se3 = target_anchors[0] if swing_arm == 'a' else target_anchors[1]
         tool_pos = data.oMf[tool_fid].translation
         err_pos = np.linalg.norm(tool_pos - target_se3.translation)

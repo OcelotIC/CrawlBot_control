@@ -14,7 +14,9 @@ from typing import Dict, List, Tuple, Optional
 import pinocchio as pin
 from scipy.optimize import minimize as scipy_minimize
 
-from crawlbot.core.robot_interface import FRAME_TOOL_A, FRAME_TOOL_B, _detect_arm_slices
+# NB: FRAME_TOOL_A/B are deliberately NOT imported — they are mutable module
+# globals holding stale 6-DOF defaults until a RobotInterface is constructed.
+from crawlbot.core.robot_interface import _detect_arm_slices
 
 
 def _get_tool_frames(model: pin.Model):

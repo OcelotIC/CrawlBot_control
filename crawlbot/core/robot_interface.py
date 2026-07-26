@@ -21,7 +21,7 @@ Frame IDs are looked up by name from the URDF:
 
 import numpy as np
 from dataclasses import dataclass
-from typing import Tuple, Optional, Dict, Any
+from typing import Tuple, Optional, Any
 
 import pinocchio as pin
 

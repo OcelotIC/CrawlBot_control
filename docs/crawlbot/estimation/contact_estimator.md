@@ -1,6 +1,6 @@
 # `crawlbot.estimation.contact_estimator`
 
-**File**: [`crawlbot/estimation/contact_estimator.py`](../../../crawlbot/estimation/contact_estimator.py) — **261 lines** — canonical coverage **69 %**
+**File**: [`crawlbot/estimation/contact_estimator.py`](../../../crawlbot/estimation/contact_estimator.py) — **260 lines** — canonical coverage **69 %**
 
 > Module docstring: *"Generalized Momentum Observer (GMO) for sensorless contact detection."*
 
@@ -16,27 +16,27 @@ to get acceleration would drown a contact signal in noise.
 
 | symbol | signature | canonical? | code |
 |---|---|---|---|
-| **`ContactObserverConfig`** *(dataclass)* |  |  | [L36](../../../crawlbot/estimation/contact_estimator.py#L36) |
-|   `K_O` | `80.0` | _field_ | [L38](../../../crawlbot/estimation/contact_estimator.py#L38) |
-|   `dt` | `0.01` | _field_ | [L39](../../../crawlbot/estimation/contact_estimator.py#L39) |
-|   `nv` | `18` | _field_ | [L40](../../../crawlbot/estimation/contact_estimator.py#L40) |
-|   `F_threshold` | `5.0` | _field_ | [L41](../../../crawlbot/estimation/contact_estimator.py#L41) |
-|   `d_proximity` | `0.02` | _field_ | [L42](../../../crawlbot/estimation/contact_estimator.py#L42) |
-|   `d_contact` | `0.01` | _field_ | [L43](../../../crawlbot/estimation/contact_estimator.py#L43) |
-|   `d_reset` | `0.03` | _field_ | [L44](../../../crawlbot/estimation/contact_estimator.py#L44) |
-|   `debounce_count` | `5` | _field_ | [L45](../../../crawlbot/estimation/contact_estimator.py#L45) |
-| **`ContactState`** |  |  | [L48](../../../crawlbot/estimation/contact_estimator.py#L48) |
-| **`GeneralizedMomentumObserver`** |  |  | [L56](../../../crawlbot/estimation/contact_estimator.py#L56) |
-| `.reset` | `(M, v)` | **yes** | [L76](../../../crawlbot/estimation/contact_estimator.py#L76) |
-| `.update` | `(M, v, C_matrix, tau_applied)` | **yes** | [L93](../../../crawlbot/estimation/contact_estimator.py#L93) |
-| `.residual` | `()` | **yes** | [L137](../../../crawlbot/estimation/contact_estimator.py#L137) |
-| `.initialized` | `()` | not exercised | [L142](../../../crawlbot/estimation/contact_estimator.py#L142) |
-| `.swing_residual_norm` | `(swing_v_slice)` | **yes** | [L145](../../../crawlbot/estimation/contact_estimator.py#L145) |
-| **`ContactStateMachine`** |  |  | [L161](../../../crawlbot/estimation/contact_estimator.py#L161) |
-| `.update` | `(r_swing_norm, d_FK, force_mode=False)` | not exercised | [L187](../../../crawlbot/estimation/contact_estimator.py#L187) |
-| `.reset` | `()` | **yes** | [L248](../../../crawlbot/estimation/contact_estimator.py#L248) |
-| `.state` | `()` | **yes** | [L254](../../../crawlbot/estimation/contact_estimator.py#L254) |
-| `.is_docked` | `()` | not exercised | [L258](../../../crawlbot/estimation/contact_estimator.py#L258) |
+| **`ContactObserverConfig`** *(dataclass)* |  |  | [L35](../../../crawlbot/estimation/contact_estimator.py#L35) |
+|   `K_O` | `80.0` | _field_ | [L37](../../../crawlbot/estimation/contact_estimator.py#L37) |
+|   `dt` | `0.01` | _field_ | [L38](../../../crawlbot/estimation/contact_estimator.py#L38) |
+|   `nv` | `18` | _field_ | [L39](../../../crawlbot/estimation/contact_estimator.py#L39) |
+|   `F_threshold` | `5.0` | _field_ | [L40](../../../crawlbot/estimation/contact_estimator.py#L40) |
+|   `d_proximity` | `0.02` | _field_ | [L41](../../../crawlbot/estimation/contact_estimator.py#L41) |
+|   `d_contact` | `0.01` | _field_ | [L42](../../../crawlbot/estimation/contact_estimator.py#L42) |
+|   `d_reset` | `0.03` | _field_ | [L43](../../../crawlbot/estimation/contact_estimator.py#L43) |
+|   `debounce_count` | `5` | _field_ | [L44](../../../crawlbot/estimation/contact_estimator.py#L44) |
+| **`ContactState`** |  |  | [L47](../../../crawlbot/estimation/contact_estimator.py#L47) |
+| **`GeneralizedMomentumObserver`** |  |  | [L55](../../../crawlbot/estimation/contact_estimator.py#L55) |
+| `.reset` | `(M, v)` | **yes** | [L75](../../../crawlbot/estimation/contact_estimator.py#L75) |
+| `.update` | `(M, v, C_matrix, tau_applied)` | **yes** | [L92](../../../crawlbot/estimation/contact_estimator.py#L92) |
+| `.residual` | `()` | **yes** | [L136](../../../crawlbot/estimation/contact_estimator.py#L136) |
+| `.initialized` | `()` | **yes** | [L141](../../../crawlbot/estimation/contact_estimator.py#L141) |
+| `.swing_residual_norm` | `(swing_v_slice)` | **yes** | [L144](../../../crawlbot/estimation/contact_estimator.py#L144) |
+| **`ContactStateMachine`** |  |  | [L160](../../../crawlbot/estimation/contact_estimator.py#L160) |
+| `.update` | `(r_swing_norm, d_FK, force_mode=False)` | **yes** | [L186](../../../crawlbot/estimation/contact_estimator.py#L186) |
+| `.reset` | `()` | **yes** | [L247](../../../crawlbot/estimation/contact_estimator.py#L247) |
+| `.state` | `()` | **yes** | [L253](../../../crawlbot/estimation/contact_estimator.py#L253) |
+| `.is_docked` | `()` | **yes** | [L257](../../../crawlbot/estimation/contact_estimator.py#L257) |
 
 ---
 
@@ -133,19 +133,19 @@ Worth knowing before using `gmo_contact_state` in a figure.
 
 | unit | source |
 |---|---|
-| `class ContactObserverConfig` | [L36-45](../../../crawlbot/estimation/contact_estimator.py#L36-L45) |
-| `class ContactState` | [L48-53](../../../crawlbot/estimation/contact_estimator.py#L48-L53) |
-| `class GeneralizedMomentumObserver` | [L56-158](../../../crawlbot/estimation/contact_estimator.py#L56-L158) |
-| `GeneralizedMomentumObserver.reset` | [L76-91](../../../crawlbot/estimation/contact_estimator.py#L76-L91) |
-| `GeneralizedMomentumObserver.update` | [L93-134](../../../crawlbot/estimation/contact_estimator.py#L93-L134) |
-| `GeneralizedMomentumObserver.residual` | [L137-139](../../../crawlbot/estimation/contact_estimator.py#L137-L139) |
-| `GeneralizedMomentumObserver.initialized` | [L142-143](../../../crawlbot/estimation/contact_estimator.py#L142-L143) |
-| `GeneralizedMomentumObserver.swing_residual_norm` | [L145-158](../../../crawlbot/estimation/contact_estimator.py#L145-L158) |
-| `class ContactStateMachine` | [L161-260](../../../crawlbot/estimation/contact_estimator.py#L161-L260) |
-| `ContactStateMachine.update` | [L187-246](../../../crawlbot/estimation/contact_estimator.py#L187-L246) |
-| `ContactStateMachine.reset` | [L248-251](../../../crawlbot/estimation/contact_estimator.py#L248-L251) |
-| `ContactStateMachine.state` | [L254-255](../../../crawlbot/estimation/contact_estimator.py#L254-L255) |
-| `ContactStateMachine.is_docked` | [L258-260](../../../crawlbot/estimation/contact_estimator.py#L258-L260) |
+| `class ContactObserverConfig` | [L35-44](../../../crawlbot/estimation/contact_estimator.py#L35-L44) |
+| `class ContactState` | [L47-52](../../../crawlbot/estimation/contact_estimator.py#L47-L52) |
+| `class GeneralizedMomentumObserver` | [L55-157](../../../crawlbot/estimation/contact_estimator.py#L55-L157) |
+| `GeneralizedMomentumObserver.reset` | [L75-90](../../../crawlbot/estimation/contact_estimator.py#L75-L90) |
+| `GeneralizedMomentumObserver.update` | [L92-133](../../../crawlbot/estimation/contact_estimator.py#L92-L133) |
+| `GeneralizedMomentumObserver.residual` | [L136-138](../../../crawlbot/estimation/contact_estimator.py#L136-L138) |
+| `GeneralizedMomentumObserver.initialized` | [L141-142](../../../crawlbot/estimation/contact_estimator.py#L141-L142) |
+| `GeneralizedMomentumObserver.swing_residual_norm` | [L144-157](../../../crawlbot/estimation/contact_estimator.py#L144-L157) |
+| `class ContactStateMachine` | [L160-259](../../../crawlbot/estimation/contact_estimator.py#L160-L259) |
+| `ContactStateMachine.update` | [L186-245](../../../crawlbot/estimation/contact_estimator.py#L186-L245) |
+| `ContactStateMachine.reset` | [L247-250](../../../crawlbot/estimation/contact_estimator.py#L247-L250) |
+| `ContactStateMachine.state` | [L253-254](../../../crawlbot/estimation/contact_estimator.py#L253-L254) |
+| `ContactStateMachine.is_docked` | [L257-259](../../../crawlbot/estimation/contact_estimator.py#L257-L259) |
 
 ---
 

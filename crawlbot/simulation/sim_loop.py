@@ -39,9 +39,7 @@ from crawlbot.core.state_conversions import (
 from crawlbot.core.com_to_torso_mapping import CoMToTorsoMapping
 from crawlbot.core.ik import (
     dock_configuration, dock_configuration_fixed_rotation,
-    manipulability_config,
-    precompute_torso_map,
-)
+    manipulability_config)
 from crawlbot.planning.contact_scheduler import ContactScheduler, read_anchors_from_mujoco
 # LocomotionPlanner removed — CoM reference comes from TorsoPlanner
 from crawlbot.planning.swing_planner import SwingPlanner
@@ -456,7 +454,7 @@ class SimulationLoop:
         # GMO contact estimator
         from crawlbot.estimation.contact_estimator import (
             GeneralizedMomentumObserver, ContactStateMachine,
-            ContactObserverConfig, ContactState)
+            ContactObserverConfig)
         obs_cfg = ContactObserverConfig(
             K_O=cfg.gmo_K_O, dt=cfg.dt_qp, nv=self.robot.model.nv,
             F_threshold=cfg.gmo_F_threshold,

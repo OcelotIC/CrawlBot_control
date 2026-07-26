@@ -143,9 +143,11 @@ class TestL2HardcodedIKTolerances:
         """Create a near-singular IK problem (target almost at full arm
         extension).  The returned q must have no NaN/Inf."""
         import pinocchio as pin
-        from crawlbot.core.ik import solve_ik, FRAME_TOOL_A, FRAME_TOOL_B
+        from crawlbot.core.ik import solve_ik
 
         model = robot_interface.model
+        FRAME_TOOL_A = robot_interface.frame_tool_a
+        FRAME_TOOL_B = robot_interface.frame_tool_b
         q0 = pin.neutral(model)
 
         # Place targets unreachably far to stress the solver
@@ -163,7 +165,9 @@ class TestL2HardcodedIKTolerances:
         """For a well-conditioned target (near neutral pose frames),
         IK should converge to low error."""
         import pinocchio as pin
-        from crawlbot.core.ik import solve_ik, FRAME_TOOL_A, FRAME_TOOL_B
+        from crawlbot.core.ik import solve_ik
+        FRAME_TOOL_A = robot_interface.frame_tool_a
+        FRAME_TOOL_B = robot_interface.frame_tool_b
 
         model = robot_interface.model
         q0 = pin.neutral(model)
@@ -195,7 +199,8 @@ class TestL2HardcodedIKTolerances:
         pin.forwardKinematics(model, data, q0)
         pin.updateFramePlacements(model, data)
 
-        from crawlbot.core.ik import FRAME_TOOL_A, FRAME_TOOL_B
+        FRAME_TOOL_A = robot_interface.frame_tool_a
+        FRAME_TOOL_B = robot_interface.frame_tool_b
         anchor_a = data.oMf[FRAME_TOOL_A].copy()
         anchor_b = data.oMf[FRAME_TOOL_B].copy()
 

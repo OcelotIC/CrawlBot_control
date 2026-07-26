@@ -29,7 +29,6 @@ See Misc/reports/contact_estimator_derivation.md for the full derivation.
 import numpy as np
 from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
 
 
 @dataclass
