@@ -16,7 +16,7 @@ Two deviations from the CLEANUP-20 sketch, both deliberate, both in §3.
 | `results/` | 120 | canonical baseline + paper figure data |
 | `models/` | 13 | plant + controller (untouched) |
 | `docs/` | **10** | **ground truth only** |
-| `lutze_baseline/` | 10 | M0 paper baseline |
+| `Misc/lutze_baseline/` | 10 | M0 paper baseline |
 | `gate/` | 9 | reproduction gate |
 | `benchmarks/` | 6 | pytest benchmarks |
 | `scenarios/` | 5 | `.seq` fixtures |

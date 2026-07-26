@@ -32,7 +32,7 @@ Pinocchio model the controller computes on. They are **two separate files of dif
   and `scripts/diag_cooperative_arms.py:497` `URDF = os.path.join(_root, 'models', 'VISPA_crawling_fixed.urdf')`
   (same pair duplicated in `run_m4_baseline.py:32`, `bisect_qp_cascade.py:49`, `diag_pure_pd.py:40`,
   `diag_torso_tracking.py:40`, `diag_platform_rotation.py:41`, `diag_loopfree_mapping_step2.py:39`,
-  `diag_step2_bypass_off.py:299`, `test_force_estimator.py:48`, `lutze_baseline/sim_lutze.py:432`, …).
+  `diag_step2_bypass_off.py:299`, `test_force_estimator.py:48`, `Misc/lutze_baseline/sim_lutze.py:432`, …).
 
 ### a2. Quantities that MUST be kept consistent by hand between MJCF and URDF
 

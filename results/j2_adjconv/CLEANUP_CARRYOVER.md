@@ -132,6 +132,33 @@ byte-wise run to run (±1 kB on identical plots). The repo can therefore never b
 after `pytest`, which undercuts the gate's bit-identity discipline. Fix: gitignore them or point
 the tests at a scratch dir.
 
+### C6. ⚠ CLEANUP-17 broke a test module — `constrained_geodesic` had a test consumer
+
+`tests/test_fk_reference_consistency.py:28` imports six symbols from
+`crawlbot/planning/constrained_geodesic.py`, deleted in CLEANUP-17. The result is a
+**collection error**, which interrupts the whole pytest run rather than failing one test:
+
+```
+ImportError while importing test module 'tests/test_fk_reference_consistency.py'
+E   ModuleNotFoundError: No module named 'crawlbot.planning.constrained_geodesic'
+```
+
+**Root cause is a too-narrow search, again.** The CLEANUP-16 audit justified the deletion with
+*"never imported"* — but what it measured was *never imported during the canonical run*, and it
+enumerated importers only under `crawlbot/`. It did not look in `tests/`. Coverage of the
+canonical replay cannot see a test-only consumer.
+
+Third instance of the same methodological failure in this chantier, after the `link_audit`
+basename heuristic and the import-resolution check in §C5. In each case the instrument was
+weaker than the claim.
+
+**Recommendation, not applied** (deleting a test file is a coverage decision):
+the module's 9 tests all exercise the FK-reference / geodesic path that CLEANUP-15 and -17
+deliberately removed, so the tests are testing a feature that no longer exists. Retiring the
+file to `Misc/` is consistent — but note `test_E7_t15_step2_dock_under_fk_mode` is one of the two
+known pre-existing failures in CLAUDE.md, and it is the only consumer of the
+`results/M7_1pct_3step_v22_t15_fk/` fixture. Moving the file orphans that fixture too.
+
 ### C3. Legacy research scripts now referencing removed symbols
 
 Non-functional since CLEANUP-6/8; they existed only to exercise retired features, so deletion
@@ -147,12 +174,12 @@ is probably cleaner than repair:
 **Correction (CLEANUP-18).** The CLEANUP-16 audit stated that `Misc/scripts/test_integration.py` and
 `Misc/scripts/sim_torso6d.py` were "already in the non-functional list §C3". They were **not** on
 this list, and measurement contradicts it: all `crawlbot` imports in *both* scripts — and in
-`lutze_baseline/sim_lutze.py` — resolve at HEAD. Do not assume a script is already broken;
+`Misc/lutze_baseline/sim_lutze.py` — resolve at HEAD. Do not assume a script is already broken;
 import-check it. This is what caused step 5 to be reverted (§C5).
 
 ### C5. `locomotion_planner.py` — KEPT in CLEANUP-18, **retracted in CLEANUP-23**
 
-⚠ **This entry is superseded.** The reversal below rested on `lutze_baseline/sim_lutze.py`
+⚠ **This entry is superseded.** The reversal below rested on `Misc/lutze_baseline/sim_lutze.py`
 being a working consumer. CLEANUP-23 measured that it **cannot run** — it dies on the first
 state conversion with `shape (12,) into shape (14,)`, having never been migrated to the 7-DOF
 model. Import resolution was the wrong instrument for the question "is this alive".
@@ -164,7 +191,7 @@ Original reasoning kept below for the record.
 
 CLEANUP-16 ranked "delete `locomotion_planner.py` (205 lines)" as step 5, risk "low, but breaks
 2 legacy scripts". Measured: it has **three** consumers, all import-clean at HEAD, and one of
-them is **`lutze_baseline/sim_lutze.py`** — a *package*, not a script, carrying the M0 / Lutze
+them is **`Misc/lutze_baseline/sim_lutze.py`** — a *package*, not a script, carrying the M0 / Lutze
 comparison baseline that backs the paper's §II differentiation table. `LocomotionPlanner` is
 live there (`sim_lutze.py:175-266`: construct, `calibrate_from_config`, two `reference_at`
 calls). That is a paper artifact, not research sediment — the same KEEP class as

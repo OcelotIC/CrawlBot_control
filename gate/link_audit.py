@@ -18,7 +18,7 @@ import subprocess
 import sys
 
 TOP = ('crawlbot', 'gate', 'scripts', 'tests', 'models', 'docs', 'results',
-       'Misc', 'scenarios', 'benchmarks', 'lutze_baseline')
+       'Misc', 'scenarios', 'benchmarks')
 
 pat = re.compile(r'\b((?:' + '|'.join(TOP) + r')/[A-Za-z0-9_./-]*[A-Za-z0-9_])')
 

@@ -110,7 +110,7 @@ docs/                                # Technical documentation
 ├── status_report.md                 # Session status and open problems
 └── ...
 
-lutze_baseline/                      # Reference implementation (Lutze et al. 2023)
+Misc/lutze_baseline/                 # M0 baseline (Lutze et al. 2023) — retired, see CLEANUP-23
 results/                             # Simulation logs (JSON) and figures (PNG)
 ```
 

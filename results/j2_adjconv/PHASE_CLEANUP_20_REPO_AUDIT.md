@@ -60,7 +60,7 @@ when rendering is enabled (off on the canonical).
 | `docs/` | 61 | 8.6 MB | split: ground-truth vs historical reports |
 | `scripts/` | 206 | 1.6 MB | **5 canonical, 181 diagnostics** → split |
 | `results/` | 1921 | **377 MB** | **15.5 MB load-bearing (4.1 %)** → the main target |
-| `lutze_baseline/` | 10 | tiny | keep — M0 paper baseline (CLEANUP-18 §3) |
+| `Misc/lutze_baseline/` | 10 | tiny | keep — M0 paper baseline (CLEANUP-18 §3) |
 | `benchmarks/` | 6 | tiny | pytest benchmarks; keep or fold into `tests/` |
 | `Misc/runs/q1_q2/` | 12 | 0.9 MB | **top-level scratch** — Q1/Q2 outputs → `Misc/` |
 | `URDF_models/` | 18 | 1.0 MB | **unused by the canonical** → see §5.1 |
@@ -113,7 +113,7 @@ CrawlBot_control/
 ├── scenarios/         .seq fixtures
 ├── scripts/           ONLY the 5 canonical-path scripts
 ├── docs/              ground-truth architecture only
-├── lutze_baseline/    M0 comparison baseline
+├── Misc/lutze_baseline/    M0 comparison baseline
 ├── results/           canonical artifacts + paper figure data only
 └── Misc/
     ├── diagnostics/   the ~181 one-off scripts

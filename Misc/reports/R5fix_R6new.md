@@ -338,7 +338,7 @@ PYTHONPATH=. MUJOCO_GL=disabled python3 tests/test_r5fix_rwa.py
 | Nombre de pas | **5 pas** (suffisant pour montrer accumulation et prévention) |
 | Modèle | `VISPA_crawling_rwa3.xml` (3 roues physiques) |
 | Contrôleur A | NMPC + QP (présent travail) |
-| Contrôleur B | Lutze-baseline (`lutze_baseline/`) — QP Stage 2 uniquement, sans contrainte hw |
+| Contrôleur B | Lutze-baseline (`Misc/lutze_baseline/`) — QP Stage 2 uniquement, sans contrainte hw |
 | `hw_min/max` | ±5 Nm·s |
 | `h_max` papier | 5 Nm·s |
 

@@ -44,7 +44,7 @@ comes from TorsoPlanner"*, and indeed `sim_loop` never constructs it. Coverage
 
 CLEANUP-16 ranked it "delete, 205 lines, low risk". **Revised on measurement**
 (CLEANUP-18 section 3): it has three consumers, all of whose imports resolve at
-HEAD, and the decisive one is **`lutze_baseline/sim_lutze.py`** — a *package*,
+HEAD, and the decisive one is **`Misc/lutze_baseline/sim_lutze.py`** — a *package*,
 not a research script, carrying the M0/Lutze comparison behind the paper's
 section II differentiation table.
 

@@ -184,7 +184,7 @@ CrawlBot_control/
 │
 ├── scripts/                # Expériences et visualisation
 ├── tests/                  # Suite de tests
-├── lutze_baseline/         # Implémentation de référence (Lütze et al.)
+├── Misc/lutze_baseline/         # Implémentation de référence (Lütze et al.)
 ├── docs/                   # Documentation technique
 └── results/                # Logs JSON et figures PNG
     ├── logs/

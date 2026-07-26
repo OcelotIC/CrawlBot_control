@@ -145,7 +145,7 @@ by hand against CLAUDE.md. That is the remaining soft spot.
 
 ## Out of scope here
 
-- `lutze_baseline/` — the M0/Lutze comparison implementation.
+- `Misc/lutze_baseline/` — the M0/Lutze comparison implementation.
 - `gate/` — see `gate/README.md`.
 - `Misc/` — research sediment, slated for removal.
 - The deep architectural *why*:

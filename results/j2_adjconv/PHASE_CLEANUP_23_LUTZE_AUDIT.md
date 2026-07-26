@@ -1,13 +1,19 @@
-# PHASE CLEANUP-23 — `lutze_baseline/` audit (READ-ONLY)
+# PHASE CLEANUP-23 — `Misc/lutze_baseline/` audit (READ-ONLY)
 
-Thorough investigation of `lutze_baseline/` (10 files, 1277 lines) on the
+Thorough investigation of `Misc/lutze_baseline/` (10 files, 1277 lines) on the
 hypothesis that it is entirely dead.
 
 **Verdict: the hypothesis is correct in the strongest sense — nothing in the
 package can run.** All three entry points fail, all for the same reason, and
 the failure predates the chantier by three months.
 
-**No code changed.** This also **retracts a CLEANUP-18 decision** (§5).
+**No code changed by this audit.** It also **retracts a CLEANUP-18 decision** (§5).
+
+> **Follow-up (CLEANUP-24):** acting on §7, the package was moved
+> `lutze_baseline/` → `Misc/lutze_baseline/`, taking the two non-collected scripts
+> with it. Paths below are the current ones; quoted docstrings and `git show`
+> references are deliberately left at their pre-move values, because that is what
+> they actually say.
 
 ---
 
@@ -20,7 +26,7 @@ The Lutze et al. (2023) single-step QP wrench optimiser, adapted to VISPA as the
 |---|---:|---|
 | `sim_lutze.py` | 441 | 2 scripts in `Misc/scripts/` |
 | `plot_comparison.py` | 203 | **none** |
-| `lutze_qp.py` | 189 | `tests/test_phase1.py` |
+| `lutze_qp.py` | 189 | `tests/test_phase1.py` (now `Misc/lutze_baseline/tests/`) |
 | `lutze_feedforward.py` | 99 | `tests/test_phase1.py` |
 | `lutze_swing_controller.py` | 82 | `tests/test_phase1.py` |
 | `contact_adjoint.py` | 80 | `tests/test_phase{0,1}.py` |
@@ -96,7 +102,7 @@ snapshots **18 forever**, so the script builds an 18-vector for a 20-DOF model.
 
 Identical failure, identical cause.
 
-### `lutze_baseline/sim_lutze.py`
+### `Misc/lutze_baseline/sim_lutze.py`
 
 ```
 ValueError: could not broadcast input array from shape (12,) into shape (14,)
@@ -135,7 +141,7 @@ the code, keep the log"*. The log is not a usable baseline either.
 CLEANUP-18 proposed deleting `crawlbot/planning/locomotion_planner.py`
 (205 lines) and **I reversed that on the strength of this package**, writing:
 
-> *The decisive one is `lutze_baseline/sim_lutze.py` — a package, not a research
+> *The decisive one is `Misc/lutze_baseline/sim_lutze.py` — a package, not a research
 > script, carrying the M0/Lutze comparison … `LocomotionPlanner` is load-bearing
 > there.*
 
@@ -177,7 +183,7 @@ So removal does not touch the paper.
 
 | target | lines | note |
 |---|---:|---|
-| `lutze_baseline/` | **1277** | unrunnable; no working consumer |
+| `Misc/lutze_baseline/` | **1277** | unrunnable; no working consumer |
 | `crawlbot/planning/locomotion_planner.py` | **205** | its only consumer was `sim_lutze.py` (§5) |
 | `tests/test_phase0.py`, `test_phase1.py` | ~250 | not collected by pytest, broken as scripts |
 | **total** | **~1730** | |

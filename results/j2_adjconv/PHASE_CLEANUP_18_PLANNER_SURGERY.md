@@ -73,11 +73,11 @@ Import-resolving every `crawlbot.*` symbol of each consumer against HEAD:
 |---|---|
 | `Misc/scripts/test_integration.py` | **all imports resolve** |
 | `Misc/scripts/sim_torso6d.py` | **all imports resolve** |
-| **`lutze_baseline/sim_lutze.py`** | **all imports resolve** |
+| **`Misc/lutze_baseline/sim_lutze.py`** | **all imports resolve** |
 
 There are **three** consumers, not two; none was on the §C3 list; and none was already broken.
 
-The decisive one is the third. `lutze_baseline/` is a *package*, not a research script, and it
+The decisive one is the third. `Misc/lutze_baseline/` is a *package*, not a research script, and it
 carries the **M0 / Lutze comparison baseline** — the one backing the paper's §II differentiation
 table against Lutze [2023]. `LocomotionPlanner` is load-bearing there: constructed at
 `sim_lutze.py:175`, calibrated at `:176`, and evaluated at `:231` and `:266`.
