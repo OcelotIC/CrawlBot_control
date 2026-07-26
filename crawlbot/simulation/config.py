@@ -421,9 +421,8 @@ class SimConfig:
     # path-feasibility probe, and the joint_space_fk reference source, together
     # with their config fields. All three were opt-in research paths, off on the
     # canonical, and their sim_loop implementations never executed.
-    # NOTE: the FK-mode wiring inside TorsoPlanner / SwingPlanner /
-    # constrained_geodesic is now unreachable from sim_loop - see the planner
-    # audit item in CLEANUP_CARRYOVER.md.
+    # CLEANUP-17 also removed the planner-side FK wiring and deleted
+    # crawlbot/planning/constrained_geodesic.py, which had become unreachable.
 
     # ── Torso-vs-swing velocity profile ─────────────────────────
     # 1.0 = torso quintic runs over the full [0, T_step] alongside

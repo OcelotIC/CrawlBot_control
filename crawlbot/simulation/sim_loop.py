@@ -267,13 +267,10 @@ class SimulationLoop:
             self.sched,
             clearance=cfg.swing_clearance,
             bump_peak_tau=cfg.swing_bump_peak_tau,
-            early_finish_fraction=cfg.swing_early_finish_fraction,
-            model=self.robot.model)
+            early_finish_fraction=cfg.swing_early_finish_fraction)
 
         # Torso planner (reconfigured per step)
-        self.torso_planner = TorsoPlanner(
-            model=self.robot.model,
-            frame_torso=self.robot.frame_torso)
+        self.torso_planner = TorsoPlanner()
         # M5: provide torso body inertia so l_com_reference_at() can
         # produce a meaningful feedforward for the NMPC cost.
         # Pinocchio joint index 1 == root_joint (torso); .inertia is
