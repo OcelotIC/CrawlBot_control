@@ -161,6 +161,25 @@ byte-wise run to run (±1 kB on identical plots). The repo can therefore never b
 after `pytest`, which undercuts the gate's bit-identity discipline. Fix: gitignore them or point
 the tests at a scratch dir.
 
+### C7. The GATE dirtied a tracked file on every run — RESOLVED (CLEANUP-29)
+
+C2's problem class, recurring on the other gate and unnoticed for longer.
+`gate/run_gate.py` wrote wall-clock `seconds` / `seconds_total` into the
+**tracked** `gate/last_verdict.json`, so every gate run produced a diff whose
+only content was timing noise — verdict, baseline and every check identical. It
+had already been swept into three unrelated commits (CLEANUP-22 `aac3f77`,
+CLEANUP-24 `17f3a8b`, CLEANUP-25 `0c45a31`).
+
+Sharper than that: the identity check *already* excludes `qp_time_ms` /
+`nmpc_time_ms` as "nondeterministic instrumentation" (`gate/EXCEPTIONS.md`), and
+the verdict writer then put the same class of value into a tracked artifact.
+
+Fixed by scrubbing the timing keys from the tracked file and writing the
+timing-bearing copy to the gitignored `gate/_run/last_verdict_timed.json`;
+stdout is unchanged. Proven: two consecutive runs at 134.5 s and 132.7 s
+wall-clock leave `gate/last_verdict.json` byte-identical
+(`md5 32f6eb9e8932a8c4858d81cd794c4305` both times), gate PASS both times.
+
 ### C6. CLEANUP-17 broke a test module — **RESOLVED (CLEANUP-26)**
 
 The module was **retired** to `Misc/tests/`, with its data fixture

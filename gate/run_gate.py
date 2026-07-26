@@ -49,7 +49,8 @@ REPLAY_DIR = 'results/gate_run_scratch'
 REPLAY_PREFIX = 'gate/_run/c25_replay'
 REPLAY_CSV = REPLAY_PREFIX + '_fulldiag.csv'
 LOCK = 'gate/environment.lock'
-VERDICT = 'gate/last_verdict.json'
+VERDICT = 'gate/last_verdict.json'          # TRACKED — must be byte-stable
+VERDICT_TIMED = 'gate/_run/last_verdict_timed.json'   # gitignored, keeps timings
 
 # Non-reproducible columns excluded from artifact identity: wall-clock per-tick
 # timings. Documented in gate/EXCEPTIONS.md. NOT a metric-equivalence exception
@@ -321,7 +322,22 @@ def main():
             'environment_pin is advisory (WARN-only) in this revision.',
         ],
     }
-    json.dump(verdict, open(VERDICT, 'w'), indent=2)
+    # The TRACKED verdict must be byte-stable across identical runs. This check
+    # already excludes qp_time_ms/nmpc_time_ms from artifact identity as
+    # "nondeterministic instrumentation" — writing wall-clock seconds into a
+    # tracked file reintroduced exactly that nondeterminism, and the resulting
+    # churn had already been swept into three unrelated commits (CLEANUP-22/24/
+    # 25) with no verdict change. Same problem class as CARRYOVER §C2. Timings
+    # stay in stdout and in the gitignored copy.
+    def _scrub(o):
+        if isinstance(o, dict):
+            return {k: _scrub(v) for k, v in o.items()
+                    if k not in ('seconds', 'seconds_total')}
+        return [_scrub(v) for v in o] if isinstance(o, list) else o
+
+    json.dump(_scrub(verdict), open(VERDICT, 'w'), indent=2)
+    os.makedirs(os.path.dirname(VERDICT_TIMED), exist_ok=True)
+    json.dump(verdict, open(VERDICT_TIMED, 'w'), indent=2)
     print('-' * 70)
     print(f"VERDICT: {verdict['verdict']}   "
           f"(env {env['status']}, {verdict['seconds_total']}s)   -> {VERDICT}")
