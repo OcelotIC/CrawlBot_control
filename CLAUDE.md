@@ -29,7 +29,7 @@ Every session begins with:
 bash docs/architecture/setup_env.sh
 
 # 2. Verify
-PYTHONPATH=. MUJOCO_GL=osmesa python3 -c "import pinocchio; import mujoco; import casadi; print('OK')"
+PYTHONPATH=. MUJOCO_GL=disabled python3 -c "import pinocchio; import mujoco; import casadi; print('OK')"
 
 # 3. Run the test suite — GATED (CLEANUP-29). --fast deselects @pytest.mark.slow
 PYTHONPATH=. python3 gate/run_suite.py --fast
@@ -69,14 +69,16 @@ Do not skip these steps. Do not start coding before the environment is verified.
 ## Commands
 
 ```bash
-# Run all tests
-PYTHONPATH=. MUJOCO_GL=osmesa python3 -m pytest tests/ -v
+# Run the tests — via the gate, which forces MUJOCO_GL=disabled and applies the
+# pass criterion (0 failed, 0 errors, 0 XPASS). Do not call pytest directly.
+PYTHONPATH=. python3 gate/run_suite.py --fast    # ~23 s
+PYTHONPATH=. python3 gate/run_suite.py           # ~89 s, before merging
 
 # Run a simulation script
-MUJOCO_GL=osmesa PYTHONPATH=. python3 scripts/<script>.py
+MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/<script>.py
 
 # Run diagnostics on a simulation log
-MUJOCO_GL=osmesa PYTHONPATH=. python3 -c "
+MUJOCO_GL=disabled PYTHONPATH=. python3 -c "
 from crawlbot.diagnostics import run_diagnostics
 import json
 log = json.load(open('results/<log>.json'))
@@ -139,11 +141,18 @@ Update this line as work progresses:
 
 > **For current-state questions, `docs/architecture/STACK_OVERVIEW.md` is the code-ground-truth reference.** This milestone block is a short pointer, kept in sync with it.
 
-**→ Active:** **FROZEN 2.5 CANONICAL** — τ_w,max = 2.5 N·m (controller + plant) + Add-5 WQP weights, frozen at commit `32aefaf`, default-cap alignment `ec41cd9`, torso-export continuity fix `b619ef4`/`b37b528`. Docks **6/6** end-to-end (6-step traversal, worst at-weld 4.99 mm / margin 0.01 mm). **PR #29** (`j2/ds-active-rework` → `main`) carries the freeze + the full measurement campaign; Idriss reviews/merges via GitHub UI. See "Canonical Results" below and the phase reports under `results/j2_adjconv/PHASE_*.md`.
+**→ Active:** **repo-hygiene chantier** on branch `cleanup-nmpc` (CLEANUP-0 … CLEANUP-30) — 43 commits ahead of `main`, 0 behind. Reports: `results/j2_adjconv/PHASE_CLEANUP_*.md`, ledger `CLEANUP_CARRYOVER.md`, overview `PHASE_CLEANUP_OVERVIEW.md`.
 
-**Completed (this campaign):** weight-tuning isolation (COPRIORITY Addenda 1–8 → dock-lever hierarchy: torque ≥ 5× floor gate, EE ≥ 1000 gross reach, torso = fine lever, momentum/hw-slack inert); NMPC-PLAN-SATURATION (planned Ḣ_s saturation is NMPC-level, weight-independent) + U-PLAN-CHECK (rate-off plan exceeds envelope 2–4× — the constraint genuinely binds); CANONICAL-2p5 freeze with plant-cap proof (applied wheel torque measured ≤ 2.500 while U demands 26.9); TORSO-REF-AUDIT + export continuity fix (control byte-identical).
+**The science is already on `main`:** **FROZEN 2.5 CANONICAL** — τ_w,max = 2.5 N·m (controller + plant) + Add-5 WQP weights, frozen at `32aefaf`, default-cap alignment `ec41cd9`, torso-export continuity fix `b619ef4`/`b37b528`. Docks **6/6** (worst at-weld 4.99 mm / margin 0.01 mm). **PR #29 merged 2026-07-14**; no PR is open. See "Canonical Results" below.
 
-**Two-task SS stack (current architecture):** T-MOM linear + 6-D torso-pose + swing-EE + posture, all weighted, NO null-space projection, `weight_ratio=1` ⇒ **α magnitudes ARE the hierarchy** (nominal priority integers inert). In two-task SS the torso task is fed the **raw TorsoPlanner quintic+SLERP — the CoM→torso δ-mapping is NOT used in SS** (`sim_loop.py:2581-2584`); DS still uses the mapping. Superseded: the cooperative split, strict-P1, planned-δ, and the handoff-era "torso-ori blocker".
+**Two gates, and both must pass — they check different things:**
+`gate/run_gate.py` proves the canonical run reproduces **byte-identically** (2077 rows × 132 928 fields). It is indifferent to correctness: a wrong controller reproduces just as faithfully, and byte-identity then locks the bug in as the new baseline. **It protects the past.** `gate/run_suite.py` is the only thing that can say a **changed** configuration is still physically valid — dynamics residual, passivity, CoM-Jacobian mass form, J̇ assembly, quaternion conventions. **It protects a change.**
+
+**Completed (freeze campaign):** weight-tuning isolation (COPRIORITY Addenda 1–8 → dock-lever hierarchy: torque ≥ 5× floor gate, EE ≥ 1000 gross reach, torso = fine lever, momentum/hw-slack inert); NMPC-PLAN-SATURATION + U-PLAN-CHECK; CANONICAL-2p5 freeze with plant-cap proof; TORSO-REF-AUDIT + export continuity fix.
+
+**Completed (cleanup chantier):** `crawlbot/` −3281/+644 across 19 files with the canonical byte-identical at every stage; 2098 files of research sediment moved to `Misc/`; 33 per-module documents under `docs/crawlbot/` with a generated-and-enforced half (`gate/sync_docs.py --check`); seven checkers in `gate/` (run_gate, run_suite, dock_check, sync_docs, verify_docs, verify_params, verify_roots, link_audit), each proven to bite on an injected fault before being trusted; the test suite taken from 12 problems to 0 and **gated**.
+
+**Two-task SS stack (current architecture):** T-MOM linear + 6-D torso-pose + swing-EE + posture, all weighted, NO null-space projection, `weight_ratio=1` ⇒ **α magnitudes ARE the hierarchy** (nominal priority integers inert). In two-task SS the torso task is fed the **raw TorsoPlanner quintic+SLERP — the CoM→torso δ-mapping is NOT used in SS** (`sim_loop.py:2573-2576`); DS still uses the mapping. Superseded: the cooperative split, strict-P1, planned-δ, and the handoff-era "torso-ori blocker".
 
 ---
 
@@ -177,9 +186,9 @@ Update this line as work progresses:
 | **α accel-reg** | **1.0** (regularizer floor) | — | `sim_loop.py:1126` |
 | ε (Tikhonov) | 1e-6 (inert: λ_min(H_LS)=1 ≫ ε) | — | `hierarchical_qp.py:98` default |
 | **κ_SS(H)** | ≈ 7.5e3 (530× below the pre-freeze canonical 3.6e6) | — | `canonical2p5_result.json` |
-| α_com_soft | 0.0 | — | Soft-CoM residual disabled (QP has no direct CoM feedback) |
-| CoM shaping | a_cruise_max=**0.0** (off) | — | Pre-planner cruise-accel cap disabled |
-| Torso reference (SS) | **raw TorsoPlanner quintic+SLERP — NO δ-mapping in two-task SS** (`sim_loop.py:2581-2584`); DS still uses δ(q_current)+F-SAT | — | TORSO-REF-AUDIT; per-step reference re-anchored each SS |
+| ~~α_com_soft~~ | **field REMOVED** (CLEANUP-6), not merely 0 | — | The soft-CoM residual task is gone; the QP has no direct CoM feedback path. Do not re-add a config field for it without re-adding the task |
+| CoM shaping | a_cruise_max=**0.0** (off) | m/s² | `coarse_preplanner.py:99` — pre-planner cruise-accel cap disabled |
+| Torso reference (SS) | **raw TorsoPlanner quintic+SLERP — NO δ-mapping in two-task SS** (`sim_loop.py:2573-2576`); DS still uses δ(q_current)+F-SAT | — | TORSO-REF-AUDIT; per-step reference re-anchored each SS |
 | CoM-z standoff | −0.35 m (on) | m | Dock-IK + init pin crawl height (PR #17) |
 
 ---
@@ -210,9 +219,9 @@ The **5 mm dock gate is the docking-mechanism capture radius** — the 0.01 mm w
 - **The orphaned manipulability-IK path is RETIRED (CLEANUP-30).** `manipulability_config_trajectory`, `manipulability_config_mid_waypoint`, `check_path_feasibility`, `precompute_torso_map` + 4 stranded helpers — 695 lines, 47 % of `ik.py` — had zero callers and 0 lines executed by the canonical replay. Removal proven inert: artifact identity byte-exact, all six docks delta +0.0000. `sim_loop` uses **`manipulability_config`** (IK 2, `sim_loop.py:307`), a different and live function. Suite 743 s → **89 s**. Reasoning and revival path: `PHASE_CLEANUP_30_IK_OPTION_B_RETIRED.md`; §7–§9 of `IK_FORMULATION.md` still derive it under a RETIRED banner. **Consequence:** there is now no interior path-feasibility guard at all — `check_path_feasibility` was the only one and was already disconnected.
 - **`crawlbot/diagnostics/` is KEPT** — live consumer (`scripts/run_m7_single_step.py`) and mandated by Rule 3. The real defect is that the **canonical run does not honour Rule 3**: the gate exports via `scripts/diag_full_diag_export.py`, never `run_diagnostics()` (`CARRYOVER` §A6).
 - **`gate/link_audit.py` cannot see computed paths.** It audits citations in prose; the CLEANUP-21 miss that disabled 7 tests for six passes was `os.path.join(_root, 'diagnostic', ...)` in Python. `tests/fixtures/` is now the convention for test data.
-- **CoM-reference export snaps to the measured CoM at SS→DS entry** — logging convention (`_log_ds_tick` logs e_com=0 with ref:=measured, `sim_loop.py:1038-1041`); reviewer-reported magnitude ~76 mm (not repo-verified — the fulldiag CSV has no CoM-ref channel). Decision pending whether to apply the same terminal-hold fix as the torso export.
+- **CoM-reference export snaps to the measured CoM at SS→DS entry** — logging convention (`_log_ds_tick` logs e_com=0 with ref:=measured, `sim_loop.py:1020-1023`); reviewer-reported magnitude ~76 mm (not repo-verified — the fulldiag CSV has no CoM-ref channel). Decision pending whether to apply the same terminal-hold fix as the torso export.
 - **Fig-3 conservation quantity ‖L_total‖ is NOT in the fulldiag export** (verified: no `Ltot` column in `c25_fulldiag.csv`; it exists in the `export_figure_data.py` traversal CSVs). Dedicated export pending.
-- `dca.main` sets `cfg.ds_centroidal_mode=True` (`diag_cooperative_arms.py:352`) — the locked config runs centroidal DS everywhere including the trailing settle; flags keyed on it cannot discriminate the DWELL (see TORSO-REF-EXPORT-FIX).
+- `dca.main` sets `cfg.ds_centroidal_mode=True` (`diag_cooperative_arms.py:347`) — the locked config runs centroidal DS everywhere including the trailing settle; flags keyed on it cannot discriminate the DWELL (see TORSO-REF-EXPORT-FIX).
 
 ---
 
@@ -221,7 +230,12 @@ The **5 mm dock gate is the docking-mechanism capture radius** — the 0.01 mm w
 **Repo-side:**
 - Fig-3 export: add the ‖L_total‖ / conservation channel to the fulldiag exporter.
 - Decide/apply the CoM-reference export terminal-hold (same class as the torso fix) if Idriss rules the SS→DS snap non-publishable.
-- Re-examine `test_far_infeasible_under_tight_rate` semantics at cap 2.5.
+- Re-examine `test_far_infeasible_under_tight_rate` semantics at cap 2.5. Now `xfail(strict=True)` so it cannot be forgotten: if the far case ever goes infeasible again the suite gate **fails** rather than turning green.
+- `CARRYOVER` §A6 — make the canonical run honour Rule 3 (it exports via `scripts/diag_full_diag_export.py`, never `run_diagnostics()`). Do it in a pass of its own, where the gate is the only thing that changes.
+- `CARRYOVER` §A7 — `solve_ik_waypoints`, 118 lines with zero callers; same class as the four retired in CLEANUP-30.
+- `planning/sequence_loader.py` — 107 statements of documented user-facing feature (`sim.setup(sequence_path=…)`) verified by **neither** gate. The largest genuinely-unverified block left.
+- Delete `Misc/` when its ~120 inbound citations have been swept (it is 2098 of the branch's 2235 changed files, all moves).
+- **This file's prose `file.py:NNN` citations are checked by nothing.** `verify_params.py` covers only the parameter table; `link_audit.py` checks that a *path* resolves, not that a *line number* still says what the text claims. Three refs had silently drifted by the time CLEANUP-30 measured them (`sim_loop.py:2581→2573`, `1038→1020`, `dca:352→347`). Extending `verify_params.py` to the prose refs is the fix.
 
 **Paper-side (Overleaf — external to this repo; state per Idriss's review notes, NOT repo-verifiable):**
 - Propagate θ_s = 0.54° (new canonical) everywhere the paper states 0.59°/old values (abstract, §VII-C, Fig. 5 caption).
@@ -244,13 +258,13 @@ The **5 mm dock gate is the docking-mechanism capture radius** — the 0.01 mm w
 - Do not import from root-level shim files (use `crawlbot.*`)
 - Do not proceed past a failing metric by arguing it doesn't matter
 - Do not use `pinocchio>=2.7` — this project uses `pin==3.9.0`
-- Do not run simulations without `MUJOCO_GL=osmesa` (or `disabled` if rendering unavailable)
+- Do not run simulations without setting `MUJOCO_GL`. **Prefer `disabled`** — it is what both gates use, and `osmesa` currently aborts pytest *collection* in this container (PyOpenGL, via `test_diagnostics`). Use `osmesa` only when you actually need rendering
 - Do not assume quaternion conventions — verify in `state_conversions.py` (Pinocchio: xyzw, MuJoCo: wxyz)
 - Do not use `weight_ratio > 1` in the QP — at `weight_ratio = 1` the α magnitudes ARE the hierarchy (two-task weighted stack; nominal priority integers are inert)
 - Do not freeze references or add threshold-based switches to handle trajectory coordination failures — fix the trajectory synchronization instead
 - Do not implement a three-phase state machine (DS/SS/EXT) — the architecture is two-phase (DS/SS) per spec §7.1
 - Do not activate welds on position alone — require both `d < 5mm AND ori < 5°`
 - Do not use α_wrench > 1 — wrench regularization at 100 consumed 20% of QP budget and blocked torso/EE authority
-- Do not route the SS torso reference through the δ-mapping in two-task mode — SS uses the raw TorsoPlanner quintic (mapping is explicitly excluded, `sim_loop.py:2581-2584`); the mapping (δ(q_current)+F-SAT) remains a DS-only path
+- Do not route the SS torso reference through the δ-mapping in two-task mode — SS uses the raw TorsoPlanner quintic (mapping is explicitly excluded, `sim_loop.py:2573-2576`); the mapping (δ(q_current)+F-SAT) remains a DS-only path
 - Do not assume standalone component tests guarantee closed-loop success — always run the cascade bisection (A/B/C/D) to isolate integration failures
 - Do not generate trajectory acceleration profiles without checking actuator feasibility — quintic on 591mm torso displacement saturates 20 Nm joints
