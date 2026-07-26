@@ -1,32 +1,34 @@
 # `crawlbot.diagnostics.runner`
 
-Orchestrateur de la suite de diagnostic : métriques, figures, captures.
+**File**: `crawlbot/diagnostics/runner.py` — **71 lines** — canonical coverage **15 %**
 
-**Fichier** : `crawlbot/diagnostics/runner.py` — **71 lignes** — couverture canonique **15 %**
+> Module docstring: *"Single entry point for the diagnostic suite."*
 
-> Docstring du module : *« Single entry point for the diagnostic suite. »*
+Orchestrator for the diagnostic suite: metrics, plots, snapshots.
 
 ---
 
-## API publique
+## Public API
 
-| symbole | signature | canonique ? |
+| symbol | signature | canonical? |
 |---|---|---|
-| `run_diagnostics` | `(log, output_dir, cfg=None, thresholds=None, model=None,...)` | non exerce |
+| `run_diagnostics` | `(log, output_dir, cfg=None, thresholds=None, model=None,...)` | not exercised |
 
 ---
 
-## Usage
+---
+
+## 1. Usage
 
 ```python
 from crawlbot.diagnostics import run_diagnostics
 run_diagnostics(log, output_dir, cfg=None, thresholds=None, model=None, data=None)
 ```
 
-Enchaîne `compute_metrics` → `print_metrics` / `save_metrics_csv` →
-`generate_plots`, puis `capture_snapshots` si `model` et `data` sont fournis.
+Chains `compute_metrics` -> `print_metrics` / `save_metrics_csv` ->
+`generate_plots`, then `capture_snapshots` when `model` and `data` are supplied.
 
-Utilisable à la demande sur un log déjà produit :
+Usable on demand against an existing log:
 
 ```bash
 MUJOCO_GL=osmesa PYTHONPATH=. python3 -c "
@@ -37,25 +39,35 @@ run_diagnostics(log, 'results/<output_dir>/')
 "
 ```
 
-## ⚠ Rappel valable pour tout le paquet
+## 2. The intent
 
-`crawlbot/diagnostics/` n'est **pas exercé par le run canonique**, alors que la
-règle 3 de CLAUDE.md l'exige :
+Rule 3 exists because "it docked" is a weak pass criterion — a run can dock while
+saturating the wheels, drifting the structure, or hitting a joint limit. The
+suite is meant to turn every such quantity into a thresholded verdict, so a pass
+is a statement about all of them rather than about the last 5 mm.
+
+---
+
+## Package-wide caveat
+
+`crawlbot/diagnostics/` is **not exercised by the canonical run**, although
+CLAUDE.md rule 3 requires it:
 
 > *Every simulation produces diagnostics. Call `run_diagnostics()` at the end of
-> every sim. « It docked » is not a pass criterion.*
+> every sim. "It docked" is not a pass criterion.*
 
-Constat signalé, non corrigé : c'est une question de conformité à une règle, à
-trancher (CLEANUP-20 §5.3). Ce qui fait foi aujourd'hui est le gate
-(`gate/run_gate.py`, `gate/dock_check.py`) et les scripts d'export.
+Measured: `run_diagnostics` 0/56 lines, `compute_metrics` 0/287,
+`generate_plots` 0/26, `capture_snapshots` 0/59. The canonical import closure
+pulls in `crawlbot/diagnostics/__init__.py` (which re-exports `run_diagnostics`)
+but **none of the four modules**, and neither `dca` nor `sim_loop` calls it.
 
-Conséquence pratique : **aucune couverture par le gate**. Une régression
-introduite dans ce paquet ne sera détectée par rien.
+Reported, not fixed: this is a rule-compliance question, orthogonal to the code
+(CLEANUP-20 section 5.3). What is authoritative today is the gate
+(`gate/run_gate.py`, `gate/dock_check.py`) and the export scripts.
 
-Nuance mesurée : la fermeture d'imports du canonique tire bien
-`crawlbot/diagnostics/__init__.py` (qui ré-exporte `run_diagnostics`), mais
-**aucun des quatre modules** — et la fonction n'est jamais appelée (0/56 lignes).
+Practical consequence: **no gate coverage anywhere in this package**. A
+regression introduced here will be caught by nothing.
 
-## Voir aussi
+## See also
 
-- vue d'ensemble du paquet : [`diagnostics.md`](diagnostics.md)
+- package overview: [`diagnostics.md`](diagnostics.md)

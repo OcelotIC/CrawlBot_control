@@ -1,54 +1,63 @@
 # `crawlbot.diagnostics.plots`
 
-Planches de figures de diagnostic à partir d'un log de simulation.
+**File**: `crawlbot/diagnostics/plots.py` — **689 lines** — canonical coverage **5 %**
 
-**Fichier** : `crawlbot/diagnostics/plots.py` — **689 lignes** — couverture canonique **5 %**
+> Module docstring: *"Generate the fixed set of 8 diagnostic figures from SimLog."*
 
-> Docstring du module : *« Generate the fixed set of 8 diagnostic figures from SimLog. »*
+Diagnostic figure plates generated from a simulation log.
 
 ---
 
-## API publique
+## Public API
 
-| symbole | signature | canonique ? |
+| symbol | signature | canonical? |
 |---|---|---|
-| `generate_plots` | `(log, output_dir, cfg=None, dpi=150)` | non exerce |
+| `generate_plots` | `(log, output_dir, cfg=None, dpi=150)` | not exercised |
 
-### Constantes de module
+### Module constants
 
-| nom | valeur |
+| name | value |
 |---|---|
 | `_PHASE_COLORS` | `{'DS': 'blue', 'SS': 'orange'}` |
 
 ---
 
-## Usage
+---
 
-`generate_plots(log, output_dir, cfg=None, dpi=150)` — appelé par `run_diagnostics`.
+## 1. Usage
 
-## ⚠ Ce ne sont pas les figures de l'article
+`generate_plots(log, output_dir, cfg=None, dpi=150)` — called by
+`run_diagnostics`.
 
-Les figures publiées sont produites par `scripts/export_figure_data.py` et
-`scripts/diag_full_diag_export.py` à partir du `sim_log.json`. Chaîne
-différente : ne pas supposer qu'une planche d'ici correspond à une figure
-publiée.
+## 2. ⚠ These are not the paper figures
 
-## ⚠ Rappel valable pour tout le paquet
+Published figures come from `scripts/export_figure_data.py` and
+`scripts/diag_full_diag_export.py`, reading the same `sim_log.json` through a
+different chain. Do not assume a plate from here matches a published figure —
+the quantities are recomputed independently.
 
-`crawlbot/diagnostics/` n'est **pas exercé par le run canonique**, alors que la
-règle 3 de CLAUDE.md l'exige :
+---
+
+## Package-wide caveat
+
+`crawlbot/diagnostics/` is **not exercised by the canonical run**, although
+CLAUDE.md rule 3 requires it:
 
 > *Every simulation produces diagnostics. Call `run_diagnostics()` at the end of
-> every sim. « It docked » is not a pass criterion.*
+> every sim. "It docked" is not a pass criterion.*
 
-Constat signalé, non corrigé : c'est une question de conformité à une règle, à
-trancher (CLEANUP-20 §5.3). Ce qui fait foi aujourd'hui est le gate
-(`gate/run_gate.py`, `gate/dock_check.py`) et les scripts d'export.
+Measured: `run_diagnostics` 0/56 lines, `compute_metrics` 0/287,
+`generate_plots` 0/26, `capture_snapshots` 0/59. The canonical import closure
+pulls in `crawlbot/diagnostics/__init__.py` (which re-exports `run_diagnostics`)
+but **none of the four modules**, and neither `dca` nor `sim_loop` calls it.
 
-Conséquence pratique : **aucune couverture par le gate**. Une régression
-introduite dans ce paquet ne sera détectée par rien.
+Reported, not fixed: this is a rule-compliance question, orthogonal to the code
+(CLEANUP-20 section 5.3). What is authoritative today is the gate
+(`gate/run_gate.py`, `gate/dock_check.py`) and the export scripts.
 
+Practical consequence: **no gate coverage anywhere in this package**. A
+regression introduced here will be caught by nothing.
 
-## Voir aussi
+## See also
 
-- vue d'ensemble du paquet : [`diagnostics.md`](diagnostics.md)
+- package overview: [`diagnostics.md`](diagnostics.md)

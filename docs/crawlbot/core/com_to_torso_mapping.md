@@ -1,67 +1,135 @@
 # `crawlbot.core.com_to_torso_mapping`
 
-Convertit une référence de CoM en référence de torse : `p_torso = r_com − δ(q)`.
-**Chemin DS uniquement.**
+**File**: `crawlbot/core/com_to_torso_mapping.py` — **257 lines** — canonical coverage **52 %**
 
-**Fichier** : `crawlbot/core/com_to_torso_mapping.py` — **257 lignes** — couverture canonique **52 %**
+> Module docstring: *"CoM-to-torso reference mapping (M1, v1: with delta_dot)."*
 
-> Docstring du module : *« CoM-to-torso reference mapping (M1, v1: with delta_dot). »*
+Converts a *centroidal* reference (what the NMPC produces) into a *torso*
+reference (what the QP tracks), using an exact mass-weighted identity.
+
+It exists so the whole-body QP can run a rigid-body pose task on the torso
+instead of a centroidal task on the CoM — the two are exactly equivalent at the
+Jacobian level, but the first is far better conditioned.
 
 ---
 
-## API publique
+## Public API
 
-| symbole | signature | canonique ? |
+| symbol | signature | canonical? |
 |---|---|---|
 | **`CoMToTorsoMapping`** |  |  |
-| `.compute_delta` | `(q)` | **oui** |
-| `.compute_delta_dot` | `(q, dq)` | **oui** |
-| `.compute_delta_local` | `(q)` | non exerce |
-| `.compute_delta_local_dot` | `(q, dq)` | non exerce |
-| `.compute` | `(r_com_ref, v_com_ref, a_com_ff, q_current, dq_current=None)` | non exerce |
-| `.body_com_jacobian` | `(data, joint_idx)` | **oui** |
-| `.torso_pos_jacobian_from_com` | `(q)` | non exerce |
+| `.compute_delta` | `(q)` | **yes** |
+| `.compute_delta_dot` | `(q, dq)` | **yes** |
+| `.compute_delta_local` | `(q)` | not exercised |
+| `.compute_delta_local_dot` | `(q, dq)` | not exercised |
+| `.compute` | `(r_com_ref, v_com_ref, a_com_ff, q_current, dq_current=None)` | not exercised |
+| `.body_com_jacobian` | `(data, joint_idx)` | **yes** |
+| `.torso_pos_jacobian_from_com` | `(q)` | not exercised |
 
-### Constantes de module
+### Module constants
 
-| nom | valeur |
+| name | value |
 |---|---|
 | `TORSO_JOINT_IDX` | `1` |
 
 ---
 
-## Le principe
+---
 
-Le NMPC raisonne sur le CoM ; le QP suit une pose de torse. δ(q) est l'écart
-entre les deux dans la configuration courante, et sa dérivée δ̇(q, q̇) donne la
-référence de vitesse cohérente.
+## 1. The identity
 
-## ⚠ En SS, ce mapping n'est PAS utilisé
+Split the total mass between the torso and everything else:
 
-Interdit explicite de CLAUDE.md :
+```
+m_total * r_com = m_b * r_b + delta(q)
+```
 
-> *Do not route the SS torso reference through the δ-mapping in two-task mode —
-> SS uses the raw TorsoPlanner quintic (`sim_loop.py:2581-2584`); the mapping
-> (δ(q_current)+F-SAT) remains a **DS-only** path.*
+where
 
-En simple appui, la tâche de pose de torse est alimentée par la quintique+SLERP
-brute du `TorsoPlanner`. Le mapping ne sert qu'en double appui.
+```
+delta(q)         = sum_{i != torso} m_i * r_i(q)          (world frame)
+delta_dot(q, dq) = sum_{i != torso} m_i * J_i(q) @ dq
+```
 
-C'est ce qui explique la couverture : `compute()` — l'entrée « complète » du
-mapping — n'est **pas exercée**, tandis que les briques `compute_delta` et
-`compute_delta_dot` le sont, appelées depuis le chemin DS.
+Solving for the torso gives the mapping:
 
-## Pourquoi δ n'est recalculé qu'à 10 Hz
+```
+r_b_ref = (m_total/m_b) * r_com_ref - (1/m_b) * delta(q)
+v_b_ref = (m_total/m_b) * v_com_ref - (1/m_b) * delta_dot(q, dq)
+a_b_ff  = (m_total/m_b) * a_com_ff                    [delta_ddot dropped]
+```
 
-Recalculer δ(q) à la cadence du QP (100 Hz) referme une boucle de rétroaction
-sur le mapping qui fait osciller la référence jusqu'à **237 mm/tick** sur les
-grands vols. Le correctif (F-RATE) recalcule δ et δ̇ **une fois par tick NMPC**
-(10 Hz) ; le terme interpolé continue de varier à 100 Hz. Voir le commentaire
-détaillé à `sim_loop.py:2584-2596`.
+`delta_ddot` is deliberately dropped at v1: the PD term absorbs it, and the
+second derivative of a mass-weighted sum over a 14-DOF arm set is both expensive
+and noisy.
 
-Non exercés : `compute`, `compute_delta_local`, `compute_delta_local_dot`,
-`torso_pos_jacobian_from_com`.
+### Why it is exact, not an approximation
 
-## Voir aussi
+Differentiating the identity gives the Jacobian relation
 
-- vue d'ensemble du paquet : [`core.md`](core.md)
+```
+J_b_pos = (m_total/m_b) * J_com - (1/m_b) * sum_{i != torso} m_i * J_i
+```
+
+so a torso-position task and a CoM-position task span the same row space. This
+is verified by test T3. Nothing is lost by tracking the torso; the conditioning
+improves because `J_b_pos` is a rigid-body Jacobian rather than a mass-weighted
+sum.
+
+Implementation: `compute_delta` (`:97`) walks the non-torso bodies and
+accumulates `m_i * r_i` from `data.oMi[i].act(inertias[i].lever)`;
+`compute_delta_dot` (`:110`) does the same with per-body translational
+Jacobians in `LOCAL_WORLD_ALIGNED`.
+
+## 2. The feedback loop this creates, and the loop-free variant
+
+`delta(q)` in the world frame contains the base position:
+
+```
+delta = m_arms * r_base + D_local
+```
+
+So the torso position being *controlled* re-enters its own *reference*. Fed with
+live `q_current` at the 100 Hz QP rate, this closes a mapping -> q -> mapping
+loop that was measured oscillating `r_b_ref` by up to **237 mm per tick** on
+large swings.
+
+Two mitigations exist in the code:
+
+**F-RATE (canonical)** — recompute `delta` and `delta_dot` **once per NMPC tick**
+(10 Hz) instead of per QP tick. The interpolated `(m_total/m_b) * r_com` term
+still varies smoothly at 100 Hz. See the comment block at
+`sim_loop.py:2584-2596`.
+
+**Loop-free reformulation (implemented, not canonical)** —
+`compute_delta_local` uses
+
+```
+D_local(q) = sum_{i != torso} m_i * (r_i - r_torso)
+```
+
+which is invariant to base *translation* (both CoMs translate together), giving
+the exact and loop-free identity `r_b = r_com - D_local/m_total`. It carries no
+base-position term at all, so live joint angles can be fed without jitter. It is
+unexercised on the canonical.
+
+## 3. ⚠ This is a DS-only path
+
+Explicit project rule:
+
+> *Do not route the SS torso reference through the delta-mapping in two-task
+> mode — SS uses the raw TorsoPlanner quintic (`sim_loop.py:2581-2584`); the
+> mapping remains a DS-only path.*
+
+In single support the QP's torso-pose task is fed the planner's raw
+quintic+SLERP directly. That is why the coverage looks the way it does:
+`compute()` — the full mapping entry point — is **unexercised**, while the
+building blocks `compute_delta` and `compute_delta_dot` are live, called from
+the DS path.
+
+`TORSO_JOINT_IDX = 1` because in a free-flyer URDF joint 1 is the root joint and
+its body is the torso.
+
+## See also
+
+- package overview: [`core.md`](core.md)

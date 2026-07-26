@@ -1,114 +1,141 @@
-# Documentation `crawlbot/`
+# `crawlbot/` documentation
 
-Documentation par paquet, rédigée depuis le code au commit courant et depuis la
-**couverture de lignes du replay canonique** (`gate/replay_canonical.py`).
+Per-package and per-module documentation, written from the code at the current
+commit and from **line coverage of the canonical replay**
+(`gate/replay_canonical.py`).
 
-| paquet | vue d'ensemble | modules |
+| package | overview | modules |
 |---|---|---:|
-| **solvers** | [`solvers/solvers.md`](solvers/solvers.md) | 5 |
-| **planning** | [`planning/planning.md`](planning/planning.md) | 6 |
-| **core** | [`core/core.md`](core/core.md) | 4 |
-| **simulation** | [`simulation/simulation.md`](simulation/simulation.md) | 4 |
-| **diagnostics** | [`diagnostics/diagnostics.md`](diagnostics/diagnostics.md) | 4 |
-| **aocs** | [`aocs/aocs.md`](aocs/aocs.md) | 1 |
-| **estimation** | [`estimation/estimation.md`](estimation/estimation.md) | 1 |
+| **solvers** — the controller | [`solvers/solvers.md`](solvers/solvers.md) | 5 |
+| **planning** — reference generation | [`planning/planning.md`](planning/planning.md) | 6 |
+| **core** — model, IK, frames | [`core/core.md`](core/core.md) | 4 |
+| **simulation** — closed loop, config | [`simulation/simulation.md`](simulation/simulation.md) | 4 |
+| **diagnostics** — metrics, figures | [`diagnostics/diagnostics.md`](diagnostics/diagnostics.md) | 4 |
+| **aocs** — reaction wheels | [`aocs/aocs.md`](aocs/aocs.md) | 1 |
+| **estimation** — contact observer | [`estimation/estimation.md`](estimation/estimation.md) | 1 |
 
-**33 documents** : un dossier par paquet, contenant la vue d'ensemble du paquet
-et **un fichier par module**. Chaque document de module porte son nombre de
-lignes, sa couverture canonique, et sa table d'API annotée
-« canonique / non exercé ».
+**33 documents**: one folder per package, containing the package overview and
+**one file per module**. Each module document carries its line count, canonical
+coverage, the mathematics it implements, how the code realises it, and its API
+table annotated canonical / not exercised.
 
 ---
 
-## Méthode
+## Where to start
 
-Trois sources, aucune de mémoire :
+Reading the controller for the first time, in order:
 
-1. **AST** pour les signatures et l'inventaire des symboles publics
+1. [`solvers/solvers.md`](solvers/solvers.md) — the two-stage architecture and
+   why it is split that way.
+2. [`solvers/centroidal_nmpc.md`](solvers/centroidal_nmpc.md) section 1.3 — the
+   conservation law coupling the robot to the reaction wheels. This is the
+   central idea of the whole system.
+3. [`solvers/wholebody_qp.md`](solvers/wholebody_qp.md) sections 1.3-1.4 — the
+   task stack, and why there is no null-space projection.
+4. [`planning/coarse_preplanner.md`](planning/coarse_preplanner.md) section 1 —
+   why step duration is computed rather than chosen.
+5. [`simulation/sim_loop.md`](simulation/sim_loop.md) section 2 — how a step is
+   sequenced, and why that order is forced.
+
+---
+
+## Method
+
+Three sources, none of them memory:
+
+1. **AST** for signatures and the public-symbol inventory
    (`gate/_run/api_inventory.py`).
-2. **Couverture de lignes du replay canonique** pour distinguer ce qui tourne de
-   ce qui ne tourne pas (`gate/_run/api_live.py`).
-3. **Lecture du code** pour le reste.
+2. **Line coverage of the canonical replay** to separate what runs from what does
+   not (`gate/_run/api_live.py`).
+3. **Reading the code** for everything else.
 
-Les mentions « canonique » / « non exercé » sont donc **mesurées**.
+Every "canonical / not exercised" claim is therefore measured. The header and API
+table of each module document are emitted by `gate/gen_module_docs.py` and are
+correct by construction; the prose is written on top and is never overwritten by
+a re-run.
 
-### Pourquoi cette précaution
+### Why the precaution
 
-Le dépôt a déjà eu une documentation par paquet — `docs/api/`, aujourd'hui sous
-`Misc/reports/api/`. Elle a rouillé sans que personne le voie, jusqu'à porter un
-bandeau *« ⚠ SUPERSEDED »* et décrire un module `dynamics` qui n'existe pas.
+This repository already had per-package documentation — `docs/api/`, now under
+`Misc/reports/api/`. It rotted unnoticed until it carried a **SUPERSEDED** banner
+and described a `dynamics` module that does not exist.
 
-Le chantier CLEANUP a trouvé **quatre** documents affirmatifs contredits par la
-mesure : un défaut de dataclass pris pour la valeur canonique (F1), quatre
-commentaires affirmant que des tests utilisent `from_heuristic` (aucun ne
-l'appelle, sur tout l'historique), un `REPO_STATE.md` pointant vers un répertoire
-qui n'a jamais existé, et un `STATUS.md` citant `crawlbot/planners/` — un paquet
-qui n'existe pas.
+The CLEANUP chantier found **five** confidently-worded documents contradicted by
+measurement: a dataclass default taken for the canonical value (F1); four
+comments asserting that tests use `from_heuristic` (none does, across the whole
+history); a `REPO_STATE.md` pointing at a directory that never existed; a
+`STATUS.md` citing `crawlbot/planners/`, a package that does not exist; and a
+line reference in CLAUDE.md that was stale by about 280 lines.
 
-D'où la règle appliquée ici : **une valeur par défaut de dataclass n'est pas la
-valeur canonique**, et un nom de fonction ne dit pas si elle tourne.
+Hence the rule applied here: **a dataclass default is not the canonical value**,
+and a function's name does not tell you whether it runs.
 
 ---
 
-## Trois pièges transverses
+## Three cross-cutting traps
 
-### 1. Les défauts ne sont pas les valeurs canoniques
+### 1. Defaults are not canonical values
 
-`CentroidalNMPCConfig` annonce `robot_mass=90`, `N=20`, `dt=0.05` ; le canonique
-utilise ≈ 71 kg, `N=8`, `dt=0.1`. Source de vérité : le tableau
-« Key Parameters » de CLAUDE.md.
+`CentroidalNMPCConfig` declares `robot_mass=90`, `N=20`, `dt=0.05`; the canonical
+run uses about 71 kg, `N=8`, `dt=0.1`. Source of truth: the "Key Parameters"
+table in CLAUDE.md.
 
-Exception mesurée : huit champs de `WholeBodyQPConfig` et cinq de
-`CoarsePrePlannerConfig` ne sont jamais écrasés — pour ceux-là le défaut **est**
-la valeur canonique (`CLEANUP_CARRYOVER` §C4).
+Measured exception: eight `WholeBodyQPConfig` fields and five
+`CoarsePrePlannerConfig` fields are never overridden — for those the default
+**is** the canonical value (`CLEANUP_CARRYOVER` C4). Two of them are hard boxes
+on the terminal state of every planned step.
 
-### 2. « Non exercé » ne veut pas dire « supprimable »
+### 2. "Not exercised" does not mean "removable"
 
-Trois classes distinctes :
+Three distinct classes:
 
-| classe | exemple | verdict |
+| class | example | verdict |
 |---|---|---|
-| sédiment de recherche derrière un drapeau | modes AOCS alternatifs | supprimable |
-| **repli mort parce que le système est sain** | `get_shifted_fallback`, les gardes de `contact_scheduler` | **à conserver** |
-| crochet de diagnostic vivant | `_diag_pure_pd`, `_diag_freeze_ref` | **à conserver** |
+| research sediment behind an opt-in flag | alternative AOCS modes, planner FK path | removable |
+| **fallback, dead because the system is healthy** | `get_shifted_fallback`, `contact_scheduler` guards | **keep** |
+| live diagnostic hook | `_diag_pure_pd`, `_diag_freeze_ref` | **keep** |
 
-### 3. Trois canaux exportés ne portent aucun signal
+The second class looks most deletable on a coverage report and is the most
+dangerous to touch.
 
-Mesuré sur le log canonique : `H_rO` et `H_dot_est` sont **identiquement nuls**
-(l'estimateur est construit mais jamais mis à jour) et `gmo_contact_state` est
-**constant** (la machine d'état de contact n'est jamais avancée). Détails dans
-`aocs.md` §4 et `estimation.md`.
+### 3. Three exported log channels carry no signal
+
+`H_rO` and `H_dot_est` are **identically zero** over all 2077 ticks (the estimator
+is constructed but never updated); `gmo_contact_state` is **constant** (the
+contact state machine is never advanced). Details in
+[`aocs/force_estimator.md`](aocs/force_estimator.md) and
+[`estimation/contact_estimator.md`](estimation/contact_estimator.md).
 
 ---
 
-## Vérification
+## Verification
 
-Ces documents sont **vérifiables**, ce qui est la seule différence de fond avec
-le `docs/api/` qui a rouillé :
+These documents are **checkable**, which is the substantive difference from the
+`docs/api/` that rotted:
 
 ```bash
-PYTHONPATH=. python3 gate/verify_docs.py   # chaque reference fichier:ligne et chaque symbole
-PYTHONPATH=. python3 gate/link_audit.py    # chaque chemin cité dans le dépôt
+PYTHONPATH=. python3 gate/verify_docs.py   # every file:line and every symbol
+PYTHONPATH=. python3 gate/link_audit.py    # every path cited in the repository
 ```
 
-`verify_docs` sort en erreur si une référence `fichier:ligne` dépasse la taille
-du fichier, ou si un symbole cité n'est plus défini dans `crawlbot/`.
+`verify_docs` fails if a `file:line` reference exceeds the file's length, or if a
+cited symbol is no longer defined in `crawlbot/`.
 
-Il a déjà servi : la première rédaction citait `sim_loop.py:2865-2870` pour le
-routage de la référence de torse — valeur reprise de CLAUDE.md, devenue fausse
-depuis que le chantier a raccourci `sim_loop` de 375 lignes. Le vrai site est
-`sim_loop.py:2581-2584`. CLAUDE.md, `CLEANUP_CARRYOVER` et ces documents ont été
-corrigés ensemble.
+It has already earned its keep: the first draft carried a torso-reference line
+number inherited from CLAUDE.md, stale since the chantier shortened `sim_loop` by
+375 lines. The real site is `sim_loop.py:2581-2584`. CLAUDE.md,
+`CLEANUP_CARRYOVER` and these documents were corrected together.
 
-Ce qu'il ne couvre pas encore : les valeurs numériques (α, gains, seuils), qui
-restent vérifiées à la main contre CLAUDE.md.
+**Not yet covered**: numeric values (weights, gains, thresholds), still verified
+by hand against CLAUDE.md. That is the remaining soft spot.
 
 ---
 
-## Ce que ces documents ne couvrent pas
+## Out of scope here
 
-- `lutze_baseline/` — l'implémentation de comparaison M0/Lutze.
-- `gate/` — voir `gate/README.md`.
-- `Misc/` — sédiment de recherche, destiné à disparaître.
-- Le *pourquoi* architectural profond : `docs/architecture/brainstorming_reworked_architecture.md`
-  (spécification) et `docs/architecture/STACK_OVERVIEW.md` (état du code).
+- `lutze_baseline/` — the M0/Lutze comparison implementation.
+- `gate/` — see `gate/README.md`.
+- `Misc/` — research sediment, slated for removal.
+- The deep architectural *why*:
+  `docs/architecture/brainstorming_reworked_architecture.md` (specification) and
+  `docs/architecture/STACK_OVERVIEW.md` (current code state).

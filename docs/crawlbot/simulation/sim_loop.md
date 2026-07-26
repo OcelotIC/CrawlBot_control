@@ -1,117 +1,146 @@
 # `crawlbot.simulation.sim_loop`
 
-**La boucle fermée.** Machine d'états DS/SS, orchestration des planificateurs
-et solveurs, AOCS, soudures, journalisation. Le plus gros fichier du dépôt.
+**File**: `crawlbot/simulation/sim_loop.py` — **3387 lines** — canonical coverage **83 %**
 
-**Fichier** : `crawlbot/simulation/sim_loop.py` — **3387 lignes** — couverture canonique **83 %**
+> Module docstring: *"SimulationLoop — Closed-loop MuJoCo simulation with two-stage controller."*
 
-> Docstring du module : *« SimulationLoop — Closed-loop MuJoCo simulation with two-stage controller. »*
+**The closed loop.** DS/SS state machine, orchestration of planners and
+solvers, weld activation, AOCS, logging. The largest file in the repository and
+the one carrying the most architectural history.
 
 ---
 
-## API publique
+## Public API
 
-| symbole | signature | canonique ? |
+| symbol | signature | canonical? |
 |---|---|---|
 | **`SimulationLoop`** |  |  |
-| `.setup` | `(n_steps=3, start_a=2, start_b=2, sequence_path=None)` | **oui** |
-| `._settle_setup` | `(start_a, start_b)` | **oui** |
-| `._run_ds_passivity_loop` | `(contact_config, max_steps, epsilon_v, plateau_window, p...)` | **oui** |
-| `._interstep_aocs_command` | `(rs, cc_ds, lambda_qp_sol, omega_s_prev)` | **oui** |
-| `._log_ds_tick` | `(log, t_abs, step_idx, just_landed_arm, anchor_a_idx, an...)` | **oui** |
-| `._build_qp` | `(ae, ap, aw, kpc, kdc, kpt, kdt, kpe, kde, kpe_ang=5.0, ...)` | **oui** |
-| `._build_weld_map` | `()` | **oui** |
-| `._deactivate_all_welds` | `()` | **oui** |
-| `._activate_weld` | `(arm, anchor_idx)` | **oui** |
-| `._deactivate_weld` | `(arm, anchor_idx)` | **oui** |
-| `._cache_site_ids` | `()` | **oui** |
-| `._gripper_distance` | `(arm, anchor_idx)` | **oui** |
-| `._gripper_speed` | `(arm)` | non exerce |
-| `._gripper_ori_err_deg` | `(arm, anchor_idx)` | **oui** |
-| `._weld_relative_twist` | `(arm, anchor_idx)` | **oui** |
-| `._dock_gate` | `(swing_arm, target_idx, log, t, step_idx)` | **oui** |
-| `._planned_arm_config` | `(t, rs)` | non exerce |
-| `._setup_torso_for_step` | `(t_ss_start, swing_arm, stance_a, stance_b, target_arm, ...)` | **oui** |
-| `._run_preplanner` | `(t_plan_start, stance_arm, stance_a, stance_b, r_com_0, ...)` | **oui** |
-| `._capture_snapshot` | `(log, t, label)` | **oui** |
-| `.run` | `(verbose=True)` | **oui** |
-| `._swing_query_time` | `(t_raw, phase, ss_end)` | **oui** |
-| `._step` | `(t, phase, step_idx, swing_arm, stance_arm, cc_ss, targe...)` | **oui** |
-| `._get_ee_data` | `(rs, arm)` | **oui** |
-| `._print_summary` | `(log)` | **oui** |
-| `.plot` | `(log, save_path=None, cfg=None)` | non exerce |
+| `.setup` | `(n_steps=3, start_a=2, start_b=2, sequence_path=None)` | **yes** |
+| `._settle_setup` | `(start_a, start_b)` | **yes** |
+| `._run_ds_passivity_loop` | `(contact_config, max_steps, epsilon_v, plateau_window, p...)` | **yes** |
+| `._interstep_aocs_command` | `(rs, cc_ds, lambda_qp_sol, omega_s_prev)` | **yes** |
+| `._log_ds_tick` | `(log, t_abs, step_idx, just_landed_arm, anchor_a_idx, an...)` | **yes** |
+| `._build_qp` | `(ae, ap, aw, kpc, kdc, kpt, kdt, kpe, kde, kpe_ang=5.0, ...)` | **yes** |
+| `._build_weld_map` | `()` | **yes** |
+| `._deactivate_all_welds` | `()` | **yes** |
+| `._activate_weld` | `(arm, anchor_idx)` | **yes** |
+| `._deactivate_weld` | `(arm, anchor_idx)` | **yes** |
+| `._cache_site_ids` | `()` | **yes** |
+| `._gripper_distance` | `(arm, anchor_idx)` | **yes** |
+| `._gripper_speed` | `(arm)` | not exercised |
+| `._gripper_ori_err_deg` | `(arm, anchor_idx)` | **yes** |
+| `._weld_relative_twist` | `(arm, anchor_idx)` | **yes** |
+| `._dock_gate` | `(swing_arm, target_idx, log, t, step_idx)` | **yes** |
+| `._planned_arm_config` | `(t, rs)` | not exercised |
+| `._setup_torso_for_step` | `(t_ss_start, swing_arm, stance_a, stance_b, target_arm, ...)` | **yes** |
+| `._run_preplanner` | `(t_plan_start, stance_arm, stance_a, stance_b, r_com_0, ...)` | **yes** |
+| `._capture_snapshot` | `(log, t, label)` | **yes** |
+| `.run` | `(verbose=True)` | **yes** |
+| `._swing_query_time` | `(t_raw, phase, ss_end)` | **yes** |
+| `._step` | `(t, phase, step_idx, swing_arm, stance_arm, cc_ss, targe...)` | **yes** |
+| `._get_ee_data` | `(rs, arm)` | **yes** |
+| `._print_summary` | `(log)` | **yes** |
+| `.plot` | `(log, save_path=None, cfg=None)` | not exercised |
 
 ---
 
-## Architecture : deux phases, pas trois
+---
 
-`DS` (double appui) et `SS` (simple appui). Interdit explicite de CLAUDE.md :
-*« Do not implement a three-phase state machine (DS/SS/EXT) — the architecture
-is two-phase per spec §7.1. »*
+## 1. Two phases, not three
+
+`DS` (double support) and `SS` (single support). Explicit project rule: *do not
+implement a three-phase state machine (DS/SS/EXT) — the architecture is two-phase
+per spec 7.1.*
 
 ```
-setup()                        modeles, planificateurs, solveurs, ancrages
+setup()                          models, planners, solvers, anchors
   |
-  +-- run()                    boucle sur les pas
-        +-- _setup_torso_for_step()  IK d'accostage + phase de torse
-        +-- _run_preplanner()        T_step + trajectoire de CoM faisable
-        +-- _step()                  SS : le vol
-        +-- _run_ds_passivity_loop() DS : stabilisation passive
+  +-- run()                      loop over steps
+        +-- _setup_torso_for_step()   docking IK + torso phase
+        +-- _run_preplanner()         T_step + feasible CoM trajectory
+        +-- _step()                   SS: the swing
+        +-- _run_ds_passivity_loop()  DS: passive settle
         +-- _dock_gate() -> _activate_weld()
 ```
 
-## La porte d'accostage
+## 2. Per-step sequence, and why the order is forced
 
-Interdit de CLAUDE.md : *« Do not activate welds on position alone — require
-both `d < 5 mm` AND `ori < 5°` »*. `_dock_gate` applique les deux conditions ;
-`_activate_weld` n'est appelé qu'ensuite.
+1. **Docking IK** gives the target configuration and therefore `r_com_goal`.
+2. **Pre-planner** needs that goal to compute `T_step` — so it must come second.
+3. **`set_step_duration(T_step)`** installs the duration and cascades the
+   timeline — so planners must be configured third.
+4. **Torso and swing phases** are built over `[t_ss_start, t_ss_start + T_step]`,
+   sharing one horizon. This is what keeps the two references synchronised.
+5. Only then can `_step()` run.
 
-**Règle 10 — la métrique est celle au moment de la soudure.** La précision
-d'accostage est le `d_mm` des `dock_events`, jamais le minimum sur le vol : un
-passage plus proche avant l'accostage est un artefact de survol (leçon du pas 2 :
-3.0 mm en survol contre **4.89 mm à la soudure**).
+Point 4 is a project rule in itself: *do not freeze references or add
+threshold-based switches to handle trajectory coordination failures — fix the
+synchronisation instead.* The shared horizon is that fix.
 
-## `_step()` — 1013 lignes, la dette principale
+## 3. The docking gate
 
-Le plus gros bloc restant. Sa décomposition est identifiée mais **non faite** :
-elle demande d'abord sa propre mesure de couplage (`CLEANUP_CARRYOVER` §A).
+Rule: *do not activate welds on position alone — require both `d < 5 mm` AND
+`ori < 5 deg`.* `_dock_gate` applies both; `_activate_weld` runs only after.
 
-Autre dette : l'appel `WholeBodyQP.solve()` prend **40 paramètres**, dont 30 ne
-sont lus que dans un seul bloc. Restructurer la signature touche les deux sites
-d'appel — reporté délibérément (§A1).
+**Rule 10 — the metric is the one at weld time.** Docking precision is the
+`d_mm` recorded in `dock_events`, never the minimum over the swing. A closer
+pass *before* docking is a fly-by artefact: on step 2 the minimum over swing was
+3.0 mm while the actual at-weld distance was **4.89 mm**. Reporting the first
+would overstate precision by 40 %.
 
-## Le piège `use_m2_stack`
+Canonical result: 6/6 at 4.02 / 4.89 / 4.99 / 4.97 / 4.95 / 4.62 mm, worst
+margin **0.01 mm** against a 5 mm capture radius.
 
-`SimConfig.use_m2_stack` **a l'air mort** (son jumeau côté QP a été supprimé en
-CLEANUP-8), mais il commande deux chemins sans rapport avec la pile de tâches :
+## 4. DS: passivity rather than a cost
 
-| site | ce qu'il commande |
+`_run_ds_passivity_loop` dissipates residual energy through a passivity
+**inequality** in the QP rather than a damping cost. The distinction matters: a
+cost trades against the other tasks and can be outvoted; an inequality cannot.
+It guarantees the energy budget is non-increasing whatever the task weights do.
+
+## 5. `_step()` — 1013 lines, the main debt
+
+The largest remaining block. Decomposition is identified but **not done**: it
+needs its own coupling measurement first (`CLEANUP_CARRYOVER` A).
+
+Related debt: `WholeBodyQP.solve()` takes **40 parameters**, 30 of which are read
+in exactly one block. Restructuring the signature touches both call sites and was
+deliberately deferred (A1).
+
+## 6. The `use_m2_stack` trap
+
+`SimConfig.use_m2_stack` **looks dead** — its `WholeBodyQPConfig` twin was
+removed in CLEANUP-8 — but it gates two paths unrelated to the task stack:
+
+| site | what it gates |
 |---|---|
-| `sim_loop.py:2581-2584` | routage de la référence de torse (mapping δ vs quintique brute) |
-| `sim_loop.py:2728-2729` | `passivity_active` — **la contrainte de passivité en DS** |
+| `sim_loop.py:2581-2584` | torso-reference routing (delta-mapping vs raw quintic) |
+| `sim_loop.py:2728-2729` | `passivity_active` — **the DS passivity constraint** |
 
-Le supprimer désactiverait silencieusement la passivité DS.
+Deleting it would silently disable DS passivity. Same name, opposite fates.
 
-## Crochets de diagnostic — vivants, à conserver
+## 7. Diagnostic hooks — live, keep
 
-`_diag_freeze_ref`, `_diag_lock_arm_joints`, `_diag_pure_pd` : non exercés par
-le canonique mais utilisés par des scripts de `Misc/scripts/`. Troisième classe
-de code « non exercé » à ne pas confondre avec du sédiment.
+`_diag_freeze_ref`, `_diag_lock_arm_joints`, `_diag_pure_pd`: unexercised by the
+canonical but used by scripts in `Misc/scripts/`. A third class of "unexercised"
+distinct from both sediment and fallback.
 
-## Conventions de journalisation à connaître
+## 8. Logging conventions worth knowing
 
-- **`nmpc_ok = 0` signifie « non appelé », pas « échoué »** : le NMPC ne tourne
-  qu'en SS et dans la stabilisation terminale. Sur le canonique cela concerne
-  **1368 des 2077 ticks**, d'où un taux de succès apparent trompeur de 34 % pour
-  un taux réel de **100 % (709/709)**.
-- La référence de CoM **saute vers le CoM mesuré** à l'entrée SS→DS :
-  `_log_ds_tick` inscrit `e_com = 0` avec `ref := mesuré`
-  (`sim_loop.py:1038-1041`). Convention de log, décision en attente.
-- `H_rO`, `H_dot_est` et `gmo_contact_state` **ne portent aucun signal** — voir
-  `aocs/force_estimator.md` et `estimation/contact_estimator.md`.
+- **`nmpc_ok = 0` means "not called", not "failed".** The NMPC runs only in SS
+  and the terminal settle. On the canonical that is **1368 of 2077 ticks**, so a
+  whole-column read gives a misleading 34 % success rate against a true
+  **100 % (709/709)**.
+- The CoM reference **snaps to the measured CoM** at SS->DS entry: `_log_ds_tick`
+  writes `e_com = 0` with `ref := measured` (`sim_loop.py:1038-1041`). Logging
+  convention; decision pending.
+- The exported torso reference is **continuous** since the terminal-hold fix —
+  logging only, control proven byte-identical.
+- `H_rO`, `H_dot_est` and `gmo_contact_state` **carry no signal** — see
+  `aocs/force_estimator.md` and `estimation/contact_estimator.md`.
 
-Non exercés : `_gripper_speed`, `_planned_arm_config`, `plot`.
+Unexercised: `_gripper_speed`, `_planned_arm_config`, `plot`.
 
-## Voir aussi
+## See also
 
-- vue d'ensemble du paquet : [`simulation.md`](simulation.md)
+- package overview: [`simulation.md`](simulation.md)

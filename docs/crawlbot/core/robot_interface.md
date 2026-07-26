@@ -1,57 +1,60 @@
 # `crawlbot.core.robot_interface`
 
-Enveloppe Pinocchio : en un appel à `update()`, produit **toutes** les
-quantités dont le contrôleur a besoin, dans un unique `RobotState`.
+**File**: `crawlbot/core/robot_interface.py` — **460 lines** — canonical coverage **87 %**
 
-**Fichier** : `crawlbot/core/robot_interface.py` — **460 lignes** — couverture canonique **87 %**
+> Module docstring: *"RobotInterface — Pinocchio wrapper for the VISPA crawling controller."*
 
-> Docstring du module : *« RobotInterface — Pinocchio wrapper for the VISPA crawling controller. »*
+Pinocchio wrapper. One `update(q, v)` call produces **every** quantity the
+controller needs for that tick, packaged in a single `RobotState`.
+
+The design point is that both stages, the AOCS and the observer all read from
+one consistent snapshot — no module re-derives a Jacobian on its own.
 
 ---
 
-## API publique
+## Public API
 
-| symbole | signature | canonique ? |
+| symbol | signature | canonical? |
 |---|---|---|
 | **`RobotState`** *(dataclass)* |  |  |
-|   `q` |  | _champ_ |
-|   `v` |  | _champ_ |
-|   `q_joints` |  | _champ_ |
-|   `dq_joints` |  | _champ_ |
-|   `q_torso` |  | _champ_ |
-|   `dq_torso` |  | _champ_ |
-|   `H` |  | _champ_ |
-|   `C` |  | _champ_ |
-|   `C_matrix` |  | _champ_ |
-|   `r_com` |  | _champ_ |
-|   `v_com` |  | _champ_ |
-|   `J_com` |  | _champ_ |
-|   `Jdot_dq_com` |  | _champ_ |
-|   `h_centroidal` |  | _champ_ |
-|   `L_com` |  | _champ_ |
-|   `oMf_tool_a` |  | _champ_ |
-|   `oMf_tool_b` |  | _champ_ |
-|   `J_tool_a` |  | _champ_ |
-|   `J_tool_b` |  | _champ_ |
-|   `Jdot_dq_tool_a` |  | _champ_ |
-|   `Jdot_dq_tool_b` |  | _champ_ |
-|   `oMf_torso` |  | _champ_ |
-|   `J_torso` |  | _champ_ |
-|   `Jdot_dq_torso` |  | _champ_ |
-|   `q_min` |  | _champ_ |
-|   `q_max` |  | _champ_ |
-|   `tau_max` |  | _champ_ |
-|   `total_mass` |  | _champ_ |
+|   `q` |  | _field_ |
+|   `v` |  | _field_ |
+|   `q_joints` |  | _field_ |
+|   `dq_joints` |  | _field_ |
+|   `q_torso` |  | _field_ |
+|   `dq_torso` |  | _field_ |
+|   `H` |  | _field_ |
+|   `C` |  | _field_ |
+|   `C_matrix` |  | _field_ |
+|   `r_com` |  | _field_ |
+|   `v_com` |  | _field_ |
+|   `J_com` |  | _field_ |
+|   `Jdot_dq_com` |  | _field_ |
+|   `h_centroidal` |  | _field_ |
+|   `L_com` |  | _field_ |
+|   `oMf_tool_a` |  | _field_ |
+|   `oMf_tool_b` |  | _field_ |
+|   `J_tool_a` |  | _field_ |
+|   `J_tool_b` |  | _field_ |
+|   `Jdot_dq_tool_a` |  | _field_ |
+|   `Jdot_dq_tool_b` |  | _field_ |
+|   `oMf_torso` |  | _field_ |
+|   `J_torso` |  | _field_ |
+|   `Jdot_dq_torso` |  | _field_ |
+|   `q_min` |  | _field_ |
+|   `q_max` |  | _field_ |
+|   `tau_max` |  | _field_ |
+|   `total_mass` |  | _field_ |
 | **`RobotInterface`** |  |  |
-| `.update` | `(q, v, omega_struct=None)` | **oui** |
-| `.state` | `()` | **oui** |
-| `.compute_gjm` | `(swing_arm)` | non exerce |
-| `.get_contact_jacobians` | `(active_A, active_B)` | **oui** |
-| `.neutral_configuration` | `()` | non exerce |
+| `.update` | `(q, v, omega_struct=None)` | **yes** |
+| `.state` | `()` | **yes** |
+| `.compute_gjm` | `(swing_arm)` | not exercised |
+| `.get_contact_jacobians` | `(active_A, active_B)` | **yes** |
+| `.neutral_configuration` | `()` | not exercised |
 
-### Constantes de module
+### Module constants
 
-| nom | valeur |
+| name | value |
 |---|---|
 | `FRAME_TORSO` | `4` |
 | `FRAME_TOOL_A` | `18` |
@@ -64,63 +67,70 @@ quantités dont le contrôleur a besoin, dans un unique `RobotState`.
 
 ---
 
-## Usage
+---
 
-```python
-robot = RobotInterface('models/VISPA_crawling_fixed.urdf',
-                       tau_max=20.0, gravity='zero')
-rs = robot.update(q, v, omega_struct=...)     # -> RobotState
-```
+## 1. What `update()` computes
 
-`gravity='zero'` est le régime du projet : microgravité.
+A single Pinocchio pass fills a 27-field `RobotState`:
 
-## ⚠ Le piège : les constantes de module sont réécrites à la construction
+| group | fields |
+|---|---|
+| configuration | `q`, `v`, `q_joints`, `dq_joints`, `q_torso`, `dq_torso` |
+| dynamics | `H` (mass matrix), `C` (Coriolis vector), `C_matrix` (Coriolis matrix) |
+| centroidal | `r_com`, `v_com`, `J_com`, `Jdot_dq_com`, `h_centroidal`, `L_com` |
+| end-effectors | `oMf_tool_a/b`, `J_tool_a/b`, `Jdot_dq_tool_a/b` |
+| torso | `oMf_torso`, `J_torso`, `Jdot_dq_torso` |
+| limits | `q_min`, `q_max`, `tau_max`, `total_mass` |
+
+`C_matrix` (the full matrix, not just `C @ v`) is computed because the GMO
+observer needs `C^T v` — see `estimation/contact_estimator.md`. It is the one
+quantity here that exists for the observer rather than for control.
+
+`gravity='zero'` is the project regime: microgravity.
+
+Computing all of this in one pass is what allows the QP to run at 100 Hz —
+recomputing Jacobians per consumer would not fit in the budget.
+
+## 2. ⚠ The trap: module constants are rebound at construction
 
 `FRAME_TORSO`, `FRAME_TOOL_A`, `FRAME_TOOL_B`, `JOINT_6A_ID`, `JOINT_6B_ID`,
-`N_JOINTS`, `NQ`, `NV` sont déclarées au niveau module avec des valeurs héritées
-du modèle **6-DOF**, puis réécrites par `global` dans `__init__` (`:157-158`,
-`:213-218`) d'après le modèle réellement chargé.
+`N_JOINTS`, `NQ`, `NV` are declared at module level with values inherited from
+the **6-DOF** model, then overwritten via `global` in `__init__` (`:157-158`,
+`:213-218`) from the model actually loaded.
 
-Mesuré :
+Measured:
 
 ```
-à l'import         : NQ=19  NV=18  N_JOINTS=12     (valeurs 6-DOF perimees)
-apres construction : NQ=21  NV=20  N_JOINTS=14     (le modele 7-DOF reel)
+at import          : NQ=19  NV=18  N_JOINTS=12      (stale 6-DOF values)
+after construction : NQ=21  NV=20  N_JOINTS=14      (the real 7-DOF model)
 ```
 
-Conséquence : **`from crawlbot.core.robot_interface import NQ` fige 19 pour
-toujours** — la réaffectation `global` ne remonte pas dans le module qui a
-importé le nom.
+Consequence: **`from crawlbot.core.robot_interface import NQ` freezes 19
+forever** — a `global` rebinding does not propagate into a module that imported
+the name by value.
 
 ```python
 import crawlbot.core.robot_interface as ri
-ri.NQ                                          # correct APRES construction
-from crawlbot.core.robot_interface import NQ   # 19, definitivement
+ri.NQ                                          # correct AFTER construction
+from crawlbot.core.robot_interface import NQ   # 19, permanently
 ```
 
-Préférer les attributs de l'instance : `robot.model.nq`, `robot.n_joints`,
-`robot.frame_torso`. Ils sont toujours justes.
+Prefer instance attributes: `robot.model.nq`, `robot.n_joints`,
+`robot.frame_torso`. They are always right.
 
-## `RobotState`
+## 3. DOF-generic by design
 
-Dataclass de 27 champs, produite à chaque `update()` : configuration et vitesse,
-tranches articulaire et flottante, matrice de masse et Coriolis (`H`, `C`,
-`C_matrix`), CoM (`r_com`, `v_com`, `J_com`, `Jdot_dq_com`), moment centroïdal
-(`h_centroidal`, `L_com`), poses et jacobiennes des effecteurs et du torse,
-bornes articulaires et `total_mass`.
+The module does not hard-code "6 DOF per arm": it detects the joint slice from
+the loaded model. That is what allowed the move to 7 DOF per arm
+(`nq=21 / nv=20 / nu=14`) without rewriting the controller — the frame IDs and
+joint counts follow the URDF.
 
-Le tout est calculé en un passage Pinocchio : c'est ce qui permet au QP de
-tourner à 100 Hz.
+The stale module-level defaults in section 2 are the residue of that transition.
 
-## Détection générique du nombre de DDL
+## 4. Unexercised
 
-Le module ne code pas en dur « 6 DOF par bras » : il détecte la tranche
-articulaire depuis le modèle chargé. C'est ce qui a permis le passage à 7 DDL
-par bras (`nq=21 / nv=20 / nu=14`) sans réécriture.
+`compute_gjm` (generalized momentum map) and `neutral_configuration`.
 
-Non exercés : `compute_gjm` (carte de moment généralisé) et
-`neutral_configuration`.
+## See also
 
-## Voir aussi
-
-- vue d'ensemble du paquet : [`core.md`](core.md)
+- package overview: [`core.md`](core.md)

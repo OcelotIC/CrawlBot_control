@@ -1,44 +1,45 @@
 # `crawlbot.simulation.plotting`
 
-Tracés de simulation — **non utilisé par le run canonique** (2 % de
-couverture).
+**File**: `crawlbot/simulation/plotting.py` — **154 lines** — canonical coverage **2 %**
 
-**Fichier** : `crawlbot/simulation/plotting.py` — **154 lignes** — couverture canonique **2 %**
+> Module docstring: *"9-panel diagnostic plot for simulation results."*
 
-> Docstring du module : *« 9-panel diagnostic plot for simulation results. »*
+Simulation plots — **not used by the canonical run** (2 % coverage).
 
 ---
 
-## API publique
+## Public API
 
-| symbole | signature | canonique ? |
+| symbol | signature | canonical? |
 |---|---|---|
-| `plot_simulation` | `(log, save_path=None, cfg=None)` | non exerce |
+| `plot_simulation` | `(log, save_path=None, cfg=None)` | not exercised |
 
 ---
 
-## Statut
+---
 
-`plot_simulation(log, save_path, cfg)` n'est appelée ni par `dca` ni par
-`sim_loop` sur le chemin canonique. Le seul point d'entrée est
-`SimulationLoop.plot`, lui-même non exercé.
+## 1. Status
 
-## Ce qui produit réellement les figures
+`plot_simulation(log, save_path, cfg)` is called neither by `dca` nor by
+`sim_loop` on the canonical path. Its only entry point is
+`SimulationLoop.plot`, itself unexercised.
 
-| usage | outil |
+## 2. What actually produces figures
+
+| use | tool |
 |---|---|
-| figures de l'article | `scripts/export_figure_data.py` |
-| export fulldiag 66 colonnes | `scripts/diag_full_diag_export.py` |
-| planches de diagnostic | `crawlbot/diagnostics/plots.py` (également non exercé) |
+| paper figures | `scripts/export_figure_data.py` |
+| 66-column fulldiag export | `scripts/diag_full_diag_export.py` |
+| diagnostic plates | `crawlbot/diagnostics/plots.py` (also unexercised) |
 
-⚠ Ne pas supposer qu'une planche produite ici correspond à une figure publiée :
-ce n'est pas la même chaîne.
+⚠ Do not assume a plate produced here corresponds to a published figure: it is a
+different chain, reading the same `sim_log.json` but computing its own
+quantities.
 
-## Conséquence
+## 3. Consequence
 
-Aucune couverture par le gate. Une régression introduite ici ne sera détectée
-par rien.
+No gate coverage. A regression introduced here will be caught by nothing.
 
-## Voir aussi
+## See also
 
-- vue d'ensemble du paquet : [`simulation.md`](simulation.md)
+- package overview: [`simulation.md`](simulation.md)

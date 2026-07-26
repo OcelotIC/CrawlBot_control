@@ -1,59 +1,67 @@
 # `crawlbot.planning.locomotion_planner`
 
-Planificateur de CoM de la génération précédente. **Mort sur le canonique,
-conservé pour la ligne de base M0/Lutze de l'article.**
+**File**: `crawlbot/planning/locomotion_planner.py` — **206 lines** — canonical coverage **17 %**
 
-**Fichier** : `crawlbot/planning/locomotion_planner.py` — **206 lignes** — couverture canonique **17 %**
+> Module docstring: *"LocomotionPlanner — CoM reference trajectory generation for VISPA."*
 
-> Docstring du module : *« LocomotionPlanner — CoM reference trajectory generation for VISPA. »*
+Previous-generation CoM planner. **Dead on the canonical, kept for the M0/Lutze
+paper baseline.**
 
 ---
 
-## API publique
+## Public API
 
-| symbole | signature | canonique ? |
+| symbol | signature | canonical? |
 |---|---|---|
 | **`LocomotionPlanner`** |  |  |
-| `.calibrate_from_config` | `(r_com_init)` | non exerce |
-| `._build_waypoints` | `()` | non exerce |
-| `._equilibrium_com` | `(phase, r_a, r_b)` | non exerce |
-| `.reference_at` | `(t)` | non exerce |
-| `.full_trajectory` | `(dt)` | non exerce |
+| `.calibrate_from_config` | `(r_com_init)` | not exercised |
+| `._build_waypoints` | `()` | not exercised |
+| `._equilibrium_com` | `(phase, r_a, r_b)` | not exercised |
+| `.reference_at` | `(t)` | not exercised |
+| `.full_trajectory` | `(dt)` | not exercised |
 
-### Constantes de module
+### Module constants
 
-| nom | valeur |
+| name | value |
 |---|---|
 | `DEFAULT_COM_HEIGHT` | `-0.47` |
 
 ---
 
-## Statut : conservé sur mesure
+---
 
-`sim_loop.py:46` porte le commentaire *« LocomotionPlanner removed — CoM
-reference comes from TorsoPlanner »*, et de fait `sim_loop` ne le construit
-jamais. Couverture **17 %**, `full_trajectory` sans appelant.
+## 1. What it was
 
-CLEANUP-16 l'avait classé « supprimer — 205 lignes, risque faible ». **Révisé sur
-mesure** (CLEANUP-18 §3) : il a trois consommateurs, tous dont les imports
-résolvent, et le décisif est **`lutze_baseline/sim_lutze.py`** — un *paquet*, pas
-un script de recherche, qui porte la comparaison M0/Lutze sous-tendant le tableau
-§II de l'article.
+An equilibrium-based CoM reference generator: `_equilibrium_com` computes a
+support-consistent CoM target, `_build_waypoints` chains them, `reference_at`
+interpolates. It predates the pre-planner + torso-planner split.
 
-`LocomotionPlanner` y est porteur : construit à `sim_lutze.py:175`, calibré à
-`:176`, évalué à `:231` et `:266`.
+`sim_loop.py:46` carries the comment *"LocomotionPlanner removed — CoM reference
+comes from TorsoPlanner"*, and indeed `sim_loop` never constructs it. Coverage
+**17 %**; `full_trajectory` has zero callers.
 
-Supprimer aurait échangé 205 lignes contre une ligne de base d'article cassée.
+## 2. Why it is still here
 
-## La leçon de méthode
+CLEANUP-16 ranked it "delete, 205 lines, low risk". **Revised on measurement**
+(CLEANUP-18 section 3): it has three consumers, all of whose imports resolve at
+HEAD, and the decisive one is **`lutze_baseline/sim_lutze.py`** — a *package*,
+not a research script, carrying the M0/Lutze comparison behind the paper's
+section II differentiation table.
 
-L'audit avait affirmé que ses consommateurs étaient « déjà non fonctionnels ».
-Vérification par résolution d'imports : **faux pour les trois**. D'où la règle
-adoptée : ne pas supposer qu'un script est déjà cassé — le tester.
+`LocomotionPlanner` is load-bearing there: constructed at `sim_lutze.py:175`,
+calibrated at `:176`, evaluated at `:231` and `:266`.
 
-Revisiter cette décision n'est pas une question de code, mais de projet : « la
-ligne de base Lutze doit-elle encore être rejouée ? » (`CLEANUP_CARRYOVER` §C5).
+Deleting it would have traded 205 lines for a broken paper baseline.
 
-## Voir aussi
+## 3. The method lesson
 
-- vue d'ensemble du paquet : [`planning.md`](planning.md)
+The audit had asserted its consumers were "already non-functional". Import-checking
+all three showed that **false for every one**. Hence the rule adopted: do not
+assume a script is already broken — test it.
+
+Revisiting is a project question, not a code one: *is the Lutze baseline still to
+be re-run?* (`CLEANUP_CARRYOVER` C5).
+
+## See also
+
+- package overview: [`planning.md`](planning.md)

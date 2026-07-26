@@ -1,94 +1,134 @@
 # `crawlbot.estimation.contact_estimator`
 
-Observateur de moment généralisé (De Luca 2006) : détecte le contact **sans
-capteur d'effort ni mesure d'accélération**.
+**File**: `crawlbot/estimation/contact_estimator.py` — **261 lines** — canonical coverage **69 %**
 
-**Fichier** : `crawlbot/estimation/contact_estimator.py` — **261 lignes** — couverture canonique **69 %**
+> Module docstring: *"Generalized Momentum Observer (GMO) for sensorless contact detection."*
 
-> Docstring du module : *« Generalized Momentum Observer (GMO) for sensorless contact detection. »*
+Generalized Momentum Observer (De Luca, 2006): detects contact **without force
+sensors and without measuring acceleration**.
+
+That second point is the reason it exists — differentiating joint velocity twice
+to get acceleration would drown a contact signal in noise.
 
 ---
 
-## API publique
+## Public API
 
-| symbole | signature | canonique ? |
+| symbol | signature | canonical? |
 |---|---|---|
 | **`ContactObserverConfig`** *(dataclass)* |  |  |
-|   `K_O` | `80.0` | _champ_ |
-|   `dt` | `0.01` | _champ_ |
-|   `nv` | `18` | _champ_ |
-|   `F_threshold` | `5.0` | _champ_ |
-|   `d_proximity` | `0.02` | _champ_ |
-|   `d_contact` | `0.01` | _champ_ |
-|   `d_reset` | `0.03` | _champ_ |
-|   `debounce_count` | `5` | _champ_ |
+|   `K_O` | `80.0` | _field_ |
+|   `dt` | `0.01` | _field_ |
+|   `nv` | `18` | _field_ |
+|   `F_threshold` | `5.0` | _field_ |
+|   `d_proximity` | `0.02` | _field_ |
+|   `d_contact` | `0.01` | _field_ |
+|   `d_reset` | `0.03` | _field_ |
+|   `debounce_count` | `5` | _field_ |
 | **`ContactState`** |  |  |
 | **`GeneralizedMomentumObserver`** |  |  |
-| `.reset` | `(M, v)` | **oui** |
-| `.update` | `(M, v, C_matrix, tau_applied)` | **oui** |
-| `.residual` | `()` | **oui** |
-| `.initialized` | `()` | non exerce |
-| `.swing_residual_norm` | `(swing_v_slice)` | **oui** |
+| `.reset` | `(M, v)` | **yes** |
+| `.update` | `(M, v, C_matrix, tau_applied)` | **yes** |
+| `.residual` | `()` | **yes** |
+| `.initialized` | `()` | not exercised |
+| `.swing_residual_norm` | `(swing_v_slice)` | **yes** |
 | **`ContactStateMachine`** |  |  |
-| `.update` | `(r_swing_norm, d_FK, force_mode=False)` | non exerce |
-| `.reset` | `()` | **oui** |
-| `.state` | `()` | **oui** |
-| `.is_docked` | `()` | non exerce |
+| `.update` | `(r_swing_norm, d_FK, force_mode=False)` | not exercised |
+| `.reset` | `()` | **yes** |
+| `.state` | `()` | **yes** |
+| `.is_docked` | `()` | not exercised |
 
 ---
 
-## Théorie
+---
 
-Équations du mouvement (gravité nulle) :
+## 1. Derivation
 
-```
-M(q)·v̇ + C(q,v)·v = Sᵀ·τ + J_cᵀ·f_ext
-```
-
-Le moment généralisé `p = M(q)·v` vérifie `ṗ = Sᵀ·τ + Cᵀ·v + J_cᵀ·f_ext`.
-L'observateur intégral :
+Equations of motion, zero gravity:
 
 ```
-β̇ = Sᵀ·τ + Cᵀ·v + r
-r  = K_O · (p − β)
+M(q) v_dot + C(q,v) v = S^T tau + J_c^T f_ext
 ```
 
-Convergence : `ṙ = −K_O·r + K_O·τ_ext`, donc `r → τ_ext = J_cᵀ·f_ext`.
+Define the generalized momentum `p = M(q) v`. Using the standard skew-symmetry
+property `M_dot = C + C^T`, its derivative is
 
-Un pas (Euler explicite, `K_O = 80`, `dt = 0.01`) :
+```
+p_dot = S^T tau + C^T v + J_c^T f_ext
+```
+
+which is remarkable: **no acceleration term**. That is what makes the observer
+possible.
+
+Now integrate a copy of that equation with output feedback:
+
+```
+beta_dot = S^T tau + C^T v + r
+r        = K_O ( p - beta )
+```
+
+Subtracting gives the error dynamics
+
+```
+r_dot = -K_O r + K_O tau_ext
+```
+
+so `r` converges to `tau_ext = J_c^T f_ext` with time constant `1/K_O`. The
+residual **is** the external generalized force, low-pass filtered — no
+differentiation anywhere.
+
+With `K_O = 80` the time constant is 12.5 ms, about one QP tick.
+
+## 2. One step of the implementation
+
+Forward Euler, `dt = 0.01`:
 
 ```python
-β += dt · (τ_applied + C_matrixᵀ @ v + r)
-r  = K_O · (M @ v − β)
+CT_v  = C_matrix.T @ v
+beta += dt * (tau_applied + CT_v + r)
+p     = M @ v
+r     = K_O * (p - beta)
 ```
 
-## Ce qui tourne
+`tau_applied` is `[0_6 ; tau_joints]` — zeros on the floating base, because the
+base is unactuated. This is why `RobotInterface` computes the full `C_matrix`
+and not just the `C @ v` vector: the observer needs `C^T v`, which is a
+different quantity.
 
-`GeneralizedMomentumObserver.update()` est appelé **en simple appui seulement**
-(`sim_loop.py:3123`) ; en double appui le journal inscrit `0.0`. Le résidu est
-un vrai signal, mesuré sur le canonique :
+## 3. Where it runs
 
-```
-gmo_residual_norm   max = 8.088   moyenne = 1.017   non nuls = 2067/2077
-```
+`update()` is called **in single support only** (`sim_loop.py:3123`); in double
+support the log records `0.0` (`:1057`), because `gmo_swing_residual` needs a
+swing-velocity slice that DS does not track.
 
-## ⚠ `ContactStateMachine` est inerte
-
-Construite (`sim_loop.py:468`), remise à zéro (`:1948`), son état est lu à chaque
-tick pour le journal (`:1061`) — mais **`update()` n'est jamais appelé**
-(0/59 lignes).
+Measured on the canonical:
 
 ```
-gmo_contact_state   valeurs distinctes = [0]     (NO_CONTACT, constant)
+gmo_residual_norm   max = 8.088   mean = 1.017   non-zero = 2067/2077
 ```
 
-**Ce n'est pas un bug, c'est l'architecture** : l'accostage est décidé
-géométriquement, jamais par le GMO. Règle de CLAUDE.md : *« require both
-`d < 5 mm` AND `ori < 5°` »*. Le GMO fournit un résidu observable et journalisé ;
-la machine d'état qui le transformerait en décision n'est pas branchée.
+A real signal.
 
-À savoir avant d'utiliser `gmo_contact_state` dans une figure.
+## 4. ⚠ `ContactStateMachine` is inert
 
-## Voir aussi
+Constructed (`sim_loop.py:468`), reset (`:1948`), its state read every tick for
+the log (`:1061`) — but **`update()` is never called** (0/59 lines).
 
-- vue d'ensemble du paquet : [`estimation.md`](estimation.md)
+```
+gmo_contact_state   distinct values = [0]      (NO_CONTACT, constant)
+```
+
+**This is architecture, not a bug.** Docking is decided geometrically, never by
+the GMO. Project rule: *require both `d < 5 mm` AND `ori < 5 deg`*. The observer
+provides a measurable, logged residual; the state machine that would turn it into
+a contact decision is not wired to the canonical path.
+
+The thresholds in `ContactObserverConfig` (`F_threshold`, `d_proximity`,
+`d_contact`, `d_reset`, `debounce_count`) belong to that unwired machine and are
+therefore **not canonical values** — nothing reads them on the canonical run.
+
+Worth knowing before using `gmo_contact_state` in a figure.
+
+## See also
+
+- package overview: [`estimation.md`](estimation.md)

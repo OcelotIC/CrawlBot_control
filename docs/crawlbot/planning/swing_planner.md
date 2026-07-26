@@ -1,92 +1,150 @@
 # `crawlbot.planning.swing_planner`
 
-Trajectoire de l'effecteur en vol : quintique + dégagement, pilotée par le plan
-de marche. **95 % de couverture.**
+**File**: `crawlbot/planning/swing_planner.py` — **338 lines** — canonical coverage **95 %**
 
-**Fichier** : `crawlbot/planning/swing_planner.py` — **338 lignes** — couverture canonique **95 %**
+> Module docstring: *"Swing arm trajectory planner for crawling locomotion."*
 
-> Docstring du module : *« Swing arm trajectory planner for crawling locomotion. »*
+Cartesian reference for the free end-effector during single support: where the
+gripper is, how fast, and at what orientation, at every instant of a swing.
+
+Everything is in the **structure body frame**, where the anchors are fixed
+points — which is why no live-anchor transform machinery is needed.
 
 ---
 
-## API publique
+## Public API
 
-| symbole | signature | canonique ? |
+| symbol | signature | canonical? |
 |---|---|---|
 | **`SwingReference`** *(dataclass)* |  |  |
-|   `p_ee` |  | _champ_ |
-|   `v_ee` |  | _champ_ |
-|   `a_ee` |  | _champ_ |
-|   `R_ee` |  | _champ_ |
-|   `omega_ee` |  | _champ_ |
-|   `alpha_ee` |  | _champ_ |
-|   `swing_arm` |  | _champ_ |
-|   `is_swinging` |  | _champ_ |
-|   `phase_progress` |  | _champ_ |
+|   `p_ee` |  | _field_ |
+|   `v_ee` |  | _field_ |
+|   `a_ee` |  | _field_ |
+|   `R_ee` |  | _field_ |
+|   `omega_ee` |  | _field_ |
+|   `alpha_ee` |  | _field_ |
+|   `swing_arm` |  | _field_ |
+|   `is_swinging` |  | _field_ |
+|   `phase_progress` |  | _field_ |
 | **`SwingPlanner`** |  |  |
-| `.set_swing_orientation` | `(R_start)` | **oui** |
-| `.plan` | `()` | **oui** |
-| `._quintic` | `(tau)` | **oui** |
-| `._quintic_dot` | `(tau)` | **oui** |
-| `._quintic_ddot` | `(tau)` | **oui** |
-| `._bump` | `(tau)` | **oui** |
-| `._bump_dot` | `(tau)` | **oui** |
-| `._bump_ddot` | `(tau)` | **oui** |
-| `._delayed_cosine` | `(tau, tau_d)` | **oui** |
-| `._delayed_cosine_dot` | `(tau, tau_d)` | **oui** |
-| `._delayed_cosine_ddot` | `(tau, tau_d)` | **oui** |
-| `.reference_at` | `(t)` | **oui** |
-| `._last_swing_position` | `(current_idx)` | **oui** |
+| `.set_swing_orientation` | `(R_start)` | **yes** |
+| `.plan` | `()` | **yes** |
+| `._quintic` | `(tau)` | **yes** |
+| `._quintic_dot` | `(tau)` | **yes** |
+| `._quintic_ddot` | `(tau)` | **yes** |
+| `._bump` | `(tau)` | **yes** |
+| `._bump_dot` | `(tau)` | **yes** |
+| `._bump_ddot` | `(tau)` | **yes** |
+| `._delayed_cosine` | `(tau, tau_d)` | **yes** |
+| `._delayed_cosine_dot` | `(tau, tau_d)` | **yes** |
+| `._delayed_cosine_ddot` | `(tau, tau_d)` | **yes** |
+| `.reference_at` | `(t)` | **yes** |
+| `._last_swing_position` | `(current_idx)` | **yes** |
 
-### Constantes de module
+### Module constants
 
-| nom | valeur |
+| name | value |
 |---|---|
 | `DEFAULT_CLEARANCE` | `0.03` |
 | `DEFAULT_AWAY_NORMAL` | `np.array([0.0, 0.0, -1.0])` |
 
 ---
 
-## Profils
+---
 
-Trois briques composables, toutes exercées avec leurs dérivées première et
-seconde :
+## 1. Trajectory design
 
-| profil | rôle |
-|---|---|
-| `_quintic` | `s(τ) = 10τ³ − 15τ⁴ + 6τ⁵` — accélération nulle aux extrémités |
-| `_bump` | la bosse de dégagement (`clearance` par défaut 0.03 m) |
-| `_delayed_cosine` | mise en rotation retardée |
+For a swing from `p_start` to `p_end` over duration `T`, with
+`tau = (t - t_phase_start)/T` in [0,1]:
 
-Normale de dégagement : `−z` en repère structure (le robot est *sous* la
-structure).
+```
+p(tau) = p_start + dp * s(tau) + clearance * n_hat * bump(tau)
+```
 
-## `reference_at(t)`
+Three ingredients, each with a job:
 
-Interroge le plan de marche :
+### s(tau) — the quintic, rest to rest
 
-- **DS** → dernière position de vol figée, vitesse et accélération nulles ;
-- **SS** → interpolation sur `T_eff = T_step × early_finish_fraction`, avec `τ`
-  écrêté à 1. Une fois `τ = 1` atteint, la position est à la cible et vitesse et
-  accélération sont nulles par construction — les trois profils ont `ṗ(τ=1) = 0`.
+```
+s(tau) = 10 tau^3 - 15 tau^4 + 6 tau^5
+```
 
-C'est le mécanisme d'« arrivée anticipée » : l'effecteur atteint sa cible avant
-la fin de la phase et s'y tient, ce qui laisse le temps à la porte d'accostage
-de se déclencher proprement.
+Chosen because `s(0)=0, s(1)=1` with **both first and second derivatives zero at
+each end**. That gives `v(0)=v(1)=0` and `a(0)=a(1)=0`: no velocity step at
+detach, no acceleration jump at attach. A cubic would give zero velocity but a
+finite acceleration jump — a jerk impulse into a free-floating base, which
+becomes momentum the wheels must absorb.
 
-## Ce que CLEANUP-18 a retiré
+### bump(tau) — the clearance bell
 
-Tout le mécanisme de **surcharge de phase** : `add_phase`,
-`_override_reference_at`, `clear_phase_overrides`, `_phase_overrides` et sa
-boucle de dispatch, plus `adaptive_reference_at` et `swing_trajectory`.
+Nominally `sin^2(pi tau)`: zero at both ends, maximum at mid-swing, C1
+boundaries. The generalised form allows an asymmetric peak at `tau_p`:
 
-`reference_at()` prend désormais **toujours** le chemin piloté par le plan —
-celui que le canonique a toujours emprunté. Couverture passée de **47 % à 95 %**,
-fichier de 728 à 337 lignes.
+```
+rise    (tau <= tau_p) : sin^2( pi*tau       / (2*tau_p)     )
+descent (tau >= tau_p) : sin^2( pi*(1-tau)   / (2*(1-tau_p)) )
+```
 
-⚠ Ne pas confondre : **`torso_planner.add_phase` est vivante**. Seul le
-`add_phase` du *swing* était mort.
+Both branches reach 1 at `tau_p` and 0 at the ends, with zero first derivative
+at 0, `tau_p` and 1 — so the two halves join smoothly. It reduces exactly to
+`sin^2(pi tau)` when `tau_p = 0.5`.
 
-## Voir aussi
+`n_hat` is the unit normal away from the structure surface — canonically
+`-z` in the structure frame, because the robot hangs *below* the structure.
+Default clearance 0.03 m.
 
-- vue d'ensemble du paquet : [`planning.md`](planning.md)
+### sigma(tau) — delayed cosine, for orientation
+
+```
+sigma(tau) = 0                                        if tau <  tau_d
+             0.5 * (1 - cos( pi (tau - tau_d)/(1 - tau_d) ))   otherwise
+```
+
+The orientation SLERP is driven by `sigma`, not by `s`. This **concentrates the
+rotation in the second half of the swing**: the gripper first arcs over the
+obstacle (clearance peaks at `tau = 0.5`) and only *then* rotates into the dock
+orientation during the final approach.
+
+Doing both at once would sweep the gripper through a wider volume and arrive
+with residual angular velocity — bad when the gate demands `ori < 5 deg`.
+
+All three profiles are implemented with their first and second derivatives
+(`_quintic`, `_bump`, `_delayed_cosine` and `_dot` / `_ddot` variants), all
+exercised on the canonical.
+
+## 2. `reference_at(t)`
+
+Queries the gait plan and branches:
+
+- **DS** -> the last swing position, frozen, with zero velocity and acceleration;
+- **SS** -> interpolate over `T_eff = T_step * early_finish_fraction`, with
+  `tau` clipped to 1.
+
+### Early finish
+
+Once `tau` reaches 1 the reference is *at the target with zero velocity and
+acceleration* — by construction, since all three profiles have `p_dot(1) = 0`.
+Clipping `tau` therefore holds the gripper still rather than freezing a
+mid-motion state.
+
+The point is to let the end-effector arrive **before** the phase ends and settle,
+so the docking gate (`d < 5 mm AND ori < 5 deg`) evaluates on a quiet pose
+rather than on one still moving. The measured at-weld distances (4.02 to 4.99 mm)
+sit inside a 5 mm capture radius; arriving hot would not be recoverable.
+
+## 3. What CLEANUP-18 removed
+
+The whole **phase-override mechanism**: `add_phase`, `_override_reference_at`,
+`clear_phase_overrides`, the `_phase_overrides` list and its dispatch loop at the
+head of `reference_at`, plus `adaptive_reference_at` and `swing_trajectory`.
+
+`reference_at()` now always takes the scheduler-driven path — the one the
+canonical has always used. Coverage went from **47 % to 95 %**, the file from 728
+to 337 lines.
+
+⚠ Do not confuse: **`torso_planner.add_phase` is live**. Only the *swing*
+planner's `add_phase` was dead.
+
+## See also
+
+- package overview: [`planning.md`](planning.md)

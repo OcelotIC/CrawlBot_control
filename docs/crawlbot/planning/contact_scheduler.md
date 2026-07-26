@@ -1,45 +1,45 @@
 # `crawlbot.planning.contact_scheduler`
 
-Le plan de marche : séquence DS/SS/DS…, grille d'ancrages, et le timing qui se
-recalcule en cascade quand la durée d'un pas est connue.
+**File**: `crawlbot/planning/contact_scheduler.py` — **350 lines** — canonical coverage **87 %**
 
-**Fichier** : `crawlbot/planning/contact_scheduler.py` — **350 lignes** — couverture canonique **87 %**
+> Module docstring: *"ContactScheduler — Gait timing and contact management for VISPA crawling."*
 
-> Docstring du module : *« ContactScheduler — Gait timing and contact management for VISPA crawling. »*
+The gait plan: the DS/SS/DS sequence, which anchor each gripper holds, and the
+timeline — which is rebuilt in cascade once a step duration becomes known.
 
 ---
 
-## API publique
+## Public API
 
-| symbole | signature | canonique ? |
+| symbol | signature | canonical? |
 |---|---|---|
-| `make_anchor_grid` | `(n=DEFAULT_N_ANCHORS, dx=DEFAULT_DX, dy=DEFAULT_DY)` | non exerce |
-| `read_anchors_from_mujoco` | `(mj_model, mj_data)` | **oui** |
+| `make_anchor_grid` | `(n=DEFAULT_N_ANCHORS, dx=DEFAULT_DX, dy=DEFAULT_DY)` | not exercised |
+| `read_anchors_from_mujoco` | `(mj_model, mj_data)` | **yes** |
 | **`GaitPhase`** *(dataclass)* |  |  |
-|   `phase` |  | _champ_ |
-|   `duration` |  | _champ_ |
-|   `anchor_a_idx` |  | _champ_ |
-|   `anchor_b_idx` |  | _champ_ |
-|   `swing_arm` | `''` | _champ_ |
-|   `swing_from_idx` | `-1` | _champ_ |
-|   `swing_to_idx` | `-1` | _champ_ |
+|   `phase` |  | _field_ |
+|   `duration` |  | _field_ |
+|   `anchor_a_idx` |  | _field_ |
+|   `anchor_b_idx` |  | _field_ |
+|   `swing_arm` | `''` | _field_ |
+|   `swing_from_idx` | `-1` | _field_ |
+|   `swing_to_idx` | `-1` | _field_ |
 | **`GaitPlan`** *(dataclass)* |  |  |
-|   `phases` |  | _champ_ |
-|   `t_start` |  | _champ_ |
-|   `t_end` |  | _champ_ |
-|   `total_duration` |  | _champ_ |
-| `.phase_at` | `(t)` | **oui** |
-| `.set_step_duration` | `(idx, T_step)` | **oui** |
+|   `phases` |  | _field_ |
+|   `t_start` |  | _field_ |
+|   `t_end` |  | _field_ |
+|   `total_duration` |  | _field_ |
+| `.phase_at` | `(t)` | **yes** |
+| `.set_step_duration` | `(idx, T_step)` | **yes** |
 | **`ContactScheduler`** |  |  |
-| `.plan_traversal` | `(start_a=0, start_b=0, n_steps=4)` | **oui** |
-| `.plan` | `()` | **oui** |
-| `.contact_config_at` | `(t)` | **oui** |
-| `.contact_sequence_over_horizon` | `(t, dt, N)` | non exerce |
-| `.anchor_se3` | `(arm, idx)` | **oui** |
+| `.plan_traversal` | `(start_a=0, start_b=0, n_steps=4)` | **yes** |
+| `.plan` | `()` | **yes** |
+| `.contact_config_at` | `(t)` | **yes** |
+| `.contact_sequence_over_horizon` | `(t, dt, N)` | not exercised |
+| `.anchor_se3` | `(arm, idx)` | **yes** |
 
-### Constantes de module
+### Module constants
 
-| nom | valeur |
+| name | value |
 |---|---|
 | `DEFAULT_DX` | `0.8` |
 | `DEFAULT_DY` | `0.3` |
@@ -47,43 +47,64 @@ recalcule en cascade quand la durée d'un pas est connue.
 
 ---
 
-## Production du plan
+---
 
-`plan_traversal(start_a, start_b, n_steps)` construit un `GaitPlan` : suite de
-`GaitPhase` (DOUBLE / SINGLE_A / SINGLE_B) portant les indices d'ancrage et le
-bras en vol. Les bras avancent en alternance, d'un ancrage à la fois.
+## 1. Building the plan
 
-⚠ Les phases SS naissent avec **`duration = 0.0`** : la durée réelle vient du
-pré-planificateur. `GaitPlan.set_step_duration(idx, T_step)` l'installe et
-**reconstruit tout le timing en cascade** (`sim_loop.py:1495`), en préservant
-l'invariant `t_end[k] = t_start[k] + duration[k]`, `t_start[k+1] = t_end[k]`.
+`plan_traversal(start_a, start_b, n_steps)` produces a `GaitPlan`: a list of
+`GaitPhase` (DOUBLE / SINGLE_A / SINGLE_B), each carrying anchor indices and
+which arm swings. Arms alternate, one anchor at a time:
 
-## Ancrages
+```
+DS  ->  SS_A (B swings to b+1)  ->  DS  ->  SS_B (A swings to a+1)  ->  DS ...
+```
 
-Canonique : `read_anchors_from_mujoco` — lus directement du modèle MuJoCo, donc
-cohérents avec la scène simulée.
+## 2. ⚠ SS phases are born with `duration = 0.0`
 
-`make_anchor_grid` (grille analytique, `dx = 0.8`, `dy = 0.3`, 6 ancrages) sert
-de repli quand aucun ancrage n'est fourni, et reste utilisée par un script de
-diagnostic. Non exercée sur le canonique.
+The real duration comes from the pre-planner. `GaitPlan.set_step_duration(idx,
+T_step)` installs it and **rebuilds the whole timeline in cascade**
+(`sim_loop.py:1495`), preserving
 
-## Fichier essentiellement propre
+```
+t_end[k]   = t_start[k] + duration[k]
+t_start[k+1] = t_end[k]
+```
 
-16 lignes non couvertes sur 120 — **15 sont des gardes et des replis** :
+Rebuilding from scratch rather than patching offsets is what keeps the invariant
+exact after several steps of differing duration — the alternative accumulates
+floating-point drift across a traversal.
 
-- `set_step_duration` : `IndexError` (indice hors bornes), `ValueError`
-  (`T_step ≤ 0`)
-- propriété `plan` : `RuntimeError("Call plan_traversal() first.")`
-- `plan_traversal` : les deux `break` d'épuisement de la grille
-- `read_anchors_from_mujoco` : `ImportError`, `except: break`, `RuntimeError`
-- `__init__` : le repli `anchors_a is None`
+`dt_ds = 0.5 s` is only a skeleton value so queries before the energy-settle
+runs have a valid timeline; the real DS duration is governed by the settle in
+`sim_loop`.
 
-Toutes mortes **parce que le système est sain**. Ne pas les supprimer.
+## 3. Anchors
 
-**Une seule méthode réellement morte** : `contact_sequence_over_horizon`
-(19 lignes, zéro appelant) — plomberie prévue pour l'horizon NMPC que le NMPC
-n'a jamais consommée.
+Canonical: `read_anchors_from_mujoco` — read straight from the MuJoCo model, so
+the plan and the simulated scene cannot disagree. It scans site names
+`anchor_1a..anchor_Na` / `anchor_1b..Nb` and stops at the first gap.
 
-## Voir aussi
+`make_anchor_grid` (analytic grid, `dx = 0.8`, `dy = 0.3`, 6 anchors) is the
+fallback when no anchors are supplied, and is still used by a diagnostic script.
+Unexercised on the canonical.
 
-- vue d'ensemble du paquet : [`planning.md`](planning.md)
+## 4. Essentially clean
+
+16 uncovered lines out of 120 — **15 are guards and fallbacks**:
+
+- `set_step_duration`: `IndexError` (index out of range), `ValueError`
+  (`T_step <= 0`)
+- `plan` property: `RuntimeError("Call plan_traversal() first.")`
+- `plan_traversal`: the two `break`s when the anchor grid runs out
+- `read_anchors_from_mujoco`: `ImportError`, `except: break`, `RuntimeError`
+- `__init__`: the `anchors_a is None` fallback
+- `phase_at`: the exactly-at-end edge case
+
+All dead **because the system is healthy**. Keep.
+
+**One genuinely dead method**: `contact_sequence_over_horizon` (19 lines, zero
+callers) — plumbing intended for the NMPC horizon that the NMPC never took up.
+
+## See also
+
+- package overview: [`planning.md`](planning.md)

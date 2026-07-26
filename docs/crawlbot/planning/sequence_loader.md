@@ -1,65 +1,72 @@
 # `crawlbot.planning.sequence_loader`
 
-Chargeur de scénarios `.seq` : permet de décrire une traversée dans un fichier
-plutôt qu'en arguments.
+**File**: `crawlbot/planning/sequence_loader.py` — **255 lines** — canonical coverage **0 %**
 
-**Fichier** : `crawlbot/planning/sequence_loader.py` — **255 lignes** — couverture canonique **0 %**
+> Module docstring: *"Locomotion-sequence file loader."*
 
-> Docstring du module : *« Locomotion-sequence file loader. »*
+Loads a `.seq` scenario file and turns it into a gait plan — an alternative to
+specifying a traversal through arguments.
 
 ---
 
-## API publique
+## Public API
 
-| symbole | signature | canonique ? |
+| symbol | signature | canonical? |
 |---|---|---|
 | **`SwingTarget`** *(dataclass)* |  |  |
-|   `arm` |  | _champ_ |
-|   `anchor_idx` |  | _champ_ |
-|   `dwell_after` | `0.0` | _champ_ |
+|   `arm` |  | _field_ |
+|   `anchor_idx` |  | _field_ |
+|   `dwell_after` | `0.0` | _field_ |
 | **`LoadedSequence`** *(dataclass)* |  |  |
-|   `start_a` |  | _champ_ |
-|   `start_b` |  | _champ_ |
-|   `swing_targets` |  | _champ_ |
-|   `source_path` |  | _champ_ |
-| `load_sequence` | `(path, n_anchors)` | non exerce |
-| `plan_from_sequence` | `(sched, seq)` | non exerce |
+|   `start_a` |  | _field_ |
+|   `start_b` |  | _field_ |
+|   `swing_targets` |  | _field_ |
+|   `source_path` |  | _field_ |
+| `load_sequence` | `(path, n_anchors)` | not exercised |
+| `plan_from_sequence` | `(sched, seq)` | not exercised |
 
-### Constantes de module
+### Module constants
 
-| nom | valeur |
+| name | value |
 |---|---|
 | `_ANCHOR_RE` | `re.compile('^anchor_(\\d+)([ab])$')` |
 
 ---
 
-## ⚠ 0 % de couverture, et pourtant **conservé**
+---
 
-Le module n'est jamais exécuté par le run canonique. Il porte néanmoins une
-fonctionnalité réelle : `sim.setup(sequence_path=…)`, empruntée dès qu'un
-scénario est fourni à `dca`.
+## 1. What it does
 
-C'est la distinction que le chantier CLEANUP applique systématiquement :
+`load_sequence(path)` parses the scenario file; `plan_from_sequence(...)` turns
+it into the same `GaitPlan` structure `ContactScheduler.plan_traversal` produces,
+so everything downstream is unchanged.
 
-> **Inutilisé sur le canonique ≠ recherche abandonnée.**
+Entry point: `sim.setup(sequence_path=...)`, used by `dca` whenever a scenario
+file is given. `dca` then routes output into a subdirectory named after the
+scenario stem.
 
-Comparer avec le sédiment de recherche (modes AOCS alternatifs, chemin FK des
-planificateurs) : celui-là est derrière des drapeaux d'opt-in issus
-d'expérimentations closes. Ici il s'agit d'une entrée utilisateur documentée.
-
-## Scénarios disponibles
-
-`scenarios/` contient `canonical_3step.seq`, `canonical_5step.seq`,
+Available scenarios in `scenarios/`: `canonical_3step.seq`, `canonical_5step.seq`,
 `multi_traversal_2x.seq`, `multi_traversal_10x.seq`,
 `multi_traversal_10x_dwell.seq`.
 
-`dca` route la sortie vers un sous-dossier nommé d'après le fichier de scénario.
+## 2. ⚠ 0 % coverage — and kept anyway
 
-## Conséquence pratique
+The module never executes on the canonical run, which uses `n_steps=6` directly.
+It is nevertheless a **real user-facing feature**, not abandoned research.
 
-Aucune couverture par le gate : une régression introduite ici ne sera détectée
-par rien. À vérifier à la main si le chemin scénario est modifié.
+This is a distinction the chantier applies throughout:
 
-## Voir aussi
+> **Unused on the canonical is not the same as retired.**
 
-- vue d'ensemble du paquet : [`planning.md`](planning.md)
+Compare with genuine research sediment — the alternative AOCS modes, the planner
+FK path — which sits behind opt-in flags from closed experiments. Here the flag
+is a documented user input.
+
+## 3. Practical consequence
+
+No gate coverage. A regression introduced here will be caught by nothing, so the
+scenario path must be exercised by hand if it is modified.
+
+## See also
+
+- package overview: [`planning.md`](planning.md)

@@ -1,59 +1,70 @@
 # `crawlbot.diagnostics.metrics`
 
-Métriques à seuils : calcule, formate et exporte un verdict par grandeur.
+**File**: `crawlbot/diagnostics/metrics.py` — **424 lines** — canonical coverage **5 %**
 
-**Fichier** : `crawlbot/diagnostics/metrics.py` — **424 lignes** — couverture canonique **5 %**
+> Module docstring: *"Compute scalar summary metrics from SimLog time series."*
 
-> Docstring du module : *« Compute scalar summary metrics from SimLog time series. »*
+Thresholded metrics: computes each quantity, compares it to its bound, returns
+a verdict.
 
 ---
 
-## API publique
+## Public API
 
-| symbole | signature | canonique ? |
+| symbol | signature | canonical? |
 |---|---|---|
-| `compute_metrics` | `(log, cfg=None, thresholds=None)` | non exerce |
-| `print_metrics` | `(results, file=None)` | non exerce |
-| `save_metrics_csv` | `(results, path)` | non exerce |
+| `compute_metrics` | `(log, cfg=None, thresholds=None)` | not exercised |
+| `print_metrics` | `(results, file=None)` | not exercised |
+| `save_metrics_csv` | `(results, path)` | not exercised |
 
-### Constantes de module
+### Module constants
 
-| nom | valeur |
+| name | value |
 |---|---|
 | `DEFAULT_THRESHOLDS` | `{'torso_pos_err_peak_mm': 10.0, 'torso_ori_e` |
 
 ---
 
-## Principe
+---
 
-`compute_metrics(log, cfg, thresholds)` renvoie un dictionnaire
-`nom -> (valeur, seuil, verdict)`. `print_metrics` le formate pour la console,
-`save_metrics_csv` l'écrit sur disque.
+## 1. Principle
 
-L'intention est celle de la règle 3 : un run ne « passe » pas parce qu'il a
-accosté, mais parce que chaque grandeur mesurée est sous son seuil.
+`compute_metrics(log, cfg, thresholds)` returns a dict
+`name -> (value, threshold, verdict)`. `print_metrics` formats it for the
+console, `save_metrics_csv` writes it out.
 
-## Le plus gros bloc non exercé du dépôt
+The design follows rule 3: a run passes because every measured quantity is under
+its bound, not because it reached the target.
 
-287 lignes sans couverture. Sa taille ne dit rien de sa validité — elle dit
-seulement qu'elle n'est pas vérifiée.
+## 2. The largest unexercised block in the repository
 
-## ⚠ Rappel valable pour tout le paquet
+287 lines with no coverage. Its size says nothing about its validity — only that
+it is unverified. If it is ever reconnected, its thresholds should be
+cross-checked against the frozen canonical values in CLAUDE.md, since the
+controller has been retuned substantially since this was written.
 
-`crawlbot/diagnostics/` n'est **pas exercé par le run canonique**, alors que la
-règle 3 de CLAUDE.md l'exige :
+---
+
+## Package-wide caveat
+
+`crawlbot/diagnostics/` is **not exercised by the canonical run**, although
+CLAUDE.md rule 3 requires it:
 
 > *Every simulation produces diagnostics. Call `run_diagnostics()` at the end of
-> every sim. « It docked » is not a pass criterion.*
+> every sim. "It docked" is not a pass criterion.*
 
-Constat signalé, non corrigé : c'est une question de conformité à une règle, à
-trancher (CLEANUP-20 §5.3). Ce qui fait foi aujourd'hui est le gate
-(`gate/run_gate.py`, `gate/dock_check.py`) et les scripts d'export.
+Measured: `run_diagnostics` 0/56 lines, `compute_metrics` 0/287,
+`generate_plots` 0/26, `capture_snapshots` 0/59. The canonical import closure
+pulls in `crawlbot/diagnostics/__init__.py` (which re-exports `run_diagnostics`)
+but **none of the four modules**, and neither `dca` nor `sim_loop` calls it.
 
-Conséquence pratique : **aucune couverture par le gate**. Une régression
-introduite dans ce paquet ne sera détectée par rien.
+Reported, not fixed: this is a rule-compliance question, orthogonal to the code
+(CLEANUP-20 section 5.3). What is authoritative today is the gate
+(`gate/run_gate.py`, `gate/dock_check.py`) and the export scripts.
 
+Practical consequence: **no gate coverage anywhere in this package**. A
+regression introduced here will be caught by nothing.
 
-## Voir aussi
+## See also
 
-- vue d'ensemble du paquet : [`diagnostics.md`](diagnostics.md)
+- package overview: [`diagnostics.md`](diagnostics.md)

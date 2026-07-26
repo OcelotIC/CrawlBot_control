@@ -1,48 +1,56 @@
 # `crawlbot.diagnostics.snapshots`
 
-Captures d'images MuJoCo aux instants du log.
+**File**: `crawlbot/diagnostics/snapshots.py` — **71 lines** — canonical coverage **0 %**
 
-**Fichier** : `crawlbot/diagnostics/snapshots.py` — **71 lignes** — couverture canonique **0 %**
+> Module docstring: *"Render MuJoCo frames at key simulation instants for visual diagnostics."*
 
-> Docstring du module : *« Render MuJoCo frames at key simulation instants for visual diagnostics. »*
+MuJoCo image captures at the instants recorded in the log.
 
 ---
 
-## API publique
+## Public API
 
-| symbole | signature | canonique ? |
+| symbol | signature | canonical? |
 |---|---|---|
-| `capture_snapshots` | `(model, data, sim_log, output_dir, width=1280, height=72...)` | non exerce |
+| `capture_snapshots` | `(model, data, sim_log, output_dir, width=1280, height=72...)` | not exercised |
 
 ---
 
-## Usage
+---
+
+## 1. Usage
 
 `capture_snapshots(model, data, sim_log, output_dir, width=1280, height=720,
-camera=None)` — rend les poses enregistrées dans `log.snapshots`.
+camera=None)` renders the poses stored in `log.snapshots`.
 
-Nécessite un contexte de rendu : `MUJOCO_GL=osmesa`, ou `disabled` si le rendu
-n'est pas disponible (règle du projet : ne jamais lancer sans l'une des deux).
+Requires a render context: `MUJOCO_GL=osmesa`, or `disabled` when rendering is
+unavailable. Project rule: never run a simulation without one of the two set.
 
-Le canonique capture 44 poses lorsque `cfg.frames_per_step > 0` ; le rendu
-lui-même passe par `scripts/render_traversal.py`, pas par ce module.
+The canonical captures 44 poses when `cfg.frames_per_step > 0`; the rendering
+itself goes through `scripts/render_traversal.py`, not this module.
 
-## ⚠ Rappel valable pour tout le paquet
+---
 
-`crawlbot/diagnostics/` n'est **pas exercé par le run canonique**, alors que la
-règle 3 de CLAUDE.md l'exige :
+## Package-wide caveat
+
+`crawlbot/diagnostics/` is **not exercised by the canonical run**, although
+CLAUDE.md rule 3 requires it:
 
 > *Every simulation produces diagnostics. Call `run_diagnostics()` at the end of
-> every sim. « It docked » is not a pass criterion.*
+> every sim. "It docked" is not a pass criterion.*
 
-Constat signalé, non corrigé : c'est une question de conformité à une règle, à
-trancher (CLEANUP-20 §5.3). Ce qui fait foi aujourd'hui est le gate
-(`gate/run_gate.py`, `gate/dock_check.py`) et les scripts d'export.
+Measured: `run_diagnostics` 0/56 lines, `compute_metrics` 0/287,
+`generate_plots` 0/26, `capture_snapshots` 0/59. The canonical import closure
+pulls in `crawlbot/diagnostics/__init__.py` (which re-exports `run_diagnostics`)
+but **none of the four modules**, and neither `dca` nor `sim_loop` calls it.
 
-Conséquence pratique : **aucune couverture par le gate**. Une régression
-introduite dans ce paquet ne sera détectée par rien.
+Reported, not fixed: this is a rule-compliance question, orthogonal to the code
+(CLEANUP-20 section 5.3). What is authoritative today is the gate
+(`gate/run_gate.py`, `gate/dock_check.py`) and the export scripts.
 
+Practical consequence: **no gate coverage anywhere in this package**. A
+regression introduced here will be caught by nothing.
 
-## Voir aussi
+## See also
 
-- vue d'ensemble du paquet : [`diagnostics.md`](diagnostics.md)
+- package overview: [`diagnostics.md`](diagnostics.md)

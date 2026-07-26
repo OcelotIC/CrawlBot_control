@@ -1,158 +1,173 @@
 # `crawlbot.simulation.logging`
 
-`SimLog` : un tableau par grandeur, un élément par tick, plus la capture de
-l'environnement d'exécution.
+**File**: `crawlbot/simulation/logging.py` — **269 lines** — canonical coverage **93 %**
 
-**Fichier** : `crawlbot/simulation/logging.py` — **269 lignes** — couverture canonique **93 %**
+> Module docstring: *"Simulation data logger."*
 
-> Docstring du module : *« Simulation data logger. »*
+`SimLog`: one array per quantity, one entry per tick, plus a capture of the
+execution environment. This is the file every downstream analysis reads.
 
 ---
 
-## API publique
+## Public API
 
-| symbole | signature | canonique ? |
+| symbol | signature | canonical? |
 |---|---|---|
-| `capture_environment` | `()` | **oui** |
+| `capture_environment` | `()` | **yes** |
 | **`SimLog`** *(dataclass)* |  |  |
-|   `t` | `field(default_factory=list)` | _champ_ |
-|   `phase` | `field(default_factory=list)` | _champ_ |
-|   `step_idx` | `field(default_factory=list)` | _champ_ |
-|   `p_torso` | `field(default_factory=list)` | _champ_ |
-|   `p_torso_ref` | `field(default_factory=list)` | _champ_ |
-|   `e_torso_pos` | `field(default_factory=list)` | _champ_ |
-|   `e_torso_ori` | `field(default_factory=list)` | _champ_ |
-|   `q_torso` | `field(default_factory=list)` | _champ_ |
-|   `q_torso_ref` | `field(default_factory=list)` | _champ_ |
-|   `d_grip_swing` | `field(default_factory=list)` | _champ_ |
-|   `d_grip_stance` | `field(default_factory=list)` | _champ_ |
-|   `swing_arm` | `field(default_factory=list)` | _champ_ |
-|   `p_ee` | `field(default_factory=list)` | _champ_ |
-|   `p_ee_ref` | `field(default_factory=list)` | _champ_ |
-|   `q_ee` | `field(default_factory=list)` | _champ_ |
-|   `q_ee_ref` | `field(default_factory=list)` | _champ_ |
-|   `qvel_joints_a` | `field(default_factory=list)` | _champ_ |
-|   `qvel_joints_b` | `field(default_factory=list)` | _champ_ |
-|   `v_ee_a` | `field(default_factory=list)` | _champ_ |
-|   `v_ee_b` | `field(default_factory=list)` | _champ_ |
-|   `omega_ee_a` | `field(default_factory=list)` | _champ_ |
-|   `omega_ee_b` | `field(default_factory=list)` | _champ_ |
-|   `v_torso` | `field(default_factory=list)` | _champ_ |
-|   `omega_torso` | `field(default_factory=list)` | _champ_ |
-|   `r_com` | `field(default_factory=list)` | _champ_ |
-|   `r_com_ref` | `field(default_factory=list)` | _champ_ |
-|   `e_com` | `field(default_factory=list)` | _champ_ |
-|   `v_com` | `field(default_factory=list)` | _champ_ |
-|   `v_com_ref` | `field(default_factory=list)` | _champ_ |
-|   `L_com` | `field(default_factory=list)` | _champ_ |
-|   `L_com_norm` | `field(default_factory=list)` | _champ_ |
-|   `L_com_ref` | `field(default_factory=list)` | _champ_ |
-|   `L_dot` | `field(default_factory=list)` | _champ_ |
-|   `L_dot_norm` | `field(default_factory=list)` | _champ_ |
-|   `hw` | `field(default_factory=list)` | _champ_ |
-|   `hw_physical` | `field(default_factory=list)` | _champ_ |
-|   `tau_w` | `field(default_factory=list)` | _champ_ |
-|   `rw_speed` | `field(default_factory=list)` | _champ_ |
-|   `t_ss_hifreq` | `field(default_factory=list)` | _champ_ |
-|   `tau_w_ss_hifreq` | `field(default_factory=list)` | _champ_ |
-|   `hw_ss_hifreq` | `field(default_factory=list)` | _champ_ |
-|   `e_ee_pos` | `field(default_factory=list)` | _champ_ |
-|   `e_ee_ori` | `field(default_factory=list)` | _champ_ |
-|   `gmo_residual_norm` | `field(default_factory=list)` | _champ_ |
-|   `gmo_swing_residual` | `field(default_factory=list)` | _champ_ |
-|   `gmo_contact_state` | `field(default_factory=list)` | _champ_ |
-|   `H_rO` | `field(default_factory=list)` | _champ_ |
-|   `H_dot_est` | `field(default_factory=list)` | _champ_ |
-|   `omega_struct` | `field(default_factory=list)` | _champ_ |
-|   `qfrc_constraint_torque` | `field(default_factory=list)` | _champ_ |
-|   `tau` | `field(default_factory=list)` | _champ_ |
-|   `tau_max_joint` | `field(default_factory=list)` | _champ_ |
-|   `struct_pos` | `field(default_factory=list)` | _champ_ |
-|   `struct_quat` | `field(default_factory=list)` | _champ_ |
-|   `struct_euler_deg` | `field(default_factory=list)` | _champ_ |
-|   `omega_s` | `field(default_factory=list)` | _champ_ |
-|   `nmpc_ok` | `field(default_factory=list)` | _champ_ |
-|   `qp_ok` | `field(default_factory=list)` | _champ_ |
-|   `lambda_ref_norm` | `field(default_factory=list)` | _champ_ |
-|   `lambda_qp` | `field(default_factory=list)` | _champ_ |
-|   `lambda_qp_norm` | `field(default_factory=list)` | _champ_ |
-|   `nmpc_time_ms` | `field(default_factory=list)` | _champ_ |
-|   `qp_time_ms` | `field(default_factory=list)` | _champ_ |
-|   `nmpc_status` | `field(default_factory=list)` | _champ_ |
-|   `nmpc_cost` | `field(default_factory=list)` | _champ_ |
-|   `nmpc_status_str` | `field(default_factory=list)` | _champ_ |
-|   `nmpc_iterations` | `field(default_factory=list)` | _champ_ |
-|   `transport_term_mag` | `field(default_factory=list)` | _champ_ |
-|   `lambda_ref` | `field(default_factory=list)` | _champ_ |
-|   `lambda_qp` | `field(default_factory=list)` | _champ_ |
-|   `T_kinetic` | `field(default_factory=list)` | _champ_ |
-|   `settling_t` | `field(default_factory=list)` | _champ_ |
-|   `settling_T` | `field(default_factory=list)` | _champ_ |
-|   `settling_T_target` | `0.0` | _champ_ |
-|   `settling_stage1_steps` | `0` | _champ_ |
-|   `settling_stage2_steps` | `0` | _champ_ |
-|   `settling_exit_reason` | `''` | _champ_ |
-|   `inter_step_settles` | `field(default_factory=list)` | _champ_ |
-|   `dock_events` | `field(default_factory=list)` | _champ_ |
-|   `dock_gate_trace` | `field(default_factory=list)` | _champ_ |
-|   `ds_mobile_trace` | `field(default_factory=list)` | _champ_ |
-|   `dock_work_trace` | `field(default_factory=list)` | _champ_ |
-|   `aborted_steps` | `field(default_factory=list)` | _champ_ |
-|   `preplanner_T_steps` | `field(default_factory=list)` | _champ_ |
-|   `snapshots` | `field(default_factory=list)` | _champ_ |
-|   `environment` | `field(default_factory=dict)` | _champ_ |
-| `.to_dict` | `()` | **oui** |
-| `.save` | `(path)` | **oui** |
-| `.load` | `(path)` | non exerce |
+|   `t` | `field(default_factory=list)` | _field_ |
+|   `phase` | `field(default_factory=list)` | _field_ |
+|   `step_idx` | `field(default_factory=list)` | _field_ |
+|   `p_torso` | `field(default_factory=list)` | _field_ |
+|   `p_torso_ref` | `field(default_factory=list)` | _field_ |
+|   `e_torso_pos` | `field(default_factory=list)` | _field_ |
+|   `e_torso_ori` | `field(default_factory=list)` | _field_ |
+|   `q_torso` | `field(default_factory=list)` | _field_ |
+|   `q_torso_ref` | `field(default_factory=list)` | _field_ |
+|   `d_grip_swing` | `field(default_factory=list)` | _field_ |
+|   `d_grip_stance` | `field(default_factory=list)` | _field_ |
+|   `swing_arm` | `field(default_factory=list)` | _field_ |
+|   `p_ee` | `field(default_factory=list)` | _field_ |
+|   `p_ee_ref` | `field(default_factory=list)` | _field_ |
+|   `q_ee` | `field(default_factory=list)` | _field_ |
+|   `q_ee_ref` | `field(default_factory=list)` | _field_ |
+|   `qvel_joints_a` | `field(default_factory=list)` | _field_ |
+|   `qvel_joints_b` | `field(default_factory=list)` | _field_ |
+|   `v_ee_a` | `field(default_factory=list)` | _field_ |
+|   `v_ee_b` | `field(default_factory=list)` | _field_ |
+|   `omega_ee_a` | `field(default_factory=list)` | _field_ |
+|   `omega_ee_b` | `field(default_factory=list)` | _field_ |
+|   `v_torso` | `field(default_factory=list)` | _field_ |
+|   `omega_torso` | `field(default_factory=list)` | _field_ |
+|   `r_com` | `field(default_factory=list)` | _field_ |
+|   `r_com_ref` | `field(default_factory=list)` | _field_ |
+|   `e_com` | `field(default_factory=list)` | _field_ |
+|   `v_com` | `field(default_factory=list)` | _field_ |
+|   `v_com_ref` | `field(default_factory=list)` | _field_ |
+|   `L_com` | `field(default_factory=list)` | _field_ |
+|   `L_com_norm` | `field(default_factory=list)` | _field_ |
+|   `L_com_ref` | `field(default_factory=list)` | _field_ |
+|   `L_dot` | `field(default_factory=list)` | _field_ |
+|   `L_dot_norm` | `field(default_factory=list)` | _field_ |
+|   `hw` | `field(default_factory=list)` | _field_ |
+|   `hw_physical` | `field(default_factory=list)` | _field_ |
+|   `tau_w` | `field(default_factory=list)` | _field_ |
+|   `rw_speed` | `field(default_factory=list)` | _field_ |
+|   `t_ss_hifreq` | `field(default_factory=list)` | _field_ |
+|   `tau_w_ss_hifreq` | `field(default_factory=list)` | _field_ |
+|   `hw_ss_hifreq` | `field(default_factory=list)` | _field_ |
+|   `e_ee_pos` | `field(default_factory=list)` | _field_ |
+|   `e_ee_ori` | `field(default_factory=list)` | _field_ |
+|   `gmo_residual_norm` | `field(default_factory=list)` | _field_ |
+|   `gmo_swing_residual` | `field(default_factory=list)` | _field_ |
+|   `gmo_contact_state` | `field(default_factory=list)` | _field_ |
+|   `H_rO` | `field(default_factory=list)` | _field_ |
+|   `H_dot_est` | `field(default_factory=list)` | _field_ |
+|   `omega_struct` | `field(default_factory=list)` | _field_ |
+|   `qfrc_constraint_torque` | `field(default_factory=list)` | _field_ |
+|   `tau` | `field(default_factory=list)` | _field_ |
+|   `tau_max_joint` | `field(default_factory=list)` | _field_ |
+|   `struct_pos` | `field(default_factory=list)` | _field_ |
+|   `struct_quat` | `field(default_factory=list)` | _field_ |
+|   `struct_euler_deg` | `field(default_factory=list)` | _field_ |
+|   `omega_s` | `field(default_factory=list)` | _field_ |
+|   `nmpc_ok` | `field(default_factory=list)` | _field_ |
+|   `qp_ok` | `field(default_factory=list)` | _field_ |
+|   `lambda_ref_norm` | `field(default_factory=list)` | _field_ |
+|   `lambda_qp` | `field(default_factory=list)` | _field_ |
+|   `lambda_qp_norm` | `field(default_factory=list)` | _field_ |
+|   `nmpc_time_ms` | `field(default_factory=list)` | _field_ |
+|   `qp_time_ms` | `field(default_factory=list)` | _field_ |
+|   `nmpc_status` | `field(default_factory=list)` | _field_ |
+|   `nmpc_cost` | `field(default_factory=list)` | _field_ |
+|   `nmpc_status_str` | `field(default_factory=list)` | _field_ |
+|   `nmpc_iterations` | `field(default_factory=list)` | _field_ |
+|   `transport_term_mag` | `field(default_factory=list)` | _field_ |
+|   `lambda_ref` | `field(default_factory=list)` | _field_ |
+|   `lambda_qp` | `field(default_factory=list)` | _field_ |
+|   `T_kinetic` | `field(default_factory=list)` | _field_ |
+|   `settling_t` | `field(default_factory=list)` | _field_ |
+|   `settling_T` | `field(default_factory=list)` | _field_ |
+|   `settling_T_target` | `0.0` | _field_ |
+|   `settling_stage1_steps` | `0` | _field_ |
+|   `settling_stage2_steps` | `0` | _field_ |
+|   `settling_exit_reason` | `''` | _field_ |
+|   `inter_step_settles` | `field(default_factory=list)` | _field_ |
+|   `dock_events` | `field(default_factory=list)` | _field_ |
+|   `dock_gate_trace` | `field(default_factory=list)` | _field_ |
+|   `ds_mobile_trace` | `field(default_factory=list)` | _field_ |
+|   `dock_work_trace` | `field(default_factory=list)` | _field_ |
+|   `aborted_steps` | `field(default_factory=list)` | _field_ |
+|   `preplanner_T_steps` | `field(default_factory=list)` | _field_ |
+|   `snapshots` | `field(default_factory=list)` | _field_ |
+|   `environment` | `field(default_factory=dict)` | _field_ |
+| `.to_dict` | `()` | **yes** |
+| `.save` | `(path)` | **yes** |
+| `.load` | `(path)` | not exercised |
 
-### Constantes de module
+### Module constants
 
-| nom | valeur |
+| name | value |
 |---|---|
 | `_ENV_VAR_NAMES` | `('MUJOCO_GL', 'OMP_NUM_THREADS', 'OPENBLAS_N` |
 
 ---
 
-## Structure
+---
 
-Dataclass de canaux (`t`, `phase`, `p_torso`, `hw`, `tau_w`, `dock_events`, …),
-sérialisée par `to_dict()` / `save()`. Le run canonique produit **2077 ticks**.
+## 1. Structure
 
-`capture_environment()` fige les versions de la pile (python, numpy, mujoco,
-pinocchio, casadi, scipy) dans le log — indispensable, car la reproduction à
-l'octet n'a de sens que sur une pile épinglée.
+A dataclass of channels (`t`, `phase`, `p_torso`, `hw`, `tau_w`, `dock_events`,
+`gmo_residual_norm`, ...), serialised by `to_dict()` / `save()`. The canonical
+run produces **2077 ticks** across 86 channels.
 
-`load` n'est pas exercé.
+`capture_environment()` freezes the stack versions (python, numpy, mujoco,
+pinocchio, casadi, scipy) into the log. This is not bookkeeping: byte-identical
+reproduction is meaningless on an unpinned stack, so the log has to say which
+stack produced it. `gate/environment.lock` is the counterpart on the gate side.
 
-## ⚠ Trois canaux exportés ne portent aucun signal
+`load` is unexercised.
 
-Mesuré sur le log canonique :
+## 2. ⚠ Three exported channels carry no signal
 
-| canal | valeur réelle | cause |
+Measured on the canonical log:
+
+| channel | actual content | cause |
 |---|---|---|
-| `H_rO` | **0 partout** | `MomentumDisturbanceEstimator.update()` jamais appelé |
-| `H_dot_est` | **0 partout** | idem |
-| `gmo_contact_state` | **constant 0** | `ContactStateMachine.update()` jamais appelé |
+| `H_rO` | **0 everywhere** | `MomentumDisturbanceEstimator.update()` never called |
+| `H_dot_est` | **0 everywhere** | same |
+| `gmo_contact_state` | **constant 0** | `ContactStateMachine.update()` never called |
 
-À savoir avant de tracer ou d'analyser ces canaux. Détails dans
-`aocs/force_estimator.md` §4 et `estimation/contact_estimator.md`.
+The objects are constructed and their state is read every tick for the log — but
+nothing advances them. Details in `aocs/force_estimator.md` and
+`estimation/contact_estimator.md`.
 
-## Conventions à connaître
+Worth knowing before plotting or analysing any of the three.
 
-- **`nmpc_ok = 0` = « non appelé »**, pas « échoué ». 1368 des 2077 ticks. Le
-  taux réel est 100 % (709/709). Corriger l'encodage changerait le CSV gelé et
-  demanderait une exception Tier-1 du gate — reporté après soumission.
-- La référence de CoM saute vers le CoM mesuré à l'entrée SS→DS (convention de
-  `_log_ds_tick`).
-- La référence de torse exportée est **continue** depuis le correctif de maintien
-  terminal — journalisation seule, contrôle prouvé identique à l'octet.
+## 3. Conventions that will mislead a reader who does not know them
 
-## Ce qui fait foi
+**`nmpc_ok = 0` means "not called", not "failed."** The NMPC runs only in SS and
+the terminal settle; DS interstep ticks are exported as 0. On the canonical that
+is **1368 of 2077 ticks**, so reading the column naively gives a **false 34.1 %**
+success rate against a true **100 % (709/709)**.
 
-Les métriques de référence ne viennent pas d'ici mais du gate
-(`gate/dock_check.py`) et des exports (`scripts/diag_full_diag_export.py`,
-`scripts/export_figure_data.py`), qui relisent ce `sim_log.json`.
+The encoding was left untouched on purpose: any fix — a different sentinel, or an
+`nmpc_called` column — changes the fulldiag CSV and would require regenerating
+the frozen paper baseline under a Tier-1 gate exception. Documented instead;
+revisit after submission.
 
-## Voir aussi
+**The CoM reference snaps to the measured CoM** at SS->DS entry (`_log_ds_tick`
+writes `e_com = 0` with `ref := measured`). Logging convention, decision pending.
 
-- vue d'ensemble du paquet : [`simulation.md`](simulation.md)
+**The torso reference is continuous** across SS->DS->SS since the terminal-hold
+fix — logging only, control proven byte-identical by full re-run.
+
+## 4. What is authoritative
+
+Reference metrics do not come from here directly but from the gate
+(`gate/dock_check.py`) and the exporters (`scripts/diag_full_diag_export.py`,
+`scripts/export_figure_data.py`), which re-read this `sim_log.json`.
+
+## See also
+
+- package overview: [`simulation.md`](simulation.md)
