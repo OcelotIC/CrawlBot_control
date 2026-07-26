@@ -150,7 +150,17 @@ this list, and measurement contradicts it: all `crawlbot` imports in *both* scri
 `lutze_baseline/sim_lutze.py` — resolve at HEAD. Do not assume a script is already broken;
 import-check it. This is what caused step 5 to be reverted (§C5).
 
-### C5. `locomotion_planner.py` — proposed for deletion, KEPT
+### C5. `locomotion_planner.py` — KEPT in CLEANUP-18, **retracted in CLEANUP-23**
+
+⚠ **This entry is superseded.** The reversal below rested on `lutze_baseline/sim_lutze.py`
+being a working consumer. CLEANUP-23 measured that it **cannot run** — it dies on the first
+state conversion with `shape (12,) into shape (14,)`, having never been migrated to the 7-DOF
+model. Import resolution was the wrong instrument for the question "is this alive".
+
+`locomotion_planner.py` therefore has no working consumer and goes back on the removal list.
+Original reasoning kept below for the record.
+
+
 
 CLEANUP-16 ranked "delete `locomotion_planner.py` (205 lines)" as step 5, risk "low, but breaks
 2 legacy scripts". Measured: it has **three** consumers, all import-clean at HEAD, and one of
