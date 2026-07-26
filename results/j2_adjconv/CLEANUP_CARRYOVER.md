@@ -77,6 +77,20 @@ deleting.
 - `dca.main` sets `cfg.ds_centroidal_mode=True` for the whole run including the trailing
   settle, so flags keyed on it cannot discriminate the DWELL.
 
+### A5. 6-DoF-era dimensions in `crawlbot/` docstrings (CLEANUP-28)
+
+`robot_interface.get_contact_jacobians` documents its return as `(6*nc, 18)`
+(`robot_interface.py:440`). The model is 7-DoF-per-arm: `nv = 20`. The same
+staleness was fixed in the test harness's `_integrate` docstring during
+CLEANUP-28 (`nv=18`, 12 joints → `nv=20`, 14 joints), but this one is inside
+`crawlbot/`, so it drags the Rule-15 routine (doc regeneration + full gate) with
+it and was deliberately kept out of a tests-only commit.
+
+Worth a sweep rather than a one-line fix: the 6-DoF upgrade left dimension
+comments behind in more than one place, and `gate/verify_docs.py` checks that
+cited symbols *resolve*, not that prose dimensions are right — so nothing catches
+this class automatically.
+
 ---
 
 ## B. Blocked on a decision

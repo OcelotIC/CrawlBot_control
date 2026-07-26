@@ -256,6 +256,16 @@ Not "diagnose 8 tests". Two decisions on one helper:
   component test, and it is worth doing for exactly the reason §3 gives: the
   module the paper rests on currently has none.
 
+> **Refined by CLEANUP-28** (`PHASE_CLEANUP_28_TEST_REWORKED_QP_PORT.md`): the
+> retire/port split above was drawn from which *mechanism* each test named, and
+> that over-retires. Measured on the current stack, **6 of the 8 assertions hold
+> at their original thresholds** — including T7 (torso 1.800 mm / EE 0.481 mm /
+> 0.318°), T9 (residual 8.9e-16) and T10 (0 passivity violations in both DS
+> modes). Only **T8** (soft-CoM residual, task deleted) and **T-MOM/4** (Variant B,
+> `ss_alpha_tl_weak`) are unportable. A test whose numbers survive a
+> re-architecture is testing physics, not architecture — the mechanism it was
+> written against is the wrong thing to retire it on.
+
 ---
 
 ## 5. Recommendation
@@ -271,8 +281,8 @@ Concretely:
 | action | tests |
 |---|---:|
 | **keep as-is** (A + B + C) | **154** |
-| **retire** — `test_mid_waypoint_reshape` ×3, `test_reworked_qp` T7/T8/T9/T10 ×4 (M2 stack removed, §4) | 7 |
-| **port to the two-task API** — `TestPhase20TMOM` ×4: the T-MOM task is live; only their helper is stale (§4) | 4 |
+| **retire** — `test_mid_waypoint_reshape` ×3, plus `test_reworked_qp` T8 + T-MOM/4 (subject deleted; CLEANUP-28 §2) | 5 |
+| **port to the two-task API** — the other 6 `test_reworked_qp`: all 6 hold at their original thresholds (CLEANUP-28 §3). **Done** | 6 |
 | **move** — `test_torso_planner_piecewise_continuous` → `test_planners_6d.py` | 1 |
 | **open question** — `test_far_infeasible_under_tight_rate`, the one genuinely pre-existing failure | 1 |
 | **fate follows their subject** — `test_diagnostics` (10), `test_trajectory_aware_ik` (4) | 14 |
