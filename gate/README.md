@@ -36,6 +36,24 @@ machine-readable `gate/last_verdict.json`.
 
 Overall verdict = PASS iff checks 1+2+3 pass. Check 4 is advisory.
 
+## Reading the physical result — `gate/dock_check.py`
+
+The gate's verdict is a *hash* statement. It entails identical docks, but never
+shows them, and "the CSV is byte-identical" is not the sentence a reviewer wants.
+After a replay:
+
+```bash
+MUJOCO_GL=disabled PYTHONPATH=. python3 gate/dock_check.py \
+    results/gate_run_scratch/sim_log.json
+```
+
+Prints the six **at-weld** `dock_events` d_mm against the frozen 2.5 table with
+per-step margin to the 5 mm capture radius, plus θ_s / h_w / e_com peaks and the
+QP-failure count. Exits non-zero on divergence.
+
+Rule 10 applies: at-weld only. It deliberately does **not** compute a
+min-over-swing distance, which is a fly-by artifact.
+
 ## Provenance
 
 - Baseline reference point: **commit `bfd5509`** (main HEAD at founding; the first
@@ -52,6 +70,7 @@ Overall verdict = PASS iff checks 1+2+3 pass. Check 4 is advisory.
 |---|---|---|
 | `run_gate.py` | orchestrator (4 checks, verdict) | yes |
 | `replay_canonical.py` | isolated managed-scenario replay | yes |
+| `dock_check.py` | headline canonical numbers from a replay log | yes |
 | `environment.lock` | pinned stack (founding baseline) | yes |
 | `EXCEPTIONS.md` | acceptance policy + sign-off ledger | yes |
 | `last_verdict.json` | latest run output (founding = baseline) | yes |

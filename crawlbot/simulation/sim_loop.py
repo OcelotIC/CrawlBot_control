@@ -1470,12 +1470,8 @@ class SimulationLoop:
             'traj_drift': traj_drift,
         })
 
-        # Clear any prior swing-phase override. CLEANUP-15 removed the
-        # mid-waypoint reshape and path-feasibility probe (both flags were
-        # False on the canonical), so nothing registers an override any
-        # more and SwingPlanner.reference_at() always takes the
-        # scheduler-driven gait-plan path.
-        self.swing_planner.clear_phase_overrides()
+        # CLEANUP-18: the SwingPlanner phase-override mechanism was removed
+        # entirely; reference_at() always takes the scheduler-driven gait plan.
 
         # 2. Run the coarse pre-planner. T_step is produced by the
         #    pre-planner from the momentum envelope; on failure we do
@@ -3175,11 +3171,11 @@ class SimulationLoop:
         # switch and ramps during settle. Log the clamped planner pose
         # instead (terminal quintic pose p_t1 / initial hold) so the
         # exported reference is continuous across the whole traversal.
-        # When a phase DOES cover t_log (run-B DWELL set_from_waypoints
-        # moving reference), p_torso_ref_used is kept — the QP genuinely
-        # tracks that moving centroidal reference. NB the guard cannot
-        # key on ds_centroidal_active: the locked config runs centroidal
-        # DS in the trailing settle too (dca sets ds_centroidal_mode).
+        # When a phase DOES cover t_log, p_torso_ref_used is kept — the QP
+        # genuinely tracks that moving centroidal reference. NB the guard
+        # cannot key on ds_centroidal_active: the locked config runs
+        # centroidal DS in the trailing settle too (dca sets
+        # ds_centroidal_mode).
         if (phase == 'DS' and settle_mode
                 and not self.torso_planner.has_phase_at(t_log)):
             p_torso_ref_log = self.torso_planner.reference_at_clamped(

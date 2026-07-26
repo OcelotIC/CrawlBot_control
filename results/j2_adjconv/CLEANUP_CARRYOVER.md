@@ -138,6 +138,26 @@ is probably cleaner than repair:
 | `test_qp_tracking{,_v19,_v20,_v21}.py` | `H_base_swing` / `swing_v_slice` kwargs |
 | `bisect_qp_cascade.py` | same |
 | `diag_option_d_tube.py` | the `_tube_*` counters |
+| `test_integration.py` (CLEANUP-18) | `SwingPlanner.swing_trajectory` — its only caller |
+
+**Correction (CLEANUP-18).** The CLEANUP-16 audit stated that `scripts/test_integration.py` and
+`scripts/sim_torso6d.py` were "already in the non-functional list §C3". They were **not** on
+this list, and measurement contradicts it: all `crawlbot` imports in *both* scripts — and in
+`lutze_baseline/sim_lutze.py` — resolve at HEAD. Do not assume a script is already broken;
+import-check it. This is what caused step 5 to be reverted (§C5).
+
+### C5. `locomotion_planner.py` — proposed for deletion, KEPT
+
+CLEANUP-16 ranked "delete `locomotion_planner.py` (205 lines)" as step 5, risk "low, but breaks
+2 legacy scripts". Measured: it has **three** consumers, all import-clean at HEAD, and one of
+them is **`lutze_baseline/sim_lutze.py`** — a *package*, not a script, carrying the M0 / Lutze
+comparison baseline that backs the paper's §II differentiation table. `LocomotionPlanner` is
+live there (`sim_lutze.py:175-266`: construct, `calibrate_from_config`, two `reference_at`
+calls). That is a paper artifact, not research sediment — the same KEEP class as
+`sequence_loader.py` ("unused on the canonical ≠ retired").
+
+Step 5 was executed then reverted within CLEANUP-18. To revisit, the question is not "is it dead
+on the canonical" (it is) but "is the Lutze baseline still to be re-run" — an Idriss call.
 
 ### C4. Eight silent canonical values (Rule 5)
 
