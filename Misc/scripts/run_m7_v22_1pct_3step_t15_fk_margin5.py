@@ -33,7 +33,7 @@ Run:
 only, not physics.)
 
 Output:
-    results/M7_1pct_3step_v22_t15_fk/
+    Misc/runs/M7_1pct_3step_v22_t15_fk/
         sim_log.json, metrics.csv, physics_trace.pkl, ik_trace.json,
         diagnostic plots.
 """

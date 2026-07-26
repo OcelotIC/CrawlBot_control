@@ -11,7 +11,7 @@ arrive in Phases 2-5 as the planner code lands.
 
 Run:
     PYTHONPATH=. MUJOCO_GL=disabled python3 -m pytest \\
-        tests/test_fk_reference_consistency.py -v
+        Misc/tests/test_fk_reference_consistency.py -v
 """
 from __future__ import annotations
 
@@ -344,7 +344,7 @@ def test_E7_t15_step2_dock_under_fk_mode():
         PYTHONPATH=. MUJOCO_GL=disabled python3 \\
             Misc/scripts/run_m7_v22_1pct_3step_t15_fk.py
 
-    The test loads ``results/M7_1pct_3step_v22_t15_fk/sim_log.json``
+    The test loads ``Misc/runs/M7_1pct_3step_v22_t15_fk/sim_log.json``
     and applies these gates:
 
       - All 3 steps DOCKED (presence in log['dock_events']).

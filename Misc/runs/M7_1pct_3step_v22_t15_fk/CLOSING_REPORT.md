@@ -263,7 +263,7 @@ Authoritative artefact:
 
 ### §2.2  Unit tests (5 added, 200 pre-existing pass)
 
-`tests/test_fk_reference_consistency.py` (~510 lines).
+`Misc/tests/test_fk_reference_consistency.py` (~510 lines).
 
 | ID | Validates | Status |
 |:--:|---|:--:|
@@ -853,7 +853,7 @@ origin/main
 | `crawlbot/planning/swing_planner.py` | edited | +100 |
 | `crawlbot/simulation/sim_loop.py` | edited | +70 |
 | `crawlbot/simulation/config.py` | edited | +5 |
-| `tests/test_fk_reference_consistency.py` | new | +510 |
+| `Misc/tests/test_fk_reference_consistency.py` | new | +510 |
 | `Misc/scripts/diagnostic_stance_deviation_along_geodesic.py` | new | +400 (Phase 0) |
 | `Misc/scripts/run_m7_v22_1pct_3step_t15_fk.py` | new | +170 |
 | `Misc/scripts/run_m7_v22_1pct_3step_t15_fk_aocs_off.py` | new | +170 |
@@ -869,7 +869,7 @@ Misc/runs/diagnostic/stance_deviation_along_geodesic/   ← Phase 0
   all_steps_delta_stance.png   all_steps_fk_smoothness.png
   summary.txt
 
-results/M7_1pct_3step_v22_t15_fk/                     ← Phase 5 baseline FK
+Misc/runs/M7_1pct_3step_v22_t15_fk/                     ← Phase 5 baseline FK
   CLOSING_REPORT.md (this file)
   sim_log.json   physics_trace.pkl
 
@@ -892,7 +892,7 @@ docs/architecture/
 Misc/runs/diagnostic/stance_deviation_along_geodesic/
   PHASE0_FINDINGS.md
 
-results/M7_1pct_3step_v22_t15_fk/
+Misc/runs/M7_1pct_3step_v22_t15_fk/
   CLOSING_REPORT.md                                   ← this file
 ```
 

@@ -108,7 +108,7 @@ genuine, expected soft-weld residual.
 `pytest tests/` → **220 passed, 1 failed**. The single failure
 (`test_E7_t15_step2_dock_under_fk_mode`) is the **same pre-existing failure** that fails identically on
 clean `21cec74` (verified in Part 1: it validates a committed, stale FK-reference artefact
-`results/M7_1pct_3step_v22_t15_fk/sim_log.json` that already carries aborted steps — the loop-free /
+`Misc/runs/M7_1pct_3step_v22_t15_fk/sim_log.json` that already carries aborted steps — the loop-free /
 FK-mapping "Open" item). It does **not** read Fix-A output. So **Fix A introduces zero new test
 failures** (220 pass, same as the clean tree) — notably, no traversal/dock test regressed despite the
 impact-map change, and `test_reworked_qp` is 8/8 (QP untouched).

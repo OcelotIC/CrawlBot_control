@@ -162,7 +162,7 @@ were at SS-exit, just bled of velocity.
 
 ### §1.3  Empirical inter-step DS durations on T15
 
-From the merged-main FK run (`results/M7_1pct_3step_v22_t15_fk/sim_log.json`):
+From the merged-main FK run (`Misc/runs/M7_1pct_3step_v22_t15_fk/sim_log.json`):
 
 | Phase | t [s] | Duration | Exit reason |
 |---|---|---|---|
@@ -931,13 +931,13 @@ the *task-balance* impossibility that remained."
 - `Misc/reports/architecture/T15_step2_diagnosis_and_resolution.md` —
   synthesis (PR #15 base).
 - `docs/architecture/IK_FORMULATION.md` — IK formulation spec.
-- `results/M7_1pct_3step_v22_t15_fk/CLOSING_REPORT.md` — PR #15
+- `Misc/runs/M7_1pct_3step_v22_t15_fk/CLOSING_REPORT.md` — PR #15
   closing report (the failure-mode pinpointing that motivated
   this proposal).
 
 ### §9.3  Diagnostic data this proposal builds on
 
-- `results/M7_1pct_3step_v22_t15_fk/{sim_log.json,
+- `Misc/runs/M7_1pct_3step_v22_t15_fk/{sim_log.json,
   physics_trace.pkl}` — multi-step FK baseline (steps 0/1 dock,
   step 2 fails 412 mm).
 - `Misc/runs/M7_step2_isolation/A_bypass_on/{sim_log.json,

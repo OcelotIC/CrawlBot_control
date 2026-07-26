@@ -107,7 +107,13 @@ Production-dead (zero `crawlbot/` callers) but used by 5 tests + 1 script. Tier 
 
 ## C. Environment & repo hygiene
 
-### C1. `setup_env.sh` produces a broken pinocchio on a fresh container ⚠ highest practical value
+### C1. `setup_env.sh` produces a broken pinocchio on a fresh container — **RESOLVED (CLEANUP-26)**
+
+Pinned in `setup_env.sh` alongside `pin==3.9.0`, and added to the error hint the script
+prints when the import check fails. Confirmed by `ldd` on pin's compiled extension: it links
+`liburdfdom_*.so.4.0` and `libtinyxml2.so.10`, exactly the majors `~=4.0` / `~=10.0` force.
+Original text kept for the record:
+
 
 It pins `pin==3.9.0` but not its cmeel ABI dependencies, so pip resolves
 `cmeel-urdfdom 6.0.0` / `cmeel-tinyxml2 11.0.0` while pin's binary needs
@@ -132,14 +138,23 @@ byte-wise run to run (±1 kB on identical plots). The repo can therefore never b
 after `pytest`, which undercuts the gate's bit-identity discipline. Fix: gitignore them or point
 the tests at a scratch dir.
 
-### C6. ⚠ CLEANUP-17 broke a test module — `constrained_geodesic` had a test consumer
+### C6. CLEANUP-17 broke a test module — **RESOLVED (CLEANUP-26)**
 
-`tests/test_fk_reference_consistency.py:28` imports six symbols from
+The module was **retired** to `Misc/tests/`, with its data fixture
+(`Misc/runs/M7_1pct_3step_v22_t15_fk/`) following, since it was the only consumer. The suite
+now collects **228 tests with zero errors** — end to end for the first time since CLEANUP-17.
+Retiring rather than repairing was the right call: 8 of the 9 tests reach the deleted module
+through the `smoothed` fixture, and the 9th validates an FK-mode run, a path removed from
+`sim_loop` in CLEANUP-15 whose generator script is already under `Misc/scripts/`. Repairing
+would have meant restoring the feature. Original analysis kept:
+
+
+`Misc/tests/test_fk_reference_consistency.py:28` imports six symbols from
 `crawlbot/planning/constrained_geodesic.py`, deleted in CLEANUP-17. The result is a
 **collection error**, which interrupts the whole pytest run rather than failing one test:
 
 ```
-ImportError while importing test module 'tests/test_fk_reference_consistency.py'
+ImportError while importing test module 'Misc/tests/test_fk_reference_consistency.py'
 E   ModuleNotFoundError: No module named 'crawlbot.planning.constrained_geodesic'
 ```
 
@@ -157,7 +172,7 @@ the module's 9 tests all exercise the FK-reference / geodesic path that CLEANUP-
 deliberately removed, so the tests are testing a feature that no longer exists. Retiring the
 file to `Misc/` is consistent — but note `test_E7_t15_step2_dock_under_fk_mode` is one of the two
 known pre-existing failures in CLAUDE.md, and it is the only consumer of the
-`results/M7_1pct_3step_v22_t15_fk/` fixture. Moving the file orphans that fixture too.
+`Misc/runs/M7_1pct_3step_v22_t15_fk/` fixture. Moving the file orphans that fixture too.
 
 ### C3. Legacy research scripts now referencing removed symbols
 

@@ -123,7 +123,7 @@ covers paths, lines and symbols — not numeric values."* It is now covered.
 
 | finding | status |
 |---|---|
-| `tests/test_fk_reference_consistency.py` — collection **ERROR**: imports `constrained_geodesic`, deleted in CLEANUP-17 | recorded (`CARRYOVER` C6), **not fixed** — retiring a test file is a coverage decision |
+| `Misc/tests/test_fk_reference_consistency.py` — collection **ERROR**: imports `constrained_geodesic`, deleted in CLEANUP-17 | recorded (`CARRYOVER` C6), **not fixed** — retiring a test file is a coverage decision |
 | three `test_*` files collect nothing (the lutze pattern) | two moved in CLEANUP-24; `test_reachability.py` remains |
 | 228 tests collect from `tests/` + `benchmarks/` | — |
 

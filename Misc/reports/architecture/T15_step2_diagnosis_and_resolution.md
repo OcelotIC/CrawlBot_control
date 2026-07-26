@@ -999,7 +999,7 @@ No edits to `crawlbot/core/ik.py` (the `_interpolate_q_quintic` helper at line 4
 
 ### §8.2  Tests
 
-A new `tests/test_fk_reference_consistency.py` with 8 tests:
+A new `Misc/tests/test_fk_reference_consistency.py` with 8 tests:
 
 1. TorsoPlanner FK endpoint exactness (FK at q_start matches
    ref at τ=0; same at τ=1; v=0 and a=0 at both).
