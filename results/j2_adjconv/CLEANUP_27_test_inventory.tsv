@@ -1,0 +1,181 @@
+file	class	test	line	asserts	marks	doc	imports
+test_aocs_orbital.py	TestOrbitalTerm	test_zero_accel_matches_legacy	54	0		If v_com is constant across the step (dv_com=0), then the	aocs.force_estimator
+test_aocs_orbital.py	TestOrbitalTerm	test_nonzero_accel_adds_orbital	77	0		Pure linear acceleration in +x with r_com in +x and -z	aocs.force_estimator
+test_aocs_orbital.py	TestOrbitalTerm	test_desaturation_term_alone	111	0		With zero accelerations and zero centroidal rate but hw out	aocs.force_estimator
+test_aocs_orbital.py	TestOrbitalTerm	test_clipping_to_tau_w_max	138	0		Large orbital + centroidal rates should be clipped.	aocs.force_estimator
+test_aocs_orbital.py	TestOrbitalTerm	test_orbital_product_rule_identity	152	0		Verify d/dt(r × m·v) = r × m·dv̇ numerically (not v × m·v).	aocs.force_estimator
+test_aocs_physics.py	TestEstimatorHrO	test_estimator_H_rO_computation	24	0		Verify H_{r/O} = L_com + cross(r_com, m * v_com).	aocs.force_estimator
+test_aocs_physics.py	TestEstimatorDerivative	test_estimator_zero_derivative_constant_input	47	0		Constant inputs should produce H_dot -> 0 after warmup.	aocs.force_estimator
+test_aocs_physics.py	TestEstimatorDerivative	test_estimator_step_response	65	1		A step change in L_com should produce transient H_dot that decays.	aocs.force_estimator
+test_aocs_physics.py	TestEstimatorTransport	test_estimator_transport_term	105	0		With constant H and non-zero omega_s, H_dot = cross(omega_s, H_rO).	aocs.force_estimator
+test_aocs_physics.py	TestEstimatorReset	test_estimator_reset	138	2		After reset(), estimator behaves like a fresh instance.	aocs.force_estimator
+test_aocs_physics.py	TestEstimatorAnalytical	test_estimator_analytical_variant	173	0		update_analytical with known values matches expected H_dot.	aocs.force_estimator
+test_aocs_physics.py	TestAOCSCommand	test_aocs_command_basic	210	0		Basic feedforward: tau_w = -H_dot_est when other terms are zero.	aocs.force_estimator
+test_aocs_physics.py	TestAOCSCommand	test_aocs_command_clipping	225	1		Verify tau_w_max clipping.	aocs.force_estimator
+test_aocs_physics.py	TestAOCSCommand	test_aocs_command_damping	242	0		Non-zero omega_s adds +K_omega * omega_s damping.	aocs.force_estimator
+test_aocs_physics.py	TestAOCSCommand	test_aocs_command_damping_physical_consistency	266	2		Damping term must produce a torque that REDUCES ω_s.	aocs.force_estimator
+test_aocs_physics.py	TestAOCSCommand	test_aocs_command_desaturation	296	0		Non-zero hw with K_h > 0 adds desaturation term.	aocs.force_estimator
+test_aocs_physics.py	TestAOCSCommand	test_aocs_command_all_terms	314	0		All terms combined: feedforward + damping + desaturation.	aocs.force_estimator
+test_aocs_physics.py	TestAOCSCommandLegacyPID	test_pid_numerical_theta_sign	361	2		θ_s > 0 ⇒ τ_w > 0 (positive damping). Numerical mode.	aocs.force_estimator
+test_aocs_physics.py	TestAOCSCommandLegacyPID	test_pid_model_theta_sign	375	2		θ_s > 0 ⇒ τ_w > 0 (positive damping). Model mode.	aocs.force_estimator
+test_aocs_physics.py	TestAOCSCommandLegacyPID	test_pid_reduces_to_pd_when_K_theta_zero	391	0		K_theta=0 should match the corresponding PD function exactly.	aocs.force_estimator
+test_coarse_preplanner.py	TestBuildAndSolve	test_build	70	2		M6 — CoarsePrePlanner tests.	planning
+test_coarse_preplanner.py	TestBuildAndSolve	test_solve_nominal	74	4		M6 — CoarsePrePlanner tests.	planning
+test_coarse_preplanner.py	TestBuildAndSolve	test_solve_time_budget	81	1		Spec §6.2: < 500 ms per solve (after warm-up).	planning
+test_coarse_preplanner.py	TestBuildAndSolve	test_lazy_build	92	3		Solve before explicit build() should still work.	planning
+test_coarse_preplanner.py	TestBoundaryConditions	test_initial_state_exact	108	3		M6 — CoarsePrePlanner tests.	planning
+test_coarse_preplanner.py	TestBoundaryConditions	test_terminal_position_exact	114	1		M6 — CoarsePrePlanner tests.	planning
+test_coarse_preplanner.py	TestBoundaryConditions	test_terminal_velocity_small	118	1		M6 — CoarsePrePlanner tests.	planning
+test_coarse_preplanner.py	TestBoundaryConditions	test_terminal_angular_momentum_small	125	1		M6 — CoarsePrePlanner tests.	planning
+test_coarse_preplanner.py	TestMomentumBox	test_hw_box_all_knots	137	1		M6 — CoarsePrePlanner tests.	planning
+test_coarse_preplanner.py	TestMomentumBox	test_terminal_margin	147	1		Last knot must satisfy the tightened κ·h_max box.	planning
+test_coarse_preplanner.py	TestMomentumBox	test_wrench_bounds	158	2		M6 — CoarsePrePlanner tests.	planning
+test_coarse_preplanner.py	TestMomentumBox	test_ldot_rate_bound	165	1		|L̇_com|_∞ ≤ τ_{w,max} across the trajectory.	planning
+test_coarse_preplanner.py	TestPositionDependentEnvelope	test_both_feasible_nominal	211	2		M6 — CoarsePrePlanner tests.	planning
+test_coarse_preplanner.py	TestPositionDependentEnvelope	test_far_uses_more_angular_momentum	217	1		|L_com|_∞ at r=3 m should be at least 10x larger than at r=1 m.	planning
+test_coarse_preplanner.py	TestPositionDependentEnvelope	test_far_infeasible_under_tight_rate	233	2		Tight L̇ rate bound: near stays feasible, far becomes infeasible.	planning
+test_coarse_preplanner.py	TestInterpolation	test_knot_values_exact	258	3		M6 — CoarsePrePlanner tests.	planning
+test_coarse_preplanner.py	TestInterpolation	test_clamping	266	2		M6 — CoarsePrePlanner tests.	planning
+test_coarse_preplanner.py	TestInterpolation	test_midpoint_linear	273	1		M6 — CoarsePrePlanner tests.	planning
+test_coarse_preplanner.py	TestNonzeroConservationConst	test_nonzero_c	291	2		M6 — CoarsePrePlanner tests.	planning
+test_contact_dynamics.py	TestContactConfigFromPhase	test_contact_config_from_phase_single_a	27	3		SINGLE_A gives nc=1, active=(True, False).	planning.contact_scheduler,solvers.contact_phase
+test_contact_dynamics.py	TestContactConfigFromPhase	test_contact_config_from_phase_single_b	37	3		SINGLE_B gives nc=1, active=(False, True).	planning.contact_scheduler,solvers.contact_phase
+test_contact_dynamics.py	TestContactConfigFromPhase	test_contact_config_from_phase_double	47	3		DOUBLE gives nc=2, active=(True, True).	planning.contact_scheduler,solvers.contact_phase
+test_contact_dynamics.py	TestContactConfigFromPhase	test_contact_config_active_positions	57	3		active_contact_positions returns only positions of active contacts.	planning.contact_scheduler,solvers.contact_phase
+test_contact_dynamics.py	TestMomentumMap	test_momentum_map_single_support	88	0		In single-support-A: columns 6:12 zero, 0:3 = skew(lever_A), 3:6 = I_3.	planning.contact_scheduler,solvers.contact_phase
+test_contact_dynamics.py	TestMomentumMap	test_momentum_map_symmetry_check	110	0		For symmetric contacts with r_com at midpoint, force columns are equal.	planning.contact_scheduler,solvers.contact_phase
+test_contact_dynamics.py	TestMomentumSpikeDocumentation	test_momentum_spike_box_vs_norm_documentation	140	2		Document: per-component box |L_i| <= L_max permits ||L||_2 > L_max.	planning.contact_scheduler,solvers.contact_phase
+test_contact_dynamics.py	TestWeldConstraints	test_weld_equality_constraints_exist	180	2		MuJoCo model should contain equality constraints (welds) for docking.	planning.contact_scheduler,solvers.contact_phase
+test_contact_dynamics.py	TestQPMujocoForceGap	test_qp_mujoco_force_gap_documentation	206	1		Document the known ~33x gap between QP lambda and MuJoCo constraint forces.	planning.contact_scheduler,solvers.contact_phase
+test_contact_dynamics.py	TestGaitPlanTiming	test_gait_plan_timing_consistency	244	3		Gait plan timing: t_start[0]==0, t_end[-1]==total, durations match.	planning.contact_scheduler,solvers.contact_phase
+test_contact_dynamics.py	TestGaitPlanTiming	test_contact_config_at_returns_correct_phase	293	7		contact_config_at(t) returns the correct phase for each time segment.	planning.contact_scheduler,solvers.contact_phase
+test_contact_estimator.py	TestObserverConvergence	test_converges_to_constant_external_force	36	0		With constant M, C=0, tau=0, and p_dot = tau_ext, r should converge.	estimation.contact_estimator
+test_contact_estimator.py	TestObserverConvergence	test_convergence_rate	64	0		Time constant should be approximately 1/K_O.	estimation.contact_estimator
+test_contact_estimator.py	TestZeroForce	test_zero_residual_no_contact	99	1		tau_ext = 0, tau_applied drives motion => r ~ 0.	estimation.contact_estimator
+test_contact_estimator.py	TestZeroForce	test_zero_residual_with_coriolis	122	1		Non-zero C(q,v) but no external force => r ~ 0.	estimation.contact_estimator
+test_contact_estimator.py	TestStateMachine	test_full_transition_sequence	156	9		Test suite for the Generalized Momentum Observer (GMO) and ContactStateMachine.	estimation.contact_estimator
+test_contact_estimator.py	TestStateMachine	test_force_mode_requires_residual	187	3		In force_mode, low distance alone should NOT trigger CONTACT.	estimation.contact_estimator
+test_contact_estimator.py	TestStateMachine	test_hysteresis_reset	205	2		Moving far away resets to NO_CONTACT.	estimation.contact_estimator
+test_contact_estimator.py	TestDebounce	test_transient_does_not_confirm	226	3		Test suite for the Generalized Momentum Observer (GMO) and ContactStateMachine.	estimation.contact_estimator
+test_contact_estimator.py	TestDebounce	test_sustained_contact_confirms	244	1		Test suite for the Generalized Momentum Observer (GMO) and ContactStateMachine.	estimation.contact_estimator
+test_contact_estimator.py	TestReset	test_observer_reset	264	2		Test suite for the Generalized Momentum Observer (GMO) and ContactStateMachine.	estimation.contact_estimator
+test_contact_estimator.py	TestReset	test_state_machine_reset	285	3		Test suite for the Generalized Momentum Observer (GMO) and ContactStateMachine.	estimation.contact_estimator
+test_diagnostics.py	TestComputeMetrics	test_returns_dict	120	2		Smoke tests for the M0 diagnostic suite.	diagnostics.metrics,diagnostics.plots,diagnostics.runner,simulation.config,simulation.logging
+test_diagnostics.py	TestComputeMetrics	test_all_default_thresholds_covered	126	1		Smoke tests for the M0 diagnostic suite.	diagnostics.metrics,diagnostics.plots,diagnostics.runner,simulation.config,simulation.logging
+test_diagnostics.py	TestComputeMetrics	test_metric_tuple_format	132	2		Smoke tests for the M0 diagnostic suite.	diagnostics.metrics,diagnostics.plots,diagnostics.runner,simulation.config,simulation.logging
+test_diagnostics.py	TestComputeMetrics	test_with_config	141	1		Smoke tests for the M0 diagnostic suite.	diagnostics.metrics,diagnostics.plots,diagnostics.runner,simulation.config,simulation.logging
+test_diagnostics.py	TestComputeMetrics	test_empty_log_all_skip	147	1		Smoke tests for the M0 diagnostic suite.	diagnostics.metrics,diagnostics.plots,diagnostics.runner,simulation.config,simulation.logging
+test_diagnostics.py	TestPrintMetrics	test_prints_without_error	155	1		Smoke tests for the M0 diagnostic suite.	diagnostics.metrics,diagnostics.plots,diagnostics.runner,simulation.config,simulation.logging
+test_diagnostics.py	TestSaveMetricsCSV	test_saves_csv	163	2		Smoke tests for the M0 diagnostic suite.	diagnostics.metrics,diagnostics.plots,diagnostics.runner,simulation.config,simulation.logging
+test_diagnostics.py	TestGeneratePlots	test_creates_all_figures	175	1		Smoke tests for the M0 diagnostic suite.	diagnostics.metrics,diagnostics.plots,diagnostics.runner,simulation.config,simulation.logging
+test_diagnostics.py	TestGeneratePlots	test_empty_log_no_crash	194	1		Smoke tests for the M0 diagnostic suite.	diagnostics.metrics,diagnostics.plots,diagnostics.runner,simulation.config,simulation.logging
+test_diagnostics.py	TestRunDiagnostics	test_full_pipeline	202	4		Smoke tests for the M0 diagnostic suite.	diagnostics.metrics,diagnostics.plots,diagnostics.runner,simulation.config,simulation.logging
+test_frame_conversions.py	TestRoundTrip	test_round_trip_identity	74	0		Identity structure, known torso pose — perfect round-trip.	core.state_conversions
+test_frame_conversions.py	TestRoundTrip	test_round_trip_with_structure_rotation	110	0	pytest.mark.parametrize('angle_deg', [10	Structure rotated about z — torso still recovers after round-trip.	core.state_conversions
+test_frame_conversions.py	TestVelocityCoriolis	test_velocity_coriolis_term	163	0		Non-zero structure omega produces correct Coriolis contribution.	core.state_conversions
+test_frame_conversions.py	TestQuaternionConvention	test_quaternion_convention_mujoco_pinocchio	211	0		45-deg z-rotation: wxyz -> xyzw ordering is correct.	core.state_conversions
+test_frame_conversions.py	TestQuatToEuler	test_quat_wxyz_to_euler_deg_identity	242	0		Identity quaternion -> [0, 0, 0] degrees.	core.state_conversions
+test_frame_conversions.py	TestQuatToEuler	test_quat_wxyz_to_euler_deg_90_yaw	247	0		90-deg yaw -> [0, 0, 90] degrees.	core.state_conversions
+test_frame_conversions.py	TestQuatToEuler	test_quat_wxyz_to_euler_deg_gimbal_lock	254	1		Pure 90-deg pitch (gimbal lock) — no NaN, pitch ~ 90 deg.	core.state_conversions
+test_frame_conversions.py	TestRWADetection	test_rwa_detection	271	0		RWA (nq=29) vs non-RWA (nq=26) produce same Pinocchio output	core.state_conversions
+test_frame_conversions.py	TestJointPassthrough	test_joint_passthrough	318	0		Joints are identical in MuJoCo and Pinocchio representations.	core.state_conversions
+test_ik_anomaly_regression.py		test_step2_anomaly_resolved	50	3		The Phase 4 step-2 anomaly (w_end=4e-8) must not recur.	core,core.ik
+test_ik_anomaly_regression.py		test_step2_determinism	81	0		Two consecutive calls with identical inputs must produce	core,core.ik
+test_ik_anomaly_regression.py		test_seed_set_size	113	3		The multi-start should evaluate at least 6 distinct seeds.	core,core.ik
+test_ik_anomaly_regression.py		test_safety_threshold_triggers_fallback	153	2		When w_min_threshold is set above the converged w_end, the IK	core,core.ik
+test_invariants.py	TestMassMatrix	test_mass_matrix_symmetry	21	0		H should be symmetric at the nominal configuration.	solvers.contact_phase
+test_invariants.py	TestMassMatrix	test_mass_matrix_positive_definite	26	1		All eigenvalues of H should be strictly positive.	solvers.contact_phase
+test_invariants.py	TestMassMatrix	test_mass_matrix_symmetry_random_config	33	0		H should be symmetric at 5 random configurations.	solvers.contact_phase
+test_invariants.py	TestCoMConsistency	test_com_velocity_jacobian_consistency	49	0		v_com should equal J_com @ v at nominal and random configs.	solvers.contact_phase
+test_invariants.py	TestCentroidalMomentum	test_centroidal_momentum_linear	77	0		h_centroidal[0:3] should equal total_mass * v_com.	solvers.contact_phase
+test_invariants.py	TestCentroidalMomentum	test_centroidal_momentum_angular_zero_velocity	89	0		At zero velocity, angular momentum L_com should be zero.	solvers.contact_phase
+test_invariants.py	TestCentroidalMomentum	test_centroidal_momentum_angular_consistency	96	0		L_com should match h_centroidal[3:6] at nonzero velocity.	solvers.contact_phase
+test_invariants.py	TestBiasVector	test_bias_zero_velocity	113	0		With v=0 and zero gravity, bias C should be zero.	solvers.contact_phase
+test_invariants.py	TestBiasVector	test_dynamics_consistency_zero_acceleration	120	0		At zero velocity / zero gravity, C must be zero (=> H@0 + C = 0).	solvers.contact_phase
+test_invariants.py	TestSkew	test_skew_antisymmetry	134	0		skew(v) should be antisymmetric: S == -S.T.	solvers.contact_phase
+test_invariants.py	TestSkew	test_skew_cross_product	142	0		skew(v) @ w should equal np.cross(v, w).	solvers.contact_phase
+test_invariants.py	TestMomentumMap	test_momentum_map_dimensions	159	2		compute_momentum_map should return (3, 12) for any contact mode.	solvers.contact_phase
+test_invariants.py	TestMomentumMap	test_momentum_map_zero_for_inactive	169	0		In single-support-A, columns 6:12 (contact B) should be zero.	solvers.contact_phase
+test_invariants.py	TestContactJacobians	test_contact_jacobian_both_active	182	2		Both contacts active: J is (12, nv), Jdot_dq is (12,).	solvers.contact_phase
+test_invariants.py	TestContactJacobians	test_contact_jacobian_only_A	191	2		Only A active: J is (6, nv), Jdot_dq is (6,).	solvers.contact_phase
+test_invariants.py	TestContactJacobians	test_contact_jacobian_neither_active	200	2		No active contacts: returns (None, None).	solvers.contact_phase
+test_liabilities.py	TestL1SilentExceptionSwallowing	test_nmpc_infeasible_L_reports_failure	89	1		L_com far outside [-L_max, L_max] should make the problem	core.ik,core.robot_interface,core.state_conversions,simulation.config,solvers.centroidal_nmpc,solvers.contact_phase,solvers.nmpc_solver
+test_liabilities.py	TestL1SilentExceptionSwallowing	test_nmpc_nan_input_does_not_silently_succeed	110	1		Passing NaN in the initial state must not silently return	core.ik,core.robot_interface,core.state_conversions,simulation.config,solvers.centroidal_nmpc,solvers.contact_phase,solvers.nmpc_solver
+test_liabilities.py	TestL2HardcodedIKTolerances	test_ik_near_singular_no_nan	142	1		Create a near-singular IK problem (target almost at full arm	core.ik,core.robot_interface,core.state_conversions,simulation.config,solvers.centroidal_nmpc,solvers.contact_phase,solvers.nmpc_solver
+test_liabilities.py	TestL2HardcodedIKTolerances	test_ik_well_conditioned_converges	164	1		For a well-conditioned target (near neutral pose frames),	core.ik,core.robot_interface,core.state_conversions,simulation.config,solvers.centroidal_nmpc,solvers.contact_phase,solvers.nmpc_solver
+test_liabilities.py	TestL2HardcodedIKTolerances	test_dock_configuration_well_conditioned	191	1		dock_configuration should succeed for reachable anchor poses.	core.ik,core.robot_interface,core.state_conversions,simulation.config,solvers.centroidal_nmpc,solvers.contact_phase,solvers.nmpc_solver
+test_liabilities.py	TestL3UncheckedDivision	test_robot_interface_zero_torso_mass_no_crash	220	2		RobotInterface with torso_mass=0.0 should not crash.	core.ik,core.robot_interface,core.state_conversions,simulation.config,solvers.centroidal_nmpc,solvers.contact_phase,solvers.nmpc_solver
+test_liabilities.py	TestL3UncheckedDivision	test_quat_to_euler_no_nan	247	2	pytest.mark.parametrize('qw,qx,qy,qz,des	quat_wxyz_to_euler_deg must never produce NaN, even at gimbal	core.ik,core.robot_interface,core.state_conversions,simulation.config,solvers.centroidal_nmpc,solvers.contact_phase,solvers.nmpc_solver
+test_liabilities.py	TestL3UncheckedDivision	test_quat_to_euler_gimbal_lock_values	256	0		At exact +90 deg pitch, arcsin(sinp) should be clipped to +/-1	core.ik,core.robot_interface,core.state_conversions,simulation.config,solvers.centroidal_nmpc,solvers.contact_phase,solvers.nmpc_solver
+test_liabilities.py	TestL4MissingSolverValidation	test_nmpc_solver_wrong_x0_size	277	0		NMPCSolver.solve() with wrong-sized x0 should raise or clearly	core.ik,core.robot_interface,core.state_conversions,simulation.config,solvers.centroidal_nmpc,solvers.contact_phase,solvers.nmpc_solver
+test_liabilities.py	TestL4MissingSolverValidation	test_centroidal_nmpc_wrong_rcom_size	297	0		CentroidalNMPC.solve() with wrong-length r_com should raise.	core.ik,core.robot_interface,core.state_conversions,simulation.config,solvers.centroidal_nmpc,solvers.contact_phase,solvers.nmpc_solver
+test_liabilities.py	TestL4MissingSolverValidation	test_nmpc_solver_empty_params_when_expected	316	0		When NMPCSolver expects parameters but none are provided,	core.ik,core.robot_interface,core.state_conversions,simulation.config,solvers.centroidal_nmpc,solvers.contact_phase,solvers.nmpc_solver
+test_liabilities.py	TestL5StaleWarmStart	test_warm_start_survives_failed_solve	345	3		Sequence: feasible solve -> infeasible solve -> feasible solve.	core.ik,core.robot_interface,core.state_conversions,simulation.config,solvers.centroidal_nmpc,solvers.contact_phase,solvers.nmpc_solver
+test_liabilities.py	TestL6ConfigConsistency	test_non_integer_dt_ratio_allowed	399	3		GAP: SimConfig(dt_nmpc=0.1, dt_qp=0.03) creates a non-integer	core.ik,core.robot_interface,core.state_conversions,simulation.config,solvers.centroidal_nmpc,solvers.contact_phase,solvers.nmpc_solver
+test_liabilities.py	TestL6ConfigConsistency	test_inverted_hw_bounds_allowed	413	1		GAP: SimConfig allows hw_min > hw_max.  This would make all	core.ik,core.robot_interface,core.state_conversions,simulation.config,solvers.centroidal_nmpc,solvers.contact_phase,solvers.nmpc_solver
+test_liabilities.py	TestL6ConfigConsistency	test_valid_config_sanity	426	1		Baseline: default SimConfig should have sensible values.	core.ik,core.robot_interface,core.state_conversions,simulation.config,solvers.centroidal_nmpc,solvers.contact_phase,solvers.nmpc_solver
+test_liabilities.py	TestL6ConfigConsistency	test_zero_dt_qp_raises_or_creates	438	1		GAP: dt_qp=0 would cause ZeroDivisionError in SimulationLoop's	core.ik,core.robot_interface,core.state_conversions,simulation.config,solvers.centroidal_nmpc,solvers.contact_phase,solvers.nmpc_solver
+test_mapping_layer.py	TestConstruction	test_masses_consistent	50	3		M1 — CoM-to-torso mapping layer tests.	core.com_to_torso_mapping,core.robot_interface
+test_mapping_layer.py	TestConstruction	test_ratio_greater_than_one	56	1		M1 — CoM-to-torso mapping layer tests.	core.com_to_torso_mapping,core.robot_interface
+test_mapping_layer.py	TestConstruction	test_non_torso_joints_exclude_torso	60	2		M1 — CoM-to-torso mapping layer tests.	core.com_to_torso_mapping,core.robot_interface
+test_mapping_layer.py	TestDelta	test_delta_at_neutral_nonzero	70	2		M1 — CoM-to-torso mapping layer tests.	core.com_to_torso_mapping,core.robot_interface
+test_mapping_layer.py	TestDelta	test_delta_shifts_with_base	77	1		If we translate the base by (dx,dy,dz), delta shifts by	core.com_to_torso_mapping,core.robot_interface
+test_mapping_layer.py	TestT3JacobianEquivalence	test_identity_holds_at_neutral	95	1		M1 — CoM-to-torso mapping layer tests.	core.com_to_torso_mapping,core.robot_interface
+test_mapping_layer.py	TestT3JacobianEquivalence	test_identity_at_random_configs	108	1	pytest.mark.parametrize('seed', list(ran	Verify the identity at 10 random configurations.	core.com_to_torso_mapping,core.robot_interface
+test_mapping_layer.py	TestT3JacobianEquivalence	test_identity_is_centroidal_decomposition	124	1		Cross-check: (m_b * J_b + sum_i m_i * J_i) / m_total == J_com.	core.com_to_torso_mapping,core.robot_interface
+test_mapping_layer.py	TestForwardMapping	test_compute_returns_four_arrays	150	4		M1 — CoM-to-torso mapping layer tests.	core.com_to_torso_mapping,core.robot_interface
+test_mapping_layer.py	TestForwardMapping	test_velocity_mapping_linear	165	1		v_b_ref = ratio * v_com_ref  (drop delta_dot in v0).	core.com_to_torso_mapping,core.robot_interface
+test_mapping_layer.py	TestForwardMapping	test_accel_mapping_linear	173	1		M1 — CoM-to-torso mapping layer tests.	core.com_to_torso_mapping,core.robot_interface
+test_mapping_layer.py	TestForwardMapping	test_self_consistency_at_current_state	181	1	pytest.mark.parametrize('seed', list(ran	Consistency: when r_com_ref = r_com(q_current), the mapping	core.com_to_torso_mapping,core.robot_interface
+test_mid_waypoint_reshape.py		test_step2_mid_waypoint_resolves_singularity	63	5		Mid-waypoint IK on T15 step-2 produces a deterministic, well-	core.ik,core.robot_interface,planning.torso_planner
+test_mid_waypoint_reshape.py		test_step0_no_regression	117	3		On a well-conditioned anchor pair, check_path_feasibility	core.ik,core.robot_interface,planning.torso_planner
+test_mid_waypoint_reshape.py		test_torso_planner_piecewise_continuous	160	5		TorsoPlanner piecewise quintic is C0 at t_mid and v=0, a=0 at	core.ik,core.robot_interface,planning.torso_planner
+test_mid_waypoint_reshape.py		test_safety_threshold_triggers_fallback	211	2		When the converged w_worst falls below the threshold, the	core.ik,core.robot_interface,planning.torso_planner
+test_momentum.py	TestSpinOrbitalDecomposition	test_spin_vs_orbital_decomposition	37	3		H_{r/O} = L_com + r_com x (m * v_com) must hold exactly.	
+test_momentum.py	TestSpinOrbitalDecomposition	test_decomposition_multiple_configs	60	4	pytest.mark.parametrize('seed', [42, 43,	Verify decomposition across multiple configurations.	
+test_momentum.py	TestLinearMomentum	test_linear_momentum_equals_mass_times_vcom	78	0		Verify p = m * v_com matches h_centroidal[0:3].	
+test_momentum.py	TestAngularMomentumDecomposition	test_angular_momentum_decomposition_multiple_configs	95	0	pytest.mark.parametrize('seed', [42, 43,	h_centroidal[3:6] == L_com at multiple configs.	
+test_momentum.py	TestOrbitalTerm	test_orbital_term_grows_with_offset	112	1		When CoM is further from origin, the orbital term grows.	
+test_momentum.py	TestZeroVelocity	test_zero_velocity_zero_momentum	147	0		At any config with v=0, all momentum should be zero.	
+test_nmpc_conservation.py	TestT4FromRest	test_t4_converges_and_respects_hw_box	103	3		M3 — NMPC conservation-law tests.	solvers.centroidal_nmpc,solvers.contact_phase
+test_nmpc_conservation.py	TestT5PositionDependent	test_t5_far_step_takes_longer	217	3		M3 — NMPC conservation-law tests.	solvers.centroidal_nmpc,solvers.contact_phase
+test_nmpc_conservation.py	TestT6TerminalMargin	test_t6_terminal_hw_within_kappa	245	2		M3 — NMPC conservation-law tests.	solvers.centroidal_nmpc,solvers.contact_phase
+test_nmpc_qp_consistency.py	TestNMPCConvergence	test_nmpc_converges_from_nominal	43	1		NMPC should converge from nominal (everything at rest).	solvers.centroidal_nmpc,solvers.contact_phase
+test_nmpc_qp_consistency.py	TestNMPCConvergence	test_nmpc_convergence_from_perturbation	57	1		NMPC should converge from a 10% perturbation of nominal.	solvers.centroidal_nmpc,solvers.contact_phase
+test_nmpc_qp_consistency.py	TestNMPCConstraints	test_nmpc_L_com_stays_in_bounds	78	3		L_com must remain within [-L_max, L_max] over the trajectory.	solvers.centroidal_nmpc,solvers.contact_phase
+test_nmpc_qp_consistency.py	TestNMPCConstraints	test_nmpc_Ldot_constraint_documented	102	2		Document that L_dot constraint covers spin only, not orbital.	solvers.centroidal_nmpc,solvers.contact_phase
+test_nmpc_qp_consistency.py	TestNMPCConstraints	test_nmpc_linear_momentum_bounded	126	2		Linear momentum ||m·v_com|| should be bounded by p_max.	solvers.centroidal_nmpc,solvers.contact_phase
+test_nmpc_qp_consistency.py	TestNMPCSolverBehaviour	test_nmpc_cold_vs_warm_start	154	2		Warm start should converge and produce similar cost to cold start.	solvers.centroidal_nmpc,solvers.contact_phase
+test_nmpc_qp_consistency.py	TestNMPCSolverBehaviour	test_nmpc_infeasible_input_reports_failure	178	1		L_com far outside bounds should be reported as infeasible.	solvers.centroidal_nmpc,solvers.contact_phase
+test_nmpc_qp_consistency.py	TestQPContactUtilities	test_qp_feasibility_single_support	199	3		ContactConfig.from_phase gives correct nc and active_contacts.	solvers.centroidal_nmpc,solvers.contact_phase
+test_nmpc_qp_consistency.py	TestQPContactUtilities	test_qp_feasibility_double_support	207	2		Double-support ContactConfig.	solvers.centroidal_nmpc,solvers.contact_phase
+test_nmpc_qp_consistency.py	TestFeedforwardAcceleration	test_compute_feedforward_acceleration	216	0		a_com_ff = (f1 + f2) / m should match compute_feedforward_acceleration.	solvers.centroidal_nmpc,solvers.contact_phase
+test_planners_6d.py	TestDelayedCosine	test_zero_before_delay	40	1		M5 — TorsoPlanner + SwingPlanner 6D tests.	planning.contact_scheduler,planning.swing_planner,planning.torso_planner
+test_planners_6d.py	TestDelayedCosine	test_one_at_end	45	2		M5 — TorsoPlanner + SwingPlanner 6D tests.	planning.contact_scheduler,planning.swing_planner,planning.torso_planner
+test_planners_6d.py	TestDelayedCosine	test_monotonic_after_delay	50	1		M5 — TorsoPlanner + SwingPlanner 6D tests.	planning.contact_scheduler,planning.swing_planner,planning.torso_planner
+test_planners_6d.py	TestDelayedCosine	test_derivative_zero_at_boundaries	58	2		σ̇(τ_d) and σ̇(1) must both be zero (smooth start and end).	planning.contact_scheduler,planning.swing_planner,planning.torso_planner
+test_planners_6d.py	TestDelayedCosine	test_derivative_positive_in_middle	64	1		M5 — TorsoPlanner + SwingPlanner 6D tests.	planning.contact_scheduler,planning.swing_planner,planning.torso_planner
+test_planners_6d.py	TestDelayedCosine	test_derivative_continuity_at_delay	68	1		σ̇ must be continuous at τ_d (both sides = 0).	planning.contact_scheduler,planning.swing_planner,planning.torso_planner
+test_planners_6d.py	TestDelayedCosine	test_concentrates_rotation_in_second_half	78	2		At τ=0.5, σ should still be small since rotation is delayed.	planning.contact_scheduler,planning.swing_planner,planning.torso_planner
+test_planners_6d.py	TestSwingSlerp	test_R_start_at_tau_zero	94	2		M5 — TorsoPlanner + SwingPlanner 6D tests.	planning.contact_scheduler,planning.swing_planner,planning.torso_planner
+test_planners_6d.py	TestSwingSlerp	test_R_end_at_tau_one	106	1		M5 — TorsoPlanner + SwingPlanner 6D tests.	planning.contact_scheduler,planning.swing_planner,planning.torso_planner
+test_planners_6d.py	TestSwingSlerp	test_orientation_held_during_delay	117	2		During the delay window (τ < 0.2), R_ee == R_start exactly.	planning.contact_scheduler,planning.swing_planner,planning.torso_planner
+test_planners_6d.py	TestSwingSlerp	test_omega_smooth_at_delay_boundary	133	2		ω_ee must be continuous at τ=τ_d (no discontinuity).	planning.contact_scheduler,planning.swing_planner,planning.torso_planner
+test_planners_6d.py	TestSwingSlerp	test_full_6d_fields_present	152	6		M5 — TorsoPlanner + SwingPlanner 6D tests.	planning.contact_scheduler,planning.swing_planner,planning.torso_planner
+test_planners_6d.py	TestTorsoLComRef	test_zero_when_no_inertia_set	174	1		M5 — TorsoPlanner + SwingPlanner 6D tests.	planning.contact_scheduler,planning.swing_planner,planning.torso_planner
+test_planners_6d.py	TestTorsoLComRef	test_zero_outside_phases	179	1		M5 — TorsoPlanner + SwingPlanner 6D tests.	planning.contact_scheduler,planning.swing_planner,planning.torso_planner
+test_planners_6d.py	TestTorsoLComRef	test_matches_I_times_omega_at_peak	186	1		At the peak of the SLERP trajectory, L = I · ω should match	planning.contact_scheduler,planning.swing_planner,planning.torso_planner
+test_planners_6d.py	TestTorsoLComRef	test_nonzero_during_rotation	219	1		M5 — TorsoPlanner + SwingPlanner 6D tests.	planning.contact_scheduler,planning.swing_planner,planning.torso_planner
+test_reworked_qp.py	TestT7TrackingSS	test_torso_and_ee_tracking	253	4		M2 — Reworked QP task stack tests.	core.ik,core.robot_interface,solvers.contact_phase,solvers.wholebody_qp
+test_reworked_qp.py	TestT8SoftCoMEffect	test_soft_com_reduces_rms	369	1		M2 — Reworked QP task stack tests.	core.ik,core.robot_interface,solvers.contact_phase,solvers.wholebody_qp
+test_reworked_qp.py	TestT9DynamicsResidual	test_residual_small	399	1		M2 — Reworked QP task stack tests.	core.ik,core.robot_interface,solvers.contact_phase,solvers.wholebody_qp
+test_reworked_qp.py	TestT10DSPassivity	test_energy_decay	453	3		M2 — Reworked QP task stack tests.	core.ik,core.robot_interface,solvers.contact_phase,solvers.wholebody_qp
+test_reworked_qp.py	TestPhase20TMOM	test_static_hold	750	3		M2 — Reworked QP task stack tests.	core.ik,core.robot_interface,solvers.contact_phase,solvers.wholebody_qp
+test_reworked_qp.py	TestPhase20TMOM	test_pure_tracking_per_axis	772	2		M2 — Reworked QP task stack tests.	core.ik,core.robot_interface,solvers.contact_phase,solvers.wholebody_qp
+test_reworked_qp.py	TestPhase20TMOM	test_mass_scalar_sanity	824	4		M2 — Reworked QP task stack tests.	core.ik,core.robot_interface,solvers.contact_phase,solvers.wholebody_qp
+test_reworked_qp.py	TestPhase20TMOM	test_variant_b_weak_reference_coexistence	866	2		M2 — Reworked QP task stack tests.	core.ik,core.robot_interface,solvers.contact_phase,solvers.wholebody_qp
+test_sim_log_environment.py		test_environment_field_populated_and_roundtrip	13	10		Environment-fingerprint capture on SimLog.	simulation.logging
+test_trajectory_aware_ik.py		test_quintic_interpolation_endpoints	10	4		_interpolate_q_quintic(q0, q1, 0)≈q0; (q0, q1, 1)≈q1; zero slope at endpoints.	core.ik
+test_trajectory_aware_ik.py		test_trajectory_ik_matches_endpoint_for_k1	41	3		With n_samples=1, the worst-case product equals the endpoint product.	core.ik
+test_trajectory_aware_ik.py		test_trajectory_ik_improves_worst_case	74	1		Trajectory IK's worst-case is comparable to endpoint IK measured on the same interior samples.	core.ik
+test_trajectory_aware_ik.py		test_chain_consistency	126	5		Chained precompute: each map entry's q_start_assumed equals the previous q_end.	core.ik

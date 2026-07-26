@@ -93,7 +93,16 @@ changes the fulldiag CSV and therefore requires regenerating the frozen paper ba
 `scripts/diag_full_diag_export.py` and `results/j2_figdata/INTERNAL_figdata.md`.
 **Revisit after submission.**
 
-### B2. `_solve_strict` in `hierarchical_qp.py`
+### B2. `_solve_strict` in `hierarchical_qp.py` — **claim RETRACTED (CLEANUP-27)**
+
+⚠ The justification below is **false**. Measured in CLEANUP-27: `_solve_strict` is covered by
+**neither** the gate nor the suite (0/76 statements), and a grep for `_solve_strict` or
+`'strict'` across the **whole repo including `Misc/`** returns exactly one hit — the docstring of
+`WholeBodyQPConfig.method`. There are **no test users and no script users**.
+
+It is the largest single block in `crawlbot/` verified by nothing, and it is removable. Original
+text kept for the record:
+
 
 36 uncovered lines — the largest single dead block left. Dead because `method='weighted'`
 canonically. **Has 2 test users + 6 script users**, so removal is a call about whether the
