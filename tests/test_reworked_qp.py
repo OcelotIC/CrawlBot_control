@@ -17,7 +17,8 @@ Each test step:
   3. Call WholeBodyQP.solve(...)
   4. Integrate: v_new = v + qdd*dt, q_new = integrate(q, v_new*dt)
 
-Produces a plot file results/M2_tests/t7_tracking.png for visual review.
+Produces a plot file results/test_scratch/M2_tests/t7_tracking.png (gitignored)
+for visual review.
 """
 
 import os
@@ -34,7 +35,7 @@ from crawlbot.solvers.contact_phase import ContactConfig, ContactPhase
 
 
 URDF = 'models/VISPA_crawling_fixed.urdf'
-OUTPUT_DIR = 'results/M2_tests'
+OUTPUT_DIR = 'results/test_scratch/M2_tests'
 
 
 # ---------------------------------------------------------------------------
@@ -557,7 +558,7 @@ class TestT10DSPassivity:
 # See memo SS_CENTROIDAL_MOMENTUM_TASK_2026-06 §4 Phase 2.0.
 # ===========================================================================
 
-TMOM_OUTPUT_DIR = 'results/phase2_0_tmom'
+TMOM_OUTPUT_DIR = 'results/test_scratch/phase2_0_tmom'
 
 # Phase-2.0 gate (per Idriss's review decision): gate on TASK-INTRINSIC
 # properties only — (1) formulation correctness and (2) authority MONOTONICITY —

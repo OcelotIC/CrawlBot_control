@@ -2,7 +2,7 @@
 """J2 audit — read-only reproducer of the load-bearing facts.
 
 Re-verifies, against the Fix-A canonical (``main = ae0673e``), every claim
-the J2 cartography report (``results/j2_audit/INTERNAL_j2_audit.md``) leans
+the J2 cartography report (``Misc/runs/j2_audit/INTERNAL_j2_audit.md``) leans
 on. READ-ONLY: it imports class constants + dataclass defaults and locates
 source anchors *by text* (so the printed line numbers track the live tree,
 not a frozen snapshot). No ``crawlbot/`` mutation, no sim run.
@@ -22,7 +22,7 @@ _WBQP = os.path.join(ROOT, 'crawlbot', 'solvers', 'wholebody_qp.py')
 _NMPC = os.path.join(ROOT, 'crawlbot', 'solvers', 'centroidal_nmpc.py')
 _CPHASE = os.path.join(ROOT, 'crawlbot', 'solvers', 'contact_phase.py')
 _DIAG = os.path.join(ROOT, 'scripts', 'diag_cooperative_arms.py')
-_FIXA_META = os.path.join(ROOT, 'results', 'fixA_gate', 'PHASE3_METADATA.txt')
+_FIXA_META = os.path.join(ROOT, 'Misc', 'runs', 'fixA_gate', 'PHASE3_METADATA.txt')
 
 _checks = []  # (ok: bool, label: str, evidence: str)
 
@@ -136,7 +136,7 @@ def main():
     print('\n[H] Canonical SS working point = alpha_torso_pose 24000 (not run_phase3_gate.sh 20000)')
     anchor = find(_FIXA_META, 'alpha-torso-pose 24000', 'fixA_gate metadata WP')
     if anchor:
-        record(True, 'results/fixA_gate/PHASE3_METADATA.txt pins 24000',
+        record(True, 'Misc/runs/fixA_gate/PHASE3_METADATA.txt pins 24000',
                f'PHASE3_METADATA.txt:{anchor[0]}: {anchor[1]}')
 
     # --- Verdict --------------------------------------------------------
@@ -151,7 +151,7 @@ def main():
             print(f'  - {lbl}')
         print('=> tree has drifted from the audited Fix-A canonical state.')
         return 1
-    print('=> matches results/j2_audit/INTERNAL_j2_audit.md.')
+    print('=> matches Misc/runs/j2_audit/INTERNAL_j2_audit.md.')
     print('=' * 78)
     return 0
 

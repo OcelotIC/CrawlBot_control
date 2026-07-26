@@ -21,7 +21,7 @@ or by a QP feedback loop.
 
 Usage:
   PYTHONPATH=. MUJOCO_GL=osmesa python3 scripts/diag_step_zoom.py \
-      results/diag_cooperative_arms/ --step_idx 2
+      Misc/runs/diag_cooperative_arms/ --step_idx 2
 """
 from __future__ import annotations
 

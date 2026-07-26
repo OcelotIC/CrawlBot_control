@@ -28,9 +28,9 @@ Falsifiers:
    a CMM task would be well-conditioned (and the spike is some other
    transient — EE-task / numerical).
 
-Reads:  results/diag_cooperative_arms/sim_log.json (snapshots)
+Reads:  Misc/runs/diag_cooperative_arms/sim_log.json (snapshots)
         models/VISPA_crawling_fixed.urdf
-Writes: results/diag_attribution/probe2_cmm_conditioning/{metrics.json, probe2.png}
+Writes: Misc/runs/diag_attribution/probe2_cmm_conditioning/{metrics.json, probe2.png}
 """
 import os
 import sys
@@ -49,9 +49,9 @@ import matplotlib.pyplot as plt
 from crawlbot.core.robot_interface import RobotInterface
 from crawlbot.core.state_conversions import mujoco_to_pinocchio
 
-LOG = os.path.join(_root, 'results', 'diag_cooperative_arms', 'sim_log.json')
+LOG = os.path.join(_root, 'Misc', 'runs', 'diag_cooperative_arms', 'sim_log.json')
 URDF = os.path.join(_root, 'models', 'VISPA_crawling_fixed.urdf')
-OUT = os.path.join(_root, 'results', 'diag_attribution',
+OUT = os.path.join(_root, 'Misc', 'runs', 'diag_attribution',
                    'probe2_cmm_conditioning')
 
 # swing arm per step (from the log): 0=b,1=a,2=b,3=a,4=b → stance is the other

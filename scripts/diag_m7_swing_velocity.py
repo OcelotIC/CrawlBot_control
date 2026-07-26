@@ -10,7 +10,7 @@ for two step durations:
 Reports peak |v_ee|, peak |a_ee|, terminal |v_ee|, mean |v_ee|, and the
 analytic sanity check (15/8)·d/T vs the numerical straight-line peak.
 
-Saves a two-panel PNG and a CSV to results/M7_1pct_1step/.
+Saves a two-panel PNG and a CSV to Misc/runs/M7_1pct_1step/.
 No MuJoCo, no NMPC — just SwingPlanner math.
 """
 import os
@@ -120,7 +120,7 @@ def main():
           f"{cases[1]['a_peak_numeric'] / cases[0]['a_peak_numeric']:.3f}")
 
     # ── Save CSV and PNG ─────────────────────────────────────
-    out_dir = os.path.join(_root, 'results', 'M7_1pct_1step')
+    out_dir = os.path.join(_root, 'Misc', 'runs', 'M7_1pct_1step')
     os.makedirs(out_dir, exist_ok=True)
 
     csv_path = os.path.join(out_dir, 'velocity_profile.csv')

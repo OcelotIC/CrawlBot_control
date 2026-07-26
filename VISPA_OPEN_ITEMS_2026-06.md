@@ -4,12 +4,12 @@ Verified-open items at the head of `j2/ds-active-rework`. Every number here is r
 artifact run on the **CANONICAL config** (`run_figdata.sh` COMMON `--ss-two-task --ss-alpha-mom 5000
 --alpha-torso-pose 24000 --ss-kp-torso 3 --ss-kd-torso 2.5 --aocs_mode legacy_pid_numerical --K_omega 50
 --qp-envelope-exact` **+** chatter fix `--interstep-settle-alpha-wrench 3 --interstep-settle-epsilon-v 5e-3`):
-`results/j2_figdata/runA_traversal.csv` + `runA_meta.json`, `results/figA_canon/sim_log.json`,
-`results/j2_closure_curves/canonical_curves.csv`. These are **limitations / not-done**, not results.
+`results/j2_figdata/runA_traversal.csv` + `runA_meta.json`, `Misc/runs/figA_canon/sim_log.json`,
+`Misc/runs/j2_closure_curves/canonical_curves.csv`. These are **limitations / not-done**, not results.
 
 > **Correction note:** the prior version of this file (and PR #27) carried numbers from a **wrong (simplified)
 > config** that dropped the SS-stack flags above. All numbers below are now the canonical re-run; the full
-> diff vs the wrong-config run is in `results/j2_canonical_revalidation/INTERNAL_canonical_revalidation.md`.
+> diff vs the wrong-config run is in `Misc/runs/j2_canonical_revalidation/INTERNAL_canonical_revalidation.md`.
 
 ## C5 — reaction-wheel storage exceeds the 4.5 soft gate on the canonical config (NEW; wrong-config hid it)
 `h_w∞ = ‖h_w‖∞` (peak, `hw`≡`hw_physical`) = **4.930 N·m·s** (peak on the z-axis, hw_z = −4.930), versus the

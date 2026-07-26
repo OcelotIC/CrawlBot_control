@@ -383,8 +383,8 @@ QP solve time [ms]      |  x ± x           | x ± x
 ### Fichiers de sortie
 
 ```
-results/logs/r5fix_multistep_nmpc.json     ← log NMPC 5 pas
-results/logs/r5fix_multistep_lutze.json    ← log Lutze 5 pas
+Misc/runs/logs/r5fix_multistep_nmpc.json     ← log NMPC 5 pas
+Misc/runs/logs/r5fix_multistep_lutze.json    ← log Lutze 5 pas
 results/figures/fig_hw_comparison.pdf
 results/figures/fig_hw_comparison.png
 results/figures/fig_locomotion_multistep.pdf

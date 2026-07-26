@@ -5,7 +5,7 @@
 cases. Goal: test whether the mapping is the dominant contributor.
 **Input artefacts:**
 - `docs/architecture/M7_TECHNICAL_LOG.md` (post-correction)
-- `results/M7_abort_diag/R1_baseline/sim_log.json` (today's v21 SS
+- `Misc/runs/M7_abort_diag/R1_baseline/sim_log.json` (today's v21 SS
   reference, committed in 6128db9)
 - `scripts/bisect_qp_cascade.py` — extend, do not rewrite
 - `scripts/test_qp_tracking_v21.py` — standalone reference
@@ -65,14 +65,14 @@ Add to case 2:
 Isolates the mapping's contribution.
 
 Case D (full sim_loop) is **not re-run**. Reuse the SS metrics from
-`results/M7_abort_diag/R1_baseline/sim_log.json` via per-phase filter.
+`Misc/runs/M7_abort_diag/R1_baseline/sim_log.json` via per-phase filter.
 
 ## 3. Implementation
 
 Extend `scripts/bisect_qp_cascade.py` with three new `--case` values:
 `A_swing`, `B_minus`, `B_v21`. Keep legacy cases intact.
 
-Each case writes `results/M7_ee_bisection/{case}/trace.csv` with `t`,
+Each case writes `Misc/runs/M7_ee_bisection/{case}/trace.csv` with `t`,
 `e_ee_pos_mm`, `tau_q_max_Nm` per QP tick. Primary metric:
 `ee_pos_peak_SS` = max over `t ∈ [0, T_step]`.
 
@@ -90,7 +90,7 @@ If any invariant fails, stop and report.
 
 ## 5. Deliverable
 
-`results/M7_ee_bisection/summary.md`:
+`Misc/runs/M7_ee_bisection/summary.md`:
 
 ```
 case     | description                     | ee_pos_peak_SS [mm] | ee_pos_at_T_step [mm] | tau_q_peak_SS [Nm] | Δ from prev [mm]
@@ -100,7 +100,7 @@ B_v21    | + mapping (planned-δ)           |                     |             
 D        | full sim_loop SS (from R1)      |                     |                       |                    |
 ```
 
-Plus one overlay plot `results/M7_ee_bisection/overlay.png` with
+Plus one overlay plot `Misc/runs/M7_ee_bisection/overlay.png` with
 `e_ee_pos_mm(t)` per case over `[0, T_step]`.
 
 No interpretation.

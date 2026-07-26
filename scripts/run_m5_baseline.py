@@ -2,7 +2,7 @@
 """M5 baseline: single-step closed-loop sim with full M1+M2+M3+M4+M5.
 
 All flags enabled (mapping wired, L_com_ref passed to NMPC, SwingPlanner
-6D with delayed cosine). Output: results/M5_baseline_1pct/.
+6D with delayed cosine). Output: Misc/runs/M5_baseline_1pct/.
 """
 import os
 import sys
@@ -58,4 +58,4 @@ def run_case(tag, output_dir, n_steps=1):
 
 
 if __name__ == "__main__":
-    run_case("1pct", "results/M5_baseline_1pct", n_steps=1)
+    run_case("1pct", "Misc/runs/M5_baseline_1pct", n_steps=1)

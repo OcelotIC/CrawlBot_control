@@ -13,9 +13,9 @@ scripts/postprocess_results_figs.py). Figures are written as PNG into --out-dir.
 Phase-1.1 default invocation (main-HEAD baseline vs the 5bca42c reference):
 
     PYTHONPATH=. python3 scripts/plot_ssmom_phase1.py \
-        --ref-dir  results/diag_cooperative_arms_legacy_pid_numerical \
+        --ref-dir  Misc/runs/diag_cooperative_arms_legacy_pid_numerical \
         --ref-label 5bca42c \
-        --cand-dir results/ssmom_phase1_baseline_main_dcda974 \
+        --cand-dir Misc/runs/ssmom_phase1_baseline_main_dcda974 \
         --cand-label "main HEAD (dcda974)"
 
 Reusable for Phase 2/3 by pointing --cand-dir at a variant run.

@@ -31,7 +31,7 @@ sys.path.insert(0, _root)
 from crawlbot.core.robot_interface import RobotInterface
 
 URDF = os.path.join(_root, 'models', 'VISPA_crawling_fixed.urdf')
-RUN  = os.path.join(_root, 'results', 'M7_1pct_3step_v22_t15_bug1fix_vel')
+RUN  = os.path.join(_root, 'Misc', 'runs', 'M7_1pct_3step_v22_t15_bug1fix_vel')
 
 
 def unit(v):

@@ -8,7 +8,7 @@ a_torso_des is the torso task's full PD+FF command. This cancels the
 first-order EE/torso coupling through the shared floating base so the
 EE PD does not have to correct it reactively.
 
-Output: results/M7_1pct_1step_v17/.
+Output: Misc/runs/M7_1pct_1step_v17/.
 """
 from __future__ import annotations
 
@@ -24,4 +24,4 @@ import scripts.run_m7_single_step as r
 
 if __name__ == '__main__':
     r.run_case('1pct 1-step v17 (v16 + EE task-consistent feedforward)',
-               'results/M7_1pct_1step_v17', n_steps=1)
+               'Misc/runs/M7_1pct_1step_v17', n_steps=1)

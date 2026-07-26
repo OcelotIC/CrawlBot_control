@@ -50,7 +50,7 @@ variant is killed; the working point is α_mom ≈ 5000** (tightest dock, lowest
 | QP inner-loop p50/p99 [ms] | 82/90 | 85/97 | 79/92 | 67/74 | 78/92 | 70/80 | 70/77 |
 | realized/planned Ḣ_s peak [N·m] | 1.97/1.96 | 3.38/2.47 | 2.28/2.26 | 2.31/2.28 | 1.95/1.93 | 2.27/2.25 | 2.30/2.27 |
 
-(Full machine-generated table + plots: `results/phase2_1_report/`. h_w 2-norm for the
+(Full machine-generated table + plots: `Misc/runs/phase2_1_report/`. h_w 2-norm for the
 baseline = 1.37 vs ∞-norm 0.83 — ∞-norm used throughout per brief.)
 
 ---

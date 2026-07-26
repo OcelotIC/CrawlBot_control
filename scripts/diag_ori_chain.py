@@ -7,7 +7,7 @@ import json, sys
 import numpy as np
 import pinocchio as pin
 
-RUN = sys.argv[1] if len(sys.argv) > 1 else 'results/figA_canon'
+RUN = sys.argv[1] if len(sys.argv) > 1 else 'Misc/runs/figA_canon'
 sl = json.load(open(f'{RUN}/sim_log.json'))
 ph = np.array(sl['phase']); step = np.array(sl['step_idx'], int)
 t = np.array(sl['t'], float)

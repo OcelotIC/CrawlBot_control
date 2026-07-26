@@ -39,18 +39,18 @@ Five investigations confirmed this from independent angles:
    metric-mismatch artifact + path-dependent cost function.
    Real IK pathology, but specific to the trajectory IK's
    internal warm-start.
-3. **IK-fix run** (`results/M7_1pct_3step_v22_t15_ik_fix/T15_ik_fix_report.md`):
+3. **IK-fix run** (`Misc/runs/M7_1pct_3step_v22_t15_ik_fix/T15_ik_fix_report.md`):
    four IK fixes applied; trajectory-aware IK now produces
    `w_end = 5.10e-2` at step 2. Steps 0 and 1 dock at the best
    distances of any run (3.20 mm / 3.43 mm). **Step 2 still
    aborts at 429 mm** despite the fixed IK.
-4. **Path-geometry diagnostic** (`results/diagnostic/T15_step2_path_geometry.md`):
+4. **Path-geometry diagnostic** (`Misc/runs/diagnostic/T15_step2_path_geometry.md`):
    H2 confirmed — the reference path the planners hand to the
    QP visits a near-singular interior at τ=0.25, where
    `w_ideal` collapses 6 orders of magnitude (4.2e-2 → 2.8e-8)
    and 16 of 21 sample points have no q satisfying torso +
    swing + stance simultaneously.
-5. **Mid-waypoint reshape (Option B)** (`results/M7_1pct_3step_v22_t15_midwaypoint/T15_midwaypoint_report.md`):
+5. **Mid-waypoint reshape (Option B)** (`Misc/runs/M7_1pct_3step_v22_t15_midwaypoint/T15_midwaypoint_report.md`):
    inserting a manipulability-aware q_mid regresses every
    step (step 0: 3.20 → 34 mm; step 1: 3.43 → 333 mm with 177°
    flip; step 2: skipped). The mid-waypoint cost optimizes
@@ -225,7 +225,7 @@ regression added later on this branch).
 
 ### §2.1  IK-fix run results
 
-`results/M7_1pct_3step_v22_t15_ik_fix/T15_ik_fix_report.md`
+`Misc/runs/M7_1pct_3step_v22_t15_ik_fix/T15_ik_fix_report.md`
 captures the run; the key numbers:
 
 | Step | pair  | w_end (post-fix) | w_end (Phase 4)  | ratio   |
@@ -272,7 +272,7 @@ not the bottleneck, what is? The path-geometry diagnostic
 
 ## §3  Path-geometry diagnostic — H2 confirmed
 
-`results/diagnostic/T15_step2_path_geometry.md` operationalises
+`Misc/runs/diagnostic/T15_step2_path_geometry.md` operationalises
 three hypotheses:
 
 - **H1 (time budget)**: closed-loop σ_min stays well-conditioned,
@@ -392,7 +392,7 @@ three candidate fixes ordered by invasiveness:
 - **Option C** — full short-horizon trajectory optimisation.
 
 Option B was implemented and validated.
-`results/M7_1pct_3step_v22_t15_midwaypoint/T15_midwaypoint_report.md`
+`Misc/runs/M7_1pct_3step_v22_t15_midwaypoint/T15_midwaypoint_report.md`
 captures the run.
 
 ### §4.1  Implementation
@@ -416,7 +416,7 @@ itself is correct.
 
 T15 with `use_mid_waypoint_reshape=True` and
 `mid_waypoint_force_on=True` (per-step IK trace from
-`results/M7_1pct_3step_v22_t15_midwaypoint/ik_trace.json`):
+`Misc/runs/M7_1pct_3step_v22_t15_midwaypoint/ik_trace.json`):
 
 | Step | pair  | mid_used | w_worst_mid | q_mid torso xyz [m] |
 |-----:|:-----:|:--------:|------------:|---------------------|
@@ -1179,9 +1179,9 @@ All paths are relative to the repository root.
 | Phase 4 anomaly | `results/M7_1pct_3step_v22_t15_trajIK_ondemand/T15_trajIK_ondemand_report.md` | `claude/trajectory-aware-ik-pWRpA` (closed) |
 | IK-anomaly diagnostic | `IK_ANOMALY_REPORT.md` | `claude/manipulability-ik-diagnostic` (closed) |
 | IK formulation spec | `docs/architecture/IK_FORMULATION.md` | this branch |
-| IK-fix validation | `results/M7_1pct_3step_v22_t15_ik_fix/T15_ik_fix_report.md` | `claude/manipulability-ik-fix` (merged into this branch) |
-| Path-geometry diagnostic | `results/diagnostic/T15_step2_path_geometry.md` | this branch |
-| Mid-waypoint reshape (Option B) | `results/M7_1pct_3step_v22_t15_midwaypoint/T15_midwaypoint_report.md` | this branch |
+| IK-fix validation | `Misc/runs/M7_1pct_3step_v22_t15_ik_fix/T15_ik_fix_report.md` | `claude/manipulability-ik-fix` (merged into this branch) |
+| Path-geometry diagnostic | `Misc/runs/diagnostic/T15_step2_path_geometry.md` | this branch |
+| Mid-waypoint reshape (Option B) | `Misc/runs/M7_1pct_3step_v22_t15_midwaypoint/T15_midwaypoint_report.md` | this branch |
 | Q1/Q2 trackability | `diagnostic/Q1_Q2_trackability_report.md` | this branch |
 | **Synthesis (this document)** | `docs/architecture/T15_step2_diagnosis_and_resolution.md` | this branch |
 
@@ -1189,12 +1189,12 @@ All paths are relative to the repository root.
 
 | Run | Directory |
 |-----|-----------|
-| Baseline T15 (3-step, 1%, fixed-rotation IK only) | `results/M7_1pct_3step_v22_t15_bug1fix_vel/` |
+| Baseline T15 (3-step, 1%, fixed-rotation IK only) | `Misc/runs/M7_1pct_3step_v22_t15_bug1fix_vel/` |
 | Phase 4 trajIK on-demand | `results/M7_1pct_3step_v22_t15_trajIK_ondemand/` |
-| IK-fix validation | `results/M7_1pct_3step_v22_t15_ik_fix/` |
-| Phase 7 mid-waypoint | `results/M7_1pct_3step_v22_t15_midwaypoint/` |
-| Q2a single-step sweep | `results/diagnostic_q2/alpha_{0.5..2.0}/` |
-| Q2b T15 step-2 sweep | `results/diagnostic_q2b/{A_alpha_*, B_betay_*}/` |
+| IK-fix validation | `Misc/runs/M7_1pct_3step_v22_t15_ik_fix/` |
+| Phase 7 mid-waypoint | `Misc/runs/M7_1pct_3step_v22_t15_midwaypoint/` |
+| Q2a single-step sweep | `Misc/runs/diagnostic_q2/alpha_{0.5..2.0}/` |
+| Q2b T15 step-2 sweep | `Misc/runs/diagnostic_q2b/{A_alpha_*, B_betay_*}/` |
 
 ### §10.3  Diagnostic scripts
 

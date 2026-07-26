@@ -1,7 +1,7 @@
 """Q1 — Step-1 orientation failure diagnosis.
 
 Tests whether the 177° step-1 orientation error in the
-mid-waypoint run (results/M7_1pct_3step_v22_t15_midwaypoint/) is a
+mid-waypoint run (Misc/runs/M7_1pct_3step_v22_t15_midwaypoint/) is a
 SLERP hemisphere / quaternion-sign bug or a real kinematic failure.
 
 Hypothesis tested:
@@ -31,9 +31,9 @@ _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, _root)
 os.environ.setdefault('MUJOCO_GL', 'disabled')
 
-SIM_LOG = os.path.join(_root, 'results', 'M7_1pct_3step_v22_t15_midwaypoint',
+SIM_LOG = os.path.join(_root, 'Misc', 'runs', 'M7_1pct_3step_v22_t15_midwaypoint',
                        'sim_log.json')
-IK_TRACE = os.path.join(_root, 'results', 'M7_1pct_3step_v22_t15_midwaypoint',
+IK_TRACE = os.path.join(_root, 'Misc', 'runs', 'M7_1pct_3step_v22_t15_midwaypoint',
                         'ik_trace.json')
 OUTDIR = os.path.join(_root, 'diagnostic')
 

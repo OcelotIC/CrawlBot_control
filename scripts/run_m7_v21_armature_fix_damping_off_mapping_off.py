@@ -12,7 +12,7 @@ Pinocchio `model.armature = 0.05` on arm joints is applied by
 Calls the same `scripts.run_m7_single_step.run_case` helper as
 `scripts/run_m7_v21_mapping_off.py`, with `mapping_bypass_in_ss=True`
 and output redirected to
-`results/M7_1pct_1step_v21_armature_fix_damping_off_mapping_off/`.
+`Misc/runs/M7_1pct_1step_v21_armature_fix_damping_off_mapping_off/`.
 
 Diagnostic only. Do not commit.
 """
@@ -35,7 +35,8 @@ from crawlbot.core.robot_interface import RobotInterface
 
 URDF = os.path.join(_root, 'models', 'VISPA_crawling_fixed.urdf')
 MJCF = os.path.join(_root, 'models', 'VISPA_crawling_rwa3.xml')
-OUT  = os.path.join(_root, 'results',
+OUT  = os.path.join(_root, 'Misc',
+                    'runs',
                     'M7_1pct_1step_v21_armature_fix_damping_off_mapping_off')
 
 ROBOT_JOINT_RE = re.compile(

@@ -1,6 +1,6 @@
 """Dock-activation velocity audit for the T11 closed run.
 
-Reads results/M7_1pct_1step_v21_armature_fix_damping_off_mapping_off/sim_log.json
+Reads Misc/runs/M7_1pct_1step_v21_armature_fix_damping_off_mapping_off/sim_log.json
 and emits results/.../dock_velocity_audit.md.
 
 All velocities are computed as rigid-body formulae on logged fields
@@ -37,10 +37,12 @@ import numpy as np
 from crawlbot.simulation.logging import SimLog
 
 
-LOG_PATH = os.path.join(_root, 'results',
+LOG_PATH = os.path.join(_root, 'Misc',
+                        'runs',
                         'M7_1pct_1step_v21_armature_fix_damping_off_mapping_off',
                         'sim_log.json')
-OUT_PATH = os.path.join(_root, 'results',
+OUT_PATH = os.path.join(_root, 'Misc',
+                        'runs',
                         'M7_1pct_1step_v21_armature_fix_damping_off_mapping_off',
                         'dock_velocity_audit.md')
 

@@ -13,7 +13,7 @@ import os
 import numpy as np
 
 ROOT = os.path.join(os.path.dirname(__file__), '..')
-RES = os.path.join(ROOT, 'results', 'p3b_gate_w24000_kp3')
+RES = os.path.join(ROOT, 'Misc', 'runs', 'p3b_gate_w24000_kp3')
 K_theta, K_omega, K_d, K_hw = 1.0, 50.0, 25.0, 2.0   # config.py:67/87/88/89
 GUARD_S = 0.2
 

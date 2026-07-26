@@ -53,7 +53,7 @@ def run_single_step_mpc():
     sys.argv = ['sim_torso6d', '--urdf', URDF, '--mjcf', MJCF]
     # sim_torso6d writes sim_torso6d_log.json on execution
     exec(open(os.path.join(_root, 'scripts', 'sim_torso6d.py')).read(), {'__name__': '__run__'})
-    return SimLog.load(os.path.join(_root, 'results', 'logs', 'sim_torso6d_log.json'))
+    return SimLog.load(os.path.join(_root, 'Misc', 'runs', 'logs', 'sim_torso6d_log.json'))
 
 
 def run_lutze_baseline():
@@ -63,7 +63,7 @@ def run_lutze_baseline():
     print('=' * 70)
     sys.argv = ['sim_lutze', '--urdf', URDF, '--mjcf', MJCF]
     exec(open(os.path.join(_root, 'lutze_baseline', 'sim_lutze.py')).read(), {'__name__': '__run__'})
-    return SimLog.load(os.path.join(_root, 'results', 'logs', 'sim_lutze_log.json'))
+    return SimLog.load(os.path.join(_root, 'Misc', 'runs', 'logs', 'sim_lutze_log.json'))
 
 
 def print_summary(log_multi, log_mpc_path, log_lutze_path):
@@ -127,7 +127,7 @@ def print_summary(log_multi, log_mpc_path, log_lutze_path):
 
 
 if __name__ == '__main__':
-    _logs = os.path.join(_root, 'results', 'logs')
+    _logs = os.path.join(_root, 'Misc', 'runs', 'logs')
     _figs = os.path.join(_root, 'results', 'figures')
     os.makedirs(_logs, exist_ok=True)
     os.makedirs(_figs, exist_ok=True)
@@ -135,7 +135,7 @@ if __name__ == '__main__':
     # 1. Multi-step MPC
     log_multi = run_multistep()
     log_multi.save(os.path.join(_logs, 'r6_multistep_log.json'))
-    print('  Saved: results/logs/r6_multistep_log.json')
+    print('  Saved: Misc/runs/logs/r6_multistep_log.json')
 
     # 2. Generate multi-step 7-panel figure
     SimulationLoop.plot(log_multi, save_path=os.path.join(_figs, 'r6_multistep_7panel.png'))
@@ -151,6 +151,6 @@ if __name__ == '__main__':
 
     print('\n' + '=' * 70)
     print('  R6 complete. Output files:')
-    print('    - results/logs/r6_multistep_log.json')
+    print('    - Misc/runs/logs/r6_multistep_log.json')
     print('    - results/figures/r6_multistep_7panel.png')
     print('=' * 70)

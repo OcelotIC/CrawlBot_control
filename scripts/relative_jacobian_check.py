@@ -21,7 +21,7 @@ to (damping=0, armature=0), restored via try/finally. At k=10 computes:
 
   (5) MuJoCo `eq_weld` efc frame convention from official docs.
 
-Writes results/M7_settle_diag/relative_jacobian_check.md.
+Writes Misc/runs/M7_settle_diag/relative_jacobian_check.md.
 """
 from __future__ import annotations
 
@@ -43,7 +43,7 @@ from crawlbot.core.state_conversions import mujoco_to_pinocchio
 
 URDF = os.path.join(_root, 'models', 'VISPA_crawling_fixed.urdf')
 MJCF = os.path.join(_root, 'models', 'VISPA_crawling_rwa3.xml')
-OUT  = os.path.join(_root, 'results', 'M7_settle_diag',
+OUT  = os.path.join(_root, 'Misc', 'runs', 'M7_settle_diag',
                     'relative_jacobian_check.md')
 TARGET_K = 10
 

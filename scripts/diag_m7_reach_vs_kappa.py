@@ -167,7 +167,7 @@ print(f"  peak κ = {kappas[k_peak]:.2e} at τ={rows[k_peak]['tau']:.3f}, "
       f"(extension fraction {ext_frac[k_peak]:.3f})")
 
 # Plot
-os.makedirs('results/M7_kinematic_sweep', exist_ok=True)
+os.makedirs('Misc/runs/M7_kinematic_sweep', exist_ok=True)
 fig, axes = plt.subplots(2, 1, figsize=(11, 8), sharex=True)
 
 ax = axes[0]
@@ -194,6 +194,6 @@ ax.grid(True, alpha=0.3)
 ax.legend(loc='upper right', fontsize=9)
 
 plt.tight_layout()
-out = 'results/M7_kinematic_sweep/kappa_vs_reach.png'
+out = 'Misc/runs/M7_kinematic_sweep/kappa_vs_reach.png'
 plt.savefig(out, dpi=130)
 print(f"\n  saved: {out}")

@@ -37,7 +37,7 @@ from crawlbot.core.state_conversions import mujoco_to_pinocchio
 
 URDF = os.path.join(_root, 'models', 'VISPA_crawling_fixed.urdf')
 MJCF = os.path.join(_root, 'models', 'VISPA_crawling_rwa3.xml')
-OUT_ROOT = os.path.join(_root, 'results', 'M7_settle_diag', 'weld_sweep')
+OUT_ROOT = os.path.join(_root, 'Misc', 'runs', 'M7_settle_diag', 'weld_sweep')
 
 VARIANTS = [
     ('solref_0p003_1',      '0.003 1'),

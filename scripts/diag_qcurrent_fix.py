@@ -10,7 +10,7 @@ Reports per step:
   r_b_ref[i-1]||) — stability indicator.
 
 Outputs:
-    results/diag_qcurrent_fix/
+    Misc/runs/diag_qcurrent_fix/
         sim_log.json, step_metrics.txt, rb_ref_stability.txt,
         nmpc_per_step.txt, step_log.json
 """
@@ -33,7 +33,7 @@ import scripts.run_m7_single_step as r_single  # noqa: E402
 
 
 MJCF = os.path.join(_root, 'models', 'VISPA_crawling_rwa3.xml')
-OUT = os.path.join(_root, 'results', 'diag_nmpc_f300')
+OUT = os.path.join(_root, 'Misc', 'runs', 'diag_nmpc_f300')
 
 ROBOT_JOINT_RE = re.compile(
     r'(<default class="robot_joint">\s*\n\s*<joint damping=")[^"]+'

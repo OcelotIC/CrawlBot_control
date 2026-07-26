@@ -203,7 +203,7 @@ demands competing for the same 14 DoF of arm joint actuation +
 6 DoF of body floating, the QP's cost minimum lands ~410 mm short
 of the swing target.
 
-By contrast, in the QP isolation test (`results/M7_step2_isolation/`),
+By contrast, in the QP isolation test (`Misc/runs/M7_step2_isolation/`),
 the *same* anchor pair from a clean (3,3) post-settle starting
 state reaches **20 mm short** of the swing target with default
 margin, and **docks at 4.76 mm** with extended `t_ss_margin = 20 s`.
@@ -940,17 +940,17 @@ the *task-balance* impossibility that remained."
 - `results/M7_1pct_3step_v22_t15_fk/{sim_log.json,
   physics_trace.pkl}` — multi-step FK baseline (steps 0/1 dock,
   step 2 fails 412 mm).
-- `results/M7_step2_isolation/A_bypass_on/{sim_log.json,
+- `Misc/runs/M7_step2_isolation/A_bypass_on/{sim_log.json,
   physics_trace.pkl}` — clean-(3,3) isolation run (step 2 fails
   20 mm).
-- `results/M7_step2_isolation_xlong_hold/xlong_hold/{sim_log.json,
+- `Misc/runs/M7_step2_isolation_xlong_hold/xlong_hold/{sim_log.json,
   physics_trace.pkl}` — clean-(3,3) with 20 s margin (step 2
   docks at 4.76 mm; proves the QP works given enough time and a
   clean start).
-- `results/M7_step2_isolation_aocs_unleashed/aocs_unleashed/...`
+- `Misc/runs/M7_step2_isolation_aocs_unleashed/aocs_unleashed/...`
   — AOCS at 100 Nm / 100 Nms; same 20 mm result (rules out
   AOCS budget).
-- `results/M7_1pct_3step_v22_t15_fk_margin5/...` — multi-step with
+- `Misc/runs/M7_1pct_3step_v22_t15_fk_margin5/...` — multi-step with
   `t_ss_margin = 5 s`; step 2 still 425 mm (rules out time
   budget alone).
 

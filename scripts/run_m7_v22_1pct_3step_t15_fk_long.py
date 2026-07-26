@@ -53,7 +53,7 @@ import scripts.run_m7_single_step as r_single
 
 
 MJCF = os.path.join(_root, 'models', 'VISPA_crawling_rwa3.xml')
-OUT = os.path.join(_root, 'results', 'M7_1pct_3step_v22_t15_fk_long')
+OUT = os.path.join(_root, 'Misc', 'runs', 'M7_1pct_3step_v22_t15_fk_long')
 
 ROBOT_JOINT_RE = re.compile(
     r'(<default class="robot_joint">\s*\n\s*<joint damping=")[^"]+'

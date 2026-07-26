@@ -35,7 +35,7 @@ from crawlbot.core.state_conversions import mujoco_to_pinocchio
 
 _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 URDF = os.path.join(_root, 'models', 'VISPA_crawling_fixed.urdf')
-LOG = os.path.join(_root, 'results', 'diag_cooperative_arms', 'sim_log.json')
+LOG = os.path.join(_root, 'Misc', 'runs', 'diag_cooperative_arms', 'sim_log.json')
 
 P_STAR = np.array([1.2, -0.3, 0.025])           # step-2 anchor (arm b)
 APPROACH = np.array([15.68, 7.62, 1.58])         # stalled error dir (world)

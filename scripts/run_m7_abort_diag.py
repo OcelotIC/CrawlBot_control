@@ -12,11 +12,11 @@ Runs:
     R4_no_passivity   — diag_disable_passivity_on_abort=True  (H_DS3)
 
 Outputs:
-    results/M7_abort_diag/R1_baseline/
-    results/M7_abort_diag/R2_freeze_ref/
-    results/M7_abort_diag/R3_single_contact/
-    results/M7_abort_diag/R4_no_passivity/
-    results/M7_abort_diag/summary.md
+    Misc/runs/M7_abort_diag/R1_baseline/
+    Misc/runs/M7_abort_diag/R2_freeze_ref/
+    Misc/runs/M7_abort_diag/R3_single_contact/
+    Misc/runs/M7_abort_diag/R4_no_passivity/
+    Misc/runs/M7_abort_diag/summary.md
 """
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ from crawlbot.simulation.logging import SimLog
 from crawlbot.diagnostics.metrics import compute_metrics
 
 
-RESULTS_ROOT = 'results/M7_abort_diag'
+RESULTS_ROOT = 'Misc/runs/M7_abort_diag'
 
 
 def _make_v21_config():

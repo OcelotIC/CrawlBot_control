@@ -192,11 +192,11 @@ Three axes of `r_com(t)` during the settle, with the captured reference dashed. 
 
 ### 5.5 Per-step snapshots
 
-The 10-step traversal renders 5 isometric snapshots per SS phase, in `results/frames/strips/step{0..9}_strip.png`. Spot-check: step 0 (initial dock), step 4 (forward-leg end), step 9 (return to start).
+The 10-step traversal renders 5 isometric snapshots per SS phase, in `Misc/runs/frames/strips/step{0..9}_strip.png`. Spot-check: step 0 (initial dock), step 4 (forward-leg end), step 9 (return to start).
 
-![Step 0](../../results/frames/strips/step0_strip.png)
-![Step 4](../../results/frames/strips/step4_strip.png)
-![Step 9](../../results/frames/strips/step9_strip.png)
+![Step 0](../../Misc/runs/frames/strips/step0_strip.png)
+![Step 4](../../Misc/runs/frames/strips/step4_strip.png)
+![Step 9](../../Misc/runs/frames/strips/step9_strip.png)
 
 All 10 docks succeed (d_grip ≤ 4.96 mm, ori ≤ 0.98° at every dock). The forward+reverse pattern returns the system to its initial configuration, validating sign-symmetry of the per-traversal angular-momentum injection.
 

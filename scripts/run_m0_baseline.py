@@ -15,7 +15,7 @@ from crawlbot.simulation.sim_loop import SimulationLoop
 from crawlbot.simulation.config import SimConfig
 from crawlbot.diagnostics import run_diagnostics
 
-OUTPUT_DIR = os.path.join(_root, 'results', 'M0_baseline')
+OUTPUT_DIR = os.path.join(_root, 'Misc', 'runs', 'M0_baseline')
 URDF = os.path.join(_root, 'models', 'VISPA_crawling_fixed.urdf')
 MJCF = os.path.join(_root, 'models', 'VISPA_crawling_rwa3.xml')
 

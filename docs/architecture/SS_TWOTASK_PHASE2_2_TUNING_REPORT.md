@@ -64,7 +64,7 @@ EE-yield bound (M-dom) does not appear because mom stays at 5000.
 | 5k:12k Kp3 | 5000 | 12000 | 3 | 13.48 | 10.74 | **0.00** | 0.073 | 0.072 | 4.97 |
 | bal 5k:5k | 5000 | 5000 | 6 | 14.27 | 11.37 | 1.32 | 0.090 | 0.089 | 4.95 |
 
-Full metrics (CoM-track, h_w∞, Ḣ_s, τ_peak, QP p50/p99): `results/phase2_2_tuning_report/tuning_metrics.md`.
+Full metrics (CoM-track, h_w∞, Ḣ_s, τ_peak, QP p50/p99): `Misc/runs/phase2_2_tuning_report/tuning_metrics.md`.
 
 ## 3. The Pareto frontier (non-dominated set, minimise BOTH arrival and saturation)
 
@@ -80,7 +80,7 @@ Full metrics (CoM-track, h_w∞, Ḣ_s, τ_peak, QP p50/p99): `results/phase2_2_
 five frontier points are the **torso-pose=20k** family with the gain as the slider, plus the
 zero-sat 12k endpoint and the TP-dom tight-arrival endpoint.
 
-## 4. Plots (`results/phase2_2_tuning_report/`)
+## 4. Plots (`Misc/runs/phase2_2_tuning_report/`)
 
 - **`pareto_arrival_vs_sat.png`** — THE trade-off. The 2–3 % target band (green) is reached only
   by TP-dom at the far right (24 % sat); the low-saturation/tight-arrival corner is empty.

@@ -17,7 +17,7 @@ Config carried over:
   stop_on_failed_step=True.
 
 Outputs:
-    results/diag_cooperative_arms/
+    Misc/runs/diag_cooperative_arms/
         sim_log.json, step_log.json
         step_metrics.txt, nmpc_per_step.txt
         sat_stats.txt, comparison.txt
@@ -401,13 +401,14 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
         _stem = _stem.replace('canonical_', '')
         if baseline_ds_rework:
             _stem += '_baseline'
-        out_dir = os.path.join(_root, 'results',
+        out_dir = os.path.join(_root, 'Misc', 'runs',
                                f'diag_cooperative_arms_{_stem}')
     elif legacy:
-        out_dir = os.path.join(_root, 'results',
+        out_dir = os.path.join(_root, 'Misc',
+                               'runs',
                                'diag_cooperative_arms_legacy')
     elif abs(mass_ratio - 0.01) > 1e-9:
-        out_dir = os.path.join(_root, 'results',
+        out_dir = os.path.join(_root, 'Misc', 'runs',
                                f'diag_cooperative_arms_{int(round(mass_ratio*100))}pct')
     elif aocs_mode != 'legacy_corrected':
         # Non-default AOCS mode → separate dir for A/B.
@@ -419,18 +420,20 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
             suffix += f'_Kw{K_omega:g}'
         if abs(tau_w_max - 2.5) > 1e-9:  # non-canonical cap (frozen 2.5)
             suffix += f'_Tw{tau_w_max:g}'
-        out_dir = os.path.join(_root, 'results',
+        out_dir = os.path.join(_root, 'Misc', 'runs',
                                f'diag_cooperative_arms_{aocs_mode}{suffix}')
     elif abs(alpha_torso_lin - 500.0) > 1e-6:
-        out_dir = os.path.join(_root, 'results',
+        out_dir = os.path.join(_root, 'Misc',
+                               'runs',
                                'diag_cooperative_arms',
                                f'alpha_lin_{int(alpha_torso_lin)}')
     elif abs(anchor_dx - 0.8) > 1e-9:
-        out_dir = os.path.join(_root, 'results',
+        out_dir = os.path.join(_root, 'Misc',
+                               'runs',
                                'diag_cooperative_arms',
                                f'dx_{anchor_dx:.2f}')
     else:
-        out_dir = os.path.join(_root, 'results', 'diag_cooperative_arms')
+        out_dir = os.path.join(_root, 'Misc', 'runs', 'diag_cooperative_arms')
 
     # ── SS centroidal-momentum task (memo SS_CENTROIDAL_MOMENTUM_TASK_2026-06) ──
     # Default OFF reproduces the canonical torso-linear P2 stack (bit-identical).

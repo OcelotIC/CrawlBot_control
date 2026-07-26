@@ -343,7 +343,7 @@ def print_latex_table(log_mpc, log_lutze, log_multi):
 # ═════════════════════════════════════════════════════════════════════
 
 if __name__ == '__main__':
-    _logs = os.path.join(_root, 'results', 'logs')
+    _logs = os.path.join(_root, 'Misc', 'runs', 'logs')
     _figs = os.path.join(_root, 'results', 'figures')
     os.makedirs(_figs, exist_ok=True)
 

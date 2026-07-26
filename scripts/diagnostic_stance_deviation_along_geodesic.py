@@ -21,7 +21,7 @@ proposed in the plan §7. If the gate fails, the stance-projection
 mitigation from plan §2.9 is required.
 
 Outputs:
-    results/diagnostic/stance_deviation_along_geodesic/
+    Misc/runs/diagnostic/stance_deviation_along_geodesic/
         step{0,1,2}_data.json
         all_steps_delta_stance.png
         summary.txt
@@ -46,10 +46,10 @@ sys.path.insert(0, _ROOT)
 os.environ.setdefault('MUJOCO_GL', 'disabled')
 
 URDF = os.path.join(_ROOT, 'models', 'VISPA_crawling_fixed.urdf')
-SIM_LOG = os.path.join(_ROOT, 'results', 'M7_1pct_3step_v22_t15_ik_fix', 'sim_log.json')
-PHYS_TRACE = os.path.join(_ROOT, 'results', 'M7_1pct_3step_v22_t15_ik_fix', 'physics_trace.pkl')
-IK_TRACE = os.path.join(_ROOT, 'results', 'M7_1pct_3step_v22_t15_ik_fix', 'ik_trace.json')
-OUTDIR = os.path.join(_ROOT, 'results', 'diagnostic', 'stance_deviation_along_geodesic')
+SIM_LOG = os.path.join(_ROOT, 'Misc', 'runs', 'M7_1pct_3step_v22_t15_ik_fix', 'sim_log.json')
+PHYS_TRACE = os.path.join(_ROOT, 'Misc', 'runs', 'M7_1pct_3step_v22_t15_ik_fix', 'physics_trace.pkl')
+IK_TRACE = os.path.join(_ROOT, 'Misc', 'runs', 'M7_1pct_3step_v22_t15_ik_fix', 'ik_trace.json')
+OUTDIR = os.path.join(_ROOT, 'Misc', 'runs', 'diagnostic', 'stance_deviation_along_geodesic')
 
 GATE_THRESHOLD_M = 0.05   # 5 cm — plan §4.0 pass criterion
 N_TAU = 21
@@ -738,7 +738,7 @@ def main():
     print(f"  nq={robot.model.nq}, nv={robot.model.nv}")
 
     print(f"Loading sim_log + physics_trace from "
-          f"results/M7_1pct_3step_v22_t15_ik_fix/")
+          f"Misc/runs/M7_1pct_3step_v22_t15_ik_fix/")
     sim_log = json.load(open(SIM_LOG))
     phys_trace = pickle.load(open(PHYS_TRACE, 'rb'))
     ik_trace = json.load(open(IK_TRACE))

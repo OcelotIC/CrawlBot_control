@@ -28,9 +28,9 @@ run figA_canon_e1   --interstep-settle-alpha-wrench 1
 run figA_canon_evb  --interstep-settle-alpha-wrench 3 --interstep-settle-epsilon-v 0
 echo "=== POSTPROC + EXPORT the fix run (figA_canon → runA) ==="
 SSMOM_RUN_DIR=figA_canon MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/postprocess_results_figs.py > "$SP/figA_canon_pp.log" 2>&1
-echo "  postproc rc=$? F3F4=$([ -f results/figA_canon/postproc_F3F4.csv ] && echo YES || echo NO)"
+echo "  postproc rc=$? F3F4=$([ -f Misc/runs/figA_canon/postproc_F3F4.csv ] && echo YES || echo NO)"
 MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/export_figure_data.py \
-  --run-dir results/figA_canon --out results/j2_figdata/runA \
+  --run-dir Misc/runs/figA_canon --out results/j2_figdata/runA \
   --label "CANONICAL config 5-step (run_figdata.sh COMMON + chatter fix eps=3, eps_v=5mm/s)" \
   --config '{"ss_two_task": true, "ss_alpha_mom": 5000, "alpha_torso_pose": 24000, "ss_kp_torso": 3, "ss_kd_torso": 2.5, "K_omega": 50, "aocs_mode": "legacy_pid_numerical", "qp_envelope_exact": true, "aocs_active_in_interstep": true, "interstep_hw_refresh": true, "interstep_settle_alpha_wrench": 3.0, "interstep_settle_epsilon_v": 5e-3, "n_steps": 5}'
 echo "  export rc=$?"

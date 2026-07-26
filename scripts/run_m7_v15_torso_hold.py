@@ -10,7 +10,7 @@ approach.
 For t_local <= 0.6*T_step the active flow is unchanged (mapping on,
 linear from r_com_ref via the mass-weighted identity).
 
-Output: results/M7_1pct_1step_v15/.
+Output: Misc/runs/M7_1pct_1step_v15/.
 """
 from __future__ import annotations
 
@@ -36,4 +36,4 @@ r._make_m7_config = _make_m7_v15_config
 
 if __name__ == '__main__':
     r.run_case('1pct 1-step v15 (ff=0.6 + mapping bypass during hold)',
-               'results/M7_1pct_1step_v15', n_steps=1)
+               'Misc/runs/M7_1pct_1step_v15', n_steps=1)

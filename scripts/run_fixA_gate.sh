@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Dock-leak Part 3 — Fix A (full-DOF impact map) re-gate. SINGLE PASS.
-# Identical canonical invocation (PHASE3_METADATA flags) to results/fixA_gate/
-# (a NEW dir — the frozen canonical results/p3b_gate_w24000_kp3/ is NOT touched),
+# Identical canonical invocation (PHASE3_METADATA flags) to Misc/runs/fixA_gate/
+# (a NEW dir — the frozen canonical Misc/runs/p3b_gate_w24000_kp3/ is NOT touched),
 # so the ONLY difference vs canonical is the impact-map code. Then postproc + the
 # canonical six-criteria gate (vs the dcda974 baseline, corrected C5≤4.5).
 set -u

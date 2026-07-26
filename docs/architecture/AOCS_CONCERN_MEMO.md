@@ -252,7 +252,7 @@ automatically rather than requiring post-hoc reconstruction.
 **Cross-references:**
 - `docs/architecture/M7_T12_MEMO.md` §§9–10 (T12 closure, mechanism).
 - Commit `bcd3d7c` (T12 closure bundle).
-- `results/M7_14pct_1step_v22_with_swing_hold_optA/T12_post3_d5_cost_reconstruction.md`
+- `Misc/runs/M7_14pct_1step_v22_with_swing_hold_optA/T12_post3_d5_cost_reconstruction.md`
   (D5 cost analysis).
 - `force_estimator.py:166` (Mode C transport term).
 - `force_estimator.py:286` (Mode B, transport term absent).

@@ -12,7 +12,7 @@ Floating base (q[0:7]) is free. Stance arm A is NOT constrained
 (more permissive than the closed-chain reality; if THIS check fails
 the reference is definitely infeasible).
 
-References pulled from results/diag_alpha_torso/alpha_500/sim_log.json:
+References pulled from Misc/runs/diag_alpha_torso/alpha_500/sim_log.json:
     - r_com_ref[t]  (used as torso target with 50 mm tol)
     - preplanner_T_steps[2]  = T_step for step 2
     - dock_events / aborted_steps  to anchor the step 2 SS window
@@ -133,8 +133,8 @@ def ik_solve(model, data, frame_tool_b, frame_torso,
 
 def main():
     sim_log_path = os.path.join(
-        _root, 'results', 'diag_alpha_torso', 'alpha_500', 'sim_log.json')
-    out_dir = os.path.join(_root, 'results', 'diag_step2_ik_feasibility')
+        _root, 'Misc', 'runs', 'diag_alpha_torso', 'alpha_500', 'sim_log.json')
+    out_dir = os.path.join(_root, 'Misc', 'runs', 'diag_step2_ik_feasibility')
     os.makedirs(out_dir, exist_ok=True)
 
     target_times, c_ref_samples, T_step, q_init, t_start = (

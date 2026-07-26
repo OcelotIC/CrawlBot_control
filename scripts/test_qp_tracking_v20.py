@@ -312,7 +312,7 @@ def run():
         ('ee_ori_err_peak_deg',    float(e_eo.max()), thr['ee_ori_deg']),
     ]
 
-    out_dir = os.path.join('results', 'qp_tracking_test_v20')
+    out_dir = os.path.join('Misc', 'runs', 'qp_tracking_test_v20')
     os.makedirs(out_dir, exist_ok=True)
     _fig10_torso_6d_tracking(
         t_arr.tolist(), log.phase, [], log, out_dir, dpi=120, cfg=cfg)

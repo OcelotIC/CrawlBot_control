@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """J2 envelope audit — is Piste A (envelope-coupled passivity budget) QP-formulable?
 
-READ-ONLY reproducer for the verdict in results/j2_audit/INTERNAL_j2_envelope.md.
+READ-ONLY reproducer for the verdict in Misc/runs/j2_audit/INTERNAL_j2_envelope.md.
 Decides whether  dq^T tau_q + 2*alpha*T_kin <= W_budget  is a LINEAR (or SOC) QP
 constraint with W_budget a PRE-SOLVE parameter derived from the planned envelope
 margin. No crawlbot/ change, no sim run.
@@ -185,7 +185,7 @@ def main():
     print('                  units gain [1/s]; a pre-solve scalar, does NOT affect linearity.')
     print('  FLAG 2 (proxy): the QP box uses the L_com proxy the NMPC abandoned; derive W_budget from')
     print('                  the NMPC-exact Hdot_s(lambda_ref) margin, not the QP box, at non-zero standoff.')
-    print('  See results/j2_audit/INTERNAL_j2_envelope.md.')
+    print('  See Misc/runs/j2_audit/INTERNAL_j2_envelope.md.')
     print('=' * 78)
     return 0
 

@@ -2,11 +2,11 @@
 
 Single-parameter variation on `cfg.t_ss_margin`. Same T15-FK configuration
 as the existing 5-step baseline (run A, margin=5s, already on disk in
-results/diag_nmpc_warm_start_5step/). This runner produces runs B (10s)
+Misc/runs/diag_nmpc_warm_start_5step/). This runner produces runs B (10s)
 and C (15s).
 
 Outputs per run:
-    results/diag_nmpc_margin_sweep/margin_{seconds}s/
+    Misc/runs/diag_nmpc_margin_sweep/margin_{seconds}s/
         sim_log.json
         nmpc_step_log.json
         nmpc_per_step.txt
@@ -268,7 +268,7 @@ def main():
     args = parser.parse_args()
 
     out_dir = os.path.join(
-        _root, 'results', 'diag_nmpc_margin_sweep',
+        _root, 'Misc', 'runs', 'diag_nmpc_margin_sweep',
         f'margin_{int(args.margin)}s')
 
     with open(MJCF, 'r') as f:

@@ -4,7 +4,7 @@ two-regime torso-arrival read, and the 5-step 100 Hz QP-rate τ_w-sat (B15).
 
 Reads phase3_wp + baseline postproc_metrics.json (same schema) + sim_log.json.
 Criterion 6 (bit-identical OFF + test) is produced by run_phase3_off.sh and read
-from results/phase3_off/OFF_RESULT.txt if present. Read-only; no re-tuning.
+from Misc/runs/phase3_off/OFF_RESULT.txt if present. Read-only; no re-tuning.
 """
 import csv
 import json
@@ -22,7 +22,7 @@ RES = os.path.join(ROOT, 'results')
 # impact map), so "byte-identical to dcda974" is intentionally RETIRED — C6(a)
 # now verifies ss_two_task feature-gating on the corrected plant (OFF recovers
 # the Fix-A baseline). C2's pos/ori limits are likewise taken vs the corrected-
-# plant OFF baseline. See results/fixA_gate/INTERNAL_dock_leak_fixA.md §4.
+# plant OFF baseline. See Misc/runs/fixA_gate/INTERNAL_dock_leak_fixA.md §4.
 BASE = 'ssmom_phase1_baseline_fixA'
 WP = os.environ.get('SSMOM_WP_DIR', 'phase3_wp')   # iteration-B: override via env
 OFF_DIR = os.environ.get('SSMOM_OFF_DIR', 'phase3_off')

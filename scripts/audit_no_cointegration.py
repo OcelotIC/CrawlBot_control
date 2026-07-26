@@ -167,7 +167,7 @@ def _verdict():
     print('  Optimizers: NMPC (state [r,v,L], controls wrench) + whole-body QP (qdd_t,qdd,λ,τ_q,slack).')
     print('  AOCS: closed-form law. No joint [τ_q,τ_w] solver. h_w enters NMPC as the frozen param c_simple(k)')
     print('  and the QP as the frozen param hw_current — c_curr is the SAME parametric mechanism (refresh,')
-    print('  not co-solve). See results/j2_no_cointegration/INTERNAL_no_cointegration.md.')
+    print('  not co-solve). See Misc/runs/j2_no_cointegration/INTERNAL_no_cointegration.md.')
     print('=' * 78)
     return 0 if ok else 1
 

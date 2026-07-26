@@ -25,7 +25,7 @@ Outputs (in the given results dir):
 
 Usage:
   PYTHONPATH=. MUJOCO_GL=osmesa python3 scripts/diag_step_reach.py \
-      results/diag_cooperative_arms/
+      Misc/runs/diag_cooperative_arms/
 """
 from __future__ import annotations
 

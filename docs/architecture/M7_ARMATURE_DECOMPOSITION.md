@@ -5,12 +5,12 @@
 EE orientation drift in A_swing, and identify the minimum armature
 value that stabilizes the DS passivity settle.
 **Input artefacts:**
-- `results/M7_ee_ori_diag/mjcf_vs_urdf_arm_params.md` — documents the
+- `Misc/runs/M7_ee_ori_diag/mjcf_vs_urdf_arm_params.md` — documents the
   MJCF-URDF mismatch: 14 arm joints carry `damping=0.05 armature=0.05`
   in the MJCF, URDF/Pinocchio has 0.
-- `results/M7_ee_bisection/A_swing/trace_v2.csv` — 16.7° EE ori drift
+- `Misc/runs/M7_ee_bisection/A_swing/trace_v2.csv` — 16.7° EE ori drift
   on A_swing at current state.
-- `results/M7_settle_diag/settle_damping_sweep.md` — prior sweep
+- `Misc/runs/M7_settle_diag/settle_damping_sweep.md` — prior sweep
   showing `a=0.05` converges, `a=0.01` plateaus; no data for
   `d=0.05, a=0` or intermediate armature-only values.
 
@@ -78,7 +78,7 @@ Report:
 - time of EE ori peak (vs 6.740 s in the prior run)
 
 Output per-tick trace to
-`results/M7_armature_decomposition/A_swing_with_pin_armature/trace.csv`
+`Misc/runs/M7_armature_decomposition/A_swing_with_pin_armature/trace.csv`
 with same columns as `trace_v2.csv`.
 
 ### 2.4 Reference
@@ -128,7 +128,7 @@ path as `_run_ds_passivity_loop`, up to 51 steps max, exit on
 
 ### 3.3 Output
 
-Consolidated `results/M7_armature_decomposition/settle_sweep_summary.md`
+Consolidated `Misc/runs/M7_armature_decomposition/settle_sweep_summary.md`
 with one table for Part 1 result and one table for Part 2 variants.
 
 ## 4. Invariants
@@ -155,9 +155,9 @@ with one table for Part 1 result and one table for Part 2 variants.
 
 ## 6. Deliverables
 
-- `results/M7_armature_decomposition/summary.md` containing both tables.
-- `results/M7_armature_decomposition/A_swing_with_pin_armature/trace.csv`
-- `results/M7_armature_decomposition/settle_variants/{variant}/trace.csv`
+- `Misc/runs/M7_armature_decomposition/summary.md` containing both tables.
+- `Misc/runs/M7_armature_decomposition/A_swing_with_pin_armature/trace.csv`
+- `Misc/runs/M7_armature_decomposition/settle_variants/{variant}/trace.csv`
   for each of the seven variants.
 - Pinocchio diagonal `H` entries before/after, in the summary.
 

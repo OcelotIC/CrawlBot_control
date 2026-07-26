@@ -5,13 +5,13 @@ and exports derived signals (NMPC-planned Ḣ_s, tracking errors, phase mask)
 as a tidy CSV plus a small JSON metrics summary. Does NOT re-run any sim.
 
 Inputs:
-    results/diag_cooperative_arms_legacy_pid_numerical/sim_log.json
+    Misc/runs/diag_cooperative_arms_legacy_pid_numerical/sim_log.json
     models/VISPA_crawling_rwa3.xml (MJCF, for anchor site recovery)
 
 Outputs:
-    results/diag_cooperative_arms_legacy_pid_numerical/postproc_F3F4.csv
-    results/diag_cooperative_arms_legacy_pid_numerical/postproc_metrics.json
-    results/diag_cooperative_arms_legacy_pid_numerical/postproc_stance_sanity.txt
+    Misc/runs/diag_cooperative_arms_legacy_pid_numerical/postproc_F3F4.csv
+    Misc/runs/diag_cooperative_arms_legacy_pid_numerical/postproc_metrics.json
+    Misc/runs/diag_cooperative_arms_legacy_pid_numerical/postproc_stance_sanity.txt
 """
 from __future__ import annotations
 

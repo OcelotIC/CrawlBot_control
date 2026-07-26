@@ -11,9 +11,9 @@ inter-step DS passivity settle mirroring
 logged to the per-variant CSV; exit conditions and T_end are
 recorded.
 
-Outputs under results/M7_armature_decomposition/settle_variants/{tag}/.
+Outputs under Misc/runs/M7_armature_decomposition/settle_variants/{tag}/.
 Appends a Part-2 table to the existing Part-1 summary at
-results/M7_armature_decomposition/summary.md.
+Misc/runs/M7_armature_decomposition/summary.md.
 
 MJCF is byte-exactly restored on script exit via try/finally and
 verified by re-read.
@@ -39,9 +39,9 @@ from crawlbot.core.state_conversions import mujoco_to_pinocchio
 
 URDF = os.path.join(_root, 'models', 'VISPA_crawling_fixed.urdf')
 MJCF = os.path.join(_root, 'models', 'VISPA_crawling_rwa3.xml')
-OUT_ROOT = os.path.join(_root, 'results', 'M7_armature_decomposition',
+OUT_ROOT = os.path.join(_root, 'Misc', 'runs', 'M7_armature_decomposition',
                         'settle_variants')
-SUMMARY_PATH = os.path.join(_root, 'results', 'M7_armature_decomposition',
+SUMMARY_PATH = os.path.join(_root, 'Misc', 'runs', 'M7_armature_decomposition',
                             'summary.md')
 
 # (tag, mjcf_damping, mjcf_armature, pinocchio_armature)

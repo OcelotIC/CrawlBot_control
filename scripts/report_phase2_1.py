@@ -18,7 +18,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 _ROOT = os.path.join(os.path.dirname(__file__), '..')
-OUT = os.path.join(_ROOT, 'results', 'phase2_1_report')
+OUT = os.path.join(_ROOT, 'Misc', 'runs', 'phase2_1_report')
 PROG_AXIS = 0  # swing progression ≈ structure +x (anchor_dx along x)
 
 # (label, dir, alpha_mom, variant)  — baseline first

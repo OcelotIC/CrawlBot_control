@@ -173,7 +173,7 @@ def main():
             print(f'  - {lbl}')
         return 1
     print('=> all three claims CONFIRMED on ae0673e; premise (passivity code unchanged) holds.')
-    print('=> see results/j2_audit/INTERNAL_j2_passivity.md for CONFIRM/REFUTE/PARTIAL + nuances.')
+    print('=> see Misc/runs/j2_audit/INTERNAL_j2_passivity.md for CONFIRM/REFUTE/PARTIAL + nuances.')
     print('=' * 78)
     return 0
 

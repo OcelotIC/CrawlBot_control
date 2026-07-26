@@ -111,7 +111,7 @@ criterion-3 reading: planned envelope is the hard constraint and holds; this rea
 characterisation. The memo's older literal "≤2.95% of ticks" is stale — the baseline itself is
 4.5% at the F3F4 rate — and is superseded by the two-regime reading.)
 
-## 5. Plots (`results/phase3_wp/phase3_plots/`, baseline grey/dashed, SS shaded)
+## 5. Plots (`Misc/runs/phase3_wp/phase3_plots/`, baseline grey/dashed, SS shaded)
 
 1. `1_torso_tracking.png` — torso ori geodesic + pos per axis (C2: ori ≪ baseline; pos peak step 4).
 2. `2_swing_ee.png` — swing-EE distance + ori to anchor (docking approach).
@@ -126,10 +126,10 @@ characterisation. The memo's older literal "≤2.95% of ticks" is stale — the 
 - **HEAD at run:** `8374196` (clean), branch `feat/ss-centroidal-momentum-task`.
 - **WP flags:** `--ss-two-task --ss-alpha-mom 5000 --alpha-torso-pose 20000 --ss-kp-torso 3
   --ss-kd-torso 2.5 --aocs_mode legacy_pid_numerical --n-steps 5` (ee/posture/wrench at defaults
-  3000/20/1e-2). Full dump: `results/phase3_wp/PHASE3_METADATA.txt`, gate JSON:
-  `results/phase3_wp/gate_phase3_results.json`.
+  3000/20/1e-2). Full dump: `Misc/runs/phase3_wp/PHASE3_METADATA.txt`, gate JSON:
+  `Misc/runs/phase3_wp/gate_phase3_results.json`.
 - **Baseline:** `ssmom_phase1_baseline_main_dcda974` (= 5bca42c canonical values, legacy_pid_numerical).
-- **C6 OFF:** `results/phase3_off/OFF_RESULT.txt` — byte-identical to dcda974 (Δ=0), test 8/8.
+- **C6 OFF:** `Misc/runs/phase3_off/OFF_RESULT.txt` — byte-identical to dcda974 (Δ=0), test 8/8.
 
 ## 7. What the FAIL triggers (per memo §4 — reported, NOT executed here)
 

@@ -3,7 +3,7 @@
 **Date:** 2026-04-17
 **Scope:** Surgical edits to `docs/architecture/M7_TECHNICAL_LOG.md`
 **Input artefacts:**
-- `results/archive_rediagnostic.md` (from Step 2 of post-processing)
+- `Misc/runs/archive_rediagnostic.md` (from Step 2 of post-processing)
 - `docs/architecture/POST_ABORT_DIVERGENCE.md` (from Step 3)
 
 ---
@@ -20,7 +20,7 @@ The log must be corrected. This is **not a rewrite**. The v12–v21 version hist
 
 Insert immediately after the date/branch/commit header. Two paragraphs:
 
-- **P1:** State that the log as previously written drew conclusions from global-max metrics; that per-phase analysis (2026-04-17 post-processing) overturned the central claim; that sections have been amended where factually incorrect. Reference `results/archive_rediagnostic.md`.
+- **P1:** State that the log as previously written drew conclusions from global-max metrics; that per-phase analysis (2026-04-17 post-processing) overturned the central claim; that sections have been amended where factually incorrect. Reference `Misc/runs/archive_rediagnostic.md`.
 - **P2:** One-sentence corrected picture — SS orientation is 0.5° across all versions; the remaining real problem is EE position tracking in SS (24 mm standalone → 162 mm closed-loop peak, 25–41 mm at abort); plus a separate post-abort DS divergence issue.
 
 ### 2.2 Amend §10 (v20/v21 plans and results)
@@ -71,7 +71,7 @@ Current text attributes "31° torso orientation error" to "pure arm-reaction dis
 - No apology, no editorializing. Factual corrections only.
 - Preserve every numerical value that was correct.
 - Every amended paragraph ends with `(amended 2026-04-17)`.
-- Git commit message states exactly what changed, references `results/archive_rediagnostic.md`.
+- Git commit message states exactly what changed, references `Misc/runs/archive_rediagnostic.md`.
 
 ## 4. Pass criteria
 

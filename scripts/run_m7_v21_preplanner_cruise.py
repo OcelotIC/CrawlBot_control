@@ -30,7 +30,7 @@ Rationale (M7 technical log, v20 → v21)
   small for a smooth arm swing, freeing the joint-torque budget for
   the EE task.
 
-Output: results/M7_1pct_1step_v21/.
+Output: Misc/runs/M7_1pct_1step_v21/.
 """
 from __future__ import annotations
 
@@ -51,4 +51,4 @@ if __name__ == '__main__':
     cfg.preplanner_cruise_ramp_frac = 0.2   # 20/60/20 split
     r.run_case(
         '1pct 1-step v21 (preplanner a_cruise_max=0.01 + quintic + planned-delta + EE FF)',
-        'results/M7_1pct_1step_v21', n_steps=1, config=cfg)
+        'Misc/runs/M7_1pct_1step_v21', n_steps=1, config=cfg)

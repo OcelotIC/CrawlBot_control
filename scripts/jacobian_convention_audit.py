@@ -12,7 +12,7 @@ damping=0, armature=0 via transient MJCF mutation. At k=10 captures:
 Computes 8 power variants (2×4 swap combinations per side) and
 compares Pinocchio T = ½v·H·v to MuJoCo's mj_data.energy[0].
 
-Writes results/M7_settle_diag/jacobian_convention_audit.md.
+Writes Misc/runs/M7_settle_diag/jacobian_convention_audit.md.
 MJCF restored via try/finally and verified by re-read.
 """
 from __future__ import annotations
@@ -35,7 +35,7 @@ from crawlbot.core.state_conversions import mujoco_to_pinocchio
 
 URDF = os.path.join(_root, 'models', 'VISPA_crawling_fixed.urdf')
 MJCF = os.path.join(_root, 'models', 'VISPA_crawling_rwa3.xml')
-OUT  = os.path.join(_root, 'results', 'M7_settle_diag',
+OUT  = os.path.join(_root, 'Misc', 'runs', 'M7_settle_diag',
                     'jacobian_convention_audit.md')
 TARGET_K = 10
 

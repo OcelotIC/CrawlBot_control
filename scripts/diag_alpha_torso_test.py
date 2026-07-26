@@ -11,7 +11,7 @@ Run:
         scripts/diag_alpha_torso_test.py --alpha_torso 3000
 
 Outputs:
-    results/diag_alpha_torso/alpha_{N}/
+    Misc/runs/diag_alpha_torso/alpha_{N}/
         sim_log.json, nmpc_step_log.json, nmpc_per_step.txt,
         step_metrics.txt, hw_slack_log.json, hw_slack_summary.txt,
         summary.json
@@ -288,7 +288,7 @@ def main():
     parser.add_argument('--alpha_torso', type=float, required=True)
     args = parser.parse_args()
 
-    out_dir = os.path.join(_root, 'results', 'diag_alpha_torso',
+    out_dir = os.path.join(_root, 'Misc', 'runs', 'diag_alpha_torso',
                            f'alpha_{int(args.alpha_torso)}')
 
     with open(MJCF, 'r') as f:

@@ -6,7 +6,7 @@ new SimConfig flag mapping_bypass_in_ss=True. With the flag on, sim_loop
 freezes the linear torso reference at its SS-entry value during SS only;
 angular reference still comes from TorsoPlanner. DS phase is unchanged.
 
-Output: results/M7_1pct_1step_v21_mapping_off/.
+Output: Misc/runs/M7_1pct_1step_v21_mapping_off/.
 """
 from __future__ import annotations
 
@@ -27,5 +27,5 @@ if __name__ == '__main__':
     cfg.mapping_bypass_in_ss = True
     r.run_case(
         '1pct 1-step v21 (mapping_bypass_in_ss=True)',
-        'results/M7_1pct_1step_v21_mapping_off',
+        'Misc/runs/M7_1pct_1step_v21_mapping_off',
         n_steps=1, config=cfg)

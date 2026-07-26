@@ -6,7 +6,7 @@ ONLY changing mapping_bypass_in_ss = False. The live mapping layer
 at every WBC cycle.
 
 Outputs:
-    results/diag_step2_bypass_off/
+    Misc/runs/diag_step2_bypass_off/
         sim_log.json, step2_log.json
         step2_report.txt, mapping_check.txt
         nmpc_per_step.txt, step_metrics.txt
@@ -30,7 +30,7 @@ import scripts.run_m7_single_step as r_single  # noqa: E402
 
 
 MJCF = os.path.join(_root, 'models', 'VISPA_crawling_rwa3.xml')
-OUT = os.path.join(_root, 'results', 'diag_step2_bypass_off')
+OUT = os.path.join(_root, 'Misc', 'runs', 'diag_step2_bypass_off')
 
 ROBOT_JOINT_RE = re.compile(
     r'(<default class="robot_joint">\s*\n\s*<joint damping=")[^"]+'

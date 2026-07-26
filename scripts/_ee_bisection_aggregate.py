@@ -1,12 +1,12 @@
 """Aggregate the M7 EE bisection cases into summary.md + overlay.png.
 
 Reads:
-  results/M7_ee_bisection/{A_swing,B_minus,B_v21}/trace.csv
-  results/M7_abort_diag/R1_baseline/sim_log.json   (case D, no re-sim)
+  Misc/runs/M7_ee_bisection/{A_swing,B_minus,B_v21}/trace.csv
+  Misc/runs/M7_abort_diag/R1_baseline/sim_log.json   (case D, no re-sim)
 
 Writes:
-  results/M7_ee_bisection/summary.md
-  results/M7_ee_bisection/overlay.png
+  Misc/runs/M7_ee_bisection/summary.md
+  Misc/runs/M7_ee_bisection/overlay.png
 
 No interpretation.
 """
@@ -28,8 +28,8 @@ import matplotlib.pyplot as plt
 from crawlbot.simulation.logging import SimLog
 
 
-OUT_DIR = os.path.join(_root, 'results', 'M7_ee_bisection')
-R1_LOG = os.path.join(_root, 'results', 'M7_abort_diag',
+OUT_DIR = os.path.join(_root, 'Misc', 'runs', 'M7_ee_bisection')
+R1_LOG = os.path.join(_root, 'Misc', 'runs', 'M7_abort_diag',
                       'R1_baseline', 'sim_log.json')
 
 T_STEP = 7.284   # spec §2
@@ -129,7 +129,7 @@ def main():
         f.write('v21-baseline cases share initial state, contact config\n')
         f.write('(SINGLE_A), and SwingPlanner EE reference; they differ only\n')
         f.write('in which subsystems run during SS. Case D is read from\n')
-        f.write('`results/M7_abort_diag/R1_baseline/sim_log.json` (commit\n')
+        f.write('`Misc/runs/M7_abort_diag/R1_baseline/sim_log.json` (commit\n')
         f.write('`6128db9`) — no re-simulation. Metrics are computed over\n')
         f.write(f'`t ∈ [0, T_step]` with T_step = 7.284 s.\n\n')
         cols = ['case', 'description',

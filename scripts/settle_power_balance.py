@@ -18,8 +18,8 @@ Three new columns appended to the existing per-tick trace:
               B = [0_{6×14}; I_{14×14}].
 
 Outputs:
-  results/M7_settle_diag/d0_a0/power_balance_trace.csv  (full per-tick log)
-  results/M7_settle_diag/settle_power_balance.md         (report)
+  Misc/runs/M7_settle_diag/d0_a0/power_balance_trace.csv  (full per-tick log)
+  Misc/runs/M7_settle_diag/settle_power_balance.md         (report)
 
 Diagnostic only. Do not commit.
 """
@@ -44,8 +44,8 @@ from crawlbot.core.state_conversions import mujoco_to_pinocchio
 
 URDF = os.path.join(_root, 'models', 'VISPA_crawling_fixed.urdf')
 MJCF = os.path.join(_root, 'models', 'VISPA_crawling_rwa3.xml')
-OUT_DIR = os.path.join(_root, 'results', 'M7_settle_diag', 'd0_a0')
-TOP_OUT = os.path.join(_root, 'results', 'M7_settle_diag')
+OUT_DIR = os.path.join(_root, 'Misc', 'runs', 'M7_settle_diag', 'd0_a0')
+TOP_OUT = os.path.join(_root, 'Misc', 'runs', 'M7_settle_diag')
 
 ROBOT_JOINT_RE = re.compile(
     r'(<default class="robot_joint">\s*\n\s*<joint damping=")[^"]+'

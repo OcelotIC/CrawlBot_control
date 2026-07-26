@@ -9,7 +9,7 @@ Runs a 1-step closed-loop sim at 1% mass ratio for each value and reports:
   - torso_pos_err_peak_mm
   - Dock events
 
-Output: stdout table + results/M5_alpha_sweep/metrics.csv
+Output: stdout table + Misc/runs/M5_alpha_sweep/metrics.csv
 """
 import os
 import sys
@@ -27,7 +27,7 @@ from crawlbot.diagnostics.metrics import compute_metrics
 
 URDF = os.path.join(_root, 'models', 'VISPA_crawling_fixed.urdf')
 MJCF = os.path.join(_root, 'models', 'VISPA_crawling_rwa3.xml')
-OUTPUT_DIR = 'results/M5_alpha_sweep'
+OUTPUT_DIR = 'Misc/runs/M5_alpha_sweep'
 
 SWEEP_VALUES = [1.0, 5.0, 10.0, 25.0, 50.0]
 

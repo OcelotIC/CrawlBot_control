@@ -11,7 +11,7 @@ from scripts.export_figure_data import load_anchors_struct_frame, phase_per_tick
 import mujoco
 
 model = mujoco.MjModel.from_xml_path(MJCF)
-STANCE_PP = 'results/figA_canon_fixed/postproc_F3F4.csv'   # validated stance for the 1080-tick canonical gait
+STANCE_PP = 'Misc/runs/figA_canon_fixed/postproc_F3F4.csv'   # validated stance for the 1080-tick canonical gait
 
 def read_stance(pp, n):
     sa = np.full(n, -1, int); sb = np.full(n, -1, int)

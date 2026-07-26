@@ -22,7 +22,7 @@ without Pinocchio — uses only fields already logged in sim_log.json
 
 Usage:
   PYTHONPATH=. MUJOCO_GL=osmesa python3 scripts/diag_wrench_balance.py \
-      results/diag_cooperative_arms/
+      Misc/runs/diag_cooperative_arms/
 """
 from __future__ import annotations
 

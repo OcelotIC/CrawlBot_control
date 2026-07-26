@@ -1,0 +1,56 @@
+{
+  "log": "Misc/runs/diag_cooperative_arms/sim_log.json",
+  "m_robot_kg": 71.0,
+  "whole_run": {
+    "contact2_f_max_N": 11.80496637778477,
+    "contact2_f_max_t": 36.00000000000023,
+    "contact2_f_max_step": 4
+  },
+  "step2_SS": {
+    "n_ticks": 89,
+    "contact2_f_max_N": 0.0,
+    "contact1_f_max_N": 62.18727551829286
+  },
+  "step2_peak": {
+    "t": 16.629999999999978,
+    "f1_N": [
+      -5.977144203117183,
+      59.814703476522055,
+      -15.928974592827672
+    ],
+    "f1_norm_N": 62.18727551829286,
+    "tau1_Nm": [
+      34.559413751436935,
+      4.704429932452482,
+      9.969670362612746
+    ],
+    "tau1_norm_Nm": 36.27504744271911,
+    "f2_N": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "f2_norm_N": 0.0,
+    "nmpc_ref_f_norm_N": 5.7594050754107515,
+    "nmpc_ref_tau_norm_Nm": 7.999998791364047,
+    "qp_over_nmpc_force_ratio": 10.797517226873952,
+    "a_com_mps2": [
+      0.08783534110626515,
+      0.6214188537201556,
+      -0.14745634621276257
+    ],
+    "a_com_norm_mps2": 0.644685824991169,
+    "m_times_a_com_N": 45.772693574373,
+    "internal_force_N": 0.0,
+    "internal_force_note": "contact 2 inactive at peak (f2=0) => no 12->6 null space"
+  },
+  "transient_vs_sustained": {
+    "f1_mean_N": 4.018148947506441,
+    "f1_median_N": 2.2225145395218835,
+    "f1_p95_N": 10.315997297123193,
+    "f1_peak_N": 62.18727551829286,
+    "peak_over_median": 27.98059333806241,
+    "vcom_over_vcom_ref_at_peak": 1.0386534566226937,
+    "interpretation": "peak >> median AND v_com on-plan => transient jerk (F-SAT/delta(q) jitter), not a sustained authority shortfall"
+  }
+}

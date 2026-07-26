@@ -5,7 +5,7 @@
 **Input artefacts:**
 - `docs/architecture/POST_ABORT_DIVERGENCE.md` (Step 3 analysis)
 - `docs/architecture/M7_TECHNICAL_LOG.md` (post-correction)
-- `results/M7_1pct_1step_v21/sim_log.json` (reference baseline — do not overwrite)
+- `Misc/runs/M7_1pct_1step_v21/sim_log.json` (reference baseline — do not overwrite)
 
 ---
 
@@ -52,20 +52,20 @@ No other config changes. No new QPConfig flags. No existing parameter retuning.
 ## 4. The four runs
 
 ### R1_baseline — reproduction
-All three flags `False`. Output: `results/M7_abort_diag/R1_baseline/`.
+All three flags `False`. Output: `Misc/runs/M7_abort_diag/R1_baseline/`.
 Purpose: catch any pipeline drift or nondeterminism before interpreting deltas. Must match archived v21 on SS metrics exactly.
 
 ### R2_freeze_ref — tests H_DS2
 `diag_freeze_torso_ref_on_abort=True`, other two `False`.
-Output: `results/M7_abort_diag/R2_freeze_ref/`.
+Output: `Misc/runs/M7_abort_diag/R2_freeze_ref/`.
 
 ### R3_single_contact — tests H_DS1
 `diag_force_single_contact_on_abort=True`, other two `False`.
-Output: `results/M7_abort_diag/R3_single_contact/`.
+Output: `Misc/runs/M7_abort_diag/R3_single_contact/`.
 
 ### R4_no_passivity — tests H_DS3
 `diag_disable_passivity_on_abort=True`, other two `False`.
-Output: `results/M7_abort_diag/R4_no_passivity/`.
+Output: `Misc/runs/M7_abort_diag/R4_no_passivity/`.
 
 ## 5. Invariants (must hold on every run)
 
@@ -78,7 +78,7 @@ Output: `results/M7_abort_diag/R4_no_passivity/`.
 
 ## 6. Deliverable — one table
 
-`results/M7_abort_diag/summary.md`:
+`Misc/runs/M7_abort_diag/summary.md`:
 
 ```
 run              | SS peak ori [°] | q_ref jump [°] | DS entry ori [°] | DS peak ori [°] | max|τ_q|_DS [Nm] | τ_q sat frac DS | τ_w sat frac DS | dock?

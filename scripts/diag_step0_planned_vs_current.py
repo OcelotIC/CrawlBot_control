@@ -17,7 +17,7 @@ Reports for step 0 SS:
   - max per-component differences
 
 Outputs:
-    results/diag_step0_planned_vs_current/
+    Misc/runs/diag_step0_planned_vs_current/
         sim_log.json, step0_log.json, planned_vs_current_report.txt
 """
 from __future__ import annotations
@@ -38,7 +38,7 @@ import scripts.run_m7_single_step as r_single  # noqa: E402
 
 
 MJCF = os.path.join(_root, 'models', 'VISPA_crawling_rwa3.xml')
-OUT = os.path.join(_root, 'results', 'diag_step0_planned_vs_current')
+OUT = os.path.join(_root, 'Misc', 'runs', 'diag_step0_planned_vs_current')
 
 ROBOT_JOINT_RE = re.compile(
     r'(<default class="robot_joint">\s*\n\s*<joint damping=")[^"]+'

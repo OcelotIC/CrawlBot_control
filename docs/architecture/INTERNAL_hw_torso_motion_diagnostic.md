@@ -4,8 +4,8 @@
 self-contained result (peak value, % of ±5 N·m·s budget, within limit throughout) with no
 δ-mapping comparison and no C5-style criterion. This note justifies our confidence in the 4.37
 figure internally. Read-only diagnostic on existing runs (`scripts/diag_hw_vs_torso_motion.py`,
-figure `results/phase3_wp/phase3_plots/8_hw_vs_torso_motion.png`,
-data `results/phase3_wp/hw_vs_torso_motion.json`). Branch HEAD `9939503`.
+figure `Misc/runs/phase3_wp/phase3_plots/8_hw_vs_torso_motion.png`,
+data `Misc/runs/phase3_wp/hw_vs_torso_motion.json`). Branch HEAD `9939503`.
 
 ## Hypothesis
 The baseline (5bca42c, δ-mapping) has lower h_w peak (3.38) than the two-task working point

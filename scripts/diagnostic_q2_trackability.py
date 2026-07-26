@@ -36,7 +36,7 @@ import scripts.run_m7_single_step as r_single  # noqa: E402
 from crawlbot.core import ik as ik_module  # noqa: E402
 
 OUTDIR = os.path.join(_root, 'diagnostic')
-RUN_OUT_BASE = os.path.join(_root, 'results', 'diagnostic_q2')
+RUN_OUT_BASE = os.path.join(_root, 'Misc', 'runs', 'diagnostic_q2')
 
 # We patch dock_configuration_fixed_rotation; preserve original.
 _orig_fixed_rot_ik = ik_module.dock_configuration_fixed_rotation

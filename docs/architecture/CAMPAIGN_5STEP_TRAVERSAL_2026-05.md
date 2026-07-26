@@ -52,7 +52,7 @@ Values at the dock instant, per step:
 
 Diagnostics: `scripts/diag_dock_quality.py`.
 
-![Dock quality: per-step d_grip, orientation, residual velocity and acceleration at the dock instant](../../results/diag_cooperative_arms/dock_quality.png)
+![Dock quality: per-step d_grip, orientation, residual velocity and acceleration at the dock instant](../../Misc/runs/diag_cooperative_arms/dock_quality.png)
 
 ---
 
@@ -94,7 +94,7 @@ the norm as a 1.73 "FAIL").
 - **Platform attitude accumulates** monotonically to 3.8° over 5 steps (~0.76°/step → would breach 5° ≈ step 7, extrapolated).
 - Both concerns expected to **worsen at 14% mass ratio** (untested).
 
-![Momentum/AOCS: RWA momentum (per-axis box), platform attitude drift, omega_s, wheel torque, L_com](../../results/diag_cooperative_arms/momentum_aocs.png)
+![Momentum/AOCS: RWA momentum (per-axis box), platform attitude drift, omega_s, wheel torque, L_com](../../Misc/runs/diag_cooperative_arms/momentum_aocs.png)
 
 ## 6. Group D — actuator / solver health (`scripts/diag_actuator_solver.py`)
 
@@ -107,7 +107,7 @@ the norm as a 1.73 "FAIL").
 
 **B and D are the same step-2 transient (t≈16.63, longest stride), causally linked:** the **centroidal NMPC under-budgets the whole-body wrench ~10×** (its point-mass+momentum model has no arm/joint/torso inertial dynamics). So the real momentum disturbance exceeds the plan → **wheels saturate (B)**, a **joint hits 20Nm**, and the **QP commands 62N** — it docks, but with **zero actuator margin** in that ~1s window. This is the documented "QP needs ~9× more wrench than NMPC plans" (commit 673cc68), quantified at 10.8×. The leading hypothesis is that the **soft-CoM residual** meant to keep NMPC↔QP consistent being **OFF** (`α_com_soft=0`) is the cause — **but this attribution is not yet confirmed** (the peak `lambda_qp` has not been decomposed net-vs-internal). See **§7c** before treating soft-CoM as the fix.
 
-![Actuator/solver: contact |f| QP vs NMPC plan, per-joint torque vs +-20Nm, NMPC solve time](../../results/diag_cooperative_arms/actuator_solver.png)
+![Actuator/solver: contact |f| QP vs NMPC plan, per-joint torque vs +-20Nm, NMPC solve time](../../Misc/runs/diag_cooperative_arms/actuator_solver.png)
 
 ## 6b. Group C — cascade band-aid footprint (`scripts/diag_cascade_health.py`)
 
@@ -139,7 +139,7 @@ mapping, which is committed OFF. The 49.6% clip rate quantifies the
 **F-SAT / δ(q_current) debt**: the traversal is robust to it today,
 but it is a standing liability (the band-aid, not a guarantee).
 
-![Cascade health: CoM-z standoff hold + torso-z, torso position tracking, F-SAT per-tick increment](../../results/diag_cooperative_arms/cascade_health.png)
+![Cascade health: CoM-z standoff hold + torso-z, torso position tracking, F-SAT per-tick increment](../../Misc/runs/diag_cooperative_arms/cascade_health.png)
 
 ## 7. Verdict & open items
 
@@ -170,7 +170,7 @@ hypothesis**, not a settled result. Two confounds, found while
 investigating whether to re-engage `α_com_soft`, must be recorded:
 
 1. **The only prior sweep used the wrong stack.**
-   `results/M5_alpha_sweep/metrics.csv` (the basis for the "every
+   `Misc/runs/M5_alpha_sweep/metrics.csv` (the basis for the "every
    non-zero α diverges" belief, and for the `config.py:101` comment
    "5.0 was fighting torso tracking") was produced by
    `scripts/sweep_alpha_com_soft.py`, which builds a plain `SimConfig`
@@ -280,9 +280,9 @@ the traversal is a **1%-mass-ratio result**.
 > next action.** This §8 14%-failure narrative still stands as a
 > *symptom*, but its proposed *cause/fix* is superseded by §7c.
 
-![14% Group B: wheel momentum/attitude/omega — platform rotation 6.55° over 2 steps, omega 5.1°/s](../../results/diag_cooperative_arms_14pct/momentum_aocs.png)
-![14% Group D: 12.1× QP-vs-NMPC wrench, joint tau at 20 Nm](../../results/diag_cooperative_arms_14pct/actuator_solver.png)
-![14% Group C: CoM-z standoff degrades to 123 mm range, step-2 dev 76 mm](../../results/diag_cooperative_arms_14pct/cascade_health.png)
+![14% Group B: wheel momentum/attitude/omega — platform rotation 6.55° over 2 steps, omega 5.1°/s](../../Misc/runs/diag_cooperative_arms_14pct/momentum_aocs.png)
+![14% Group D: 12.1× QP-vs-NMPC wrench, joint tau at 20 Nm](../../Misc/runs/diag_cooperative_arms_14pct/actuator_solver.png)
+![14% Group C: CoM-z standoff degrades to 123 mm range, step-2 dev 76 mm](../../Misc/runs/diag_cooperative_arms_14pct/cascade_health.png)
 
 Repro: `MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/diag_cooperative_arms.py --mass_ratio 0.14`
 then the B/C/D scripts with arg `diag_cooperative_arms_14pct`.
@@ -349,7 +349,7 @@ heavy structure absorbs the rest as a tiny attitude drift. At 14% (§8) the
 same plan produces a 1.9× overshoot at step 2 and the structure can't absorb
 it.
 
-![Ḣ_s vs L̇_com vs 5 Nm budget at 1% canonical. Orange = NMPC plan Ḣ_s (peaks 12 Nm at step 4); blue = L̇_com proxy (stays below 5 throughout); red = QP-output Ḣ_s (downstream mapping spike at step 2).](../../results/diag_cooperative_arms/hdot_struct.png)
+![Ḣ_s vs L̇_com vs 5 Nm budget at 1% canonical. Orange = NMPC plan Ḣ_s (peaks 12 Nm at step 4); blue = L̇_com proxy (stays below 5 throughout); red = QP-output Ḣ_s (downstream mapping spike at step 2).](../../Misc/runs/diag_cooperative_arms/hdot_struct.png)
 
 Repro: `MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/diag_cooperative_arms.py` (constraint off, default)
 or `--tau_struct_max 5.0` (constraint on, opt-in); then `python3 scripts/diag_hdot_struct.py [subdir]`.
@@ -443,7 +443,7 @@ the spec §6 mapping mitigation — separate next-branch work.
   under the same residual.
 - **Path-time decoupling** at the binding long-lever steps (still notional).
 
-![pd_numerical wins: NMPC plan |Ḣ_s| clamps at 5 Nm; QP-output spike at step 2 persists but AOCS damps the resulting ω_s. Platform rotation 1.58° vs 5° spec budget.](../../results/diag_cooperative_arms_legacy_pd_numerical/hdot_struct.png)
+![pd_numerical wins: NMPC plan |Ḣ_s| clamps at 5 Nm; QP-output spike at step 2 persists but AOCS damps the resulting ω_s. Platform rotation 1.58° vs 5° spec budget.](../../Misc/runs/diag_cooperative_arms_legacy_pd_numerical/hdot_struct.png)
 
 Repro: `MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/diag_cooperative_arms.py --aocs_mode legacy_pd_numerical`
 
@@ -506,7 +506,7 @@ under study. The long-duration scaling is a **gait-design problem at
 the planning layer above**, not a controller-cascade problem inside
 the layers this campaign covers.
 
-![Post-traversal settle: ω_s and h_w decay to ~0, attitude locks at 1.95°. AOCS recovers 1.5% of transient peak; 98.5% is irreversible per-traversal drift.](../../results/diag_cooperative_arms_legacy_pd_numerical/settle.png)
+![Post-traversal settle: ω_s and h_w decay to ~0, attitude locks at 1.95°. AOCS recovers 1.5% of transient peak; 98.5% is irreversible per-traversal drift.](../../Misc/runs/diag_cooperative_arms_legacy_pd_numerical/settle.png)
 
 Repro: `MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/diag_cooperative_arms.py --aocs_mode legacy_pd_numerical --settle_seconds 120`
 then `python3 scripts/diag_settle.py diag_cooperative_arms_legacy_pd_numerical`.
@@ -559,7 +559,7 @@ A/B at default $K_\omega = 50$:
 At $K_\theta=10$ with the original (arbitrary) $K_\omega=50$, the
 per-traversal drift drops from 1.95° → 0.045° — a 43× reduction.
 
-![§12.3 K_θ=10 (K_ω=50 default): attitude curve actively decays during settle (green window) from 1.418° to 0.045°, vs §11's PD-only that stayed flat at 1.95°.](../../results/diag_cooperative_arms_legacy_pid_numerical_Kt10/settle.png)
+![§12.3 K_θ=10 (K_ω=50 default): attitude curve actively decays during settle (green window) from 1.418° to 0.045°, vs §11's PD-only that stayed flat at 1.95°.](../../Misc/runs/diag_cooperative_arms_legacy_pid_numerical_Kt10/settle.png)
 
 ### 12.4 Gain tuning — pole placement beats arbitrary
 
@@ -626,11 +626,11 @@ the peak with margin and the integral with breathing room. The
 architecture's *actual* requirement at 1% mass ratio is between 1.5
 and 2 Nm — well under the 5 Nm spec (≥2.5× margin).
 
-![§12.5 τ_w_max=0.5 Nm — catastrophic peak failure. Step 0 docks (0.6mm); step 1 TIMEOUT at 65.7° EE orientation. Post-traversal: ω_s, h_w, attitude all GROW — AOCS saturated, divergent.](../../results/diag_cooperative_arms_legacy_pid_numerical_Kt36.3_Kw355.4_Tw0.5/settle.png)
+![§12.5 τ_w_max=0.5 Nm — catastrophic peak failure. Step 0 docks (0.6mm); step 1 TIMEOUT at 65.7° EE orientation. Post-traversal: ω_s, h_w, attitude all GROW — AOCS saturated, divergent.](../../Misc/runs/diag_cooperative_arms_legacy_pid_numerical_Kt36.3_Kw355.4_Tw0.5/settle.png)
 
-![§12.5 τ_w_max=1.0 Nm — graceful integral failure. Steps 0-2 dock, h_w climbs monotonically to 4.24 Nms (85% of box) by step 3 → no headroom left → step 3 TIMEOUT at 13.8mm (only 1.75° ori — different mode than 0.5Nm). τ_w saturates 68.7% of ticks.](../../results/diag_cooperative_arms_legacy_pid_numerical_Kt36.3_Kw355.4_Tw1/settle.png)
+![§12.5 τ_w_max=1.0 Nm — graceful integral failure. Steps 0-2 dock, h_w climbs monotonically to 4.24 Nms (85% of box) by step 3 → no headroom left → step 3 TIMEOUT at 13.8mm (only 1.75° ori — different mode than 0.5Nm). τ_w saturates 68.7% of ticks.](../../Misc/runs/diag_cooperative_arms_legacy_pid_numerical_Kt36.3_Kw355.4_Tw1/settle.png)
 
-![§12.5 τ_w_max=2.0 Nm — works at the edge. All 5 dock; τ_w saturates 3.9% of ticks (~0.6s); ω_s/h_w decay cleanly in settle; 0.006° irreversible drift.](../../results/diag_cooperative_arms_legacy_pid_numerical_Kt36.3_Kw355.4_Tw2/settle.png)
+![§12.5 τ_w_max=2.0 Nm — works at the edge. All 5 dock; τ_w saturates 3.9% of ticks (~0.6s); ω_s/h_w decay cleanly in settle; 0.006° irreversible drift.](../../Misc/runs/diag_cooperative_arms_legacy_pid_numerical_Kt36.3_Kw355.4_Tw2/settle.png)
 
 ### 12.6 Wheel-sizing confound: gains held fixed; FD-artifact spikes
 
@@ -660,7 +660,7 @@ bound** on the physical requirement, not the actual physical limit.
 Both are tractable follow-ups (a 'nmpc_plan' mode would smooth the
 feedforward; per-$\tau_{w,max}$ gain re-tuning is a one-line config).
 
-![§12.6 Ḣ feedforward source diagnostic at τ_w_max=2 Nm: ‖Ḣ_FF‖ (top) median ≈ 0 but peak 700 Nm — clear FD/discontinuity artifact (the orange shaded swing phases are when the spikes happen). Middle: per-axis |τ_w| with saturation marks (red); the 60 saturation ticks are 92% swing-distributed, 8% dock-aligned. The 700 Nm spikes have no physical basis at this scale; they are the AOCS commanding wheel torque against numerical derivative noise.](../../results/diag_cooperative_arms_legacy_pid_numerical_Kt36.3_Kw355.4_Tw2/hdot_feedforward.png)
+![§12.6 Ḣ feedforward source diagnostic at τ_w_max=2 Nm: ‖Ḣ_FF‖ (top) median ≈ 0 but peak 700 Nm — clear FD/discontinuity artifact (the orange shaded swing phases are when the spikes happen). Middle: per-axis |τ_w| with saturation marks (red); the 60 saturation ticks are 92% swing-distributed, 8% dock-aligned. The 700 Nm spikes have no physical basis at this scale; they are the AOCS commanding wheel torque against numerical derivative noise.](../../Misc/runs/diag_cooperative_arms_legacy_pid_numerical_Kt36.3_Kw355.4_Tw2/hdot_feedforward.png)
 
 ### 12.7 Sidebar: `H_est` K_ω sign bug — fixed
 
@@ -695,6 +695,6 @@ irreversible attitude drift is **0.012°** — budget (5°) breached after
 fundamentally scaling-limited at 1% mass ratio. Open items: the
 mapping-cascade transient (§6c) and the analytical Ḣ_FF (above).
 
-![§12.8 verdict: pole-placement gains (K_θ=36.3, K_ω=355.4) at τ_w_max=5 Nm. Transient peak 0.61° (was 1.95° with PD only in §11); settle decay clean to 0.012° irreversible. This is the operating point for the campaign result.](../../results/diag_cooperative_arms_legacy_pid_numerical_Kt36.3_Kw355.4/settle.png)
+![§12.8 verdict: pole-placement gains (K_θ=36.3, K_ω=355.4) at τ_w_max=5 Nm. Transient peak 0.61° (was 1.95° with PD only in §11); settle decay clean to 0.012° irreversible. This is the operating point for the campaign result.](../../Misc/runs/diag_cooperative_arms_legacy_pid_numerical_Kt36.3_Kw355.4/settle.png)
 
 Repro: `MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/diag_cooperative_arms.py --aocs_mode legacy_pid_numerical --settle_seconds 120 --K_theta 36.3 --K_omega 355.4` (then `--tau_w_max 0.5/1/2` for the bracket).

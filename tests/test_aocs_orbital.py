@@ -18,7 +18,7 @@ This file covers the algebraic properties of the corrected helper:
   4. Output is clipped to [-tau_w_max, tau_w_max].
 
 The closed-loop sim effect (platform rotation drop) is verified by the
-M4 baseline runs in results/M4_baseline_1pct/ and M4_baseline_14pct/.
+M4 baseline runs in Misc/runs/M4_baseline_1pct/ and M4_baseline_14pct/.
 """
 
 import numpy as np

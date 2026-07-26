@@ -17,7 +17,7 @@ The EE task-consistent feedforward (v17) is already inside
 wholebody_qp.py and auto-applies whenever the torso task is active.
 
 Same 800 mm / 45° / 7.3 s swing. Pass/fail thresholds unchanged.
-Output: results/qp_tracking_test_v19/.
+Output: Misc/runs/qp_tracking_test_v19/.
 """
 from __future__ import annotations
 
@@ -308,7 +308,7 @@ def run():
         ('ee_ori_err_peak_deg',    float(e_eo.max()), thr['ee_ori_deg']),
     ]
 
-    out_dir = os.path.join('results', 'qp_tracking_test_v19')
+    out_dir = os.path.join('Misc', 'runs', 'qp_tracking_test_v19')
     os.makedirs(out_dir, exist_ok=True)
     _fig10_torso_6d_tracking(
         t_arr.tolist(), log.phase, [], log, out_dir, dpi=120, cfg=cfg)

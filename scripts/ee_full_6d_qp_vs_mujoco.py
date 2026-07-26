@@ -1,8 +1,8 @@
 """Offline 6D EE-task decomposition + QP-vs-MuJoCo comparison.
 
-Loads results/M7_ee_ori_diag/A_swing_t3p6.npz (dumped by
+Loads Misc/runs/M7_ee_ori_diag/A_swing_t3p6.npz (dumped by
 scripts/bisect_qp_cascade.py:run_v21_case) and writes
-results/M7_ee_ori_diag/ee_full_6d_qp_vs_mujoco.md. No interpretation.
+Misc/runs/M7_ee_ori_diag/ee_full_6d_qp_vs_mujoco.md. No interpretation.
 """
 from __future__ import annotations
 
@@ -16,9 +16,9 @@ import numpy as np
 import pinocchio as pin
 
 
-NPZ_PATH = os.path.join(_root, 'results', 'M7_ee_ori_diag',
+NPZ_PATH = os.path.join(_root, 'Misc', 'runs', 'M7_ee_ori_diag',
                         'A_swing_t3p6.npz')
-OUT_PATH = os.path.join(_root, 'results', 'M7_ee_ori_diag',
+OUT_PATH = os.path.join(_root, 'Misc', 'runs', 'M7_ee_ori_diag',
                         'ee_full_6d_qp_vs_mujoco.md')
 
 

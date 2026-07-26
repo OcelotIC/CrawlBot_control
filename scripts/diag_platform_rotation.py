@@ -17,7 +17,7 @@ and reports the structure attitude over time:
   C. AOCS   — Full pipeline, baseline (same as M6 baseline).
 
 Output:
-  results/M6_platform_diag/attitude_vs_time.csv
+  Misc/runs/M6_platform_diag/attitude_vs_time.csv
   stdout: peak |angle| per case + interpretation.
 
 Usage:
@@ -40,7 +40,7 @@ from crawlbot.simulation.config import SimConfig
 
 URDF = os.path.join(_root, 'models', 'VISPA_crawling_fixed.urdf')
 MJCF = os.path.join(_root, 'models', 'VISPA_crawling_rwa3.xml')
-OUT_DIR = 'results/M6_platform_diag'
+OUT_DIR = 'Misc/runs/M6_platform_diag'
 
 
 def _make_cfg():

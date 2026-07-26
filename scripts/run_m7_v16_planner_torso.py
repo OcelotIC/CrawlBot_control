@@ -14,7 +14,7 @@ mass-weighted identity — it comes from the planner's quintic over
 [0, T_step]. The arm sees a torso reference whose acceleration is
 decoupled from arm CoM motion.
 
-Output: results/M7_1pct_1step_v16/.
+Output: Misc/runs/M7_1pct_1step_v16/.
 """
 from __future__ import annotations
 
@@ -30,4 +30,4 @@ import scripts.run_m7_single_step as r
 
 if __name__ == '__main__':
     r.run_case('1pct 1-step v16 (SS torso ref from TorsoPlanner)',
-               'results/M7_1pct_1step_v16', n_steps=1)
+               'Misc/runs/M7_1pct_1step_v16', n_steps=1)

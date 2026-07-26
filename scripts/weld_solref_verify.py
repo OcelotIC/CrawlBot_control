@@ -2,7 +2,7 @@
 mj_model.eq_solref values. No simulation — three MJCF mutations,
 three model loads, read eq_solref per equality.
 
-Outputs results/M7_settle_diag/weld_sweep/solref_verification.md.
+Outputs Misc/runs/M7_settle_diag/weld_sweep/solref_verification.md.
 MJCF is restored on script exit and verified.
 """
 from __future__ import annotations
@@ -20,7 +20,7 @@ import mujoco
 
 
 MJCF = os.path.join(_root, 'models', 'VISPA_crawling_rwa3.xml')
-OUT = os.path.join(_root, 'results', 'M7_settle_diag', 'weld_sweep',
+OUT = os.path.join(_root, 'Misc', 'runs', 'M7_settle_diag', 'weld_sweep',
                    'solref_verification.md')
 
 VARIANTS = [

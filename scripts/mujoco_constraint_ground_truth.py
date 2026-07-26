@@ -7,7 +7,7 @@ At tick k=10 captures, side by side:
   - Pinocchio J_c(q), QP τ_q, QP λ, Pinocchio v      (our side)
   - MuJoCo efc_J, efc_force, qfrc_actuator, etc.     (ground truth)
 
-Writes results/M7_settle_diag/mujoco_constraint_ground_truth.md.
+Writes Misc/runs/M7_settle_diag/mujoco_constraint_ground_truth.md.
 MJCF restored via try/finally and verified by re-read.
 """
 from __future__ import annotations
@@ -30,7 +30,7 @@ from crawlbot.core.state_conversions import mujoco_to_pinocchio
 
 URDF = os.path.join(_root, 'models', 'VISPA_crawling_fixed.urdf')
 MJCF = os.path.join(_root, 'models', 'VISPA_crawling_rwa3.xml')
-OUT  = os.path.join(_root, 'results', 'M7_settle_diag',
+OUT  = os.path.join(_root, 'Misc', 'runs', 'M7_settle_diag',
                     'mujoco_constraint_ground_truth.md')
 
 TARGET_K = 10

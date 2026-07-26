@@ -17,7 +17,7 @@ import numpy as np
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 _SIM = os.path.join(ROOT, 'crawlbot', 'simulation', 'sim_loop.py')
 _CFG = os.path.join(ROOT, 'crawlbot', 'simulation', 'config.py')
-_LOG = os.path.join(ROOT, 'results', 'fixA_gate', 'sim_log.json')
+_LOG = os.path.join(ROOT, 'Misc', 'runs', 'fixA_gate', 'sim_log.json')
 
 _checks = []
 
@@ -79,7 +79,7 @@ def main():
         f'these inputs (rs + lambda_qp_sol) — bypassing the NMPC does NOT starve the AOCS')
 
     # ---- EMPIRICAL: tau_w + theta_s by phase, from a committed sim_log ----
-    print('\n[EMPIRICAL] tau_w + theta_s by DS sub-path (results/fixA_gate)')
+    print('\n[EMPIRICAL] tau_w + theta_s by DS sub-path (Misc/runs/fixA_gate)')
     if not os.path.exists(_LOG):
         rec(False, 'sim_log present', f'{_LOG} missing'); return _verdict()
     sl = json.load(open(_LOG))
@@ -130,7 +130,7 @@ def _verdict():
     print('  (_run_ds_passivity_loop): wheels are commanded to ZERO, AOCS not run, structure attitude')
     print('  uncontrolled for the settle duration. SS + terminal/DWELL DS (_step) DO run the AOCS.')
     print('  The AOCS is self-contained (no NMPC dependency) ⇒ re-activation in the inter-step loop is')
-    print('  the core requirement of step 4. See results/j2_aocs_ds/INTERNAL_aocs_ds.md.')
+    print('  the core requirement of step 4. See Misc/runs/j2_aocs_ds/INTERNAL_aocs_ds.md.')
     print('=' * 78)
     return 0 if n == len(_checks) else 1
 

@@ -9,7 +9,7 @@ Transient MJCF mutation with byte-exact restoration (mirrors T11 pattern
 for armature/damping). No commits, no new MJCF files.
 
 Output:
-    results/M7_14pct_1step_v22_with_swing_hold/
+    Misc/runs/M7_14pct_1step_v22_with_swing_hold/
         sim_log.json, metrics.csv, physics_trace.pkl, 10 diagnostic plots.
 """
 from __future__ import annotations
@@ -26,7 +26,7 @@ import scripts.run_m7_single_step as r_single
 
 
 MJCF = os.path.join(_root, 'models', 'VISPA_crawling_rwa3.xml')
-OUT  = os.path.join(_root, 'results', 'M7_14pct_1step_v22_with_swing_hold')
+OUT  = os.path.join(_root, 'Misc', 'runs', 'M7_14pct_1step_v22_with_swing_hold')
 
 ROBOT_JOINT_RE = re.compile(
     r'(<default class="robot_joint">\s*\n\s*<joint damping=")[^"]+'

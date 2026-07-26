@@ -2,7 +2,7 @@
 
 Loads v17, v19, v20, v21 sim_log.json files, recomputes metrics via the
 per-phase refactor of compute_metrics, and emits one consolidated table
-to stdout + results/archive_rediagnostic.md.
+to stdout + Misc/runs/archive_rediagnostic.md.
 
 No interpretation — data first.
 

@@ -10,7 +10,7 @@ for EE / posture / soft-CoM is computed against the 3D angular Jacobian
 only, freeing the linear-base DOFs for EE tracking.
 
 Outputs:
-    results/diag_option_d_tube/r_{mm}mm/
+    Misc/runs/diag_option_d_tube/r_{mm}mm/
         sim_log.json, nmpc_step_log.json,
         nmpc_per_step.txt, step_metrics.txt, tube_stats.txt
 
@@ -281,7 +281,7 @@ def main():
     args = parser.parse_args()
 
     mm = int(round(args.r_tube * 1000))
-    out_dir = os.path.join(_root, 'results', 'diag_option_d_tube',
+    out_dir = os.path.join(_root, 'Misc', 'runs', 'diag_option_d_tube',
                            f'r_{mm}mm')
 
     with open(MJCF, 'r') as f:

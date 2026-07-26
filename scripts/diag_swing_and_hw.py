@@ -16,7 +16,7 @@ Three questions, answered from the latest M6 1% single-step sim_log:
      - Breakdown of NMPC failures by status code and by phase
 
 Output:
-     stdout report + results/M6_platform_diag/swing_vs_hw.png
+     stdout report + Misc/runs/M6_platform_diag/swing_vs_hw.png
 """
 import os
 import sys
@@ -31,8 +31,8 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-OUT_DIR = 'results/M6_platform_diag'
-LOG_PATH = 'results/M6_baseline_1pct/sim_log.json'
+OUT_DIR = 'Misc/runs/M6_platform_diag'
+LOG_PATH = 'Misc/runs/M6_baseline_1pct/sim_log.json'
 
 
 def main():

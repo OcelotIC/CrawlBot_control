@@ -1,7 +1,7 @@
 # SS Torso-Guidance Chain Audit + Arrival-vs-Target (read-only)
 
 Branch `feat/ss-centroidal-momentum-task` @ `027c25c`. Read-only audit; one new plot
-(`results/phase2_1_report/arrival_vs_target.png`) from EXISTING Phase-2.1 data (no re-run).
+(`Misc/runs/phase2_1_report/arrival_vs_target.png`) from EXISTING Phase-2.1 data (no re-run).
 Answers: **who decides where the torso must be at end-of-SS, and does holding the CoM
 reference mechanically bring the torso there?**
 

@@ -11,7 +11,7 @@ import numpy as np
 import pinocchio as pin
 
 ROOT = os.path.join(os.path.dirname(__file__), '..')
-RES = os.path.join(ROOT, 'results', 'p3b_gate_w24000_kp3')
+RES = os.path.join(ROOT, 'Misc', 'runs', 'p3b_gate_w24000_kp3')
 TAU_W_MAX = 5.0
 GUARD_S = 0.2
 

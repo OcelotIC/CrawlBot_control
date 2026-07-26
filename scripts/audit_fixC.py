@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Fix-C mini-audit — can "weld-relative pose+twist -> 0" be a terminal NMPC constraint?
 
-READ-ONLY reproducer for results/j2_audit/INTERNAL_j2_fixC.md. Decides whether the
+READ-ONLY reproducer for Misc/runs/j2_audit/INTERNAL_j2_fixC.md. Decides whether the
 Fix-C condition (gripper<->anchor weld-relative pose -> 0 AND twist Jc·v⁻ -> 0) can be
 expressed as a terminal constraint in the 9-D centroidal NMPC, or must attach to the
 swing planner (b) or the dock gate (c). No crawlbot/ change, no sim run.
@@ -149,7 +149,7 @@ def main():
     print('(b) swing-planner terminal    : CAN carry it as an OBJECTIVE (driver; already 6-D-zero ref).')
     print('(c) dock gate                 : CAN carry it as a HARD GATE (guard; reuse Jc·v⁻ + d + ori).')
     print('=> Fix C routes to (c) hard guard ||Jc·v⁻||<eps + pose, backed by (b) as the driver. NOT (a).')
-    print('   See results/j2_audit/INTERNAL_j2_fixC.md.')
+    print('   See Misc/runs/j2_audit/INTERNAL_j2_fixC.md.')
     print('=' * 78)
     return 0
 

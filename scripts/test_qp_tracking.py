@@ -30,7 +30,7 @@ NMPC / planner / reference-generation cascade.
 
 Outputs
 -------
-  results/qp_tracking_test/
+  Misc/runs/qp_tracking_test/
     sim_log.json         — full SimLog (JSON)
     fig9_ee_6d_tracking.png
     fig10_torso_6d_tracking.png
@@ -361,7 +361,7 @@ def run():
         ('ee_ori_err_peak_deg', float(e_eo.max()), thr['ee_ori_deg']),
     ]
 
-    out_dir = os.path.join('results', 'qp_tracking_test')
+    out_dir = os.path.join('Misc', 'runs', 'qp_tracking_test')
     os.makedirs(out_dir, exist_ok=True)
 
     # ── Plots (reuse stock fig9 / fig10) ─────────────────────────────

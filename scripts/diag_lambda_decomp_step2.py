@@ -19,8 +19,8 @@ Method (pure analysis on the existing sim_log.json):
     artifact.
   - Compare against the NMPC plan (lambda_ref) to reproduce the ratio.
 
-Reads:  results/diag_cooperative_arms/sim_log.json
-Writes: results/diag_attribution/lambda_decomp/{metrics.json, lambda_decomp.png}
+Reads:  Misc/runs/diag_cooperative_arms/sim_log.json
+Writes: Misc/runs/diag_attribution/lambda_decomp/{metrics.json, lambda_decomp.png}
 """
 import os
 import sys
@@ -37,8 +37,8 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-LOG = os.path.join(_root, 'results', 'diag_cooperative_arms', 'sim_log.json')
-OUT = os.path.join(_root, 'results', 'diag_attribution', 'lambda_decomp')
+LOG = os.path.join(_root, 'Misc', 'runs', 'diag_cooperative_arms', 'sim_log.json')
+OUT = os.path.join(_root, 'Misc', 'runs', 'diag_attribution', 'lambda_decomp')
 M_ROBOT = 71.0  # kg, spec §0.4
 
 

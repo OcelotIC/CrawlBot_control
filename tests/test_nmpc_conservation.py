@@ -18,7 +18,7 @@ The NMPC is exercised standalone (no MuJoCo, no QP) with:
 and the RWA box:
     c_simple - L_com(k) - r_com(k) × m·v_com(k) ∈ [-h_max', h_max']
 
-Also produces a diagnostic plot results/M3_tests/t4_hw_bounds.png showing
+Also produces a diagnostic plot results/test_scratch/M3_tests/t4_hw_bounds.png
 the predicted h_w trajectory vs the bounds at each knot.
 """
 
@@ -33,7 +33,7 @@ from crawlbot.solvers.centroidal_nmpc import CentroidalNMPC, CentroidalNMPCConfi
 from crawlbot.solvers.contact_phase import ContactConfig, ContactPhase
 
 
-OUTPUT_DIR = 'results/M3_tests'
+OUTPUT_DIR = 'results/test_scratch/M3_tests'
 ROBOT_MASS = 71.0
 H_MAX = 5.0         # Nms  (spec §4.6)
 F_MAX = 25.0

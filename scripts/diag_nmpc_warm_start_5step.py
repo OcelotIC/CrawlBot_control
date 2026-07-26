@@ -5,7 +5,7 @@ solve_time_ms, warm_x, warm_duals) tagged by locomotion step + phase, then
 runs a 5-step traversal at the most recent stable T15-FK configuration.
 
 Output:
-    results/diag_nmpc_warm_start_5step/
+    Misc/runs/diag_nmpc_warm_start_5step/
         sim_log.json            (standard sim log)
         nmpc_step_log.json      (every NMPC.solve() call)
         nmpc_per_step.txt       (per-step aggregate table)
@@ -40,7 +40,7 @@ import scripts.run_m7_single_step as r_single  # noqa: E402
 
 
 MJCF = os.path.join(_root, 'models', 'VISPA_crawling_rwa3.xml')
-OUT = os.path.join(_root, 'results', 'diag_nmpc_warm_start_5step')
+OUT = os.path.join(_root, 'Misc', 'runs', 'diag_nmpc_warm_start_5step')
 
 ROBOT_JOINT_RE = re.compile(
     r'(<default class="robot_joint">\s*\n\s*<joint damping=")[^"]+'

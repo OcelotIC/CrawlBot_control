@@ -2,7 +2,7 @@
 # J2 step 4a — AOCS re-activation in the inter-step DS loop: A/B characterization.
 # AOCS-on (new default) vs AOCS-off (--no-aocs-in-interstep = the legacy
 # hardcoded-zero wheels). Canonical 5-step working point (identical flags to
-# results/fixA_gate). Then postproc + the six-criteria gate for each. RAW
+# Misc/runs/fixA_gate). Then postproc + the six-criteria gate for each. RAW
 # numbers; no success threshold — the h_w/C5 trade and default-on are decided
 # by Idriss + reviewing Claude.
 set -u

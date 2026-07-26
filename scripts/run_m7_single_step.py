@@ -9,7 +9,7 @@ trajectories. Prints:
   - Unique phase strings in the log (must be {'DS', 'SS'} — no 'EXT')
   - Dock success under d<5mm AND ori<5° gate
 
-Output: results/M7_1pct_1step/.
+Output: Misc/runs/M7_1pct_1step/.
 """
 import os
 import sys
@@ -310,7 +310,7 @@ if __name__ == "__main__":
     if args.output is not None:
         out_dir = args.output
     elif n_steps == 1:
-        out_dir = "results/M7_1pct_1step"
+        out_dir = "Misc/runs/M7_1pct_1step"
     else:
-        out_dir = f"results/M7_1pct_{n_steps}step"
+        out_dir = f"Misc/runs/M7_1pct_{n_steps}step"
     run_case(f"1pct {n_steps}-step", out_dir, n_steps=n_steps)

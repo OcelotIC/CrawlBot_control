@@ -16,7 +16,7 @@ canonical config. Every value is read back from the artifact (no memory).
   torso cumulative drift vs t=0 (structure- & world-frame, peak+final)  [from sim_log]
 
 Run: MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/analyze_canonical_metrics.py \
-        results/j2_figdata/runA  results/figA_canon
+        results/j2_figdata/runA  Misc/runs/figA_canon
 """
 import csv
 import json

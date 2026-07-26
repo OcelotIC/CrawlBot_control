@@ -259,7 +259,7 @@ on a constraint-feasible path that's nearly indistinguishable from
 the unconstrained chord in world frame.
 
 Authoritative artefact:
-`results/diagnostic/stance_deviation_along_geodesic/PHASE0_FINDINGS.md`.
+`Misc/runs/diagnostic/stance_deviation_along_geodesic/PHASE0_FINDINGS.md`.
 
 ### §2.2  Unit tests (5 added, 200 pre-existing pass)
 
@@ -863,7 +863,7 @@ origin/main
 ### §8.4  Run artefacts
 
 ```
-results/diagnostic/stance_deviation_along_geodesic/   ← Phase 0
+Misc/runs/diagnostic/stance_deviation_along_geodesic/   ← Phase 0
   PHASE0_FINDINGS.md
   step{0,1,2}_data.json   step{0,1,2}_q_end.npz
   all_steps_delta_stance.png   all_steps_fk_smoothness.png
@@ -873,11 +873,11 @@ results/M7_1pct_3step_v22_t15_fk/                     ← Phase 5 baseline FK
   CLOSING_REPORT.md (this file)
   sim_log.json   physics_trace.pkl
 
-results/M7_1pct_3step_v22_t15_fk_aocs_off/            ← Phase 5b
+Misc/runs/M7_1pct_3step_v22_t15_fk_aocs_off/            ← Phase 5b
   sim_log.json   physics_trace.pkl   ik_trace.json   metrics.csv
   fig{1..10}*.png
 
-results/M7_1pct_3step_v22_t15_fk_long/                ← Phase 5c
+Misc/runs/M7_1pct_3step_v22_t15_fk_long/                ← Phase 5c
   sim_log.json   physics_trace.pkl   metrics.csv
   fig{1..10}*.png
 ```
@@ -889,7 +889,7 @@ docs/architecture/
   T15_step2_diagnosis_and_resolution.md               ← synthesis (commit 77ec63e)
   IK_FORMULATION.md                                   ← unchanged
 
-results/diagnostic/stance_deviation_along_geodesic/
+Misc/runs/diagnostic/stance_deviation_along_geodesic/
   PHASE0_FINDINGS.md
 
 results/M7_1pct_3step_v22_t15_fk/

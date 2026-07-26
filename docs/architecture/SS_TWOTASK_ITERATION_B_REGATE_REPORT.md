@@ -95,13 +95,13 @@ points 24k Kp3 (weight-driven C2, low-h_w Kp) and 24k Kp4 (tightest C2, C5-ceili
 
 - **Bit-identical-OFF re-confirmed at this iteration:** the OFF path is **untouched** — no
   `crawlbot/` change in iteration B (scripts + docs only). The flag-OFF 5-step is byte-identical to
-  the Phase-1 baseline dcda974 (Δ=0, `results/phase3_off/OFF_RESULT.txt`), and **test_reworked_qp
+  the Phase-1 baseline dcda974 (Δ=0, `Misc/runs/phase3_off/OFF_RESULT.txt`), and **test_reworked_qp
   8/8** (re-run this session). C6 holds for both candidates.
 - τ_w and h_w logged at 100 Hz in SS; h_w reported in per-axis ∞-norm (peak 4.405 N·m·s for 24k
   Kp3). 2-norm of the same peak instant ≈ 4.43 (z-dominated; the ∞-norm is the binding measure).
-- Run metadata (HEAD, clean/dirty, full flags) in `results/p3b_gate_w24000_kp3/PHASE3_METADATA.txt`.
+- Run metadata (HEAD, clean/dirty, full flags) in `Misc/runs/p3b_gate_w24000_kp3/PHASE3_METADATA.txt`.
 
-## 4. Plots (`results/p3b_gate_w24000_kp3/phase3_plots/`, baseline grey/dashed, SS shaded)
+## 4. Plots (`Misc/runs/p3b_gate_w24000_kp3/phase3_plots/`, baseline grey/dashed, SS shaded)
 
 `1_torso_tracking` (C2: ori ≪ baseline, pos peak 16.5 ≤17.6), `2_swing_ee`, `3_attitude`
 (C4 0.59° ≪ 1.88°), `4_Hdot_tauw` (C3 + τ_w@100Hz, in-swing), `5_hw` (C5 z-peak 4.405 ≤4.5 N·m·s),

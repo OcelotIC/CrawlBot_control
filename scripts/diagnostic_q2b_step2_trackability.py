@@ -43,7 +43,7 @@ from crawlbot.core import ik as ik_module  # noqa: E402
 import crawlbot.simulation.sim_loop as sim_loop_mod  # noqa: E402
 
 OUTDIR = os.path.join(_root, 'diagnostic')
-RUN_OUT_BASE = os.path.join(_root, 'results', 'diagnostic_q2b')
+RUN_OUT_BASE = os.path.join(_root, 'Misc', 'runs', 'diagnostic_q2b')
 
 _orig_fixed_rot_ik = ik_module.dock_configuration_fixed_rotation
 

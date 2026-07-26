@@ -6,7 +6,7 @@ pre-planner is solved once per step before SS starts and its
 momentum-feasible CoM trajectory replaces the TorsoPlanner's
 geometric path as the NMPC reference.
 
-Output: results/M6_baseline_1pct/.
+Output: Misc/runs/M6_baseline_1pct/.
 """
 import os
 import sys
@@ -95,7 +95,7 @@ if __name__ == "__main__":
     if args.output is not None:
         out_dir = args.output
     elif n_steps == 1:
-        out_dir = "results/M6_baseline_1pct"
+        out_dir = "Misc/runs/M6_baseline_1pct"
     else:
         out_dir = f"results/M6_baseline_1pct_{n_steps}step"
     run_case(f"1pct ({n_steps}-step)", out_dir, n_steps=n_steps)

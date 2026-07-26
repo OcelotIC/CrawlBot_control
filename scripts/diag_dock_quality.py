@@ -31,8 +31,8 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-LOG = os.path.join(_root, 'results', 'diag_cooperative_arms', 'sim_log.json')
-OUT = os.path.join(_root, 'results', 'diag_cooperative_arms', 'dock_quality.png')
+LOG = os.path.join(_root, 'Misc', 'runs', 'diag_cooperative_arms', 'sim_log.json')
+OUT = os.path.join(_root, 'Misc', 'runs', 'diag_cooperative_arms', 'dock_quality.png')
 
 
 def main():

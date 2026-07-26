@@ -38,7 +38,7 @@ from crawlbot.core.state_conversions import mujoco_to_pinocchio
 
 _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 URDF = os.path.join(_root, 'models', 'VISPA_crawling_fixed.urdf')
-LOG = os.path.join(_root, 'results', 'diag_cooperative_arms', 'sim_log.json')
+LOG = os.path.join(_root, 'Misc', 'runs', 'diag_cooperative_arms', 'sim_log.json')
 
 # Per-step swing arm + anchor (dock target = p_ee_ref endpoint).
 STEP_INFO = {0: ('b', None), 1: ('a', None), 2: ('b', None)}

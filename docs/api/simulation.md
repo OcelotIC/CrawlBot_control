@@ -67,8 +67,8 @@ par pas NMPC (≈10 Hz).
 ### Sérialisation
 
 ```python
-log.save('results/logs/run.json')
-log2 = SimLog.load('results/logs/run.json')
+log.save('Misc/runs/logs/run.json')
+log2 = SimLog.load('Misc/runs/logs/run.json')
 ```
 
 ---
@@ -192,6 +192,6 @@ Fonction standalone `plot_simulation(log, save_path, cfg) -> fig`.
 Peut être utilisée offline depuis un JSON sauvegardé, sans MuJoCo :
 ```python
 from crawlbot.simulation import SimLog, plot_simulation
-log = SimLog.load('results/logs/run.json')
+log = SimLog.load('Misc/runs/logs/run.json')
 plot_simulation(log, save_path='fig.png')
 ```

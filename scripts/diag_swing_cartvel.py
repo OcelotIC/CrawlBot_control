@@ -16,7 +16,7 @@ Compares step 1 (success) and step 2 (fail).
 
 Usage:
   PYTHONPATH=. MUJOCO_GL=osmesa python3 scripts/diag_swing_cartvel.py \
-      results/diag_cooperative_arms/
+      Misc/runs/diag_cooperative_arms/
 """
 from __future__ import annotations
 

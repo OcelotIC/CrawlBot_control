@@ -119,10 +119,14 @@ pip install --break-system-packages 'cmeel-urdfdom~=4.0' 'cmeel-tinyxml2~=10.0'
 
 Fixed locally in every session so far, never committed. Should be pinned in `setup_env.sh`.
 
-### C2. The test suite dirties five tracked files on every run
+### C2. The test suite dirties five tracked files on every run — RESOLVED (CLEANUP-21)
 
-`results/M2_tests/{t10_passivity,t7_tracking}.png`, `results/M3_tests/t4_hw_bounds.png`,
-`results/phase2_0_tmom/{t_mom_sine_x,t_mom_step_x}.png` are rewritten by
+Fixed by pointing the three `OUTPUT_DIR` constants at `results/test_scratch/` (gitignored).
+Original text kept for the record:
+
+
+`Misc/runs/M2_tests/{t10_passivity,t7_tracking}.png`, `Misc/runs/M3_tests/t4_hw_bounds.png`,
+`Misc/runs/phase2_0_tmom/{t_mom_sine_x,t_mom_step_x}.png` are rewritten by
 `test_nmpc_conservation.py` / `test_reworked_qp.py`, and matplotlib's encoding differs
 byte-wise run to run (±1 kB on identical plots). The repo can therefore never be verified clean
 after `pytest`, which undercuts the gate's bit-identity discipline. Fix: gitignore them or point

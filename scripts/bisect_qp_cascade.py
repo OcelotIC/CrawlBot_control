@@ -457,7 +457,7 @@ def run_v21_case(case: str):
     Per spec §6: no module edits beyond minimal wrappers; this function
     only orchestrates existing helpers (sim._setup_torso_for_step,
     sim.swing_planner.reference_at, sim.nmpc.solve, sim.mapping.compute,
-    sim._planned_arm_config). Output: results/M7_ee_bisection/<case>/trace.csv.
+    sim._planned_arm_config). Output: Misc/runs/M7_ee_bisection/<case>/trace.csv.
     """
     import csv
     import scripts.run_m7_single_step as r_single
@@ -554,7 +554,7 @@ def run_v21_case(case: str):
 
     # One-tick matrix dump for offline linear-algebra audit (A_swing only).
     # Triggered on the QP tick closest to t_rel == 3.6 s; matrices saved
-    # to results/M7_ee_ori_diag/<case>_t3p6.npz. Used by
+    # to Misc/runs/M7_ee_ori_diag/<case>_t3p6.npz. Used by
     # scripts/ee_null_space_rank.py and scripts/ee_ang_task_residual.py.
     dump_t_target = 3.6
     dump_done = False
@@ -668,7 +668,7 @@ def run_v21_case(case: str):
         # Dump J_ee, J_torso, plus state at the tick closest to t=3.6 s.
         if not dump_done and t_rel >= dump_t_target - 1e-9:
             dump_dir = os.path.join(
-                _root, 'results', 'M7_ee_ori_diag')
+                _root, 'Misc', 'runs', 'M7_ee_ori_diag')
             os.makedirs(dump_dir, exist_ok=True)
             dump_path = os.path.join(dump_dir, f'{case}_t3p6.npz')
             # Build the SwingPlanner reference at this tick (already
@@ -828,7 +828,7 @@ def run_v21_case(case: str):
         raise AssertionError(f"[{case}] expected zero mapping calls")
 
     # ── Outputs ────────────────────────────────────────────────────────
-    out_dir = os.path.join(_root, 'results', 'M7_ee_bisection', case)
+    out_dir = os.path.join(_root, 'Misc', 'runs', 'M7_ee_bisection', case)
     os.makedirs(out_dir, exist_ok=True)
     csv_path = os.path.join(out_dir, 'trace.csv')
     with open(csv_path, 'w', newline='') as f:

@@ -18,7 +18,7 @@ _TP = os.path.join(ROOT, 'crawlbot', 'planning', 'torso_planner.py')
 _QP = os.path.join(ROOT, 'crawlbot', 'solvers', 'wholebody_qp.py')
 _SIM = os.path.join(ROOT, 'crawlbot', 'simulation', 'sim_loop.py')
 _URDF = os.path.join(ROOT, 'models', 'VISPA_crawling_fixed.urdf')
-_DOCK = os.path.join(ROOT, 'results', 'fixA_gate', 'sim_log.json')
+_DOCK = os.path.join(ROOT, 'Misc', 'runs', 'fixA_gate', 'sim_log.json')
 
 _checks = []
 

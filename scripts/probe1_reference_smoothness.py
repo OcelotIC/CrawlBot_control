@@ -16,8 +16,8 @@ p_torso_ref is no rougher than r_com_ref, the premise fails.
 
 All quantities are LOGGED — pure analysis, no model needed.
 
-Reads:  results/diag_cooperative_arms/sim_log.json
-Writes: results/diag_attribution/probe1_reference_smoothness/{metrics.json, probe1.png}
+Reads:  Misc/runs/diag_cooperative_arms/sim_log.json
+Writes: Misc/runs/diag_attribution/probe1_reference_smoothness/{metrics.json, probe1.png}
 """
 import os
 import sys
@@ -32,8 +32,8 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-LOG = os.path.join(_root, 'results', 'diag_cooperative_arms', 'sim_log.json')
-OUT = os.path.join(_root, 'results', 'diag_attribution',
+LOG = os.path.join(_root, 'Misc', 'runs', 'diag_cooperative_arms', 'sim_log.json')
+OUT = os.path.join(_root, 'Misc', 'runs', 'diag_attribution',
                    'probe1_reference_smoothness')
 
 

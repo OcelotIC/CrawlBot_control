@@ -9,7 +9,7 @@ that would settle it.
 
 ## Observation under scrutiny
 
-Archive re-diagnostic (`results/archive_rediagnostic.md`) on M7 v21:
+Archive re-diagnostic (`Misc/runs/archive_rediagnostic.md`) on M7 v21:
 
 | field | value |
 |---|---|
@@ -304,6 +304,6 @@ engagement from formulation:
 - `crawlbot/core/ik.py` — lines 128-167.
 - Spec — `docs/architecture/brainstorming_reworked_architecture.md`
   § 7.2.5.
-- Log — `results/M7_1pct_1step_v21/sim_log.json` via
+- Log — `Misc/runs/M7_1pct_1step_v21/sim_log.json` via
   `crawlbot.diagnostics.metrics.compute_metrics` (Step 1 refactor).
-- Archive table — `results/archive_rediagnostic.md`.
+- Archive table — `Misc/runs/archive_rediagnostic.md`.

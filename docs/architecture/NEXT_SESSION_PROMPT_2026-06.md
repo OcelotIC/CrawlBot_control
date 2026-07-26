@@ -67,8 +67,8 @@ bash docs/architecture/setup_env.sh
 
 # Read the recent memo + failure artifacts
 cat docs/architecture/DS_REWORK_CENTROIDAL_2026-06.md
-cat results/diag_cooperative_arms_multi_traversal_10x/step_metrics.txt
-cat results/diag_cooperative_arms_multi_traversal_10x_dwell/step_metrics.txt
+cat Misc/runs/diag_cooperative_arms_multi_traversal_10x/step_metrics.txt
+cat Misc/runs/diag_cooperative_arms_multi_traversal_10x_dwell/step_metrics.txt
 ```
 
 **Then instrument the SS-start transient.** Suggested approach:

@@ -19,7 +19,7 @@ Both trajectories remain synchronized over the same T_step. This is
 not gain scheduling — only the time profile of the torso/CoM ref is
 compressed; the gains and task weights are unchanged.
 
-Output: results/M7_1pct_1step_v14/.
+Output: Misc/runs/M7_1pct_1step_v14/.
 """
 from __future__ import annotations
 
@@ -45,4 +45,4 @@ r._make_m7_config = _make_m7_v14_config
 
 if __name__ == '__main__':
     r.run_case('1pct 1-step v14 (torso_early_finish_fraction=0.6)',
-               'results/M7_1pct_1step_v14', n_steps=1)
+               'Misc/runs/M7_1pct_1step_v14', n_steps=1)

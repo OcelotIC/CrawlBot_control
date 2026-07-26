@@ -24,7 +24,7 @@ Method:
 No code change to ik.py / sim_loop / planners / QP / NMPC / MJCF.
 
 Outputs:
-  results/diagnostic/step2_path_geometry/
+  Misc/runs/diagnostic/step2_path_geometry/
     step{0,1,2}_data.json      — tau-sampled raw data
     step{0,1,2}_w.png          — ideal vs actual sigma_min product per step
     step{0,1,2}_tracking.png   — torso / swing pos & rot tracking errors per step
@@ -46,10 +46,10 @@ sys.path.insert(0, _ROOT)
 os.environ.setdefault('MUJOCO_GL', 'disabled')
 
 URDF = os.path.join(_ROOT, 'models', 'VISPA_crawling_fixed.urdf')
-SIM_LOG = os.path.join(_ROOT, 'results', 'M7_1pct_3step_v22_t15_ik_fix', 'sim_log.json')
-PHYS_TRACE = os.path.join(_ROOT, 'results', 'M7_1pct_3step_v22_t15_ik_fix', 'physics_trace.pkl')
-IK_TRACE = os.path.join(_ROOT, 'results', 'M7_1pct_3step_v22_t15_ik_fix', 'ik_trace.json')
-OUTDIR = os.path.join(_ROOT, 'results', 'diagnostic', 'step2_path_geometry')
+SIM_LOG = os.path.join(_ROOT, 'Misc', 'runs', 'M7_1pct_3step_v22_t15_ik_fix', 'sim_log.json')
+PHYS_TRACE = os.path.join(_ROOT, 'Misc', 'runs', 'M7_1pct_3step_v22_t15_ik_fix', 'physics_trace.pkl')
+IK_TRACE = os.path.join(_ROOT, 'Misc', 'runs', 'M7_1pct_3step_v22_t15_ik_fix', 'ik_trace.json')
+OUTDIR = os.path.join(_ROOT, 'Misc', 'runs', 'diagnostic', 'step2_path_geometry')
 
 
 def _load_robot():

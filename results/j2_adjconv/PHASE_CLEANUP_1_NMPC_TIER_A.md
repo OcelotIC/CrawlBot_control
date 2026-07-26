@@ -42,8 +42,8 @@ this rebuilt container *before* any change — making the after-result attributa
    `cmeel-urdfdom~=4.0` + `cmeel-tinyxml2~=10.0`. **Recommended next PR** — nothing in the repo
    runs without it.
 2. **The test suite dirties five tracked files on every run** —
-   `results/M2_tests/{t10_passivity,t7_tracking}.png`, `results/M3_tests/t4_hw_bounds.png`,
-   `results/phase2_0_tmom/{t_mom_sine_x,t_mom_step_x}.png` are rewritten by
+   `Misc/runs/M2_tests/{t10_passivity,t7_tracking}.png`, `Misc/runs/M3_tests/t4_hw_bounds.png`,
+   `Misc/runs/phase2_0_tmom/{t_mom_sine_x,t_mom_step_x}.png` are rewritten by
    `test_nmpc_conservation.py` / `test_reworked_qp.py`, and matplotlib's encoding differs
    byte-wise run to run (±1 kB on identical plots). The repo can therefore never be verified
    clean after `pytest`, which undercuts the gate's bit-identity discipline. Fix = gitignore

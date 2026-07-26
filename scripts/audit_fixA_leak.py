@@ -13,8 +13,8 @@ import mujoco
 
 ROOT = os.path.join(os.path.dirname(__file__), '..')
 MJCF = os.path.join(ROOT, 'models', 'VISPA_crawling_rwa3.xml')
-FIXA = os.path.join(ROOT, 'results', 'fixA_gate')
-CANON = os.path.join(ROOT, 'results', 'p3b_gate_w24000_kp3')
+FIXA = os.path.join(ROOT, 'Misc', 'runs', 'fixA_gate')
+CANON = os.path.join(ROOT, 'Misc', 'runs', 'p3b_gate_w24000_kp3')
 
 
 def H_at_snapshots(path):

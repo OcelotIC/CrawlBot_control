@@ -24,7 +24,7 @@ import mujoco
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 MJCF = os.path.join(ROOT, 'models', 'VISPA_crawling_rwa3.xml')
-DOCK_RUN = os.path.join(ROOT, 'results', 'fixA_gate', 'sim_log.json')
+DOCK_RUN = os.path.join(ROOT, 'Misc', 'runs', 'fixA_gate', 'sim_log.json')
 
 
 def quat2mat(q_wxyz):

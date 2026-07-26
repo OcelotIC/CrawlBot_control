@@ -3,7 +3,7 @@
 #  2A (proxy box, AOCS-on): refresh OFF vs ON — the margin c_curr recovers.
 #  2B (exact box, AOCS-on, refresh ON): the decisive C5 verdict (exact+AOCS-on
 #     without c_curr was C5=4.949 FAIL).
-# Canonical 5-step working point (= results/fixA_gate flags). AOCS-on throughout
+# Canonical 5-step working point (= Misc/runs/fixA_gate flags). AOCS-on throughout
 # (c_curr only matters because the wheels move). RAW; no success threshold.
 set -u
 cd "$(dirname "$0")/.."
@@ -27,7 +27,7 @@ run () {  local name="$1"; shift
 run ccurr_proxy_off --no-interstep-hw-refresh
 run ccurr_proxy_on
 # 2B — exact box, AOCS-on, refresh ON (the target). (refresh-OFF exact = the
-# prior aocs_on_exact C5=4.949, in results/j2_aocs_interstep/aocs_on_exact_gate.log)
+# prior aocs_on_exact C5=4.949, in Misc/runs/j2_aocs_interstep/aocs_on_exact_gate.log)
 run ccurr_exact_on  --qp-envelope-exact
 
 echo "=== c_curr analysis (h_w split / staleness / settle) ==="

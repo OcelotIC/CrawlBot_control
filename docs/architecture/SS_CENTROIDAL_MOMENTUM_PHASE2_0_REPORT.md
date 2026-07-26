@@ -29,7 +29,7 @@ tests/test_reworked_qp.py ........  8 passed   (T7,T8,T9,T10 + TestPhase20TMOM x
 | **Z1** analytical CoM driver (`_septic`, `_com_step_reference`, `_com_sine_reference`) | `tests/test_reworked_qp.py` |
 | **Z2** comparator (`_com_task_probe`: realized `J_com·q̈+J̇_com·q̇` vs `a_com_des`) | same |
 | Independent J̇_com·q̇ (Ȧ_G·q̇) finite-difference check (`_jdot_com_fd_check`) | same |
-| Plot helper (`_plot_tmom_tracking`) → `results/phase2_0_tmom/` | same |
+| Plot helper (`_plot_tmom_tracking`) → `Misc/runs/phase2_0_tmom/` | same |
 | `TestPhase20TMOM` (4 tests) | same |
 | Harness extension: `_make_m2_qp(cooperative, ss_mom, ss_alpha_mom, ss_alpha_tl_weak, alpha_torso_ang, alpha_wrench)` — defaults preserve legacy M2 | same |
 | Harness fix: `_solve_qp_step` now passes `r_com=rs.r_com` to `qp.solve` | same |
@@ -104,7 +104,7 @@ tightens and the realized/commanded accel ratio rises monotonically toward unity
 the 30 mm/15 mm aggressive references to expose the authority knob. No wall — a continuous
 weight knob, confirming the limitation is authority, not formulation.)
 
-Plots: `results/phase2_0_tmom/t_mom_step_x.png`, `t_mom_sine_x.png`.
+Plots: `Misc/runs/phase2_0_tmom/t_mom_step_x.png`, `t_mom_sine_x.png`.
 
 ---
 

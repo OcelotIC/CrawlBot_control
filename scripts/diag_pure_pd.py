@@ -17,7 +17,7 @@ telemetry. The user's protocol:
 
 Output:
   stdout: side-by-side metric table (baseline vs pure-PD)
-  plot:   results/M6_platform_diag/pure_pd_vs_baseline.png
+  plot:   Misc/runs/M6_platform_diag/pure_pd_vs_baseline.png
 """
 import os
 import sys
@@ -39,7 +39,7 @@ from crawlbot.core.state_conversions import mujoco_to_pinocchio
 
 URDF = os.path.join(_root, 'models', 'VISPA_crawling_fixed.urdf')
 MJCF = os.path.join(_root, 'models', 'VISPA_crawling_rwa3.xml')
-OUT_DIR = 'results/M6_platform_diag'
+OUT_DIR = 'Misc/runs/M6_platform_diag'
 
 
 def _make_cfg():

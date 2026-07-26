@@ -7,8 +7,8 @@ Produces:
   P4  — CoM tracking during trailing-DS settle (3-axis).
 
 Run after both runs exist:
-  results/diag_cooperative_arms_multi_traversal_2x/sim_log.json          (DS rework)
-  results/diag_cooperative_arms_multi_traversal_2x_baseline/sim_log.json (no rework)
+  Misc/runs/diag_cooperative_arms_multi_traversal_2x/sim_log.json          (DS rework)
+  Misc/runs/diag_cooperative_arms_multi_traversal_2x_baseline/sim_log.json (no rework)
 
 Usage:
   PYTHONPATH=. python3 scripts/diag_ds_rework_plots.py
@@ -26,9 +26,11 @@ import matplotlib.pyplot as plt
 
 _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-DIR_REWORK = os.path.join(_root, 'results',
+DIR_REWORK = os.path.join(_root, 'Misc',
+                          'runs',
                           'diag_cooperative_arms_multi_traversal_2x')
-DIR_BASELINE = os.path.join(_root, 'results',
+DIR_BASELINE = os.path.join(_root, 'Misc',
+                            'runs',
                             'diag_cooperative_arms_multi_traversal_2x_baseline')
 OUT_DIR = os.path.join(_root, 'docs', 'architecture', 'ds_rework_figs')
 

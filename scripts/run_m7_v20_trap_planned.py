@@ -25,7 +25,7 @@ Rationale (see docs/architecture/M7_TECHNICAL_LOG.md section 9)
   task while the mapping continues to give velocity feedforward
   through delta_dot.
 
-Output: results/M7_1pct_1step_v20/.
+Output: Misc/runs/M7_1pct_1step_v20/.
 """
 from __future__ import annotations
 
@@ -41,4 +41,4 @@ import scripts.run_m7_single_step as r
 
 if __name__ == '__main__':
     r.run_case('1pct 1-step v20 (trap 20/60/20 + planned-delta + EE FF)',
-               'results/M7_1pct_1step_v20', n_steps=1)
+               'Misc/runs/M7_1pct_1step_v20', n_steps=1)

@@ -11,7 +11,7 @@ a_ff everywhere except the instantaneous points tau in {0, 0.5, 1}.
 Keeps v16/v17 behaviour: TorsoPlanner drives SS torso ref, mapping
 drives DS, EE task-consistent feedforward on.
 
-Output: results/M7_1pct_1step_v18/.
+Output: Misc/runs/M7_1pct_1step_v18/.
 """
 from __future__ import annotations
 
@@ -27,4 +27,4 @@ import scripts.run_m7_single_step as r
 
 if __name__ == '__main__':
     r.run_case('1pct 1-step v18 (quintic torso profile)',
-               'results/M7_1pct_1step_v18', n_steps=1)
+               'Misc/runs/M7_1pct_1step_v18', n_steps=1)

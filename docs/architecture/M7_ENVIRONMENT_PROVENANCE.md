@@ -3,7 +3,7 @@
 **Date:** 2026-04-19
 **Scope:** Capture the current environment on this machine and whatever
 can be recovered about the 2026-04-17 environment that produced the
-archived `results/M7_1pct_1step_v21/`. Inventory only. No interpretation,
+archived `Misc/runs/M7_1pct_1step_v21/`. Inventory only. No interpretation,
 no fix, no recommendation.
 
 ---
@@ -165,7 +165,7 @@ is not installed, so a dynamic threadpool enumeration is not available.
 
 ### 2.1 Archive fingerprints
 
-All files in `results/M7_1pct_1step_v21/` have mtime
+All files in `Misc/runs/M7_1pct_1step_v21/` have mtime
 `2026-04-17 22:52:30 +0000` (identical to the second across all 13
 files). Sizes:
 
@@ -198,7 +198,7 @@ ac14811  2026-04-17 22:19:11 UTC  update todo and code handoff for closed loop o
 
 The archive was therefore almost certainly produced with HEAD at
 `ac14811` (55 min before the per-phase refactor landed). Consistent with
-this: `results/M7_1pct_1step_v21/metrics.csv` uses the **pre-refactor**
+this: `Misc/runs/M7_1pct_1step_v21/metrics.csv` uses the **pre-refactor**
 metric schema (keys `torso_ori_err_peak_deg`, `torso_pos_err_peak_mm`,
 `hw_saturation_ratio_peak`, …), not the per-phase schema
 (`torso_ori_peak_deg_SS`, `_DS`, `_global`) introduced by `3241ada`.

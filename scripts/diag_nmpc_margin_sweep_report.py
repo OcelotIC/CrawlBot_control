@@ -16,10 +16,10 @@ import numpy as np  # noqa: E402
 
 
 RUNS = [
-    ('A', 5,  os.path.join(_root, 'results', 'diag_nmpc_warm_start_5step')),
-    ('B', 10, os.path.join(_root, 'results', 'diag_nmpc_margin_sweep',
+    ('A', 5,  os.path.join(_root, 'Misc', 'runs', 'diag_nmpc_warm_start_5step')),
+    ('B', 10, os.path.join(_root, 'Misc', 'runs', 'diag_nmpc_margin_sweep',
                            'margin_10s')),
-    ('C', 15, os.path.join(_root, 'results', 'diag_nmpc_margin_sweep',
+    ('C', 15, os.path.join(_root, 'Misc', 'runs', 'diag_nmpc_margin_sweep',
                            'margin_15s')),
 ]
 
@@ -220,7 +220,7 @@ def main():
         print(f"step{step:02d}/{phase:<5s}  | " + ' | '.join(cells))
 
     # Save the report.
-    out_path = os.path.join(_root, 'results', 'diag_nmpc_margin_sweep',
+    out_path = os.path.join(_root, 'Misc', 'runs', 'diag_nmpc_margin_sweep',
                             'sweep_report.txt')
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     import io

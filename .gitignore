@@ -108,3 +108,6 @@ results/figU25_*/
 # committed baseline is results/j2_adjconv/c25_fulldiag.csv @ bfd5509.
 gate/_run/
 results/gate_run_scratch/
+# pytest plot outputs — were tracked, and matplotlib
+# rewrites them byte-differently on every run (CARRYOVER C2)
+results/test_scratch/

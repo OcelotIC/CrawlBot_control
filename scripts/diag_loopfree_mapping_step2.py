@@ -17,8 +17,8 @@ mapping injecting jerky base-acceleration demands. Falsifier:
     from the task structure (torso-lin vs EE co-equal) or the swing
     reaching dynamics → CMM-feedforward / hierarchy territory.
 
-Reads canonical baseline:  results/diag_cooperative_arms/sim_log.json
-Writes: results/diag_attribution/loopfree_mapping/{sim_log.json, compare.json}
+Reads canonical baseline:  Misc/runs/diag_cooperative_arms/sim_log.json
+Writes: Misc/runs/diag_attribution/loopfree_mapping/{sim_log.json, compare.json}
 """
 import os
 import sys
@@ -37,8 +37,8 @@ from crawlbot.simulation.sim_loop import SimulationLoop
 
 MJCF = os.path.join(_root, 'models', 'VISPA_crawling_rwa3.xml')
 URDF = os.path.join(_root, 'models', 'VISPA_crawling_fixed.urdf')
-OUT = os.path.join(_root, 'results', 'diag_attribution', 'loopfree_mapping')
-BASELINE = os.path.join(_root, 'results', 'diag_cooperative_arms',
+OUT = os.path.join(_root, 'Misc', 'runs', 'diag_attribution', 'loopfree_mapping')
+BASELINE = os.path.join(_root, 'Misc', 'runs', 'diag_cooperative_arms',
                         'sim_log.json')
 M_ROBOT = 71.0
 

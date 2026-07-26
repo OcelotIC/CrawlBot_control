@@ -22,7 +22,7 @@ from crawlbot.simulation.logging import SimLog
 URDF = os.path.join(_root, 'models', 'VISPA_crawling_fixed.urdf')
 MJCF_5  = os.path.join(_root, 'models', 'VISPA_crawling_rwa3_8pct.xml')
 MJCF_50 = os.path.join(_root, 'models', 'VISPA_crawling_rwa3_8pct_hw50.xml')
-OUTDIR_LOGS = os.path.join(_root, 'results', 'logs')
+OUTDIR_LOGS = os.path.join(_root, 'Misc', 'runs', 'logs')
 OUTDIR_FIGS = os.path.join(_root, 'results', 'figures')
 os.makedirs(OUTDIR_LOGS, exist_ok=True)
 os.makedirs(OUTDIR_FIGS, exist_ok=True)

@@ -19,7 +19,7 @@ because the kinematic torso reference didn't compensate for arm-
 induced base drift. v19 restores the mapping in SS while making it
 purely feedforward (not stealing from arm PD residual).
 
-Output: results/M7_1pct_1step_v19/.
+Output: Misc/runs/M7_1pct_1step_v19/.
 """
 from __future__ import annotations
 
@@ -35,4 +35,4 @@ import scripts.run_m7_single_step as r
 
 if __name__ == '__main__':
     r.run_case('1pct 1-step v19 (SS mapping + q_planned + quintic torso)',
-               'results/M7_1pct_1step_v19', n_steps=1)
+               'Misc/runs/M7_1pct_1step_v19', n_steps=1)

@@ -1,9 +1,9 @@
 """Offline linear-algebra audit for the EE angular task vs torso null
 space at t=3.6 s of A_swing.
 
-Loads results/M7_ee_ori_diag/A_swing_t3p6.npz (dumped by
+Loads Misc/runs/M7_ee_ori_diag/A_swing_t3p6.npz (dumped by
 scripts/bisect_qp_cascade.py:run_v21_case) and writes
-results/M7_ee_ori_diag/ee_null_space_rank.md. No interpretation.
+Misc/runs/M7_ee_ori_diag/ee_null_space_rank.md. No interpretation.
 """
 from __future__ import annotations
 
@@ -16,9 +16,9 @@ sys.path.insert(0, _root)
 import numpy as np
 
 
-NPZ_PATH = os.path.join(_root, 'results', 'M7_ee_ori_diag',
+NPZ_PATH = os.path.join(_root, 'Misc', 'runs', 'M7_ee_ori_diag',
                         'A_swing_t3p6.npz')
-OUT_PATH = os.path.join(_root, 'results', 'M7_ee_ori_diag',
+OUT_PATH = os.path.join(_root, 'Misc', 'runs', 'M7_ee_ori_diag',
                         'ee_null_space_rank.md')
 
 # Numerical-rank tolerance — np.linalg.matrix_rank's default if tol=None

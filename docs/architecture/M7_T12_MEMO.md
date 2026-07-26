@@ -2,8 +2,8 @@
 
 **Status.** Internal technical memo. Not for publication.
 **Date.** 2026-04-22.
-**Run under analysis.** `results/M7_14pct_1step_v22_with_swing_hold/` (T12).
-**Predecessor.** T11 closed 2026-04-20, `results/M7_1pct_1step_v22_with_swing_hold/`.
+**Run under analysis.** `Misc/runs/M7_14pct_1step_v22_with_swing_hold/` (T12).
+**Predecessor.** T11 closed 2026-04-20, `Misc/runs/M7_1pct_1step_v22_with_swing_hold/`.
 **Purpose.** Freeze the T12 investigation state in a single document:
 observations, mechanism hypothesis, evidence, confirmed vs. conjectured
 boundaries, candidate fix, and open items. To be consulted if the
@@ -372,7 +372,7 @@ SS→DS position step did not close DS1 divergence.
 - Reference step at k=59: reduced from 38.27 mm to 33 µm.
 - SS metrics: bit-identical to T12 unfixed (no collateral).
 
-Run: `results/M7_14pct_1step_v22_with_swing_hold_optA/` with
+Run: `Misc/runs/M7_14pct_1step_v22_with_swing_hold_optA/` with
 `ds_ramp_duration_s = 2.0`.
 
 ### 9.2 DS1 outcome was unchanged
@@ -548,22 +548,22 @@ separately addressed. Not blocking T15.
 
 ### 10.4 Artefacts
 
-- `results/M7_14pct_1step_v22_with_swing_hold_optA/T12_fix_report.md`
+- `Misc/runs/M7_14pct_1step_v22_with_swing_hold_optA/T12_fix_report.md`
   — Option A validation, showing DS1 unchanged.
-- `results/M7_14pct_1step_v22_with_swing_hold_optA/T12_post3_d5_cost_reconstruction.md`
+- `Misc/runs/M7_14pct_1step_v22_with_swing_hold_optA/T12_post3_d5_cost_reconstruction.md`
   — D5 NMPC stage-0 cost reconstruction at k=58..70, sourcing the
   r_com_ref.z jump that drives the k=65 cost regime change.
-- `results/M7_14pct_1step_v22_with_swing_hold/T12_post3a_impact.md`
+- `Misc/runs/M7_14pct_1step_v22_with_swing_hold/T12_post3a_impact.md`
   — impact-projection no-op analysis.
-- `results/M7_14pct_1step_v22_with_swing_hold/T12_post3b_momentum_budget.md`
+- `Misc/runs/M7_14pct_1step_v22_with_swing_hold/T12_post3b_momentum_budget.md`
   — angular momentum budget through DS1.
-- `results/M7_14pct_1step_v22_with_swing_hold/T12_post3c_arms_torso_momentum.md`
+- `Misc/runs/M7_14pct_1step_v22_with_swing_hold/T12_post3c_arms_torso_momentum.md`
   — arms+torso momentum decomposition at snapshots.
-- `results/M7_14pct_1step_v22_with_swing_hold/T12_post3d_body_inventory.md`
+- `Misc/runs/M7_14pct_1step_v22_with_swing_hold/T12_post3d_body_inventory.md`
   — MuJoCo body inventory + DOF layout correction.
-- `results/M7_1pct_1step_v22_with_swing_hold/T12_post3e_L_total_M1.md`
+- `Misc/runs/M7_1pct_1step_v22_with_swing_hold/T12_post3e_L_total_M1.md`
   — total-L cross-check on M1 (1%) baseline.
-- `results/M7_14pct_1step_v22_with_swing_hold/T12_post3f_aocs_targets.md`
+- `Misc/runs/M7_14pct_1step_v22_with_swing_hold/T12_post3f_aocs_targets.md`
   — AOCS dispatcher enumeration, Mode B identified as active path.
 - `results/M7_14pct_1step_v22_with_swing_hold_damp/T12_diag_stage1_report.md`
   — pure ω_s rate damping, dock failed (retained as diagnostic
@@ -596,12 +596,12 @@ separately addressed. Not blocking T15.
 ---
 
 **Artefacts referenced in this memo:**
-- `results/M7_14pct_1step_v22_with_swing_hold/T12_report.md`
-- `results/M7_14pct_1step_v22_with_swing_hold/T12_post_diagnostic.md`
-- `results/M7_14pct_1step_v22_with_swing_hold/T12_post2_code_inspection.md`
-- `results/M7_14pct_1step_v22_with_swing_hold/figs_post/D1_reference_zoom.png`
-- `results/M7_14pct_1step_v22_with_swing_hold/figs_post/D1_reference_full.png`
-- `results/M7_14pct_1step_v22_with_swing_hold/figs_post/D3_hw_growth.png`
-- `results/M7_14pct_1step_v22_with_swing_hold/figs/Fig_9_ee_tracking.png`
-- `results/M7_14pct_1step_v22_with_swing_hold/figs/Fig_10_torso_tracking.png`
-- `results/M7_1pct_1step_v22_with_swing_hold/` (T11 reference)
+- `Misc/runs/M7_14pct_1step_v22_with_swing_hold/T12_report.md`
+- `Misc/runs/M7_14pct_1step_v22_with_swing_hold/T12_post_diagnostic.md`
+- `Misc/runs/M7_14pct_1step_v22_with_swing_hold/T12_post2_code_inspection.md`
+- `Misc/runs/M7_14pct_1step_v22_with_swing_hold/figs_post/D1_reference_zoom.png`
+- `Misc/runs/M7_14pct_1step_v22_with_swing_hold/figs_post/D1_reference_full.png`
+- `Misc/runs/M7_14pct_1step_v22_with_swing_hold/figs_post/D3_hw_growth.png`
+- `Misc/runs/M7_14pct_1step_v22_with_swing_hold/figs/Fig_9_ee_tracking.png`
+- `Misc/runs/M7_14pct_1step_v22_with_swing_hold/figs/Fig_10_torso_tracking.png`
+- `Misc/runs/M7_1pct_1step_v22_with_swing_hold/` (T11 reference)

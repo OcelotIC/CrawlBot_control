@@ -10,7 +10,7 @@ across all step 2 SS cycles. Then analyses + dumps:
   - delta_total   = p_torso - c_ref            (total error vs planner ref, 3D)
 
 Outputs:
-    results/diag_step2_bc/
+    Misc/runs/diag_step2_bc/
         step2_log.json
         step2_report.txt
 """
@@ -32,7 +32,7 @@ import scripts.run_m7_single_step as r_single  # noqa: E402
 
 
 MJCF = os.path.join(_root, 'models', 'VISPA_crawling_rwa3.xml')
-OUT = os.path.join(_root, 'results', 'diag_step2_bc')
+OUT = os.path.join(_root, 'Misc', 'runs', 'diag_step2_bc')
 
 ROBOT_JOINT_RE = re.compile(
     r'(<default class="robot_joint">\s*\n\s*<joint damping=")[^"]+'

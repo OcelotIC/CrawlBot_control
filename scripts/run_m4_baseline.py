@@ -9,8 +9,8 @@ For the 14 % run, the structure mass is overridden programmatically on
 the loaded MuJoCo model (no new MJCF required — per anti-pattern A2).
 
 Outputs full diagnostics to
-    results/M4_baseline_1pct/
-    results/M4_baseline_14pct/
+    Misc/runs/M4_baseline_1pct/
+    Misc/runs/M4_baseline_14pct/
 
 Usage:
     PYTHONPATH=. MUJOCO_GL=disabled python3 scripts/run_m4_baseline.py
@@ -122,5 +122,5 @@ def run_case(tag, structure_mass, output_dir, n_steps=1):
 
 if __name__ == "__main__":
     # Single-step closed-loop run per the M4 task description.
-    run_case("1pct",  7110.0, "results/M4_baseline_1pct",  n_steps=1)
-    run_case("14pct",  507.0, "results/M4_baseline_14pct", n_steps=1)
+    run_case("1pct",  7110.0, "Misc/runs/M4_baseline_1pct",  n_steps=1)
+    run_case("14pct",  507.0, "Misc/runs/M4_baseline_14pct", n_steps=1)

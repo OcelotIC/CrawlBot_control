@@ -23,7 +23,7 @@ Two variants are exercised back-to-back:
 
 Outputs (per variant):
 
-  results/M7_step2_isolation/{A_bypass_on, B_bypass_off}/
+  Misc/runs/M7_step2_isolation/{A_bypass_on, B_bypass_off}/
     sim_log.json                  full per-tick trace
     physics_trace.pkl             live q at 50 Hz
     metrics.csv                   summary
@@ -38,7 +38,7 @@ Outputs (per variant):
       - actuator load: tau_q vs limit (20 Nm), tau_w vs limit (5 Nm),
         hw vs limit (5 Nms)
 
-  results/M7_step2_isolation/STEP2_QP_ISOLATION_REPORT.md
+  Misc/runs/M7_step2_isolation/STEP2_QP_ISOLATION_REPORT.md
     Side-by-side comparison + headline metrics + verdict.
 
 Run:
@@ -64,7 +64,7 @@ os.environ.setdefault('MUJOCO_GL', 'disabled')
 import scripts.run_m7_single_step as r_single
 from crawlbot.simulation.config import SimConfig
 
-OUT_ROOT = os.path.join(_root, 'results', 'M7_step2_isolation_aocs_unleashed')
+OUT_ROOT = os.path.join(_root, 'Misc', 'runs', 'M7_step2_isolation_aocs_unleashed')
 
 # AOCS budget for the unleashed variant. 100 Nm torque and 100 Nms
 # momentum, ~20× the physical envelope. Confirms whether AOCS budget

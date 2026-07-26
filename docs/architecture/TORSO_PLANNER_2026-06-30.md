@@ -5,10 +5,10 @@ Authoritative description of `crawlbot/planning/torso_planner.py` as it runs tod
 `R_flat = R_torso(t=0)`, held globally and FSM-independently, instead of being re-sampled from live torso state
 at every phase entry).
 
-**Supersedes** for the torso-reference question the pre-J2 `results/j2_audit/INTERNAL_j2_torsoplanner.md`
+**Supersedes** for the torso-reference question the pre-J2 `Misc/runs/j2_audit/INTERNAL_j2_torsoplanner.md`
 (`ae0673e`, DS-mobile framing). `docs/architecture/SS_TORSO_GUIDANCE_AUDIT_2026-06.md` covers only the
 position/CoM reference (δ_com); `docs/architecture/IK_FORMULATION.md` (2026-06-23) does not document the
-torso orientation-hold choice. Root-cause diagnosis: `results/j2_canonical_revalidation/ORI_CHAIN_CONTINUITY_DIAG.md`.
+torso orientation-hold choice. Root-cause diagnosis: `Misc/runs/j2_canonical_revalidation/ORI_CHAIN_CONTINUITY_DIAG.md`.
 
 ---
 
@@ -97,7 +97,7 @@ the separate pre-existing open item.
 ## 5. Reorientation freedom vs the wrench null space (clarification, per the audit)
 At a docked (welded double-stance) config the **motion** reorientation freedom is `null([Jc; J_com]) = 5-D`
 (= 8 weld-internal motions − 3 CoM-transport = ~3 torso-orientation + ~2 arm-posture;
-`results/j2_audit/INTERNAL_j2_torsoplanner.md` Q4). **`P_int = I − G⁺G` (`wholebody_qp.py:1170`) is NOT this
+`Misc/runs/j2_audit/INTERNAL_j2_torsoplanner.md` Q4). **`P_int = I − G⁺G` (`wholebody_qp.py:1170`) is NOT this
 space** — it is the 12-D contact-**wrench** internal-stress null space (a force object, the hyperstatic wrench
 redundancy resolved by the internal-stress regularizer). The orientation hold uses the **torso-orientation**
 portion of the 5-D motion freedom (the planner outputs a torso-orientation reference; it has no arm-posture

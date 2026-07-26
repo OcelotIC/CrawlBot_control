@@ -9,7 +9,7 @@
 
 ## 0. Correction Notice (2026-04-17)
 
-This log was written against global-max metrics (a single `np.max(np.abs(·))` over the full simulation window) and, in consequence, drew conclusions that do not survive the per-phase re-diagnostic carried out on 2026-04-17. The refactored diagnostic suite (`crawlbot/diagnostics/metrics.py`, Step 1) splits every peak metric into an SS window (useful locomotion), a DS window (hold/recovery), and a `_global` value flagged `WARN` when the run aborted. Re-running the existing archived `sim_log.json` files for v17, v19, v20, v21 through this refactored suite produced `results/archive_rediagnostic.md`. Sections making claims that the per-phase data contradicts have been amended in place; sections whose diagnosis remains correct (notably §2) are preserved unchanged. Amended paragraphs are tagged `(amended 2026-04-17)`.
+This log was written against global-max metrics (a single `np.max(np.abs(·))` over the full simulation window) and, in consequence, drew conclusions that do not survive the per-phase re-diagnostic carried out on 2026-04-17. The refactored diagnostic suite (`crawlbot/diagnostics/metrics.py`, Step 1) splits every peak metric into an SS window (useful locomotion), a DS window (hold/recovery), and a `_global` value flagged `WARN` when the run aborted. Re-running the existing archived `sim_log.json` files for v17, v19, v20, v21 through this refactored suite produced `Misc/runs/archive_rediagnostic.md`. Sections making claims that the per-phase data contradicts have been amended in place; sections whose diagnosis remains correct (notably §2) are preserved unchanged. Amended paragraphs are tagged `(amended 2026-04-17)`.
 
 Corrected picture: SS torso orientation tracking is 0.53 ± 0.01° across v17–v21 — below the 0.72° standalone floor and well inside the 5° dock threshold — and was never the blocker; the remaining real problem in SS is EE position tracking (24 mm standalone vs. 153–165 mm closed-loop peak, 25–41 mm closest approach at dock_timeout, ~6.7× inflation); a second, orthogonal issue is a post-abort DS divergence triggered by the gait scheduler entering a pre-planned trailing-DS phase regardless of whether the preceding SS docked. (amended 2026-04-17)
 
@@ -128,7 +128,7 @@ hw_sat_peak:        ~0.95      (PASS)
 platform_rotation:   ~5°       (marginal)
 dock:               NO (timeout)
 ```
-Note (amended 2026-04-17): `torso_ori_peak` above was a global `np.max(np.abs(·))`; the SS-only value (0.5432°) comes from `results/archive_rediagnostic.md`. Other entries were not re-split; see §10's per-phase table for v19's EE peak in each phase.
+Note (amended 2026-04-17): `torso_ori_peak` above was a global `np.max(np.abs(·))`; the SS-only value (0.5432°) comes from `Misc/runs/archive_rediagnostic.md`. Other entries were not re-split; see §10's per-phase table for v19's EE peak in each phase.
 
 ### Achievable Floor (from standalone/bisection)
 ```
@@ -151,7 +151,7 @@ Ratio:       10.6× inflation from standalone to closed-loop
 
 2. **Why v17 got closer (24.9mm) than v19 (40.8mm).** v17 had no mapping (TorsoPlanner direct) — the torso drifted 120mm toward the arm, effectively shortening the remaining reach distance. v19 holds the torso at its planned position, forcing the arm to cover the full 800mm. The arm may not be able to reach 800mm in 7.3s with these gains against the coupling disturbance.
 
-3. **The 31° torso orientation figure** was a `_global` metric artefact, not an SS tracking failure. The per-phase re-diagnostic (2026-04-17, `results/archive_rediagnostic.md`) shows SS torso orientation peak at 0.53 ± 0.01° across v17–v21 — below the 0.72° standalone floor. The 29–45° values came from the post-abort DS hold window and are accounted for separately (see §11). SS orientation is tracked to the standalone floor and is not an open unknown. (amended 2026-04-17)
+3. **The 31° torso orientation figure** was a `_global` metric artefact, not an SS tracking failure. The per-phase re-diagnostic (2026-04-17, `Misc/runs/archive_rediagnostic.md`) shows SS torso orientation peak at 0.53 ± 0.01° across v17–v21 — below the 0.72° standalone floor. The 29–45° values came from the post-abort DS hold window and are accounted for separately (see §11). SS orientation is tracked to the standalone floor and is not an open unknown. (amended 2026-04-17)
 
 4. **Anchor spacing / step geometry.** DEFAULT_DX=0.8, DEFAULT_DY=0.3 gives a 1.0m diagonal step. The arm reach is 1.375m. The step is 73% of reach — ambitious. Shorter steps would help but the architecture should handle the designed geometry.
 
@@ -326,9 +326,9 @@ scripts/diag_m7_swing_velocity.py        — velocity profile comparison
 
 ### Results directories
 ```
-results/M7_1pct_1step_v11/  through  results/M7_1pct_1step_v19/
-results/qp_tracking_test/
-results/M6_platform_diag/
+Misc/runs/M7_1pct_1step_v11/  through  Misc/runs/M7_1pct_1step_v19/
+Misc/runs/qp_tracking_test/
+Misc/runs/M6_platform_diag/
 ```
 ## 13. Armature Mismatch — Root Cause of EE Orientation Drift (2026-04-20)
 

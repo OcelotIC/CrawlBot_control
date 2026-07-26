@@ -14,9 +14,9 @@ mutate the MJCF default class in place, instantiate SimulationLoop,
 and run a self-contained settle loop that mirrors
 `SimulationLoop._run_ds_passivity_loop` (sim_loop.py:483-642) but logs
 per-tick T_full, T_jj, dq·tau, the passivity LHS, and the constraint
-slack. Outputs: results/M7_settle_diag/{variant}/passivity_trace.csv
-and the overlay results/M7_settle_diag/passivity_trace.png +
-results/M7_settle_diag/settle_damping_sweep.md.
+slack. Outputs: Misc/runs/M7_settle_diag/{variant}/passivity_trace.csv
+and the overlay Misc/runs/M7_settle_diag/passivity_trace.png +
+Misc/runs/M7_settle_diag/settle_damping_sweep.md.
 
 The on-disk MJCF is restored verbatim at the end (try/finally). Per
 the task: do not commit. Helper script kept under-_ scratch convention.
@@ -45,7 +45,7 @@ from crawlbot.core.state_conversions import mujoco_to_pinocchio
 
 URDF = os.path.join(_root, 'models', 'VISPA_crawling_fixed.urdf')
 MJCF = os.path.join(_root, 'models', 'VISPA_crawling_rwa3.xml')
-OUT_ROOT = os.path.join(_root, 'results', 'M7_settle_diag')
+OUT_ROOT = os.path.join(_root, 'Misc', 'runs', 'M7_settle_diag')
 
 VARIANTS = [
     ('d0_a0',          0.000, 0.000),
@@ -343,8 +343,8 @@ def _build_markdown(results, plot_path):
                 'tau_max_Nm`.\n')
 
         f.write('\n## Variant `d0_a0` is the trace requested by item (1)\n\n')
-        f.write(f'CSV: `results/M7_settle_diag/d0_a0/passivity_trace.csv` — '
-                f'aliased per spec to `results/M7_settle_diag/passivity_trace.csv` '
+        f.write(f'CSV: `Misc/runs/M7_settle_diag/d0_a0/passivity_trace.csv` — '
+                f'aliased per spec to `Misc/runs/M7_settle_diag/passivity_trace.csv` '
                 f'(also written).\n')
 
     # Spec also asks for the d0_a0 trace at the top-level results path.

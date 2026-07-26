@@ -25,7 +25,7 @@ URDF = os.path.join(_root, 'models', 'VISPA_crawling_fixed.urdf')
 MJCF_SMALL = os.path.join(_root, 'models', 'VISPA_crawling_rwa3_8pct.xml')
 MJCF_BIG = os.path.join(_root, 'models', 'VISPA_crawling_rwa3_8pct_hw100.xml')
 OUTDIR = os.path.join(_root, 'results', 'figures')
-LOGDIR = os.path.join(_root, 'results', 'logs')
+LOGDIR = os.path.join(_root, 'Misc', 'runs', 'logs')
 os.makedirs(OUTDIR, exist_ok=True)
 os.makedirs(LOGDIR, exist_ok=True)
 

@@ -12,10 +12,10 @@ phase, and prints:
       cond(N_b · J_ee) — EE Jacobian projected into torso null space
 
   (3) joint torque saturation fraction over the full sim
-      (read from the already-saved results/M6_baseline_1pct/sim_log.json)
+      (read from the already-saved Misc/runs/M6_baseline_1pct/sim_log.json)
 
   (4) r_b_ref(t) vs r_b_actual(t) for all 3 axes, saved as
-      results/M6_platform_diag/torso_tracking_vs_ref.png
+      Misc/runs/M6_platform_diag/torso_tracking_vs_ref.png
 """
 import os
 import sys
@@ -39,7 +39,7 @@ from crawlbot.core.state_conversions import mujoco_to_pinocchio
 
 URDF = os.path.join(_root, 'models', 'VISPA_crawling_fixed.urdf')
 MJCF = os.path.join(_root, 'models', 'VISPA_crawling_rwa3.xml')
-OUT_DIR = 'results/M6_platform_diag'
+OUT_DIR = 'Misc/runs/M6_platform_diag'
 
 
 def _make_cfg():
@@ -185,7 +185,7 @@ def main():
     # ── (3) Joint torque saturation fraction ──
     print()
     print("(3) Joint torque saturation fraction (full sim)")
-    log_path = 'results/M6_baseline_1pct/sim_log.json'
+    log_path = 'Misc/runs/M6_baseline_1pct/sim_log.json'
     with open(log_path) as f:
         log = json.load(f)
     tau = np.asarray(log['tau'])

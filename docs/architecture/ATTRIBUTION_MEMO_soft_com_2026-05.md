@@ -11,7 +11,7 @@ force, and is *the wrong tool* if the reference itself is wrong.
 
 All work is **investigation only** (one standalone analysis script + one
 config-flag re-run; no change to any control code). Canonical baseline:
-`results/diag_cooperative_arms/sim_log.json`.
+`Misc/runs/diag_cooperative_arms/sim_log.json`.
 
 ---
 
@@ -137,7 +137,7 @@ for a measured failure**. It would not remove the 2-tick transient.
 
 ## Artifacts
 
-- `scripts/diag_lambda_decomp_step2.py` → `results/diag_attribution/lambda_decomp/{metrics.json, lambda_decomp.png}`
-- `scripts/diag_loopfree_mapping_step2.py` → `results/diag_attribution/loopfree_mapping/{sim_log.json, compare.json}`
-- `scripts/probe1_reference_smoothness.py` → `results/diag_attribution/probe1_reference_smoothness/{metrics.json, probe1.png}`
-- `scripts/probe2_cmm_conditioning.py` → `results/diag_attribution/probe2_cmm_conditioning/{metrics.json, probe2.png}`
+- `scripts/diag_lambda_decomp_step2.py` → `Misc/runs/diag_attribution/lambda_decomp/{metrics.json, lambda_decomp.png}`
+- `scripts/diag_loopfree_mapping_step2.py` → `Misc/runs/diag_attribution/loopfree_mapping/{sim_log.json, compare.json}`
+- `scripts/probe1_reference_smoothness.py` → `Misc/runs/diag_attribution/probe1_reference_smoothness/{metrics.json, probe1.png}`
+- `scripts/probe2_cmm_conditioning.py` → `Misc/runs/diag_attribution/probe2_cmm_conditioning/{metrics.json, probe2.png}`
