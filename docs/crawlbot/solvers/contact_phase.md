@@ -1,6 +1,6 @@
 # `crawlbot.solvers.contact_phase`
 
-**File**: [`crawlbot/solvers/contact_phase.py`](../../../crawlbot/solvers/contact_phase.py) — **138 lines** — canonical coverage **83 %**
+**File**: [`crawlbot/solvers/contact_phase.py`](../../../crawlbot/solvers/contact_phase.py) — **138 lines** — canonical coverage **85 %**
 
 > Module docstring: *"Contact phase definitions for crawling multi-arm robot locomotion."*
 

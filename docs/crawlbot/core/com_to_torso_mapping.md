@@ -1,6 +1,6 @@
 # `crawlbot.core.com_to_torso_mapping`
 
-**File**: [`crawlbot/core/com_to_torso_mapping.py`](../../../crawlbot/core/com_to_torso_mapping.py) — **257 lines** — canonical coverage **28 %**
+**File**: [`crawlbot/core/com_to_torso_mapping.py`](../../../crawlbot/core/com_to_torso_mapping.py) — **257 lines** — canonical coverage **52 %**
 
 > Module docstring: *"CoM-to-torso reference mapping (M1, v1: with delta_dot)."*
 
@@ -18,12 +18,12 @@ Jacobian level, but the first is far better conditioned.
 | symbol | signature | canonical? | code |
 |---|---|---|---|
 | **`CoMToTorsoMapping`** |  |  | [L44](../../../crawlbot/core/com_to_torso_mapping.py#L44) |
-| `.compute_delta` | `(q)` | not exercised | [L97](../../../crawlbot/core/com_to_torso_mapping.py#L97) |
-| `.compute_delta_dot` | `(q, dq)` | not exercised | [L110](../../../crawlbot/core/com_to_torso_mapping.py#L110) |
+| `.compute_delta` | `(q)` | **yes** | [L97](../../../crawlbot/core/com_to_torso_mapping.py#L97) |
+| `.compute_delta_dot` | `(q, dq)` | **yes** | [L110](../../../crawlbot/core/com_to_torso_mapping.py#L110) |
 | `.compute_delta_local` | `(q)` | not exercised | [L143](../../../crawlbot/core/com_to_torso_mapping.py#L143) |
 | `.compute_delta_local_dot` | `(q, dq)` | not exercised | [L160](../../../crawlbot/core/com_to_torso_mapping.py#L160) |
 | `.compute` | `(r_com_ref, v_com_ref, a_com_ff, q_current, dq_current=None)` | not exercised | [L181](../../../crawlbot/core/com_to_torso_mapping.py#L181) |
-| `.body_com_jacobian` | `(data, joint_idx)` | not exercised | [L224](../../../crawlbot/core/com_to_torso_mapping.py#L224) |
+| `.body_com_jacobian` | `(data, joint_idx)` | **yes** | [L224](../../../crawlbot/core/com_to_torso_mapping.py#L224) |
 | `.torso_pos_jacobian_from_com` | `(q)` | not exercised | [L239](../../../crawlbot/core/com_to_torso_mapping.py#L239) |
 
 ### Module constants

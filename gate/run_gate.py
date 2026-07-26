@@ -218,10 +218,24 @@ def run_subprocess(argv, tag, timeout):
 
 
 def check_replay_and_identity():
+    # Belt to replay_canonical.py's braces: even if something else leaves a
+    # stale sim_log.json behind, a log not written by THIS replay must not be
+    # allowed to satisfy the identity check. CLEANUP-33 added both after a
+    # crashed replay produced a PASS against a 33-minute-old artifact.
+    t_start = time.time()
     rep = run_subprocess(['gate/replay_canonical.py'], 'replay', timeout=3600)
     sim_log = f'{REPLAY_DIR}/sim_log.json'
+    if rep['returncode'] != 0:
+        return {'status': 'FAIL', 'reason': f'replay exited {rep["returncode"]}',
+                'replay': rep}, None
     if not os.path.exists(sim_log):
         return {'status': 'FAIL', 'reason': 'replay produced no sim_log.json',
+                'replay': rep}, None
+    age = t_start - os.path.getmtime(sim_log)
+    if age > 0:
+        return {'status': 'FAIL',
+                'reason': f'sim_log.json is STALE — {age:.0f}s older than this '
+                          f'replay, so it was not written by it',
                 'replay': rep}, None
     exp = run_subprocess(['scripts/diag_full_diag_export.py',
                           '--run-dir', REPLAY_DIR, '--out-prefix', REPLAY_PREFIX],

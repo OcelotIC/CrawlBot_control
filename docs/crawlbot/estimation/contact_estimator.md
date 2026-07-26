@@ -1,6 +1,6 @@
 # `crawlbot.estimation.contact_estimator`
 
-**File**: [`crawlbot/estimation/contact_estimator.py`](../../../crawlbot/estimation/contact_estimator.py) — **260 lines** — canonical coverage **68 %**
+**File**: [`crawlbot/estimation/contact_estimator.py`](../../../crawlbot/estimation/contact_estimator.py) — **260 lines** — canonical coverage **69 %**
 
 > Module docstring: *"Generalized Momentum Observer (GMO) for sensorless contact detection."*
 
@@ -31,7 +31,7 @@ to get acceleration would drown a contact signal in noise.
 | `.update` | `(M, v, C_matrix, tau_applied)` | **yes** | [L92](../../../crawlbot/estimation/contact_estimator.py#L92) |
 | `.residual` | `()` | **yes** | [L136](../../../crawlbot/estimation/contact_estimator.py#L136) |
 | `.initialized` | `()` | not exercised | [L141](../../../crawlbot/estimation/contact_estimator.py#L141) |
-| `.swing_residual_norm` | `(swing_v_slice)` | not exercised | [L144](../../../crawlbot/estimation/contact_estimator.py#L144) |
+| `.swing_residual_norm` | `(swing_v_slice)` | **yes** | [L144](../../../crawlbot/estimation/contact_estimator.py#L144) |
 | **`ContactStateMachine`** |  |  | [L160](../../../crawlbot/estimation/contact_estimator.py#L160) |
 | `.update` | `(r_swing_norm, d_FK, force_mode=False)` | not exercised | [L186](../../../crawlbot/estimation/contact_estimator.py#L186) |
 | `.reset` | `()` | **yes** | [L247](../../../crawlbot/estimation/contact_estimator.py#L247) |

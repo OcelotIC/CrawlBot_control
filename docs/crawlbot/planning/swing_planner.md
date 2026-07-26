@@ -1,6 +1,6 @@
 # `crawlbot.planning.swing_planner`
 
-**File**: [`crawlbot/planning/swing_planner.py`](../../../crawlbot/planning/swing_planner.py) — **338 lines** — canonical coverage **78 %**
+**File**: [`crawlbot/planning/swing_planner.py`](../../../crawlbot/planning/swing_planner.py) — **338 lines** — canonical coverage **95 %**
 
 > Module docstring: *"Swing arm trajectory planner for crawling locomotion."*
 
@@ -39,7 +39,7 @@ points — which is why no live-anchor transform machinery is needed.
 | `._delayed_cosine_dot` | `(tau, tau_d)` | **yes** | [L213](../../../crawlbot/planning/swing_planner.py#L213) |
 | `._delayed_cosine_ddot` | `(tau, tau_d)` | **yes** | [L221](../../../crawlbot/planning/swing_planner.py#L221) |
 | `.reference_at` | `(t)` | **yes** | [L230](../../../crawlbot/planning/swing_planner.py#L230) |
-| `._last_swing_position` | `(current_idx)` | not exercised | [L323](../../../crawlbot/planning/swing_planner.py#L323) |
+| `._last_swing_position` | `(current_idx)` | **yes** | [L323](../../../crawlbot/planning/swing_planner.py#L323) |
 
 ### Module constants
 

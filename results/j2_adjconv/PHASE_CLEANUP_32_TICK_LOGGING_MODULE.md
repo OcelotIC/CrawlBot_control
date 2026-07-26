@@ -126,3 +126,88 @@ The zero-risk items from the audit remain and are still worth doing first:
 section banners (`_step` has **1** across 851 lines, `run` has 6 across 600), a
 module-level map, and pruning the 34 comment lines that narrate removed
 architecture. Plus `_planned_arm_config`: 37 lines, zero call sites, 5 % covered.
+
+---
+
+## 6. ⚠ POSTSCRIPT — §4's verification above was VACUOUS (CLEANUP-33)
+
+Everything in §4 was reported in good faith and was **wrong**. Two faults, and
+the second is much worse than the first.
+
+### Fault 1 — the move dropped a decorator
+
+The span moved for `TickState` started at `class TickState:`. `@dataclass` was on
+the line **before** it. So the new module got a plain class, and `sim_loop.py`
+kept an orphaned `@dataclass` that silently landed on `SimulationLoop`.
+
+`SimulationLoop` survived by luck: `dataclasses` uses `_set_new_attribute`, which
+does not overwrite an existing `__init__`. `TickState` did not — every
+`TickState(t=..., ...)` raised `TypeError: TickState() takes no arguments`, so
+`_step` failed on its first single-support tick.
+
+### Fault 2 — and the gate reported PASS anyway
+
+`gate/replay_canonical.py` wrapped `dca.main()` in `except Exception` with the
+comment *"dca.main may raise after the sim_log is written"* — then printed
+`[replay] done` and exited **0**. `run_gate.py` checked only that a
+`sim_log.json` **existed**.
+
+Nothing deleted the previous run's log. So:
+
+```
+sim_log.json   19:01:37   <- written by CLEANUP-31's gate run
+last_verdict   19:34:33   <- the run that "validated" it, 33 minutes later
+replay time    80.4 s     <- vs 127-142 s for a real run. The tell, missed.
+```
+
+The replay died on tick one, the export re-exported the **stale** artifact, and
+identity passed against it. `dock_check` read the same stale log and reported all
+six docks at delta +0.0000. The coverage replay died the same way, which is why
+`_step`'s unreached count appeared to jump 99 -> 140 and `sim_loop.md` was
+committed claiming 63 % coverage instead of 81 %.
+
+**A gate that can pass on a stale artifact is worse than no gate**, because it
+launders a broken commit as verified. This one did, and it was pushed.
+
+### The fix, and proof it bites
+
+- `replay_canonical.py` now **deletes the target log before running**, and an
+  exception raised *before* the log exists exits **1** instead of printing
+  `done`.
+- `run_gate.py` now fails on a non-zero replay return code, and independently
+  asserts the log's mtime is **newer than the replay start** — belt and braces,
+  so any other cause of staleness is caught too.
+
+Proven on the real fault rather than a synthetic one: with the missing decorator
+re-injected,
+
+```
+[1] canonical replay + export : replay rc=1 (82.4s), export rc=None
+[2] artifact identity         : FAIL  (replay exited 1)
+VERDICT: FAIL
+```
+
+Then, decorator restored:
+
+```
+[1] canonical replay + export : replay rc=0 (139.4s)     <- full duration again
+[2] artifact identity         : PASS  (2077 rows × 132 928 fields)
+VERDICT: PASS
+sim_log.json 20:11:54, verdict 20:11:55                  <- fresh, by one second
+docks 6/6, every step delta +0.0000, MATCH frozen 2.5
+suite 200 tests, 199 passed, 1 xfail, 95 s
+```
+
+So the CLEANUP-32 split **is** inert — but that is only now established. The
+coverage and every doc percentage were regenerated from the valid run.
+
+### What this says about the method
+
+The chantier's rule is that a checker is proven to bite before being trusted.
+`run_gate.py` was proven that way in CLEANUP-0 — against a *wrong number*, by
+injecting an F1 arithmetic fault. It was never proven against a **missing run**,
+and that is the hole a wrong-number probe cannot find.
+
+The lesson generalises past this repo: verifying that a check rejects bad data
+does not verify that it rejects *absent* data. Every artifact-comparing gate
+needs a freshness assertion, not just a comparison.

@@ -8,11 +8,11 @@
         "tag": "replay",
         "returncode": 0,
         "stdout_tail": [
-          "useful, but WITHOUT ANY WARRANTY; without even the implied warranty ",
-          "of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. ",
-          "See the GNU Lesser General Public License for more details.",
           "",
-          "[replay] main() raised after sim: TypeError: TickState() takes no arguments",
+          "Structure drift over run",
+          "  max ||struct_pos \u2212 struct_pos[0]||:  22.49 mm",
+          "  max ||omega_s||:                      1.97 mrad/s",
+          "",
           "[replay] done -> results/gate_run_scratch/sim_log.json"
         ],
         "stderr_tail": []

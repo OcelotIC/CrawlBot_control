@@ -58,11 +58,6 @@ from .config import SimConfig
 from .logging import SimLog, capture_environment
 from .tick_logging import TickState, TickLoggingMixin
 from .plotting import plot_simulation
-# ── Per-tick record ──────────────────────────────────────────────────────────
-
-@dataclass
-
-
 # ── Simulation loop ──────────────────────────────────────────────────────────
 # TickState and the two per-tick recorders (_log_ds_tick / _log_ss_tick) live in
 # tick_logging.py — telemetry, separated from control. See that module's

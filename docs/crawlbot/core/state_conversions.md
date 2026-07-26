@@ -1,6 +1,6 @@
 # `crawlbot.core.state_conversions`
 
-**File**: [`crawlbot/core/state_conversions.py`](../../../crawlbot/core/state_conversions.py) — **165 lines** — canonical coverage **90 %**
+**File**: [`crawlbot/core/state_conversions.py`](../../../crawlbot/core/state_conversions.py) — **165 lines** — canonical coverage **100 %**
 
 > Module docstring: *"State conversions between MuJoCo (world frame) and Pinocchio (structure frame)."*
 
@@ -15,7 +15,7 @@ canonical coverage** — every conversion in the controller goes through it.
 |---|---|---|---|
 | `mujoco_to_pinocchio` | `(mj_qpos, mj_qvel)` | **yes** | [L43](../../../crawlbot/core/state_conversions.py#L43) |
 | `pinocchio_to_mujoco` | `(pin_q, pin_v, struct_pos=None, struct_quat=None, rwa=False)` | **yes** | [L107](../../../crawlbot/core/state_conversions.py#L107) |
-| `quat_wxyz_to_euler_deg` | `(qw, qx, qy, qz)` | not exercised | [L154](../../../crawlbot/core/state_conversions.py#L154) |
+| `quat_wxyz_to_euler_deg` | `(qw, qx, qy, qz)` | **yes** | [L154](../../../crawlbot/core/state_conversions.py#L154) |
 
 ### Module constants
 

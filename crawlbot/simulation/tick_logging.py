@@ -44,6 +44,7 @@ from crawlbot.core.state_conversions import (
     mujoco_to_pinocchio, quat_wxyz_to_euler_deg)
 
 
+@dataclass
 class TickState:
     """Everything `_step` produces that its logging tail consumes.
 
