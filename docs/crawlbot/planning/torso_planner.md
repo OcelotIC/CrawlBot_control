@@ -1,6 +1,6 @@
 # `crawlbot.planning.torso_planner`
 
-**File**: [`crawlbot/planning/torso_planner.py`](../../../crawlbot/planning/torso_planner.py) — **481 lines** — canonical coverage **81 %**
+**File**: [`crawlbot/planning/torso_planner.py`](../../../crawlbot/planning/torso_planner.py) — **481 lines** — canonical coverage **77 %**
 
 > Module docstring: *"TorsoPlanner — Generates 6D torso + CoM reference trajectories."*
 
@@ -27,7 +27,7 @@ step. Also supplies the CoM and `L_com` references consumed by stage 1.
 | `.add_phase` | `(t_start, t_end, p_start, R_start, p_end, R_end, delta_c...)` | **yes** | [L126](../../../crawlbot/planning/torso_planner.py#L126) |
 | `.clear_phases` | `()` | **yes** | [L269](../../../crawlbot/planning/torso_planner.py#L269) |
 | `.reference_at` | `(t)` | **yes** | [L280](../../../crawlbot/planning/torso_planner.py#L280) |
-| `.has_phase_at` | `(t)` | **yes** | [L289](../../../crawlbot/planning/torso_planner.py#L289) |
+| `.has_phase_at` | `(t)` | not exercised | [L289](../../../crawlbot/planning/torso_planner.py#L289) |
 | `.reference_at_clamped` | `(t)` | **yes** | [L296](../../../crawlbot/planning/torso_planner.py#L296) |
 | `.com_reference_at` | `(t)` | **yes** | [L317](../../../crawlbot/planning/torso_planner.py#L317) |
 | `.l_com_reference_at` | `(t)` | **yes** | [L340](../../../crawlbot/planning/torso_planner.py#L340) |

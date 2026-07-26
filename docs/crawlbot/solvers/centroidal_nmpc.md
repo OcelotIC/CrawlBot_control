@@ -1,6 +1,6 @@
 # `crawlbot.solvers.centroidal_nmpc`
 
-**File**: [`crawlbot/solvers/centroidal_nmpc.py`](../../../crawlbot/solvers/centroidal_nmpc.py) — **702 lines** — canonical coverage **88 %**
+**File**: [`crawlbot/solvers/centroidal_nmpc.py`](../../../crawlbot/solvers/centroidal_nmpc.py) — **702 lines** — canonical coverage **86 %**
 
 > Module docstring: *"CentroidalNMPC - Centroidal NMPC for momentum-feasible trajectory generation."*
 

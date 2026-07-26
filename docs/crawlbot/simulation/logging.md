@@ -1,6 +1,6 @@
 # `crawlbot.simulation.logging`
 
-**File**: [`crawlbot/simulation/logging.py`](../../../crawlbot/simulation/logging.py) — **269 lines** — canonical coverage **93 %**
+**File**: [`crawlbot/simulation/logging.py`](../../../crawlbot/simulation/logging.py) — **269 lines** — canonical coverage **86 %**
 
 > Module docstring: *"Simulation data logger."*
 
@@ -101,8 +101,8 @@ execution environment. This is the file every downstream analysis reads.
 |   `preplanner_T_steps` | `field(default_factory=list)` | _field_ | [L230](../../../crawlbot/simulation/logging.py#L230) |
 |   `snapshots` | `field(default_factory=list)` | _field_ | [L233](../../../crawlbot/simulation/logging.py#L233) |
 |   `environment` | `field(default_factory=dict)` | _field_ | [L239](../../../crawlbot/simulation/logging.py#L239) |
-| `.to_dict` | `()` | **yes** | [L241](../../../crawlbot/simulation/logging.py#L241) |
-| `.save` | `(path)` | **yes** | [L256](../../../crawlbot/simulation/logging.py#L256) |
+| `.to_dict` | `()` | not exercised | [L241](../../../crawlbot/simulation/logging.py#L241) |
+| `.save` | `(path)` | not exercised | [L256](../../../crawlbot/simulation/logging.py#L256) |
 | `.load` | `(path)` | not exercised | [L261](../../../crawlbot/simulation/logging.py#L261) |
 
 ### Module constants

@@ -1,6 +1,6 @@
 # `crawlbot.solvers.nmpc_solver`
 
-**File**: [`crawlbot/solvers/nmpc_solver.py`](../../../crawlbot/solvers/nmpc_solver.py) — **650 lines** — canonical coverage **95 %**
+**File**: [`crawlbot/solvers/nmpc_solver.py`](../../../crawlbot/solvers/nmpc_solver.py) — **650 lines** — canonical coverage **94 %**
 
 > Module docstring: *"NMPCSolver - Generic Nonlinear Model Predictive Control solver with CasADi."*
 

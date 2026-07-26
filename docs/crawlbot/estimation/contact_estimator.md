@@ -1,6 +1,6 @@
 # `crawlbot.estimation.contact_estimator`
 
-**File**: [`crawlbot/estimation/contact_estimator.py`](../../../crawlbot/estimation/contact_estimator.py) — **260 lines** — canonical coverage **69 %**
+**File**: [`crawlbot/estimation/contact_estimator.py`](../../../crawlbot/estimation/contact_estimator.py) — **260 lines** — canonical coverage **68 %**
 
 > Module docstring: *"Generalized Momentum Observer (GMO) for sensorless contact detection."*
 
@@ -31,7 +31,7 @@ to get acceleration would drown a contact signal in noise.
 | `.update` | `(M, v, C_matrix, tau_applied)` | **yes** | [L92](../../../crawlbot/estimation/contact_estimator.py#L92) |
 | `.residual` | `()` | **yes** | [L136](../../../crawlbot/estimation/contact_estimator.py#L136) |
 | `.initialized` | `()` | not exercised | [L141](../../../crawlbot/estimation/contact_estimator.py#L141) |
-| `.swing_residual_norm` | `(swing_v_slice)` | **yes** | [L144](../../../crawlbot/estimation/contact_estimator.py#L144) |
+| `.swing_residual_norm` | `(swing_v_slice)` | not exercised | [L144](../../../crawlbot/estimation/contact_estimator.py#L144) |
 | **`ContactStateMachine`** |  |  | [L160](../../../crawlbot/estimation/contact_estimator.py#L160) |
 | `.update` | `(r_swing_norm, d_FK, force_mode=False)` | not exercised | [L186](../../../crawlbot/estimation/contact_estimator.py#L186) |
 | `.reset` | `()` | **yes** | [L247](../../../crawlbot/estimation/contact_estimator.py#L247) |
@@ -97,7 +97,7 @@ different quantity.
 
 ## 3. Where it runs
 
-`update()` is called **in single support only** (`sim_loop.py:3123`); in double
+`update()` is called **in single support only** (`sim_loop.py:2913`); in double
 support the log records `0.0` (`:1057`), because `gmo_swing_residual` needs a
 swing-velocity slice that DS does not track.
 

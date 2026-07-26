@@ -1,6 +1,6 @@
 # `crawlbot.solvers.wholebody_qp`
 
-**File**: [`crawlbot/solvers/wholebody_qp.py`](../../../crawlbot/solvers/wholebody_qp.py) — **950 lines** — canonical coverage **97 %**
+**File**: [`crawlbot/solvers/wholebody_qp.py`](../../../crawlbot/solvers/wholebody_qp.py) — **950 lines** — canonical coverage **91 %**
 
 > Module docstring: *"WholeBodyQP - Whole-body Quadratic Program for high-rate tracking."*
 

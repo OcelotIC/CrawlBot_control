@@ -181,9 +181,9 @@ Update this line as work progresses:
 | **α momentum (T-MOM)** | **400** (near-inert on Ḣ_s — NMPC owns the envelope) | — | `config.py:290` (Add-5) |
 | **w hw-slack** | **800** (slacks active only if the hw box is violated) | — | `wholebody_qp.py:159` (Add-5) |
 | **α posture** | **20** | — | `config.py:283` |
-| **α torque-min** | **5** (must stay ≳ 5× accel-reg floor — Rule 14) | — | `sim_loop.py:1197` (QP-construction literal) |
+| **α torque-min** | **5** (must stay ≳ 5× accel-reg floor — Rule 14) | — | `sim_loop.py:926` (QP-construction literal) |
 | **α wrench-track** | **1.0** | — | `config.py:284` (Add-5; was 0.01 pre-freeze) |
-| **α accel-reg** | **1.0** (regularizer floor) | — | `sim_loop.py:1197` |
+| **α accel-reg** | **1.0** (regularizer floor) | — | `sim_loop.py:926` |
 | ε (Tikhonov) | 1e-6 (inert: λ_min(H_LS)=1 ≫ ε) | — | `hierarchical_qp.py:98` default |
 | **κ_SS(H)** | ≈ 7.5e3 (530× below the pre-freeze canonical 3.6e6) | — | `canonical2p5_result.json` |
 | ~~α_com_soft~~ | **field REMOVED** (CLEANUP-6), not merely 0 | — | The soft-CoM residual task is gone; the QP has no direct CoM feedback path. Do not re-add a config field for it without re-adding the task |
