@@ -96,11 +96,18 @@ margin **0.01 mm** against a 5 mm capture radius.
 cost trades against the other tasks and can be outvoted; an inequality cannot.
 It guarantees the energy budget is non-increasing whatever the task weights do.
 
-## 5. `_step()` — 851 lines, and where the next cut goes
+## 5. `_step()` — the largest block, and where the next cut goes
 
-Still the largest block, but no longer 1014: CLEANUP-31 lifted the logging tail
-into `_log_ss_tick`, the single-support counterpart of the long-standing
-`_log_ds_tick` (203 lines against its 210 — the asymmetry was drift, not design).
+1014 lines before CLEANUP-31 lifted the logging tail into `_log_ss_tick`, the
+single-support counterpart of the long-standing `_log_ds_tick` (203 lines against
+its 210 — the asymmetry was drift, not design). 851 after, then 878 once
+CLEANUP-34 added the four phase banners — deliberately longer and much easier to
+navigate.
+
+Those banners are the fastest way in. Four blocks, in order: **read state and
+references** → **STAGE 1, centroidal NMPC** (once per `_step`, dt 0.1 s) →
+**STAGE 2, whole-body QP sub-loop** (the 615-line `for qs`, dt 0.01 s) → **hand
+off to telemetry**.
 
 The cut was chosen by measurement, not by eye. For every statement boundary in
 `_step`, count the locals assigned before it and read after it; that number is
