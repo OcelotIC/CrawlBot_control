@@ -38,6 +38,7 @@ def _sigma_min_product(model, data, q, fid_a, fid_b, sl_a, sl_b):
             * float(np.linalg.svd(Jb, compute_uv=False)[-1]))
 
 
+@pytest.mark.slow
 def test_trajectory_ik_matches_endpoint_for_k1(pinocchio_model, contact_scheduler):
     """With n_samples=1, the worst-case product equals the endpoint product."""
     from crawlbot.core.ik import (
@@ -71,6 +72,7 @@ def test_trajectory_ik_matches_endpoint_for_k1(pinocchio_model, contact_schedule
     assert w_end > 0.3 * w_end_ep
 
 
+@pytest.mark.slow
 def test_trajectory_ik_improves_worst_case(pinocchio_model, contact_scheduler):
     """Trajectory IK's worst-case is comparable to endpoint IK measured on the same interior samples.
 
@@ -123,6 +125,7 @@ def test_trajectory_ik_improves_worst_case(pinocchio_model, contact_scheduler):
     assert w_worst_tr > 0.5 * w_worst_ep_eval
 
 
+@pytest.mark.slow
 def test_chain_consistency(pinocchio_model, contact_scheduler):
     """Chained precompute: each map entry's q_start_assumed equals the previous q_end.
 

@@ -31,8 +31,11 @@ bash docs/architecture/setup_env.sh
 # 2. Verify
 PYTHONPATH=. MUJOCO_GL=osmesa python3 -c "import pinocchio; import mujoco; import casadi; print('OK')"
 
-# 3. Run existing tests
-PYTHONPATH=. MUJOCO_GL=osmesa python3 -m pytest tests/ -x -q --tb=short
+# 3. Run the test suite — GATED (CLEANUP-29). --fast deselects @pytest.mark.slow
+PYTHONPATH=. python3 gate/run_suite.py --fast
+#    NOT `pytest` directly, and NOT MUJOCO_GL=osmesa: under osmesa this
+#    container aborts pytest COLLECTION (PyOpenGL on test_diagnostics), which
+#    looks identical to a broken suite. run_suite.py forces MUJOCO_GL=disabled.
 
 # 4. Confirm the documentation and this file's parameter table match the code
 PYTHONPATH=. python3 gate/sync_docs.py --check
@@ -102,7 +105,23 @@ PYTHONPATH=. python3 gate/verify_params.py        # THIS table's file:line + val
 # 4. and the canonical invariant, as always
 MUJOCO_GL=disabled PYTHONPATH=. python3 gate/run_gate.py
 MUJOCO_GL=disabled PYTHONPATH=. python3 gate/dock_check.py results/gate_run_scratch/sim_log.json
+
+# 5. the component suite — the half run_gate.py structurally cannot do
+PYTHONPATH=. python3 gate/run_suite.py --fast    # per-commit  (~65 s)
+PYTHONPATH=. python3 gate/run_suite.py           # BEFORE MERGING (~11 min)
 ```
+
+**Both gates, not either.** `run_gate.py` proves the canonical run still
+reproduces byte-identically — it is indifferent to whether the behaviour is
+*correct*, because a wrong controller reproduces just as faithfully and
+byte-identity then locks the bug in as the new baseline. `run_suite.py` is the
+only thing that can say a **changed** configuration is still physically valid
+(dynamics residual, passivity, CoM-Jacobian mass form, J̇ assembly, quaternion
+conventions). One protects the past, the other protects a change.
+
+A test marked `xfail(strict=True)` that starts passing **fails** the suite gate
+on purpose. Do not delete the marker to make it green — find out what changed,
+and write it down.
 
 If a removal or rename changed line numbers, step 1 fixes every `file:line`
 link automatically — that is why the links are generated rather than typed.
@@ -186,8 +205,10 @@ The **5 mm dock gate is the docking-mechanism capture radius** — the 0.01 mm w
 
 ## Known Issues
 
-- **Suite state: 1 failed, 203 passed, 4 skipped, 3 errors** (`MUJOCO_GL=disabled`, CLEANUP-28). The single failure, `test_coarse_preplanner::test_far_infeasible_under_tight_rate`, is the only one that predates the chantier (proven at `4e2e8da^`); the 3 errors are `test_mid_waypoint_reshape`'s missing fixtures (CLEANUP-15 removal, retirement recommended). The 8 `test_reworked_qp` failures were **this chantier's own breakage** — CLEANUP-6/9 deleted 9 `WholeBodyQPConfig` fields the shared harness still passed, so no test body ran — and are resolved: 6 ported to the two-task API and green, 2 retired as testing removed features (`PHASE_CLEANUP_28_TEST_REWORKED_QP_PORT.md`). The suite is **not** gated — `gate/run_gate.py` is, which is why this drifted.
-- **`MUJOCO_GL=osmesa` aborts pytest collection** in the current container: `tests/test_diagnostics.py` → `PyOpenGL AttributeError: 'NoneType' object has no attribute 'glGetError'`. Environment, not code. Run the suite with `MUJOCO_GL=disabled` (what the gate uses).
+- **Suite state: 210 passed, 0 failed, 0 errors, 0 skipped, 1 xfail — and GATED** (`gate/run_suite.py`, CLEANUP-29). The one xfail, `test_coarse_preplanner::test_far_infeasible_under_tight_rate`, is `strict=True` with its reasoning in the marker: the envelope-semantics question at cap 2.5 is open (see Remaining Work), and if the far case ever goes infeasible again the test **fails** rather than turning green. Getting from 12 problems to 0 retired nothing: 6 tests ported to the two-task API (`PHASE_CLEANUP_28`), 7 repaired (`PHASE_CLEANUP_29` §1), 2 genuinely-dead retired, 1 marked honestly.
+- **`MUJOCO_GL=osmesa` aborts pytest collection** in the current container: `tests/test_diagnostics.py` → `PyOpenGL AttributeError: 'NoneType' object has no attribute 'glGetError'`. Environment, not code. `gate/run_suite.py` forces `MUJOCO_GL=disabled` for this reason — use it rather than calling `pytest` directly.
+- **87 % of the suite's runtime (644 of 743 s) tests the orphaned manipulability-IK path** — `manipulability_config_trajectory`, `manipulability_config_mid_waypoint`, `check_path_feasibility`, `precompute_torso_map` have **zero** call sites in `crawlbot/` outside `ik.py` (the `sim_loop.py:1407` grep hit is a comment). Kept on the CLEANUP-16 principle that unused ≠ retired; the cost of leaving the subject undecided is 11 of the suite's 12 minutes. All ten tests are `@pytest.mark.slow`, so the per-commit gate is 23 s.
+- **`gate/link_audit.py` cannot see computed paths.** It audits citations in prose; the CLEANUP-21 miss that disabled 7 tests for six passes was `os.path.join(_root, 'diagnostic', ...)` in Python. `tests/fixtures/` is now the convention for test data.
 - **CoM-reference export snaps to the measured CoM at SS→DS entry** — logging convention (`_log_ds_tick` logs e_com=0 with ref:=measured, `sim_loop.py:1038-1041`); reviewer-reported magnitude ~76 mm (not repo-verified — the fulldiag CSV has no CoM-ref channel). Decision pending whether to apply the same terminal-hold fix as the torso export.
 - **Fig-3 conservation quantity ‖L_total‖ is NOT in the fulldiag export** (verified: no `Ltot` column in `c25_fulldiag.csv`; it exists in the `export_figure_data.py` traversal CSVs). Dedicated export pending.
 - `dca.main` sets `cfg.ds_centroidal_mode=True` (`diag_cooperative_arms.py:352`) — the locked config runs centroidal DS everywhere including the trailing settle; flags keyed on it cannot discriminate the DWELL (see TORSO-REF-EXPORT-FIX).

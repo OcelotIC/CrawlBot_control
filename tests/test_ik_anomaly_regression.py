@@ -27,9 +27,11 @@ from crawlbot.core.ik import (
 )
 
 
+pytestmark = pytest.mark.slow   # every test here takes 5.7-11.8 s (CLEANUP-29 durations)
+
 _FIXTURE = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-    'diagnostic', 'step2_ss_entry_fixture.npz',
+    os.path.dirname(os.path.abspath(__file__)),
+    'fixtures', 'step2_ss_entry_fixture.npz',
 )
 
 

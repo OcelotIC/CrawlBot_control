@@ -678,6 +678,7 @@ class TestMomentumTask:
             f"static hold: task-row residual {out['peak_resid']:.3e} "
             f">= {TOL_HOLD_ACCEL:.0e} m/s² (a_com_des not reproduced at rest)")
 
+    @pytest.mark.slow
     def test_jdot_assembly_and_per_axis_tracking(self, robot, dock_state):
         """J̇_com·q̇ assembly (weight-free), then per-axis CoM tracking."""
         q0, v0, _, _ = dock_state

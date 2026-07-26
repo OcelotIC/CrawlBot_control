@@ -42,7 +42,15 @@ from crawlbot.planning.torso_planner import TorsoPlanner  # noqa: E402
 
 
 URDF = os.path.join(_root, 'models', 'VISPA_crawling_fixed.urdf')
-FIXTURE = os.path.join(_root, 'diagnostic', 'step2_ss_entry_fixture.npz')
+# Lives under tests/ so the fixture cannot be separated from its only
+# consumers. It used to be cited at `diagnostic/`, which CLEANUP-21 moved to
+# `Misc/runs/q1_q2/` while rewriting only the doc citation, not this line nor
+# the one in test_ik_anomaly_regression.py. Cost: 3 hard errors here and 4
+# SILENT skips there — the whole of the suite's skip count — carried for six
+# passes of the chantier and twice misdiagnosed as a removed feature
+# (CLEANUP-29).
+FIXTURE = os.path.join(_root, 'tests', 'fixtures',
+                       'step2_ss_entry_fixture.npz')
 
 
 @pytest.fixture(scope='module')
@@ -60,6 +68,7 @@ def step2_fixture():
     }
 
 
+@pytest.mark.slow
 def test_step2_mid_waypoint_resolves_singularity(robot, step2_fixture):
     """Mid-waypoint IK on T15 step-2 produces a deterministic, well-
     conditioned q_mid; the piecewise quintic stays above 1e-3 across
@@ -114,6 +123,7 @@ def test_step2_mid_waypoint_resolves_singularity(robot, step2_fixture):
                 f"the singular interior.")
 
 
+@pytest.mark.slow
 def test_step0_no_regression(robot, step2_fixture):
     """On a well-conditioned anchor pair, check_path_feasibility
     reports all-feasible (no mid-waypoint insertion needed).
@@ -208,6 +218,7 @@ def test_torso_planner_piecewise_continuous():
     assert float(np.linalg.norm(ref_seg2_mid.v)) > 1e-3
 
 
+@pytest.mark.slow
 def test_safety_threshold_triggers_fallback(robot, step2_fixture):
     """When the converged w_worst falls below the threshold, the
     mid-waypoint IK returns success=False (caller falls back).
