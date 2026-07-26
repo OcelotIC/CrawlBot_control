@@ -1,6 +1,6 @@
 # `crawlbot.core.ik`
 
-**File**: [`crawlbot/core/ik.py`](../../../crawlbot/core/ik.py) — **786 lines** — canonical coverage **47 %**
+**File**: [`crawlbot/core/ik.py`](../../../crawlbot/core/ik.py) — **786 lines** — canonical coverage **69 %**
 
 > Module docstring: *"Inverse kinematics for VISPA docking configurations."*
 
@@ -19,7 +19,7 @@ canonical path.
 | symbol | signature | canonical? | code |
 |---|---|---|---|
 | `solve_ik` | `(model, q0, targets, max_iter=500, tol=1e-08, base_gain=...)` | **yes** | [L116](../../../crawlbot/core/ik.py#L116) |
-| `dock_configuration` | `(model, anchor_a, anchor_b, torso_pos=None, q_init=None,...)` | **yes** | [L320](../../../crawlbot/core/ik.py#L320) |
+| `dock_configuration` | `(model, anchor_a, anchor_b, torso_pos=None, q_init=None,...)` | not exercised | [L320](../../../crawlbot/core/ik.py#L320) |
 | `dock_configuration_fixed_rotation` | `(model, anchor_a, anchor_b, R_torso_fixed, torso_pos=Non...)` | **yes** | [L368](../../../crawlbot/core/ik.py#L368) |
 | `manipulability_config` | `(model, anchor_a, anchor_b, level_axis, q_nominal, w_pos...)` | **yes** | [L534](../../../crawlbot/core/ik.py#L534) |
 | `solve_ik_waypoints` | `(model, q_start, stance_frame, stance_target, swing_fram...)` | not exercised | [L668](../../../crawlbot/core/ik.py#L668) |

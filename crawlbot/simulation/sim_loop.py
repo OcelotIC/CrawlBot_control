@@ -21,6 +21,7 @@ Phase machine per step (M7, two-phase):
 
 import numpy as np
 import time
+from dataclasses import dataclass
 from typing import Optional
 
 try:
@@ -56,6 +57,76 @@ from crawlbot.aocs.force_estimator import (
 from .config import SimConfig
 from .logging import SimLog, capture_environment
 from .plotting import plot_simulation
+# ── Per-tick record ──────────────────────────────────────────────────────────
+
+@dataclass
+class TickState:
+    """Everything `_step` produces that its logging tail consumes.
+
+    `_step` ends with ~190 lines that only *record* what the tick did — no
+    control decision is taken there. Extracting that into `_log_ss_tick` (the
+    single-support counterpart of the long-standing `_log_ds_tick`) needs the
+    values to cross one boundary, and passing them positionally would mean a
+    29-argument signature: the same debt as `WholeBodyQP.solve()`'s 40
+    parameters, which `CLEANUP_CARRYOVER` §A1 already tracks. One record
+    instead, built once at the boundary.
+
+    Membership is **measured, not chosen**: a field is here iff the tail reads
+    it before writing it. That test matters — `L_dot_est` and `R_err` look like
+    inputs (the head assigns both) but the tail *recomputes* them from `rs_f`
+    at :3176 and :3187, so they are locals of the logger, not fields here.
+
+    Names come from where each value is logged, not from the head's
+    abbreviations: `lr` is the NMPC contact-wrench reference (`log.lambda_ref`)
+    so it is `lambda_ref`; `vp` is the planned CoM velocity (`log.v_com_ref`)
+    so it is `v_com_ref`; `cref_r` is `r_com_ref`.
+
+    Not fields, deliberately:
+      ``cfg``  — it is only ever ``self.cfg``; the method reads it from self.
+      ``log``  — the destination, not tick state. Passed separately.
+    """
+
+    # ── step context: what tick this is, and in which phase ──
+    t: float                          # [s] simulation time at tick start
+    phase: str                        # 'SS' | 'DS'
+    step_idx: int                     # index into the contact sequence
+    ss_end: float                     # [s] end of the current single-support
+    settle_mode: bool                 # DS settle sub-phase active
+    swing_arm: str                    # 'a' | 'b' — the arm in flight
+    stance_arm: str                   # 'a' | 'b' — the anchored arm
+    stance_a: object                  # SE3 anchor pose, arm A
+    stance_b: object                  # SE3 anchor pose, arm B
+    target_anchor: object             # SE3 the swing arm is reaching for
+    hw: np.ndarray                    # (3,) [N·m·s] wheel momentum this tick
+    L_com_prev: np.ndarray            # (3,) [N·m·s] centroidal L at tick start,
+    #                                   differenced against L_com to get L̇
+
+    # ── stage 1 outcome: the centroidal NMPC ──
+    nmpc_ok: bool                     # solve succeeded
+    nmpc_status_code: int             # solver status, numeric
+    nmpc_cost_val: float              # optimal cost (inf when not solved)
+    t_nmpc_ms: float                  # [ms] wall-clock in the NMPC
+    nmpc_info: object                 # solver info object, or None
+    lambda_ref: np.ndarray            # (12,) contact-wrench reference, u_plan[:,0]
+    v_com_ref: np.ndarray             # (3,) [m/s] planned CoM velocity, knot 1
+    r_com_ref: np.ndarray             # (3,) [m] CoM position reference fed to
+    #                                   the NMPC (pre-planner when active)
+
+    # ── stage 2 outcome: the whole-body QP, last sub-step of the tick ──
+    qp_ok: bool                       # every QP sub-step succeeded
+    t_qp_ms: float                    # [ms] wall-clock in the QP sub-loop
+    lambda_qp: np.ndarray             # (12,) realized contact wrench
+    tau_joints: np.ndarray            # (nq,) [N·m] joint torques
+    tau_wheels: np.ndarray            # (3,) [N·m] wheel torques
+    transport_term_mag: float         # [N·m] magnitude of the transport term
+
+    # ── torso reference actually tracked ──
+    # The output of the mapping layer at the LAST sub-step, which is what the
+    # QP tracked — NOT the geometric TorsoPlanner quintic. None when the QP
+    # sub-loop did not run, in which case the logger falls back to the planner.
+    p_torso_ref_used: Optional[np.ndarray] = None
+
+
 # ── Simulation loop ──────────────────────────────────────────────────────────
 
 class SimulationLoop:
@@ -3134,7 +3205,48 @@ class SimulationLoop:
 
         t_qp_ms = (time.perf_counter() - t_qp_start) * 1000
 
-        # Logging
+        # Everything below this point only RECORDS the tick — no control
+        # decision is taken. It lives in `_log_ss_tick`, the single-support
+        # counterpart of `_log_ds_tick`. See TickState for why the values
+        # cross as one record rather than 29 arguments.
+        #
+        # `p_torso_ref_used` is bound only if the QP sub-loop ran. That used to
+        # be handled by catching NameError inside the logging block; as a field
+        # it becomes an explicit None, which is the same behaviour said out loud.
+        try:
+            _p_torso_ref_used = p_torso_ref_used
+        except NameError:
+            _p_torso_ref_used = None
+
+        return self._log_ss_tick(log, TickState(
+            t=t, phase=phase, step_idx=step_idx, ss_end=ss_end,
+            settle_mode=settle_mode, swing_arm=swing_arm,
+            stance_arm=stance_arm, stance_a=stance_a, stance_b=stance_b,
+            target_anchor=target_anchor, hw=hw, L_com_prev=L_com_prev,
+            nmpc_ok=nmpc_ok, nmpc_status_code=nmpc_status_code,
+            nmpc_cost_val=nmpc_cost_val, t_nmpc_ms=t_nmpc_ms,
+            nmpc_info=info_n, lambda_ref=lr, v_com_ref=vp, r_com_ref=cref_r,
+            qp_ok=qp_ok, t_qp_ms=t_qp_ms, lambda_qp=lambda_qp_sol,
+            tau_joints=tau_last, tau_wheels=tau_w_last,
+            transport_term_mag=transport_mag_last,
+            p_torso_ref_used=_p_torso_ref_used,
+        ))
+
+    def _log_ss_tick(self, log, ts: 'TickState'):
+        """Record one controller tick. Returns ``(hw, L_com)`` for the caller.
+
+        The single-support counterpart of `_log_ds_tick`. Reads nothing but
+        `ts`, `log`, `self` and the MuJoCo/Pinocchio state; writes nothing but
+        `log`. Two calls here do mutate — `mj_forward` refreshes derived MuJoCo
+        fields and `robot.update` refreshes the Pinocchio cache — so the block
+        is kept verbatim and in order; both recompute derived quantities from
+        unchanged qpos/qvel.
+        """
+        cfg = self.cfg
+        t, phase, step_idx = ts.t, ts.phase, ts.step_idx
+        swing_arm, ss_end, settle_mode = ts.swing_arm, ts.ss_end, ts.settle_mode
+        hw = ts.hw
+
         mujoco.mj_forward(self.mj_model, self.mj_data)
         rs_f = self.robot.update(
             *mujoco_to_pinocchio(self.mj_data.qpos, self.mj_data.qvel))
@@ -3143,25 +3255,25 @@ class SimulationLoop:
         tref_log = self.torso_planner.reference_at(t_log)
         # For the torso-position error metric use the reference the QP
         # actually tracked at the LAST sub-step — i.e. the output of
-        # the M5 mapping layer (`p_torso_ref_used`), not the geometric
+        # the M5 mapping layer (`ts.p_torso_ref_used`), not the geometric
         # TorsoPlanner quintic (`tref_log.p`). These diverge whenever
         # the mapping is wired, and the old metric was measuring the
         # mapping-vs-planner discrepancy, not the controller's tracking
         # quality. Orientation still comes from the TorsoPlanner SLERP
         # since the mapping only maps position.
-        try:
-            p_torso_ref_log = p_torso_ref_used.copy()
-        except NameError:
+        if ts.p_torso_ref_used is not None:
+            p_torso_ref_log = ts.p_torso_ref_used.copy()
+        else:
             # Sub-loop didn't run (shouldn't happen in production).
             p_torso_ref_log = tref_log.p.copy()
         # DS settle ticks with NO planner phase covering t_log (trailing
         # settle past the last quintic, initial DS before the first): the
-        # torso-position task is settle-gated off and p_torso_ref_used
+        # torso-position task is settle-gated off and ts.p_torso_ref_used
         # carries the live CoM-mapping output, which jumps at the SS->DS
         # switch and ramps during settle. Log the clamped planner pose
         # instead (terminal quintic pose p_t1 / initial hold) so the
         # exported reference is continuous across the whole traversal.
-        # When a phase DOES cover t_log, p_torso_ref_used is kept — the QP
+        # When a phase DOES cover t_log, ts.p_torso_ref_used is kept — the QP
         # genuinely tracks that moving centroidal reference. NB the guard
         # cannot key on ds_centroidal_active: the locked config runs
         # centroidal DS in the trailing settle too (dca sets
@@ -3170,10 +3282,10 @@ class SimulationLoop:
                 and not self.torso_planner.has_phase_at(t_log)):
             p_torso_ref_log = self.torso_planner.reference_at_clamped(
                 t_log).p.copy()
-        d_swing = self._gripper_distance(swing_arm, target_anchor)
+        d_swing = self._gripper_distance(swing_arm, ts.target_anchor)
         d_stance = self._gripper_distance(
-            stance_arm, stance_a if stance_arm == 'a' else stance_b)
-        L_dot_est = (rs_f.L_com - L_com_prev) / cfg.dt_nmpc
+            ts.stance_arm, ts.stance_a if ts.stance_arm == 'a' else ts.stance_b)
+        L_dot_est = (rs_f.L_com - ts.L_com_prev) / cfg.dt_nmpc
         sq = self.mj_data.qpos[3:7].copy()
         euler = quat_wxyz_to_euler_deg(sq[0], sq[1], sq[2], sq[3])
 
@@ -3211,8 +3323,8 @@ class SimulationLoop:
         # Log the reference actually fed to the NMPC (pre-planner if
         # active, else TorsoPlanner-derived cref) so diagnostics compare
         # against what the controller was actually tracking.
-        log.r_com_ref.append(np.asarray(cref_r, dtype=float).copy())
-        log.e_com.append(float(np.linalg.norm(rs_f.r_com - np.asarray(cref_r))))
+        log.r_com_ref.append(np.asarray(ts.r_com_ref, dtype=float).copy())
+        log.e_com.append(float(np.linalg.norm(rs_f.r_com - np.asarray(ts.r_com_ref))))
         log.L_com.append(rs_f.L_com.copy())
         log.L_com_norm.append(float(np.linalg.norm(rs_f.L_com)))
         log.L_dot.append(L_dot_est.copy())
@@ -3221,9 +3333,9 @@ class SimulationLoop:
         if self.has_rwa:
             rw_vel_f = self.mj_data.qvel[6:9].copy()
             log.hw_physical.append((cfg.rwa_I_w * rw_vel_f).copy())
-            log.tau_w.append(tau_w_last.copy())
+            log.tau_w.append(ts.tau_wheels.copy())
             log.rw_speed.append(rw_vel_f.copy())
-            log.transport_term_mag.append(transport_mag_last)
+            log.transport_term_mag.append(ts.transport_term_mag)
         else:
             log.hw_physical.append(hw.copy())
             log.tau_w.append(np.zeros(3))
@@ -3238,16 +3350,16 @@ class SimulationLoop:
         log.H_dot_est.append(np.zeros(3))
         log.omega_struct.append(np.zeros(3))
         log.qfrc_constraint_torque.append(np.zeros(3))
-        log.tau.append(tau_last.copy())
-        log.tau_max_joint.append(float(np.max(np.abs(tau_last))))
+        log.tau.append(ts.tau_joints.copy())
+        log.tau_max_joint.append(float(np.max(np.abs(ts.tau_joints))))
         log.struct_pos.append(self.mj_data.qpos[0:3].copy())
         log.struct_quat.append(sq)
         log.struct_euler_deg.append(euler)
-        log.nmpc_ok.append(nmpc_ok)
-        log.qp_ok.append(qp_ok)
-        log.lambda_ref_norm.append(float(np.linalg.norm(lr)))
-        log.nmpc_time_ms.append(t_nmpc_ms)
-        log.qp_time_ms.append(t_qp_ms)
+        log.nmpc_ok.append(ts.nmpc_ok)
+        log.qp_ok.append(ts.qp_ok)
+        log.lambda_ref_norm.append(float(np.linalg.norm(ts.lambda_ref)))
+        log.nmpc_time_ms.append(ts.t_nmpc_ms)
+        log.qp_time_ms.append(ts.t_qp_ms)
 
         # ── M0.2 enrichment ────────────────────────────────────────────
         # Torso orientation (actual vs ref) as quaternion wxyz
@@ -3293,7 +3405,7 @@ class SimulationLoop:
 
         # CoM velocity (actual from Pinocchio, ref from NMPC)
         log.v_com.append(rs_f.v_com.copy())
-        log.v_com_ref.append(vp.copy())
+        log.v_com_ref.append(ts.v_com_ref.copy())
 
         # L_com reference (NMPC-planned)
         log.L_com_ref.append(rs_f.L_com.copy())  # best available: actual (no L plan)
@@ -3302,17 +3414,17 @@ class SimulationLoop:
         log.omega_s.append(self.mj_data.qvel[3:6].copy())
 
         # NMPC solver diagnostics
-        log.nmpc_status.append(nmpc_status_code)
-        log.nmpc_cost.append(nmpc_cost_val)
+        log.nmpc_status.append(ts.nmpc_status_code)
+        log.nmpc_cost.append(ts.nmpc_cost_val)
         log.nmpc_status_str.append(
-            info_n.status if info_n is not None else "no_info")
+            ts.nmpc_info.status if ts.nmpc_info is not None else "no_info")
         log.nmpc_iterations.append(
-            int(info_n.solver_stats.get('iter_count', -1))
-            if info_n is not None and info_n.solver_stats else -1)
+            int(ts.nmpc_info.solver_stats.get('iter_count', -1))
+            if ts.nmpc_info is not None and ts.nmpc_info.solver_stats else -1)
 
         # Contact wrenches
-        log.lambda_ref.append(lr.copy())
-        _lqp = (lambda_qp_sol.copy() if hasattr(lambda_qp_sol, 'copy')
+        log.lambda_ref.append(ts.lambda_ref.copy())
+        _lqp = (ts.lambda_qp.copy() if hasattr(ts.lambda_qp, 'copy')
                 else np.zeros(12))
         log.lambda_qp.append(_lqp)
         log.lambda_qp_norm.append(float(np.linalg.norm(_lqp)))
