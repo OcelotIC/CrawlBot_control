@@ -17,6 +17,32 @@ Phase machine per step (M7, two-phase):
     DS (double support, energy-based exit) ->
     SS (single support, T_step-synchronized trajectories) ->
     dock (d<5mm AND ori<5deg)
+
+Reading this file
+-----------------
+It is ~2950 lines and four methods are most of it. Where to start depends on
+the question:
+
+    "how is a step orchestrated?"      run()        — one 546-line `while`,
+                                                      the traversal loop
+    "what happens in one tick?"        _step()      — 878 lines in four phases,
+                                                      each behind a ══ banner:
+                                                      read state -> NMPC ->
+                                                      QP sub-loop -> hand off
+    "how is a step prepared?"          _setup_torso_for_step(), _run_preplanner()
+    "how does DS settle?"              _run_ds_passivity_loop()
+    "where is X logged?"               NOT HERE — tick_logging.py
+
+Per-tick telemetry lives in `tick_logging.py` (`_log_ds_tick`, `_log_ss_tick`,
+`TickState`), split out in CLEANUP-32 because control and telemetry fail
+differently. `logging.py` is a third thing again: the `SimLog` container.
+
+Two structural debts, both measured and both deliberate (see
+docs/crawlbot/simulation/sim_loop.md):
+  - `_step`'s QP sub-loop keeps ~25 live locals throughout, so no single cut
+    extracts it; it needs a threaded state object, not a helper.
+  - `run()`'s problem is nesting depth rather than sequence — its 546-line
+    `while` has no cheap top-level seam.
 """
 
 import numpy as np
@@ -100,9 +126,13 @@ class SimulationLoop(TickLoggingMixin):
         self._coarse_plan: Optional[CoarsePlanResult] = None
         # M7: T_step from the pre-planner for the active step.
         self._current_T_step: float = 0.0
-        # M7 v19: planned arm-joint trajectory endpoints (captured in
-        # _setup_torso_for_step). Used by _planned_arm_config so the
-        # mapping can see where the arm *will* be, not where it is.
+        # Per-step planned arm-joint trajectory endpoints. Their original
+        # consumer, `_planned_arm_config`, was retired in CLEANUP-34 (zero
+        # callers). These four SURVIVE because the canonical driver reads them:
+        # `scripts/diag_cooperative_arms.py:510-511` logs q_start/q_end per step
+        # into `_step_q_end_log`. Deleting them as "stranded" broke the canonical
+        # replay immediately — an AST orphan-scan over sim_loop.py alone cannot
+        # see a reader that lives in scripts/.
         self._step_q_start: Optional[np.ndarray] = None
         self._step_q_end: Optional[np.ndarray] = None
         self._step_t_ss_start: float = 0.0
@@ -110,7 +140,7 @@ class SimulationLoop(TickLoggingMixin):
         # M7 / FK-on-smoothed-q: cached smoothed q-sequence + per-segment
         # tangents for the active SS step. Populated by
         # _setup_torso_for_step under cfg.reference_source='joint_space_fk';
-        # consumed by _planned_arm_config so the M5 mapping sees the same
+        # consumed by the torso-reference path so the mapping sees the same
         # q(τ) the planners are tracking.
         self._step_q_seq: Optional[list] = None
         self._step_dq_seg: Optional[list] = None
@@ -1106,43 +1136,6 @@ class SimulationLoop(TickLoggingMixin):
 
     # ── Per-step planning handoff (M7) ───────────────────────────────────
 
-    def _planned_arm_config(self, t: float, rs):
-        """Return (q_planned, dq_planned) at sim time `t` for v19 mapping.
-
-        Mixes the live floating-base state (rs.q / rs.v) with an arm
-        portion obtained by quintic interpolation between
-        self._step_q_start and self._step_q_end over [t_ss_start,
-        t_ss_start + T_step]. The arm slice therefore reflects the
-        trajectory the SwingPlanner is commanding at time `t`, not the
-        arm's actual (tracking-lagged) configuration.
-
-        Why: delta(q) in the mapping formula is dominated by the arms
-        (torso block contributes 0 by construction). Using the live
-        arm state makes the mapping a feedback path on arm tracking
-        error; using the planned arm state makes it a clean feedforward.
-        The floating-base portion is kept at rs.q/rs.v so the world-
-        frame assembly of delta stays consistent with where the torso
-        really is.
-        """
-        if self._step_q_start is None or self._step_q_end is None:
-            return rs.q.copy(), rs.v.copy()
-        T = max(self._step_T_step, 1e-6)
-        tau = float(np.clip((t - self._step_t_ss_start) / T, 0.0, 1.0))
-        # M7 / FK-on-smoothed-q (cfg.reference_source='joint_space_fk'):
-        # use the same task-space-smoothed q-sequence the planners use,
-        # so the M5 mapping consumes the same q(τ) the QP is tracking.
-        s = 10.0*tau**3 - 15.0*tau**4 + 6.0*tau**5
-        sd = (30.0*tau**2 - 60.0*tau**3 + 30.0*tau**4) / T
-        sl_q = self.robot.joints_q_slice
-        sl_v = self.robot.joints_v_slice
-        q_arm_start = self._step_q_start[sl_q]
-        q_arm_end = self._step_q_end[sl_q]
-        dq_arm = q_arm_end - q_arm_start
-        q_plan = rs.q.copy()
-        q_plan[sl_q] = q_arm_start + s * dq_arm
-        dq_plan = rs.v.copy()
-        dq_plan[sl_v] = sd * dq_arm
-        return q_plan, dq_plan
 
     def _setup_torso_for_step(self, t_ss_start, swing_arm,
                               stance_a, stance_b, target_arm, target_idx,
@@ -1335,19 +1328,16 @@ class SimulationLoop(TickLoggingMixin):
         # at pq_live (start) and FK at q_end (end). The legacy
         # SwingPlanner path is taken when no override is registered.
 
-        # M7 v19: capture per-step planned joint trajectory endpoints so
-        # the CoM->torso mapping can be fed q_planned (arm configuration
-        # the swing planner will track) instead of q_current. Turns the
-        # mapping from a feedback-on-actual-state path into a feedforward
-        # path that anticipates arm motion and is not disturbed by arm
-        # tracking errors.
+        # Capture the per-step planned joint endpoints. Read by the canonical
+        # driver's per-step q-log (diag_cooperative_arms.py:510-511), not by
+        # anything in crawlbot/ — see __init__ for the CLEANUP-34 note.
         self._step_q_start = pq_live.copy()
         self._step_q_end = q_end.copy()
         self._step_t_ss_start = float(t_ss_start)
         self._step_T_step = float(T_step)
         # M7 / FK-on-smoothed-q: cache the smoothed q-sequence + per-
-        # segment tangents for use by _planned_arm_config (so the M5
-        # mapping sees the same q(τ) the planners are tracking).
+        # segment tangents (so the mapping sees the same q(τ) the
+        # planners are tracking).
         # Cleared (set to None) under legacy mode so the legacy quintic
         # path is taken.
         self._step_q_seq = None
@@ -2125,6 +2115,12 @@ class SimulationLoop(TickLoggingMixin):
             when `cfg.diag_disable_passivity_on_abort` is set and the
             preceding SS aborted on dock_timeout.
         """
+        # ══════════════════════════════════════════════════════════════════
+        # PHASE 0 — read state and references
+        # Torso/CoM references at t, the pre-planner interpolation when a coarse
+        # plan is active, and the MuJoCo -> Pinocchio state conversion. Coupling
+        # starts at zero here; everything below accumulates on it.
+        # ══════════════════════════════════════════════════════════════════
         cfg = self.cfg
 
         # Torso/CoM references (structure frame — no struct pose needed)
@@ -2183,6 +2179,13 @@ class SimulationLoop(TickLoggingMixin):
             L_com_prev = rs.L_com.copy()
 
         # Contact config from constant structure-frame anchors (no live reading)
+        # ══════════════════════════════════════════════════════════════════
+        # STAGE 1 — centroidal NMPC  (dt_nmpc = 0.1 s, once per _step)
+        # Contact config, warm start, solve, and the shifted-fallback path when the
+        # solve fails. Produces x_plan / u_plan; everything after consumes them.
+        # The fallback branch is canonical-unreached BY DESIGN — the canonical run
+        # never has nmpc_ok False.
+        # ══════════════════════════════════════════════════════════════════
         cc_nmpc = ContactConfig.from_phase(
             cc_ss.phase,
             self.sched.anchors_a[stance_a].copy(),
@@ -2295,6 +2298,15 @@ class SimulationLoop(TickLoggingMixin):
 
         # M7: single QP variant throughout DS and SS. Synchronized
         # trajectories eliminate the need for gain scheduling.
+        # ══════════════════════════════════════════════════════════════════
+        # STAGE 2 — whole-body QP sub-loop  (dt_qp = 0.01 s, n_qp_per_nmpc ticks)
+        # The 615-line `for qs` below is the densest part of this file. Its phases,
+        # in order: torso-reference mapping (SS bypasses the delta-mapping and takes
+        # the raw quintic) -> reference F-SAT jitter guard -> QP solve -> integrate
+        # -> RWA / AOCS wheel command -> weld and dock bookkeeping. Coupling
+        # plateaus near 25 live locals throughout, which is why no single cut
+        # extracts it — see docs/crawlbot/simulation/sim_loop.md 5.
+        # ══════════════════════════════════════════════════════════════════
         qp = self.qp_ss
         tau_last = np.zeros(self.robot.n_joints)
         tau_w_last = np.zeros(3)
@@ -2927,6 +2939,11 @@ class SimulationLoop(TickLoggingMixin):
                     np.asarray(tau_w_last, dtype=float).copy())
                 log.hw_ss_hifreq.append(np.asarray(hw, dtype=float).copy())
 
+        # ══════════════════════════════════════════════════════════════════
+        # HAND OFF — telemetry
+        # Nothing below decides anything. TickState carries the tick to
+        # _log_ss_tick in tick_logging.py.
+        # ══════════════════════════════════════════════════════════════════
         t_qp_ms = (time.perf_counter() - t_qp_start) * 1000
 
         # Everything below this point only RECORDS the tick — no control

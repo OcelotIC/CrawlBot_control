@@ -45,6 +45,13 @@ os.chdir(ROOT)
 MJCF = 'models/VISPA_crawling_rwa3.xml'
 URDF = 'models/VISPA_crawling_fixed.urdf'
 BASELINE_CSV = 'results/j2_adjconv/c25_fulldiag.csv'
+# Observed full-traversal replay durations on this container: 127.2 / 131.0 /
+# 139.4 / 142.3 s. The CLEANUP-33 false PASS ran in 80.4 s. A generous floor,
+# because the point is to flag "did far less work than a real run", not to
+# police machine speed.
+REPLAY_SECONDS_FLOOR = 100
+REPLAY_SECONDS_CEIL = 200
+
 REPLAY_DIR = 'results/gate_run_scratch'
 REPLAY_PREFIX = 'gate/_run/c25_replay'
 REPLAY_CSV = REPLAY_PREFIX + '_fulldiag.csv'
@@ -305,6 +312,18 @@ def main():
     print(f"[1] canonical replay + export : "
           f"replay rc={ri['replay']['returncode']} ({ri['replay']['seconds']}s), "
           f"export rc={ri.get('export', {}).get('returncode')}", flush=True)
+    # A replay that finishes well UNDER the observed band did less work than a
+    # full 6-step traversal. CLEANUP-33's false PASS ran in 80.4 s against a
+    # 127-142 s band, and that was the visible tell nobody was looking at.
+    # Reported, not enforced: wall-clock is machine-dependent, so a hard floor
+    # would fail honest runs on faster hardware. The freshness and identity
+    # checks are what actually enforce; this is here to be noticed.
+    _s = ri['replay']['seconds']
+    if isinstance(_s, (int, float)) and _s < REPLAY_SECONDS_FLOOR:
+        print(f"    ^ NOTE: {_s}s is below the observed band "
+              f"({REPLAY_SECONDS_FLOOR}-{REPLAY_SECONDS_CEIL}s for a full "
+              f"6-step traversal). Verify the replay actually ran to "
+              f"completion.", flush=True)
     if ident is None:
         print(f"[2] artifact identity         : FAIL  ({ri.get('reason')})", flush=True)
     else:
