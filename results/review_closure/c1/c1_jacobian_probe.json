@@ -1,0 +1,110 @@
+{
+  "model": "models/VISPA_crawling_fixed.urdf",
+  "nq": 21,
+  "nv": 20,
+  "n_joints": 14,
+  "total_mass_kg": 71.05599999999998,
+  "C1_1": {
+    "J_com_shape": [
+      3,
+      20
+    ],
+    "A_G_shape": [
+      6,
+      20
+    ],
+    "max_abs_diff_Jcom_vs_AGlin_over_m": 2.220446049250313e-16,
+    "max_abs_Jcom": 0.9966781883065293,
+    "note": "A_G[0:3,:] = m * J_com exactly => the QP momentum task rows ARE the linear CMM rows A_{G,v}, scaled by 1/m",
+    "A_G_angular_rows_max_abs": 33.00171594225338,
+    "L_com_current": [
+      -4.791998721463445,
+      2.8559176327875875,
+      9.161742956301815
+    ]
+  },
+  "C1_3": {
+    "column_order": "q_t(6) | arm A(7) | arm B(7)",
+    "J_torso_block_maxabs": {
+      "base": 0.9966781883065293,
+      "armA": 0.0,
+      "armB": 0.0
+    },
+    "J_tool_a_block_maxabs": {
+      "base": 1.4668811411173686,
+      "armA": 1.115523858822884,
+      "armB": 0.0
+    },
+    "J_tool_b_block_maxabs": {
+      "base": 1.2178950232989394,
+      "armA": 0.0,
+      "armB": 1.0783152670936218
+    },
+    "J_torso_arm_block_exactly_zero": true,
+    "J_tool_a_armB_block_exactly_zero": true,
+    "J_tool_b_armA_block_exactly_zero": true
+  },
+  "C1_2_frame": {
+    "torso_R_deviation_from_identity_deg": 8.000000000000002,
+    "code_uses": "pin.log3(R.T @ R_ref)  -> LOCAL (body) frame",
+    "jacobian_convention": "pin.LOCAL_WORLD_ALIGNED -> world-aligned axes",
+    "frame_consistent_form": "log3(R_ref @ R.T) = R @ log3(R.T @ R_ref)",
+    "note": "the two differ by the rotation R itself: same magnitude, different direction. The gap scales with the ATTITUDE of the frame (how far R is from I), not with the tracking error.",
+    "samples": [
+      {
+        "attitude_error_deg": 0.0,
+        "e_local_norm_rad": 2.4719354159400685e-17,
+        "e_world_norm_rad": 1.921906952196103e-17,
+        "norms_equal": true,
+        "direction_gap_rad": 3.8239021939404444e-17,
+        "direction_gap_deg": 2.1909345698360347e-15,
+        "relative_direction_gap": 0.0
+      },
+      {
+        "attitude_error_deg": 0.5,
+        "e_local_norm_rad": 0.00872664625997165,
+        "e_world_norm_rad": 0.008726646259971644,
+        "norms_equal": true,
+        "direction_gap_rad": 0.0008615790896642148,
+        "direction_gap_deg": 0.04936484555448303,
+        "relative_direction_gap": 0.09872969110896605
+      },
+      {
+        "attitude_error_deg": 1.0,
+        "e_local_norm_rad": 0.017453292519943295,
+        "e_world_norm_rad": 0.01745329251994328,
+        "norms_equal": true,
+        "direction_gap_rad": 0.0017231581793284386,
+        "direction_gap_deg": 0.0987296911089666,
+        "relative_direction_gap": 0.0987296911089666
+      },
+      {
+        "attitude_error_deg": 2.0,
+        "e_local_norm_rad": 0.03490658503988655,
+        "e_world_norm_rad": 0.034906585039886556,
+        "norms_equal": true,
+        "direction_gap_rad": 0.003446316358656917,
+        "direction_gap_deg": 0.19745938221793546,
+        "relative_direction_gap": 0.09872969110896784
+      },
+      {
+        "attitude_error_deg": 5.0,
+        "e_local_norm_rad": 0.08726646259971645,
+        "e_world_norm_rad": 0.08726646259971647,
+        "norms_equal": true,
+        "direction_gap_rad": 0.00861579089664232,
+        "direction_gap_deg": 0.49364845554484016,
+        "relative_direction_gap": 0.09872969110896807
+      },
+      {
+        "attitude_error_deg": 8.0,
+        "e_local_norm_rad": 0.1396263401595464,
+        "e_world_norm_rad": 0.1396263401595463,
+        "norms_equal": true,
+        "direction_gap_rad": 0.013785265434627674,
+        "direction_gap_deg": 0.7898375288717422,
+        "relative_direction_gap": 0.09872969110896775
+      }
+    ]
+  }
+}

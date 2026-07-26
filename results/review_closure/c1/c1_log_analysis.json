@@ -1,0 +1,298 @@
+{
+  "C_managed": {
+    "tag": "C_managed",
+    "n_ticks": 2077,
+    "t_first": 0.01,
+    "t_last": 84.54,
+    "traversal_span_s": 84.53,
+    "phase_occupancy_ticks": {
+      "DS_interstep": 1368,
+      "SS": 508,
+      "DS_terminal": 201
+    },
+    "hw_axis_peak_Nms": 4.101908,
+    "antiwindup_active_ticks": 0,
+    "last_dock_t": 64.54,
+    "docks": [
+      {
+        "step": 0,
+        "weld_t": 3.01,
+        "d_weld_mm": 4.02,
+        "d_min_swing_mm": 4.016,
+        "twist_weld": 0.020058
+      },
+      {
+        "step": 1,
+        "weld_t": 14.72,
+        "d_weld_mm": 4.89,
+        "d_min_swing_mm": 4.888,
+        "twist_weld": 0.007735
+      },
+      {
+        "step": 2,
+        "weld_t": 28.5,
+        "d_weld_mm": 4.99,
+        "d_min_swing_mm": 4.334,
+        "twist_weld": 0.005781
+      },
+      {
+        "step": 3,
+        "weld_t": 40.06,
+        "d_weld_mm": 4.97,
+        "d_min_swing_mm": 4.973,
+        "twist_weld": 0.00717
+      },
+      {
+        "step": 4,
+        "weld_t": 53.38,
+        "d_weld_mm": 4.95,
+        "d_min_swing_mm": 3.326,
+        "twist_weld": 0.00499
+      },
+      {
+        "step": 5,
+        "weld_t": 64.54,
+        "d_weld_mm": 4.62,
+        "d_min_swing_mm": 4.624,
+        "twist_weld": 0.00702
+      }
+    ],
+    "per_step": {
+      "0": {
+        "ss_t0": 0.11,
+        "ss_t1": 2.91,
+        "first_gate_eval": 2.91,
+        "dock_t": null,
+        "n_gate_evals": 1,
+        "d_min_mm": 4.0161,
+        "t_at_d_min": 2.91,
+        "gate_fail_pos": 0,
+        "gate_fail_ori": 0,
+        "gate_fail_twist": 1,
+        "ss_span_s": 2.8000000000000003,
+        "T_step_inferred_s": 2.8000000000000003
+      },
+      "1": {
+        "ss_t0": 5.72,
+        "ss_t1": 14.62,
+        "first_gate_eval": 13.42,
+        "dock_t": null,
+        "n_gate_evals": 13,
+        "d_min_mm": 4.8879,
+        "t_at_d_min": 14.62,
+        "gate_fail_pos": 12,
+        "gate_fail_ori": 0,
+        "gate_fail_twist": 1,
+        "ss_span_s": 8.899999999999999,
+        "T_step_inferred_s": 7.7
+      },
+      "2": {
+        "ss_t0": 18.2,
+        "ss_t1": 28.4,
+        "first_gate_eval": 21.7,
+        "dock_t": null,
+        "n_gate_evals": 68,
+        "d_min_mm": 4.3339,
+        "t_at_d_min": 21.8,
+        "gate_fail_pos": 65,
+        "gate_fail_ori": 0,
+        "gate_fail_twist": 3,
+        "ss_span_s": 10.2,
+        "T_step_inferred_s": 3.5
+      },
+      "3": {
+        "ss_t0": 30.86,
+        "ss_t1": 39.96,
+        "first_gate_eval": 38.86,
+        "dock_t": null,
+        "n_gate_evals": 12,
+        "d_min_mm": 4.9727,
+        "t_at_d_min": 39.96,
+        "gate_fail_pos": 11,
+        "gate_fail_ori": 0,
+        "gate_fail_twist": 1,
+        "ss_span_s": 9.100000000000001,
+        "T_step_inferred_s": 8.0
+      },
+      "4": {
+        "ss_t0": 43.08,
+        "ss_t1": 53.28,
+        "first_gate_eval": 46.58,
+        "dock_t": null,
+        "n_gate_evals": 68,
+        "d_min_mm": 3.3264,
+        "t_at_d_min": 46.58,
+        "gate_fail_pos": 66,
+        "gate_fail_ori": 0,
+        "gate_fail_twist": 2,
+        "ss_span_s": 10.200000000000003,
+        "T_step_inferred_s": 3.5
+      },
+      "5": {
+        "ss_t0": 55.44,
+        "ss_t1": 64.44,
+        "first_gate_eval": 63.24,
+        "dock_t": null,
+        "n_gate_evals": 13,
+        "d_min_mm": 4.6239,
+        "t_at_d_min": 64.44,
+        "gate_fail_pos": 12,
+        "gate_fail_ori": 0,
+        "gate_fail_twist": 1,
+        "ss_span_s": 9.0,
+        "T_step_inferred_s": 7.800000000000004
+      }
+    },
+    "preplanner_T_steps_logged": [
+      2.7750631466491,
+      7.651952524721201,
+      3.4523296214171038,
+      7.9239614430688645,
+      3.4327953792880987,
+      7.771814486049968
+    ]
+  },
+  "U_unmanaged": {
+    "tag": "U_unmanaged",
+    "n_ticks": 1905,
+    "t_first": 0.01,
+    "t_last": 74.99,
+    "traversal_span_s": 74.97999999999999,
+    "phase_occupancy_ticks": {
+      "DS_interstep": 1283,
+      "SS": 421,
+      "DS_terminal": 201
+    },
+    "hw_axis_peak_Nms": 4.550171,
+    "antiwindup_active_ticks": 0,
+    "last_dock_t": 54.99,
+    "docks": [
+      {
+        "step": 0,
+        "weld_t": 2.91,
+        "d_weld_mm": 2.37,
+        "d_min_swing_mm": 2.366,
+        "twist_weld": 0.028064
+      },
+      {
+        "step": 1,
+        "weld_t": 14.26,
+        "d_weld_mm": 4.77,
+        "d_min_swing_mm": 4.766,
+        "twist_weld": 0.007173
+      },
+      {
+        "step": 2,
+        "weld_t": 21.05,
+        "d_weld_mm": 4.86,
+        "d_min_swing_mm": 2.901,
+        "twist_weld": 0.038782
+      },
+      {
+        "step": 3,
+        "weld_t": 31.67,
+        "d_weld_mm": 4.44,
+        "d_min_swing_mm": 4.445,
+        "twist_weld": 0.008242
+      },
+      {
+        "step": 4,
+        "weld_t": 44.56,
+        "d_weld_mm": 4.64,
+        "d_min_swing_mm": 4.637,
+        "twist_weld": 0.007735
+      },
+      {
+        "step": 5,
+        "weld_t": 54.99,
+        "d_weld_mm": 4.42,
+        "d_min_swing_mm": 4.416,
+        "twist_weld": 0.007897
+      }
+    ],
+    "per_step": {
+      "0": {
+        "ss_t0": 0.11,
+        "ss_t1": 2.81,
+        "first_gate_eval": null,
+        "dock_t": null,
+        "n_gate_evals": 0,
+        "d_min_mm": 2.3655,
+        "t_at_d_min": 2.81,
+        "gate_fail_pos": 0,
+        "gate_fail_ori": 0,
+        "gate_fail_twist": 0,
+        "ss_span_s": 2.7
+      },
+      "1": {
+        "ss_t0": 5.06,
+        "ss_t1": 14.16,
+        "first_gate_eval": 12.96,
+        "dock_t": null,
+        "n_gate_evals": 13,
+        "d_min_mm": 4.766,
+        "t_at_d_min": 14.16,
+        "gate_fail_pos": 12,
+        "gate_fail_ori": 0,
+        "gate_fail_twist": 1,
+        "ss_span_s": 9.100000000000001,
+        "T_step_inferred_s": 7.900000000000001
+      },
+      "2": {
+        "ss_t0": 17.65,
+        "ss_t1": 20.95,
+        "first_gate_eval": null,
+        "dock_t": null,
+        "n_gate_evals": 0,
+        "d_min_mm": 2.9011,
+        "t_at_d_min": 20.85,
+        "gate_fail_pos": 0,
+        "gate_fail_ori": 0,
+        "gate_fail_twist": 0,
+        "ss_span_s": 3.3000000000000007
+      },
+      "3": {
+        "ss_t0": 23.07,
+        "ss_t1": 31.57,
+        "first_gate_eval": 30.27,
+        "dock_t": null,
+        "n_gate_evals": 14,
+        "d_min_mm": 4.4446,
+        "t_at_d_min": 31.57,
+        "gate_fail_pos": 13,
+        "gate_fail_ori": 0,
+        "gate_fail_twist": 1,
+        "ss_span_s": 8.5,
+        "T_step_inferred_s": 7.199999999999999
+      },
+      "4": {
+        "ss_t0": 35.06,
+        "ss_t1": 44.46,
+        "first_gate_eval": 39.26,
+        "dock_t": null,
+        "n_gate_evals": 53,
+        "d_min_mm": 4.6366,
+        "t_at_d_min": 44.46,
+        "gate_fail_pos": 52,
+        "gate_fail_ori": 0,
+        "gate_fail_twist": 1,
+        "ss_span_s": 9.399999999999999,
+        "T_step_inferred_s": 4.199999999999996
+      },
+      "5": {
+        "ss_t0": 46.39,
+        "ss_t1": 54.89,
+        "first_gate_eval": 53.59,
+        "dock_t": null,
+        "n_gate_evals": 14,
+        "d_min_mm": 4.416,
+        "t_at_d_min": 54.89,
+        "gate_fail_pos": 13,
+        "gate_fail_ori": 0,
+        "gate_fail_twist": 1,
+        "ss_span_s": 8.5,
+        "T_step_inferred_s": 7.200000000000003
+      }
+    }
+  }
+}
