@@ -51,10 +51,18 @@ NOTE saying so. Same-named fields, opposite fates.
 
 From pyflakes, unchanged by any cleanup commit:
 
+> ⚠ **The first three lines are STALE — corrected CLEANUP-30.** Those imports
+> were already removed (CLEANUP-9); `sim_loop.py:40-42` now imports only
+> `dock_configuration`, `dock_configuration_fixed_rotation`,
+> `manipulability_config`. This mattered: had the list been accurate, CLEANUP-30's
+> deletion of `precompute_torso_map` would have broken `sim_loop` on import — the
+> CLEANUP-6 failure mode exactly. It was checked rather than trusted. Treat the
+> remaining seven lines as equally unverified until re-run.
+
 ```
-:40   'crawlbot.core.ik.solve_ik'            imported but unused
-:40   'crawlbot.core.ik.solve_ik_waypoints'  imported but unused
-:40   'crawlbot.core.ik.precompute_torso_map' imported but unused
+:40   'crawlbot.core.ik.solve_ik'            imported but unused    <- STALE
+:40   'crawlbot.core.ik.solve_ik_waypoints'  imported but unused    <- STALE
+:40   'crawlbot.core.ik.precompute_torso_map' imported but unused   <- STALE
 :462  'contact_estimator.ContactState'       imported but unused
 :486  f-string is missing placeholders
 :1523 local variable 'traj_suffix'           assigned but never used
@@ -76,6 +84,37 @@ deleting.
   channel).
 - `dca.main` sets `cfg.ds_centroidal_mode=True` for the whole run including the trailing
   settle, so flags keyed on it cannot discriminate the DWELL.
+
+### A6. The canonical run does not honour Rule 3 (CLEANUP-30)
+
+Rule 3 says *"Every simulation produces diagnostics. Call `run_diagnostics()` at
+the end of every sim."* The gate's export step calls
+`scripts/diag_full_diag_export.py` (`gate/run_gate.py:226`), a bespoke exporter —
+**not** `run_diagnostics()`. So the one run that must be defensible is the one run
+that skips the mandated diagnostics, and that is the whole reason
+`crawlbot/diagnostics/` reads as "the canonical never executes it".
+
+Not a deletion question — the package has a live consumer
+(`scripts/run_m7_single_step.py`, one of five live scripts) and a project rule
+behind it. It is a wiring gap.
+
+Deliberately not fixed in CLEANUP-30: changing the gate's own path in the commit
+that removed 695 lines from `ik.py` would have destroyed the gate's ability to
+prove that removal inert. Fix it in a pass of its own, where the only change is
+the gate, and confirm the exported artifact is unaffected.
+
+### A7. `solve_ik_waypoints` — 118 lines, zero callers (CLEANUP-30)
+
+Surfaced by CLEANUP-30's reachability computation: reachable from **neither** the
+live roots nor the four functions being retired. Zero references in `crawlbot/`,
+`scripts/` or `tests/` — the only mentions repo-wide are this ledger's own §A3
+line and two documents.
+
+Left in place because the approved retirement scope was the four Option-B
+functions and widening it silently is how a scope stops being traceable. It is the
+same class as those four and the obvious next candidate: 118 lines, and the
+largest single block of the 173 statements in `ik.py` that the canonical replay
+still never reaches.
 
 ### A5. 6-DoF-era dimensions in `crawlbot/` docstrings (CLEANUP-28)
 

@@ -30,13 +30,13 @@ to get acceleration would drown a contact signal in noise.
 | `.reset` | `(M, v)` | **yes** | [L75](../../../crawlbot/estimation/contact_estimator.py#L75) |
 | `.update` | `(M, v, C_matrix, tau_applied)` | **yes** | [L92](../../../crawlbot/estimation/contact_estimator.py#L92) |
 | `.residual` | `()` | **yes** | [L136](../../../crawlbot/estimation/contact_estimator.py#L136) |
-| `.initialized` | `()` | **yes** | [L141](../../../crawlbot/estimation/contact_estimator.py#L141) |
+| `.initialized` | `()` | not exercised | [L141](../../../crawlbot/estimation/contact_estimator.py#L141) |
 | `.swing_residual_norm` | `(swing_v_slice)` | **yes** | [L144](../../../crawlbot/estimation/contact_estimator.py#L144) |
 | **`ContactStateMachine`** |  |  | [L160](../../../crawlbot/estimation/contact_estimator.py#L160) |
-| `.update` | `(r_swing_norm, d_FK, force_mode=False)` | **yes** | [L186](../../../crawlbot/estimation/contact_estimator.py#L186) |
+| `.update` | `(r_swing_norm, d_FK, force_mode=False)` | not exercised | [L186](../../../crawlbot/estimation/contact_estimator.py#L186) |
 | `.reset` | `()` | **yes** | [L247](../../../crawlbot/estimation/contact_estimator.py#L247) |
 | `.state` | `()` | **yes** | [L253](../../../crawlbot/estimation/contact_estimator.py#L253) |
-| `.is_docked` | `()` | **yes** | [L257](../../../crawlbot/estimation/contact_estimator.py#L257) |
+| `.is_docked` | `()` | not exercised | [L257](../../../crawlbot/estimation/contact_estimator.py#L257) |
 
 ---
 

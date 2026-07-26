@@ -54,10 +54,18 @@ absent, so it reported success by not running. The suite's entire *"4 skipped"*
 count — carried in every report since CLEANUP-25 as if it were a deliberate
 condition — was this one stale path.
 
-**Seven tests, one line.** Repaired by moving the fixture to
-`tests/fixtures/step2_ss_entry_fixture.npz` — under `tests/`, so it cannot be
-separated from its only consumers, and so it survives the eventual `Misc/`
-deletion — and pointing both files at it:
+**Seven tests, one line.** Repaired by moving the fixture into a new
+fixtures directory under `tests/` — so it could not be separated from its only
+consumers, and so it would survive the eventual `Misc/` deletion — and pointing
+both files at it:
+
+> **Superseded within the hour by CLEANUP-30**, which retired the Option-B IK
+> path those tests exercise. The fixture followed its consumers to
+> `Misc/tests/fixtures/step2_ss_entry_fixture.npz` and `tests/fixtures/` no
+> longer exists. The repair below was still the right call — it is what made the
+> tests runnable, which is what let CLEANUP-30 measure their cost (644 s, 87 % of
+> the suite) and decide on evidence rather than on the "removed feature"
+> hypothesis this section demolishes.
 
 ```
 $ pytest tests/test_mid_waypoint_reshape.py tests/test_ik_anomaly_regression.py

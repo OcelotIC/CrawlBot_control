@@ -1399,19 +1399,11 @@ class SimulationLoop:
         w_sigma_min_fixed = float('nan')  # σ_min product, fixed_rotation
         traj_drift = float('nan')
 
-        # M7 Manipulability-IK-1 Phase 4 — on-demand trajectory-aware IK.
-        # Phase 3 (results/M7_1pct_3step_v22_t15_trajIK/T15_trajIK_report.md
-        # §5) showed that the chained-precompute cache's q_start_assumed
-        # diverged from live state by 30–60× the tolerance at every SS
-        # entry, so the cache was never consumed. Phase 4 bypasses the
-        # cache and calls manipulability_config_trajectory with the
-        # live pq_live so the optimiser sees the actual SS-entry state.
-        # The cache build in setup() is retained unchanged (dead code
-        # in this run) per the Phase-4 prompt — future work may
-        # repurpose it as a warm-start seed source.
-        # CLEANUP-15: use_trajectory_aware_ik was False on the canonical, so
-        # the trajectory-aware IK never ran; q_end stays None and the
-        # fixed-rotation / manipulability IK below produces it.
+        # q_end is produced by the fixed-rotation IK below, falling back to the
+        # endpoint-only manipulability IK (IK 1 / IK 2, IK_FORMULATION.md §5-§6).
+        # A third path used to sit here — the trajectory-aware IK 3 — disabled on
+        # the canonical by CLEANUP-15 and retired from ik.py entirely by
+        # CLEANUP-30. Do not re-add a branch for it without reviving its subject.
 
         if q_end is None and cfg.ik_fixed_rotation:
             try:

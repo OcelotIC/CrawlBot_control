@@ -1,6 +1,6 @@
 # `crawlbot.core.ik`
 
-**File**: [`crawlbot/core/ik.py`](../../../crawlbot/core/ik.py) — **1470 lines** — canonical coverage **40 %**
+**File**: [`crawlbot/core/ik.py`](../../../crawlbot/core/ik.py) — **786 lines** — canonical coverage **47 %**
 
 > Module docstring: *"Inverse kinematics for VISPA docking configurations."*
 
@@ -18,15 +18,11 @@ canonical path.
 
 | symbol | signature | canonical? | code |
 |---|---|---|---|
-| `solve_ik` | `(model, q0, targets, max_iter=500, tol=1e-08, base_gain=...)` | **yes** | [L106](../../../crawlbot/core/ik.py#L106) |
-| `dock_configuration` | `(model, anchor_a, anchor_b, torso_pos=None, q_init=None,...)` | not exercised | [L311](../../../crawlbot/core/ik.py#L311) |
-| `dock_configuration_fixed_rotation` | `(model, anchor_a, anchor_b, R_torso_fixed, torso_pos=Non...)` | **yes** | [L359](../../../crawlbot/core/ik.py#L359) |
-| `manipulability_config` | `(model, anchor_a, anchor_b, level_axis, q_nominal, w_pos...)` | **yes** | [L524](../../../crawlbot/core/ik.py#L524) |
-| `precompute_torso_map` | `(model, anchors_a, anchors_b, anchor_pair_sequence, q_in...)` | not exercised | [L658](../../../crawlbot/core/ik.py#L658) |
-| `manipulability_config_trajectory` | `(model, anchor_a, anchor_b, q_start, n_samples=5, q_gues...)` | not exercised | [L800](../../../crawlbot/core/ik.py#L800) |
-| `manipulability_config_mid_waypoint` | `(model, anchor_a_pose, anchor_b_pose, q_start, q_end, sw...)` | not exercised | [L957](../../../crawlbot/core/ik.py#L957) |
-| `check_path_feasibility` | `(model, q_start, q_end, anchor_a_pose, anchor_b_pose, sw...)` | not exercised | [L1179](../../../crawlbot/core/ik.py#L1179) |
-| `solve_ik_waypoints` | `(model, q_start, stance_frame, stance_target, swing_fram...)` | not exercised | [L1352](../../../crawlbot/core/ik.py#L1352) |
+| `solve_ik` | `(model, q0, targets, max_iter=500, tol=1e-08, base_gain=...)` | **yes** | [L116](../../../crawlbot/core/ik.py#L116) |
+| `dock_configuration` | `(model, anchor_a, anchor_b, torso_pos=None, q_init=None,...)` | **yes** | [L320](../../../crawlbot/core/ik.py#L320) |
+| `dock_configuration_fixed_rotation` | `(model, anchor_a, anchor_b, R_torso_fixed, torso_pos=Non...)` | **yes** | [L368](../../../crawlbot/core/ik.py#L368) |
+| `manipulability_config` | `(model, anchor_a, anchor_b, level_axis, q_nominal, w_pos...)` | **yes** | [L534](../../../crawlbot/core/ik.py#L534) |
+| `solve_ik_waypoints` | `(model, q_start, stance_frame, stance_target, swing_fram...)` | not exercised | [L668](../../../crawlbot/core/ik.py#L668) |
 
 ---
 
@@ -97,16 +93,45 @@ zero. A sum would accept it.
 
 ## 4. What is *not* on the canonical path
 
-`dock_configuration`, `precompute_torso_map`, `manipulability_config_trajectory`,
-`manipulability_config_mid_waypoint`, `check_path_feasibility`,
-`solve_ik_waypoints`.
+Two entries, down from six. CLEANUP-30 retired the other four.
 
-These served variants whose wiring was removed from `sim_loop` by CLEANUP-15 —
-the FK reference path, trajectory-aware IK, mid-waypoint reshaping, the path
-feasibility probe. They are not dead in the strict sense, but they carry **no
-gate coverage at all**: changing them will trip nothing.
+`dock_configuration` — a convenience wrapper (both tools at anchor poses) that
+`manipulability_config` and the retired variants used as a seed. Live: called
+from `sim_loop.py:325` on the init path and by two test modules.
 
-That is the main verification blind spot inside `crawlbot/`.
+`solve_ik_waypoints` — a chain of IK solutions along a swing arc. **Zero
+callers anywhere**, measured: nothing in `crawlbot/`, nothing in `scripts/`,
+nothing in `tests/`. It survived CLEANUP-30 only because the retirement scope
+was the four Option-B functions; it is the same class and the obvious next
+candidate. 118 lines, and the largest single block of the 173 statements in this
+module that the canonical replay never reaches.
+
+### The Option-B path, and why it went
+
+Retired in CLEANUP-30 — 695 lines, 47 % of this module:
+`manipulability_config_trajectory`, `manipulability_config_mid_waypoint`,
+`check_path_feasibility`, `precompute_torso_map`, plus `_interpolate_q_quintic`,
+`_trajectory_worst_w`, `_sigma_min_pair` and `_ik_three_tasks`, which stranded
+with them (computed from the call graph, not chosen by eye).
+
+They were IK 3 in `IK_FORMULATION.md` — the trajectory-aware escalation built for
+the T15 step-2 path singularity, where the endpoint-only IK could return a
+configuration whose *interior* passed near a singularity. The evidence for
+retiring: zero callers in `crawlbot/`, 0 lines executed by the canonical replay,
+and 87 % of the test suite's runtime spent on their regression tests. Removing
+them left the canonical run byte-identical over 2077 rows × 132 928 fields, with
+all six docks at delta +0.0000.
+
+The reasoning is preserved rather than deleted: `IK_FORMULATION.md` §7–§9 still
+derives the formulation and carries a banner marking it retired, and the tests
+live in `Misc/tests/` with their fixture. Revival starts at
+`git show d61e1a0:crawlbot/core/ik.py`.
+
+⚠ **One consequence to hold onto:** `check_path_feasibility` was the only
+interior-feasibility guard, and it was *already* disconnected — nothing called
+it. Retiring it removed no protection that was actually running, but it does mean
+the architecture has no path-feasibility check at all. The canonical scenario
+does not need one; a new anchor geometry might.
 
 ## 5. A design trap this module cannot protect you from
 
@@ -125,15 +150,11 @@ torque is a separate check, and in this architecture it is the pre-planner's job
 
 | unit | source |
 |---|---|
-| `solve_ik()` | [L106-307](../../../crawlbot/core/ik.py#L106-L307) |
-| `dock_configuration()` | [L311-356](../../../crawlbot/core/ik.py#L311-L356) |
-| `dock_configuration_fixed_rotation()` | [L359-521](../../../crawlbot/core/ik.py#L359-L521) |
-| `manipulability_config()` | [L524-655](../../../crawlbot/core/ik.py#L524-L655) |
-| `precompute_torso_map()` | [L658-740](../../../crawlbot/core/ik.py#L658-L740) |
-| `manipulability_config_trajectory()` | [L800-942](../../../crawlbot/core/ik.py#L800-L942) |
-| `manipulability_config_mid_waypoint()` | [L957-1123](../../../crawlbot/core/ik.py#L957-L1123) |
-| `check_path_feasibility()` | [L1179-1349](../../../crawlbot/core/ik.py#L1179-L1349) |
-| `solve_ik_waypoints()` | [L1352-1469](../../../crawlbot/core/ik.py#L1352-L1469) |
+| `solve_ik()` | [L116-317](../../../crawlbot/core/ik.py#L116-L317) |
+| `dock_configuration()` | [L320-365](../../../crawlbot/core/ik.py#L320-L365) |
+| `dock_configuration_fixed_rotation()` | [L368-531](../../../crawlbot/core/ik.py#L368-L531) |
+| `manipulability_config()` | [L534-665](../../../crawlbot/core/ik.py#L534-L665) |
+| `solve_ik_waypoints()` | [L668-785](../../../crawlbot/core/ik.py#L668-L785) |
 
 ---
 
