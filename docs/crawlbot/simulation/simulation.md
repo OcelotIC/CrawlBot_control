@@ -148,3 +148,12 @@ Le tracé se fait par les scripts d'export (`scripts/export_figure_data.py`,
 | point d'entrée du run | `scripts/diag_cooperative_arms.py` (`dca.main`) |
 | dette identifiée sur `sim_loop` | `results/j2_adjconv/CLEANUP_CARRYOVER.md` §A |
 | reproduction vérifiée | `gate/run_gate.py`, `gate/dock_check.py` |
+
+---
+
+## Documentation par module
+
+- [`config.md`](config.md)
+- [`logging.md`](logging.md)
+- [`plotting.md`](plotting.md)
+- [`sim_loop.md`](sim_loop.md)

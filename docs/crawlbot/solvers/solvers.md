@@ -207,3 +207,13 @@ une évidence — voir `CLEANUP_CARRYOVER` §B2.
 | construction du QP | `crawlbot/simulation/sim_loop.py` (boucles DS et SS) |
 | dette et décisions en attente | `results/j2_adjconv/CLEANUP_CARRYOVER.md` |
 | gel canonique 2.5 | `results/j2_adjconv/canonical2p5_result.json` |
+
+---
+
+## Documentation par module
+
+- [`centroidal_nmpc.md`](centroidal_nmpc.md)
+- [`contact_phase.md`](contact_phase.md)
+- [`hierarchical_qp.md`](hierarchical_qp.md)
+- [`nmpc_solver.md`](nmpc_solver.md)
+- [`wholebody_qp.md`](wholebody_qp.md)

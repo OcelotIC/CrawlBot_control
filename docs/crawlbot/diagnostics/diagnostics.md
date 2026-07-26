@@ -108,3 +108,12 @@ correspond à une figure de l'article.
 | constat de non-exécution | `results/j2_adjconv/PHASE_CLEANUP_20_REPO_AUDIT.md` §5.3 |
 | ce qui fait foi aujourd'hui | `gate/run_gate.py`, `gate/dock_check.py` |
 | export des figures | `scripts/export_figure_data.py` |
+
+---
+
+## Documentation par module
+
+- [`metrics.md`](metrics.md)
+- [`plots.md`](plots.md)
+- [`runner.md`](runner.md)
+- [`snapshots.md`](snapshots.md)

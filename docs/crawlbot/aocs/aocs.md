@@ -167,3 +167,9 @@ mais aucune n'est branchée.
 | construction de l'estimateur | `crawlbot/simulation/sim_loop.py:445` |
 | note théorique d'origine | `Misc/reports/force_estimator_note.md` |
 | cap `tau_w_max` (3 points d'application) | CLAUDE.md, tableau des paramètres |
+
+---
+
+## Documentation par module
+
+- [`force_estimator.md`](force_estimator.md)

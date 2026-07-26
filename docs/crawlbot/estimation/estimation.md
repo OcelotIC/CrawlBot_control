@@ -121,3 +121,9 @@ définies dans `ContactStateMachine.update` (`:187`), non exercée (voir ci-dess
 | reset en début de pas | `crawlbot/simulation/sim_loop.py:1947-1948` |
 | dérivation complète | `Misc/reports/contact_estimator_derivation.md` |
 | porte d'accostage (géométrique) | CLAUDE.md, section « Do Not » |
+
+---
+
+## Documentation par module
+
+- [`contact_estimator.md`](contact_estimator.md)

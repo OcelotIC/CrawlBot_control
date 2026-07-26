@@ -3,15 +3,20 @@
 Documentation par paquet, rédigée depuis le code au commit courant et depuis la
 **couverture de lignes du replay canonique** (`gate/replay_canonical.py`).
 
-| document | paquet | couverture canonique du paquet |
+| paquet | vue d'ensemble | modules |
 |---|---|---:|
-| [`core.md`](core.md) | modèle Pinocchio, IK, pont MuJoCo, mapping CoM→torse | 40–100 % |
-| [`solvers.md`](solvers.md) | NMPC centroïdal + QP corps-complet | 70–97 % |
-| [`planning.md`](planning.md) | plan de marche, pré-planificateur, torse, vol | 0–95 % |
-| [`simulation.md`](simulation.md) | boucle fermée, `SimConfig`, journalisation | 2–100 % |
-| [`aocs.md`](aocs.md) | commande des roues à réaction | 39 % |
-| [`estimation.md`](estimation.md) | observateur de contact (GMO) | 69 % |
-| [`diagnostics.md`](diagnostics.md) | métriques et figures | 0–15 % |
+| **solvers** | [`solvers/solvers.md`](solvers/solvers.md) | 5 |
+| **planning** | [`planning/planning.md`](planning/planning.md) | 6 |
+| **core** | [`core/core.md`](core/core.md) | 4 |
+| **simulation** | [`simulation/simulation.md`](simulation/simulation.md) | 4 |
+| **diagnostics** | [`diagnostics/diagnostics.md`](diagnostics/diagnostics.md) | 4 |
+| **aocs** | [`aocs/aocs.md`](aocs/aocs.md) | 1 |
+| **estimation** | [`estimation/estimation.md`](estimation/estimation.md) | 1 |
+
+**33 documents** : un dossier par paquet, contenant la vue d'ensemble du paquet
+et **un fichier par module**. Chaque document de module porte son nombre de
+lignes, sa couverture canonique, et sa table d'API annotée
+« canonique / non exercé ».
 
 ---
 

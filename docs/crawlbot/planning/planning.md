@@ -181,3 +181,14 @@ contre l'enveloppe de moment — pas un défaut de suivi (audit TORSO-REF-AUDIT)
 | routage de la référence SS | `crawlbot/simulation/sim_loop.py:2581-2584` |
 | audits du paquet | `results/j2_adjconv/PHASE_CLEANUP_{16,18,19}_*.md` |
 | scénarios `.seq` | `scenarios/` |
+
+---
+
+## Documentation par module
+
+- [`coarse_preplanner.md`](coarse_preplanner.md)
+- [`contact_scheduler.md`](contact_scheduler.md)
+- [`locomotion_planner.md`](locomotion_planner.md)
+- [`sequence_loader.md`](sequence_loader.md)
+- [`swing_planner.md`](swing_planner.md)
+- [`torso_planner.md`](torso_planner.md)

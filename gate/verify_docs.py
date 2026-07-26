@@ -12,8 +12,9 @@ import os
 import re
 import sys
 
-DOCS = sorted(f'docs/crawlbot/{f}' for f in os.listdir('docs/crawlbot')
-              if f.endswith('.md'))
+DOCS = sorted(os.path.join(r, f)
+              for r, _, fs in os.walk('docs/crawlbot')
+              for f in fs if f.endswith('.md'))
 
 # every symbol defined in crawlbot/
 defined, qualified = set(), set()

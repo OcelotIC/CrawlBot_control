@@ -166,3 +166,12 @@ du mapping — ne soit pas exercée : seules les briques `compute_delta` /
 | conventions de quaternion | `crawlbot/core/state_conversions.py` (référence) |
 | routage de la référence de torse | `crawlbot/simulation/sim_loop.py:2581-2584` |
 | modèle contrôleur (URDF) | `models/VISPA_crawling_fixed.urdf` |
+
+---
+
+## Documentation par module
+
+- [`com_to_torso_mapping.md`](com_to_torso_mapping.md)
+- [`ik.md`](ik.md)
+- [`robot_interface.md`](robot_interface.md)
+- [`state_conversions.md`](state_conversions.md)
