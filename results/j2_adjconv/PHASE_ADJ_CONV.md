@@ -2,7 +2,7 @@
 
 For the §V rewrite `L_robot^struct = Ad^{-T}(g)·(Π_ω H_r q̇_r)`. Convention/verification pass on the
 committed canonical run (runfix @`5ab2c91`, branch `j2/ds-active-rework`). READ + numerical check;
-**no `crawlbot/` change, no new sim.** Script: `scripts/diag_adjconv_verify.py`; numbers:
+**no `crawlbot/` change, no new sim.** Script: `Misc/scripts/diag_adjconv_verify.py`; numbers:
 `adjconv_verify.json`.
 
 ## VOLET 1 — sense of p (READ)

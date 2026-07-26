@@ -55,7 +55,7 @@ Canonical replay state (used by figures): `results/figC25_addfive/sim_log.json` 
 ## 3. Designated core files (the controller — keep & organize)
 
 `crawlbot/` (32 modules) is the clean, importable package. Everything else (scripts/, results/,
-diagnostic/, benchmarks/, lutze_baseline/, scenarios/) consumes it.
+Misc/runs/q1_q2/, benchmarks/, Misc/lutze_baseline/, scenarios/) consumes it.
 
 | area | file | responsibility |
 |---|---|---|
@@ -97,8 +97,8 @@ Tracked-file counts by top-level dir (the readability problem in one table):
 | `tests/` | 25 | pytest suite | keep; fix the 2 pre-existing failures |
 | `URDF_models/` | 18 | second model dir + meshes | **flag — see risks** |
 | `models/` | 13 | canonical pair + variants + `archive/` | keep canonical pair; variants/archive reviewable |
-| `diagnostic/` | 12 | top-level scratch (separate from scripts/ & results/) | candidate to fold or drop |
-| `lutze_baseline/`, `benchmarks/`, `scenarios/` | 10 / 6 / 5 | comparison + fixtures | keep if still referenced |
+| `Misc/runs/q1_q2/` | 12 | top-level scratch (separate from scripts/ & results/) | candidate to fold or drop |
+| `Misc/lutze_baseline/`, `benchmarks/`, `scenarios/` | 10 / 6 / 5 | comparison + fixtures | keep if still referenced |
 
 **Biggest `results/` subdirs** (file counts): `diagnostic_q2b` 156, `diagnostic_q2` 91, `logs` 76,
 `j2_adjconv` 70, `frames` 65, `M7_abort_diag` 53, `diag_cooperative_arms` 38, `M7_step2_isolation` 33,
@@ -116,7 +116,7 @@ historical single-phase scratch — prime triage candidates.
    `VISPA_crawling.xml`) and `models/archive/` (6 already-archived variants incl. `rwa4_pyramid`, 7dof,
    01pct). Confirm which are still exercised (CLAUDE.md rule: one canonical MJCF, variations applied
    programmatically via `_mutate_mjcf`) before pruning.
-3. **`docs/api/*.md` is stale.** It predates the current package layout (e.g. references a `dynamics`
+3. **`Misc/reports/api/*.md` is stale.** It predates the current package layout (e.g. references a `dynamics`
    module that is not in `crawlbot/`; `contact_scheduler.py:36` still comments "matches dynamics.py").
    Regenerate or remove — do not trust as current.
 4. **Session branches.** ~30 `origin/claude/*` remote branches exist; most are superseded by the merged

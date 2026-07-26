@@ -1,0 +1,15 @@
+SS-CENTROIDAL-MOMENTUM TASK — Phase-1.1 run metadata
+============================================================
+memo            : Misc/reports/architecture/SS_CENTROIDAL_MOMENTUM_TASK_2026-06.md
+git HEAD        : dcda974  Added spec for proper NMPC to QP mapping
+git branch      : feat/ss-centroidal-momentum-task
+control code    : (clean — crawlbot/ and models/ identical to committed HEAD)
+invocation args : legacy=False, aocs_mode=legacy_pid_numerical, K_omega=50, tau_w_max=5, K_theta=1.0, alpha_torso_lin=500, anchor_dx=0.8, mass_ratio=0.01, settle_seconds=20.0
+run env         : FRAMES_PER_STEP=0 MUJOCO_GL=disabled
+pinocchio       : 3.9.0
+mujoco          : 3.10.0
+casadi          : 3.7.2
+numpy           : 2.3.5
+
+SimConfig (full dump) — see run_metadata.json "sim_config".
+  n fields: 130

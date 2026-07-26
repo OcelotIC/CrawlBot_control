@@ -229,3 +229,60 @@ class TestTorsoLComRef:
         # At t=3.0 (middle), omega should be at its peak magnitude
         L = tp.l_com_reference_at(3.0)
         assert np.linalg.norm(L) > 1e-3
+
+# ---------------------------------------------------------------------------
+# Piecewise (mid-waypoint) phases — rescued from tests/test_mid_waypoint_reshape.py
+# when the Option-B manipulability-IK path was retired (CLEANUP-30). The IK half of
+# that module went to Misc/; this test exercises the LIVE TorsoPlanner and stays.
+# ---------------------------------------------------------------------------
+
+
+def test_torso_planner_piecewise_continuous():
+    """TorsoPlanner piecewise quintic is C0 at t_mid and v=0, a=0 at
+    all three waypoints (within numerical tolerance)."""
+    tp = TorsoPlanner()
+    p_start, R_start = np.array([0.0, 0.0, 0.0]), np.eye(3)
+    p_mid_, R_mid_ = (np.array([0.6, 0.2, -0.1]),
+                      pin.exp3(np.array([0.0, 0.0, 0.25])))
+    p_end, R_end = (np.array([1.2, 0.0, 0.0]),
+                    pin.exp3(np.array([0.0, 0.0, 0.5])))
+    t_start, t_mid, t_end = 0.0, 0.4, 1.0
+    tp.add_phase(t_start, t_end, p_start, R_start, p_end, R_end,
+                 p_mid=p_mid_, R_mid=R_mid_, t_mid=t_mid)
+    assert len(tp._phases) == 2
+
+    # Exact values at the three waypoints.
+    ref_start = tp.reference_at(t_start)
+    ref_mid_left = tp.reference_at(t_mid - 1e-9)
+    ref_mid_right = tp.reference_at(t_mid + 1e-9)
+    ref_end = tp.reference_at(t_end)
+
+    np.testing.assert_allclose(ref_start.p, p_start, atol=1e-10)
+    np.testing.assert_allclose(ref_start.R, R_start, atol=1e-10)
+    np.testing.assert_allclose(ref_end.p, p_end, atol=1e-10)
+    np.testing.assert_allclose(ref_end.R, R_end, atol=1e-10)
+
+    # C0 at t_mid: position & rotation continuous.
+    np.testing.assert_allclose(ref_mid_left.p, p_mid_, atol=1e-9)
+    np.testing.assert_allclose(ref_mid_right.p, p_mid_, atol=1e-9)
+    np.testing.assert_allclose(ref_mid_left.R, R_mid_, atol=1e-9)
+    np.testing.assert_allclose(ref_mid_right.R, R_mid_, atol=1e-9)
+
+    # v=0, a=0 at all three waypoints (quintic time-scaling property).
+    for label, ref in [('t_start', ref_start),
+                       ('t_mid (left)', ref_mid_left),
+                       ('t_mid (right)', ref_mid_right),
+                       ('t_end', ref_end)]:
+        v_norm = float(np.linalg.norm(ref.v))
+        a_norm = float(np.linalg.norm(ref.a))
+        assert v_norm < 1e-6, (
+            f"v != 0 at {label}: ||v||={v_norm:.2e}")
+        assert a_norm < 1e-6, (
+            f"a != 0 at {label}: ||a||={a_norm:.2e}")
+
+    # Also sample interior of each segment at τ=0.5 — should NOT be
+    # zero velocity (otherwise the segment isn't actually moving).
+    ref_seg1_mid = tp.reference_at(0.5 * (t_start + t_mid))
+    ref_seg2_mid = tp.reference_at(0.5 * (t_mid + t_end))
+    assert float(np.linalg.norm(ref_seg1_mid.v)) > 1e-3
+    assert float(np.linalg.norm(ref_seg2_mid.v)) > 1e-3

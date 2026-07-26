@@ -2,7 +2,7 @@
 
 **Export only — NO `crawlbot/` change** (reuses the committed flags; FIX 1/2 are post-hoc from logged fields).
 Branch `j2/ds-active-rework` (pushed, never merged). Reproducer `scripts/export_figure_data.py` (+ driver
-`scripts/run_figdata.sh`). Two runs as tidy CSV + meta JSON; **no plots**. This revision fixes the reference
+`Misc/scripts/run_figdata.sh`). Two runs as tidy CSV + meta JSON; **no plots**. This revision fixes the reference
 columns (FIX 1) and fills the inter-step envelope gap (FIX 2).
 
 ## Deliverables
@@ -103,6 +103,30 @@ run-B CoM lag ≈ 0.20 m).
   meaningful when `swing_active=1`.
 - `hw = hw_physical`, `tauw = tau_w` (commanded, post-clip), `theta_s = struct_euler_deg`.
 
+## ⚠ `nmpc_ok` must be read per-phase, never as a whole column (CLEANUP-2 finding F3)
+
+Applies to the fulldiag exports (`c25_fulldiag.csv`, `u25_fulldiag.csv`), which carry
+`nmpc_ok`. The NMPC runs in **SS** and in the **terminal DS settle** only — it is *not*
+invoked during `DS_interstep`, and those ticks are written as `nmpc_ok = 0`. That value
+means **"not called"**, not "failed".
+
+On the frozen canonical run:
+
+| phase | ticks | `nmpc_ok = 1` |
+|---|---|---|
+| `SS` | 508 | 508 (100 %) |
+| `DS_terminal` | 201 | 201 (100 %) |
+| `DS_interstep` | 1368 | 0 — **NMPC not invoked** |
+
+Whole-column mean = **34.1 %**, which is wrong and must never be quoted. The true solver
+success rate is **100 % (709/709)**. Filter on
+`phase in ('SS', 'DS_terminal')` before computing any NMPC success statistic, and do not
+plot `nmpc_ok` raw.
+
+The encoding is left unchanged on purpose: a different sentinel, or an added `nmpc_called`
+column, would alter the CSV and so require regenerating the frozen paper baseline under a
+Tier-1 exception (`gate/EXCEPTIONS.md`). Deferred until after submission.
+
 ## Column list (39)
 `t_s, tick, phase, step_index | Hdot_s_{x,y,z}_Nm, Hdot_s_proxy_{x,y,z}_Nm, Hdot_s_source | hw_{x,y,z}_Nms,
 theta_s_{x,y,z}_deg | Ltot_{x,y,z}_Nms | rcom_{x,y,z}_m, rref_{x,y,z}_m | tauw_{x,y,z}_Nm |
@@ -110,7 +134,7 @@ torso_pos_{x,y,z}_m, torso_pos_ref_{x,y,z}_m, torso_ori_err_deg | swing_dist_m, 
 
 ## Reproduce
 ```
-bash scripts/run_figdata.sh   # runs A & B (committed flags) → postproc → export both
+bash Misc/scripts/run_figdata.sh   # runs A & B (committed flags) → postproc → export both
 ```
 Raw per-run dirs (`results/figA`, `results/figB`) reproducible from the driver, not committed; the deliverable
 CSV/JSON in `results/j2_figdata/` are.

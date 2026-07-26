@@ -60,8 +60,6 @@ class TorsoPlanner:
 
     def __init__(
         self,
-        model: Optional[pin.Model] = None,
-        frame_torso: Optional[int] = None,
     ):
         """Construct a TorsoPlanner.
 
@@ -84,13 +82,6 @@ class TorsoPlanner:
         # reference L_com_ref(t) = R(t) * I_body * R(t)^T * omega_ref(t).
         # None → L_com_ref returns zero (backwards compatible).
         self._I_torso_body = None  # (3,3)
-        # FK-mode wiring (used by reference_source='joint_space_fk').
-        self._model = model
-        self._frame_torso = frame_torso
-        self._data = pin.Data(model) if model is not None else None
-        # One-shot DeprecationWarning gate for set_torso_inertia
-        # under FK mode.
-        self._warned_set_torso_inertia_fk = False
 
     # ── Public API ────────────────────────────────────────────────────────
 
@@ -109,17 +100,6 @@ class TorsoPlanner:
         the torso-only formula. A one-shot ``DeprecationWarning`` is
         emitted on the first call after entering FK mode.
         """
-        if any(p.get('use_fk', False) for p in self._phases):
-            if not self._warned_set_torso_inertia_fk:
-                import warnings
-                warnings.warn(
-                    "set_torso_inertia is a no-op under FK mode "
-                    "(l_com_reference_at uses pin.computeCentroidalMomentum "
-                    "instead of the torso-only inertia formula).",
-                    DeprecationWarning, stacklevel=2,
-                )
-                self._warned_set_torso_inertia_fk = True
-            return
         self._I_torso_body = np.asarray(I_body, dtype=float).reshape(3, 3)
 
     def set_hold(self, p: np.ndarray, R: np.ndarray,
@@ -137,55 +117,6 @@ class TorsoPlanner:
         self._hold_R = R.copy()
         self._hold_com = r_com.copy() if r_com is not None else None
 
-    def set_from_waypoints(
-        self,
-        t_start: float,
-        t_end: float,
-        torso_wps: list,
-        com_wps: list,
-    ):
-        """Build trajectory from IK-derived waypoint sequence.
-
-        Creates piecewise quintic phases between consecutive waypoints.
-        The last waypoint becomes the hold reference for times beyond t_end.
-
-        Parameters
-        ----------
-        t_start, t_end : float
-            Start and end times of the full trajectory.
-        torso_wps : list of (p, R) tuples
-            Torso position (3,) and rotation (3,3) at each waypoint.
-        com_wps : list of ndarray (3,)
-            CoM positions at each waypoint.
-        """
-        self.clear_phases()
-        n = len(torso_wps)
-        if n < 2:
-            if n == 1:
-                p, R = torso_wps[0]
-                self.set_hold(p, R, r_com=com_wps[0])
-            return
-
-        dt = (t_end - t_start) / (n - 1)
-
-        for i in range(n - 1):
-            p0, R0 = torso_wps[i]
-            p1, R1 = torso_wps[i + 1]
-            delta0 = R0.T @ (com_wps[i] - p0)
-            delta1 = R1.T @ (com_wps[i + 1] - p1)
-            self.add_phase(
-                t_start + i * dt, t_start + (i + 1) * dt,
-                p0, R0, p1, R1,
-                delta_com_start=delta0, delta_com_end=delta1)
-
-        # Hold at the FIRST waypoint for times before the trajectory,
-        # and at the LAST waypoint for times after.
-        # set_hold is the fallback for t outside all phases.
-        # Before the trajectory starts (DS phase), hold at the start.
-        p0, R0 = torso_wps[0]
-        self._hold_p = p0.copy()
-        self._hold_R = R0.copy()
-        self._hold_com = com_wps[0].copy()
         # After the trajectory, the last phase's p_end becomes the implicit hold
         # (reference_at falls through to _hold_reference which uses _hold_p).
         # We'll update _hold to the end after the trajectory is done.
@@ -202,7 +133,7 @@ class TorsoPlanner:
                   R_mid: Optional[np.ndarray] = None,
                   t_mid: Optional[float] = None,
                   delta_com_mid: Optional[np.ndarray] = None,
-                  q_seq: Optional[list] = None):
+                  ):
         """Add a trajectory phase (all coordinates in structure frame).
 
         Parameters
@@ -243,7 +174,6 @@ class TorsoPlanner:
             time fraction (t_mid - t_start) / (t_end - t_start).
         q_seq : list[(nq,) ndarray], optional
             Smoothed q-sequence from
-            ``crawlbot.planning.constrained_geodesic.smoothed_constrained_geodesic``.
             When provided, the phase becomes an FK-from-smoothed-q
             phase: torso (and CoM) references are derived by FK on
             the interpolated q(τ), with v/a from per-segment
@@ -253,9 +183,6 @@ class TorsoPlanner:
             consulted in this path. Requires ``model`` and
             ``frame_torso`` to have been passed at construction.
         """
-        if q_seq is not None:
-            return self._add_phase_fk(
-                t_start, t_end, p_start, R_start, p_end, R_end, q_seq)
 
         ff = float(early_finish_fraction)
         if not (0.0 < ff <= 1.0):
@@ -344,95 +271,9 @@ class TorsoPlanner:
 
     # ── FK-mode helpers ───────────────────────────────────────────────────
 
-    def _add_phase_fk(self, t_start, t_end, p_start, R_start,
-                      p_end, R_end, q_seq):
-        """FK-mode add_phase: cache the smoothed q-sequence and per-
-        segment tangents. The legacy task-space args are kept for
-        the hold-fallback in case t falls outside any phase, but
-        are otherwise unused.
-        """
-        if self._model is None or self._frame_torso is None:
-            raise RuntimeError(
-                "TorsoPlanner: q_seq passed to add_phase but the planner "
-                "was not constructed with model/frame_torso — pass these "
-                "to TorsoPlanner.__init__ to enable FK mode.")
-        from crawlbot.planning.constrained_geodesic import (
-            precompute_segment_tangents,
-        )
-        q_seq_copy = [np.asarray(q, dtype=float).copy() for q in q_seq]
-        dq_seg = precompute_segment_tangents(self._model, q_seq_copy)
-        self._phases.append({
-            't_start': t_start, 't_end': t_end,
-            'p_start': p_start.copy(), 'R_start': R_start.copy(),
-            'p_end': p_end.copy(), 'R_end': R_end.copy(),
-            'use_fk': True,
-            'q_seq': q_seq_copy,
-            'dq_seg': dq_seg,
-            'n_tau': len(q_seq_copy),
-            'T': float(t_end - t_start),
-            # Legacy diagnostic keys read by the run-script's
-            # _print_phase_sync_report — preserve schema parity.
-            'duration': float(t_end - t_start),
-            'effective_duration': float(t_end - t_start),
-            'early_finish_fraction': 1.0,
-        })
 
-    def _reference_at_fk(self, phase, t: float) -> TorsoReference:
-        """FK-mode reference: extract pose, twist, accel via FK on
-        the smoothed q-sequence at τ = (t - t_start) / T_phase.
-        """
-        from crawlbot.planning.constrained_geodesic import (
-            frame_reference_at_tau,
-        )
-        T = phase['T']
-        tau = float(np.clip((t - phase['t_start']) / T, 0.0, 1.0))
-        p, R, v6, a6 = frame_reference_at_tau(
-            self._model, self._data,
-            phase['q_seq'], phase['dq_seg'],
-            self._frame_torso,
-            tau=tau, T_phase=T,
-        )
-        return TorsoReference(p=p, R=R, v=v6, a=a6)
 
-    def _com_reference_at_fk(self, phase, t: float) -> ComReference:
-        """FK-mode CoM reference: full-body CoM from q(τ).
 
-        Computes r_com via ``pin.centerOfMass`` and v_com via
-        ``pin.computeCentroidalMomentum`` (data.vcom[0] after the
-        call) — both consistent with the same q(τ), v_real(τ) used
-        by ``_reference_at_fk`` and ``_l_com_reference_at_fk``.
-        """
-        from crawlbot.planning.constrained_geodesic import q_v_real_at_tau
-        T = phase['T']
-        tau = float(np.clip((t - phase['t_start']) / T, 0.0, 1.0))
-        q_tau, v_real = q_v_real_at_tau(
-            self._model, phase['q_seq'], phase['dq_seg'],
-            tau=tau, T_phase=T,
-        )
-        pin.centerOfMass(self._model, self._data, q_tau, v_real)
-        r_com = self._data.com[0].copy()
-        v_com = self._data.vcom[0].copy()
-        return ComReference(r_com=r_com, v_com=v_com)
-
-    def _l_com_reference_at_fk(self, phase, t: float) -> np.ndarray:
-        """FK-mode L_com reference: full-body centroidal angular
-        momentum from q(τ), v_real(τ).
-
-        Replaces the legacy torso-only ``L = R·I_torso·R^T·ω``
-        formula (which had a documented ~20% limb-contribution
-        error) with ``pin.computeCentroidalMomentum(q, v).vector[3:6]``,
-        the exact full-body angular momentum about the CoM in the
-        Pinocchio world frame (= structure-local frame).
-        """
-        from crawlbot.planning.constrained_geodesic import q_v_real_at_tau
-        T = phase['T']
-        tau = float(np.clip((t - phase['t_start']) / T, 0.0, 1.0))
-        q_tau, v_real = q_v_real_at_tau(
-            self._model, phase['q_seq'], phase['dq_seg'],
-            tau=tau, T_phase=T,
-        )
-        pin.computeCentroidalMomentum(self._model, self._data, q_tau, v_real)
-        return self._data.hg.vector[3:6].copy()
 
     # ── Reference query API ──────────────────────────────────────────────
 
@@ -440,8 +281,6 @@ class TorsoPlanner:
         """Compute 6D torso reference at time t in structure frame."""
         for phase in self._phases:
             if phase['t_start'] - 1e-6 <= t <= phase['t_end'] + 1e-6:
-                if phase.get('use_fk', False):
-                    return self._reference_at_fk(phase, t)
                 return self._interpolate_phase(t, phase)
 
         # Outside all phases: hold
@@ -488,8 +327,6 @@ class TorsoPlanner:
         """
         for phase in self._phases:
             if phase['t_start'] - 1e-6 <= t <= phase['t_end'] + 1e-6:
-                if phase.get('use_fk', False):
-                    return self._com_reference_at_fk(phase, t)
                 return self._interpolate_com(t, phase)
 
         # Outside phases: hold
@@ -540,8 +377,6 @@ class TorsoPlanner:
         # carries a smoothed q-sequence.
         for phase in self._phases:
             if phase['t_start'] - 1e-6 <= t <= phase['t_end'] + 1e-6:
-                if phase.get('use_fk', False):
-                    return self._l_com_reference_at_fk(phase, t)
                 break
         # Legacy mode (no q_seq): torso-only formula.
         if self._I_torso_body is None:
@@ -572,63 +407,6 @@ class TorsoPlanner:
             p=self._hold_p.copy(), R=self._hold_R.copy(),
             v=np.zeros(6), a=np.zeros(6))
 
-    def _trapezoidal_params(self, t: float, phase: dict):
-        """Compute smooth trapezoidal velocity profile parameters.
-
-        Uses half-cosine ramps for C¹-continuous acceleration (no
-        discontinuities at ramp/cruise transitions). The velocity
-        profile is:
-            ramp-up:   v(tau) = v_cruise * 0.5 * (1 - cos(pi * tau / ramp))
-            cruise:    v(tau) = v_cruise
-            ramp-down: v(tau) = v_cruise * 0.5 * (1 + cos(pi * (tau - 1 + ramp) / ramp))
-
-        Returns (tau, s, ds, dds) matching the quintic interface:
-            s   : position fraction [0, 1]
-            ds  : ds/dt [1/s]
-            dds : d²s/dt² [1/s²]
-
-        M7 change (B): time is scaled by the phase's `effective_duration`
-        rather than its `duration`. When effective_duration < duration,
-        the profile finishes early (at t = t_start + effective_duration)
-        and tau is clipped to 1 thereafter — producing a static HOLD on
-        the torso reference through the rest of the phase window.
-        """
-        T = phase.get('effective_duration', phase['duration'])
-        tau = np.clip((t - phase['t_start']) / T, 0.0, 1.0)
-        # M7 v20: ramp = 0.2 gives 20/60/20 split — ramp-up τ∈[0, 0.2],
-        # cruise τ∈[0.2, 0.8], ramp-down τ∈[0.8, 1.0]. During cruise
-        # a_torso_ff ≡ 0, freeing the actuator budget for EE tracking;
-        # planned-δ mapping (v19) continues to supply feedforward
-        # compensation against arm-induced base drift through v_b_ref.
-        ramp = 0.20  # fraction of total time for each ramp
-
-        # Cruise velocity such that total displacement = 1:
-        # Area = ramp*v_c/2 + (1-2*ramp)*v_c + ramp*v_c/2 = (1-ramp)*v_c = 1
-        v_c = 1.0 / (1.0 - ramp)
-        pi = np.pi
-
-        if tau < ramp:
-            # Ramp up: half-cosine velocity profile
-            phi = pi * tau / ramp
-            s = v_c * (tau / 2.0 - ramp / (2.0 * pi) * np.sin(phi))
-            ds = v_c * 0.5 * (1.0 - np.cos(phi)) / T
-            dds = v_c * pi / (2.0 * ramp) * np.sin(phi) / (T**2)
-        elif tau < 1.0 - ramp:
-            # Cruise: constant velocity, zero acceleration
-            s_ramp = v_c * ramp / 2.0  # area under ramp-up
-            s = s_ramp + v_c * (tau - ramp)
-            ds = v_c / T
-            dds = 0.0
-        else:
-            # Ramp down: mirror of ramp-up
-            tau_d = 1.0 - tau
-            phi = pi * tau_d / ramp
-            s_tail = v_c * (tau_d / 2.0 - ramp / (2.0 * pi) * np.sin(phi))
-            s = 1.0 - s_tail
-            ds = v_c * 0.5 * (1.0 - np.cos(phi)) / T
-            dds = -v_c * pi / (2.0 * ramp) * np.sin(phi) / (T**2)
-
-        return tau, s, ds, dds
 
     def _profile_params(self, t: float, phase: dict):
         """Compute time-scaling parameters (quintic, restored in v21).

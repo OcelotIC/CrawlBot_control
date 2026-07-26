@@ -11,11 +11,11 @@ Solves the discrete-time NMPC problem:
           u_min <= u_i <= u_max             (control bounds)
 
 Supports:
-    - Discrete or continuous dynamics (with RK4 integration)
+    - Continuous dynamics (RK4 integration)
     - General nonlinear path constraints (including SOC)
     - Terminal cost and terminal constraints
     - Warm-starting via previous solution shift
-    - IPOPT (default, nonlinear) and qpOASES (for QP subproblems)
+    - IPOPT (nonlinear)
 
 Usage:
     nmpc = NMPCSolver(nx=9, nu=12, N=20, dt=0.05)
@@ -41,8 +41,7 @@ Author: Translated from MATLAB (I. Chelikh) to Python.
 import numpy as np
 import casadi as ca
 from dataclasses import dataclass
-from typing import Optional, Callable, Dict, Any, Tuple, List
-import warnings
+from typing import Optional, Callable, Dict, Any, Tuple
 import logging
 import time
 
@@ -74,7 +73,7 @@ class NMPCSolver:
     dt : float
         Discretization time step [s].
     solver_name : str
-        NLP solver: 'ipopt' (default) or 'sqpmethod'.
+        NLP solver. Only 'ipopt' is supported.
     """
 
     def __init__(
@@ -135,16 +134,6 @@ class NMPCSolver:
     # ------------------------------------------------------------------ #
     #  System definition                                                   #
     # ------------------------------------------------------------------ #
-
-    def set_dynamics(self, dynamics_func: Callable) -> None:
-        """Set discrete dynamics x_{k+1} = f(x_k, u_k, p).
-
-        Parameters
-        ----------
-        dynamics_func : callable
-            (x, u, p) -> x_next, where x, u, p are CasADi SX symbols.
-        """
-        self._f_dynamics = dynamics_func(self.x_sym, self.u_sym, self.p_sym)
 
     def set_continuous_dynamics(self, ode_func: Callable) -> None:
         """Set continuous dynamics dx/dt = f(x, u, p), integrated with RK4.
@@ -228,6 +217,32 @@ class NMPCSolver:
         self.u_min = np.asarray(u_min).ravel()
         self.u_max = np.asarray(u_max).ravel()
 
+    def apply_control_bounds_all_stages(
+        self, u_min: np.ndarray, u_max: np.ndarray
+    ) -> None:
+        """Rewrite the per-stage control bounds of an ALREADY-BUILT solver.
+
+        `set_control_bounds()` only affects a subsequent `build()`. This
+        method updates the bounds baked into the decision-vector bound
+        arrays, so a caller can change control limits between solves
+        without rebuilding the NLP — used for contact-phase switching,
+        where inactive contacts are pinned to zero.
+
+        The decision-vector layout stays private to this class:
+        [X0, U0, X1, U1, ..., X_{N-1}, U_{N-1}, X_N], so U_k begins at
+        nx + k*(nx+nu). (Previously each caller re-derived this offset
+        and wrote _lbw/_ubw directly — CLEANUP-2 finding F10.)
+        """
+        self.u_min = np.asarray(u_min).ravel()
+        self.u_max = np.asarray(u_max).ravel()
+        if self._lbw is None:
+            return
+        nx, nu = self.nx, self.nu
+        for k in range(self.N):
+            u_start = nx + k * (nx + nu)
+            self._lbw[u_start: u_start + nu] = self.u_min
+            self._ubw[u_start: u_start + nu] = self.u_max
+
     def set_parameters(self, np_: int) -> None:
         """Redefine the parameter vector dimension.
 
@@ -254,7 +269,7 @@ class NMPCSolver:
             Solver-specific options (merged with defaults).
         """
         if self._f_dynamics is None:
-            raise ValueError("Dynamics not defined. Call set_dynamics() or "
+            raise ValueError("Dynamics not defined. Call "
                              "set_continuous_dynamics() first.")
         if self._stage_cost is None:
             raise ValueError("Stage cost not defined. Call set_stage_cost().")
@@ -396,8 +411,6 @@ class NMPCSolver:
     def solve(
         self,
         x0: np.ndarray,
-        u_guess: Optional[np.ndarray] = None,
-        x_guess: Optional[np.ndarray] = None,
         params: Optional[np.ndarray] = None,
         warm_start: bool = True,
     ) -> Tuple[np.ndarray, np.ndarray, NMPCSolveInfo]:
@@ -407,10 +420,6 @@ class NMPCSolver:
         ----------
         x0 : ndarray, shape (nx,)
             Current measured/estimated state.
-        u_guess : ndarray, shape (nu, N), optional
-            Initial guess for controls. If None, uses zero or warm-start.
-        x_guess : ndarray, shape (nx, N+1), optional
-            Initial guess for states. If None, uses x0 repeated or warm-start.
         params : ndarray, shape (np,), optional
             Additional parameters.
         warm_start : bool
@@ -439,7 +448,7 @@ class NMPCSolver:
         P = np.concatenate([x0, params])
 
         # --- Initial guess ---
-        w0 = self._build_initial_guess(x0, u_guess, x_guess, warm_start)
+        w0 = self._build_initial_guess(x0, warm_start)
 
         # --- Solve NLP ---
         solve_args = {
@@ -457,7 +466,7 @@ class NMPCSolver:
             solve_args['lam_x0'] = ca.DM(self._lam_x0_prev)
 
         # Capture warm-start state for diagnostics BEFORE the solve
-        # (the self._w0_prev / lam*_prev fields are overwritten below).
+        # (the self._w0_prev / lam*_prev fields may be overwritten below).
         _diag_warm_x = bool(warm_start and self._w0_prev is not None)
         _diag_warm_duals = bool('lam_g0' in solve_args)
 
@@ -466,11 +475,6 @@ class NMPCSolver:
         # --- Extract solution ---
         w_opt = np.array(sol['x']).ravel()
         x_opt, u_opt = self._parse_solution(w_opt)
-
-        # --- Store for warm-start ---
-        self._w0_prev = w_opt
-        self._lam_g0_prev = np.array(sol['lam_g']).ravel()
-        self._lam_x0_prev = np.array(sol['lam_x']).ravel()
 
         # --- Info ---
         stats = self._solver.stats()
@@ -482,6 +486,18 @@ class NMPCSolver:
             solve_time_ms=(time.perf_counter() - t_start) * 1000.0,
             solver_stats=stats,
         )
+
+        # --- Store for warm-start: ONLY on success ---
+        # A failed solve's iterate is not a usable initial guess. Seeding the
+        # next solve (and, worse, its duals) from an infeasible point can
+        # entrench the infeasibility instead of recovering from it. On failure
+        # we therefore retain the last SUCCESSFUL warm start; CentroidalNMPC
+        # pairs that with its shifted-trajectory fallback (M5), which is the
+        # designed recovery path.
+        if info.success:
+            self._w0_prev = w_opt
+            self._lam_g0_prev = np.array(sol['lam_g']).ravel()
+            self._lam_x0_prev = np.array(sol['lam_x']).ravel()
 
         # --- Per-cycle diagnostic log ---
         # Captures iter/status/time and warm-start state per solve. Used by
@@ -547,8 +563,6 @@ class NMPCSolver:
     def _build_initial_guess(
         self,
         x0: np.ndarray,
-        u_guess: Optional[np.ndarray],
-        x_guess: Optional[np.ndarray],
         warm_start: bool,
     ) -> np.ndarray:
         """Build the decision variable initial guess vector."""
@@ -556,11 +570,9 @@ class NMPCSolver:
         if warm_start and self._w0_prev is not None:
             return self._w0_prev
 
-        # Otherwise build from provided guesses
-        if x_guess is None:
-            x_guess = np.tile(x0.reshape(-1, 1), (1, self.N + 1))
-        if u_guess is None:
-            u_guess = np.zeros((self.nu, self.N))
+        # Cold start: x0 repeated across the horizon, zero controls.
+        x_guess = np.tile(x0.reshape(-1, 1), (1, self.N + 1))
+        u_guess = np.zeros((self.nu, self.N))
 
         return self._build_w0_from_trajectories(x_guess, u_guess)
 
@@ -594,7 +606,7 @@ class NMPCSolver:
         return x_opt, u_opt
 
     def _get_default_solver_options(self) -> Dict[str, Any]:
-        """Default IPOPT/qpOASES options."""
+        """Default IPOPT options."""
         opts: Dict[str, Any] = {}
 
         if self.solver_name == 'ipopt':
@@ -608,31 +620,11 @@ class NMPCSolver:
             # Mumps linear solver (default, widely available)
             opts['ipopt.linear_solver'] = 'mumps'
 
-        elif self.solver_name == 'sqpmethod':
-            opts['print_time'] = 0
-            opts['qpsol'] = 'qpoases'
-            opts['qpsol_options'] = {'printLevel': 'none'}
-            opts['max_iter'] = 50
-
         return opts
 
     # ------------------------------------------------------------------ #
     #  Introspection                                                       #
     # ------------------------------------------------------------------ #
-
-    @property
-    def n_decision_vars(self) -> int:
-        """Total number of NLP decision variables."""
-        return self.nx * (self.N + 1) + self.nu * self.N
-
-    @property
-    def n_constraints(self) -> int:
-        """Total number of NLP constraints."""
-        n_dyn = self.nx * self.N          # dynamics
-        n_init = self.nx                   # initial condition
-        n_path = self._ng_path * self.N    # path constraints
-        n_term = self._ng_terminal         # terminal constraints
-        return n_dyn + n_init + n_path + n_term
 
     def __repr__(self) -> str:
         built = "built" if self._solver is not None else "not built"

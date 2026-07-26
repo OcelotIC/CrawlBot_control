@@ -1,8 +1,8 @@
 # Phase DRIFT-CLOSURE — T4b: 900 s terminal settle (paper-figure trace + convergence confirmation)
 
 **Scope:** identical to T4 except the terminal settle 450 s → **900 s**. Freeze `32aefaf` control path
-untouched; new gitignored dir `figC25_t4b_900s`. Runner `scripts/diag_t4_settle450.py --settle 900`,
-one-field proof `scripts/diag_t4b_cfg_diff.py`, analysis `scripts/diag_t4b_analyze.py` (committed `eb1d6f9`).
+untouched; new gitignored dir `figC25_t4b_900s`. Runner `Misc/scripts/diag_t4_settle450.py --settle 900`,
+one-field proof `Misc/scripts/diag_t4b_cfg_diff.py`, analysis `Misc/scripts/diag_t4b_analyze.py` (committed `eb1d6f9`).
 
 **Headline: the z-drift converges exactly as T4 extrapolated — |θ_s,z| crosses 0.05° at t = 860.4 s
 (T4 predicted 861 s), tail τ = 299.5 s (T4 fit ≈ 305 s). C1/C2/C4 pass. C3-on-the-norm misses (0.0596°),
@@ -12,7 +12,7 @@ but NOT because of the z-drift — a separate ~0.048° residual in θ_s,y floors
 
 ## Config diff vs T4 — exactly one field
 
-`scripts/diag_t4b_cfg_diff.py` snapshots `dataclasses.asdict(cfg)` at `SimulationLoop.__init__` (before
+`Misc/scripts/diag_t4b_cfg_diff.py` snapshots `dataclasses.asdict(cfg)` at `SimulationLoop.__init__` (before
 planning/sim) for settle = 450 and 900 and diffs:
 
 ```

@@ -1,21 +1,23 @@
-"""Cooperative-arms WBC validation — 5-step fail-fast traversal.
+"""Canonical WBC traversal runner (historically the cooperative-arms probe).
 
-Tests cfg.cooperative_arms_mode=True (default in _make_m7_config) against
-the sweet-spot baseline (results/diag_nmpc_f300/, cooperative_arms_mode=False).
+This is the runner that produces the frozen canonical artifacts. The SS
+controller it exercises is the Phase-2.1 **two-task** stack (T-MOM linear +
+6-D torso-pose + swing-EE + posture, all weighted, no null-space projection);
+DS runs the centroidal-DS tasks plus the passivity inequality.
 
-Sweet-spot config carried over:
+The cooperative-arms split this script was originally written to test has been
+superseded and its implementation removed (CLEANUP-6/7), so
+`cooperative_arms_mode`, `ss_alpha_torso_ang/lin`, the Option D tube and T-MOM
+v1 no longer exist. The `--legacy` and `--alpha_torso_lin` flags survive only
+as output-dir / hero-render discriminators — they no longer change control.
+
+Config carried over:
   nmpc_f_max=300, preplanner_f_max=25 (= F-SAT clamp source),
   mapping_bypass_in_ss=False, q_current, F-RATE+F-SAT enabled,
   stop_on_failed_step=True.
 
-Rework deltas vs sweet-spot:
-  - cooperative_arms_mode=True (split torso 6D into P1 angular +
-    P2 linear; EE 6D co-equal at P2; posture P3 projected against
-    combined P1+P2 with rcond=1e-4)
-  - ss_alpha_torso_ang=500, ss_alpha_torso_lin=500 (defaults)
-
 Outputs:
-    results/diag_cooperative_arms/
+    Misc/runs/diag_cooperative_arms/
         sim_log.json, step_log.json
         step_metrics.txt, nmpc_per_step.txt
         sat_stats.txt, comparison.txt
@@ -81,7 +83,7 @@ def _mutate_mjcf(damping: float, armature: float,
     # Structure mass/inertia: scale by 0.01/mass_ratio relative to the
     # canonical (1%) values. mass_ratio=0.14 => scale 1/14 => structure
     # mass 7110->507.857 kg + inertia x1/14 (the validated T12 mass,
-    # scripts/run_m7_v22_14pct_with_swing_hold.py). hw/tau_w limits are
+    # Misc/scripts/run_m7_v22_14pct_with_swing_hold.py). hw/tau_w limits are
     # NOT scaled (the stress test: same AOCS box at higher disturbance).
     if mass_ratio is not None and abs(mass_ratio - 0.01) > 1e-9:
         scale = 0.01 / mass_ratio
@@ -243,8 +245,7 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
          K_omega: float = 50.0, tau_w_max: float = 2.5,
          scenario: str = None, baseline_ds_rework: bool = False,
          out_dir_override: str = None,
-         ss_centroidal_momentum_task: bool = False,
-         ss_alpha_mom: float = 5000.0, ss_alpha_tl_weak: float = 0.0,
+         ss_alpha_mom: float = 5000.0,
          n_steps: int = 5, ss_two_task: bool = False,
          alpha_torso_pose: float = 5000.0,
          ss_alpha_ee: float = 3e3, ss_alpha_posture: float = 2e1,
@@ -252,14 +253,13 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
          ss_kp_torso: float = 6.0, ss_kd_torso: float = 5.0,
          dock_twist_max: float = None, dock_gate_linear: bool = False,
          weld_radius: float = None,
-         ds_mobile_com_magnitude: float = None, dt_ds: float = None,
+         dt_ds: float = None,
          dock_hold_passivity_on: bool = False, passivity_W_budget: float = None,
          log_dock_work: bool = False,
-         ds_passivity_beta: float = None, qp_envelope_exact: bool = False,
+         qp_envelope_exact: bool = False,
          aocs_active_in_interstep: bool = True,
          interstep_hw_refresh: bool = True,
          interstep_settle_alpha_wrench: float = 0.0,
-         interstep_settle_alpha_sigf: float = 0.0,
          interstep_settle_epsilon_v: float = 0.0,
          preplanner_tstep_standoff_gain: float = 0.0,
          preplanner_tstep_standoff_knee: float = 1e9,
@@ -271,7 +271,6 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     # via _make_m7_config + SimConfig at this point).
     cfg.mapping_bypass_in_ss = False
     cfg.t_ss_margin = 5.0
-    cfg.r_tube = 0.0
     cfg.preplanner_f_max = 25.0  # F-SAT clamp source
     # Constant CoM-z standoff (crawl height). Initial config is also
     # re-solved at this standoff (setup) so the z-reference is flat from
@@ -290,8 +289,6 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     # measurement.
     cfg.t_settle_final = float(settle_seconds)
     # Rework knob.
-    cfg.cooperative_arms_mode = (not legacy)
-    cfg.ss_alpha_torso_lin = float(alpha_torso_lin)
     # AOCS K_theta gain override (active only for legacy_pid_* modes).
     cfg.aocs_K_theta = float(K_theta)
     # AOCS K_omega (ω_s damping) override (legacy_pd_* / legacy_pid_*).
@@ -329,8 +326,6 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     cfg.interstep_hw_refresh = bool(interstep_hw_refresh)
     # J2 chatter fix: settle-only α_wrench in the inter-step DS QP (0 = off).
     cfg.interstep_settle_alpha_wrench = float(interstep_settle_alpha_wrench)
-    # J2 chatter fix (principled): settle-only Σf=f1+f2 penalty (0 = off).
-    cfg.interstep_settle_alpha_sigf = float(interstep_settle_alpha_sigf)
     # J2 close (POINT A): dock-tolerance-derived inter-step settle exit ε_v
     # (0 = off = byte-identical 1 mm/s).
     cfg.interstep_settle_epsilon_v = float(interstep_settle_epsilon_v)
@@ -381,7 +376,7 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     # take the *less-contorted* arm's joint vector and mirror it onto
     # the other arm via the y-symmetry sign pattern
     # S=[-1,-1,-1,-1,-1,-1,+1]. Reproduced by
-    # scripts/diag_qnominal_sweep.py. Sweep result (vs leveled-only
+    # Misc/scripts/diag_qnominal_sweep.py. Sweep result (vs leveled-only
     # ‖q_arm‖=4.05 / max|q|=147° / σ_min·prod=2.43e-2):
     #   zeros  → ‖q‖3.07 max89° prod1.6e-3  (de-contorts but one arm
     #            driven near-singular — rejected)
@@ -406,13 +401,14 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
         _stem = _stem.replace('canonical_', '')
         if baseline_ds_rework:
             _stem += '_baseline'
-        out_dir = os.path.join(_root, 'results',
+        out_dir = os.path.join(_root, 'Misc', 'runs',
                                f'diag_cooperative_arms_{_stem}')
     elif legacy:
-        out_dir = os.path.join(_root, 'results',
+        out_dir = os.path.join(_root, 'Misc',
+                               'runs',
                                'diag_cooperative_arms_legacy')
     elif abs(mass_ratio - 0.01) > 1e-9:
-        out_dir = os.path.join(_root, 'results',
+        out_dir = os.path.join(_root, 'Misc', 'runs',
                                f'diag_cooperative_arms_{int(round(mass_ratio*100))}pct')
     elif aocs_mode != 'legacy_corrected':
         # Non-default AOCS mode → separate dir for A/B.
@@ -424,24 +420,24 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
             suffix += f'_Kw{K_omega:g}'
         if abs(tau_w_max - 2.5) > 1e-9:  # non-canonical cap (frozen 2.5)
             suffix += f'_Tw{tau_w_max:g}'
-        out_dir = os.path.join(_root, 'results',
+        out_dir = os.path.join(_root, 'Misc', 'runs',
                                f'diag_cooperative_arms_{aocs_mode}{suffix}')
     elif abs(alpha_torso_lin - 500.0) > 1e-6:
-        out_dir = os.path.join(_root, 'results',
+        out_dir = os.path.join(_root, 'Misc',
+                               'runs',
                                'diag_cooperative_arms',
                                f'alpha_lin_{int(alpha_torso_lin)}')
     elif abs(anchor_dx - 0.8) > 1e-9:
-        out_dir = os.path.join(_root, 'results',
+        out_dir = os.path.join(_root, 'Misc',
+                               'runs',
                                'diag_cooperative_arms',
                                f'dx_{anchor_dx:.2f}')
     else:
-        out_dir = os.path.join(_root, 'results', 'diag_cooperative_arms')
+        out_dir = os.path.join(_root, 'Misc', 'runs', 'diag_cooperative_arms')
 
     # ── SS centroidal-momentum task (memo SS_CENTROIDAL_MOMENTUM_TASK_2026-06) ──
     # Default OFF reproduces the canonical torso-linear P2 stack (bit-identical).
-    cfg.ss_centroidal_momentum_task = bool(ss_centroidal_momentum_task)
     cfg.ss_alpha_mom = float(ss_alpha_mom)
-    cfg.ss_alpha_tl_weak = float(ss_alpha_tl_weak)
     # Phase-2.1: log τ_w + h_w at the 100 Hz QP rate during SS (harmless —
     # adds separate buffers; the 10 Hz log + postproc CSV are unaffected).
     cfg.log_hifreq_ss = True
@@ -472,20 +468,15 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     # None ⇒ config weld_radius (0.005 m).
     if weld_radius is not None:
         cfg.weld_radius = float(weld_radius)
-    # α (J2 #2): CoM-mobile DS. dt_ds lengthens the DS so the DWELL fires;
-    # ds_mobile_com_magnitude translates the CoM toward the next anchor.
+    # dt_ds lengthens the DS so the DWELL fires.
     if dt_ds is not None:
         cfg.dt_ds = float(dt_ds)
-    if ds_mobile_com_magnitude is not None:
-        cfg.ds_mobile_com_magnitude = float(ds_mobile_com_magnitude)
     # Dock-floor passivity audit knobs.
     cfg.dock_hold_passivity_on = bool(dock_hold_passivity_on)
     cfg.log_dock_work = bool(log_dock_work)
     if passivity_W_budget is not None:
         cfg.passivity_W_budget = float(passivity_W_budget)
     # Piste A (J2 #3): envelope-coupled budget (β) + exact Ḣ_s box.
-    if ds_passivity_beta is not None:
-        cfg.ds_passivity_beta = float(ds_passivity_beta)
     cfg.qp_envelope_exact = bool(qp_envelope_exact)
     # Output-dir override (memo §7: new runs → new dirs; prior committed
     # baselines stay read-only). Accepts a name under results/ or an abs path.
@@ -652,9 +643,14 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--legacy', action='store_true',
-                        help='Disable cooperative_arms_mode (regression guard)')
+                        help='Naming/render discriminator only. Since CLEANUP-6 '
+                             'removed cooperative_arms_mode this no longer changes '
+                             'control; it still selects the output dir and gates '
+                             'the canonical hero render.')
     parser.add_argument('--alpha_torso_lin', type=float, default=500.0,
-                        help='Sensitivity sweep value (default 500)')
+                        help='Naming/render discriminator only (default 500). The '
+                             'cooperative torso-linear P2 task it used to weight was '
+                             'removed in CLEANUP-6; the value no longer reaches the QP.')
     parser.add_argument('--anchor_dx', type=float, default=0.8,
                         help='Anchor-grid pitch [m]; rewrites MJCF anchor sites '
                              'to x=(i-3.5)*dx for i=1..6 (default 0.8 = no-op)')
@@ -710,14 +706,8 @@ if __name__ == '__main__':
                              '(name under results/, or an absolute path). '
                              'Use for SS-centroidal-momentum runs so prior '
                              'committed baselines stay read-only (memo §7).')
-    parser.add_argument('--ss-centroidal-momentum-task', action='store_true',
-                        help='Enable the SS T-MOM linear task (replaces the '
-                             'torso-linear P2 channel). Default OFF = canonical.')
     parser.add_argument('--ss-alpha-mom', type=float, default=5000.0,
                         help='T-MOM linear weight (default 5000 = working point).')
-    parser.add_argument('--ss-alpha-tl-weak', type=float, default=0.0,
-                        help='Variant-B weak torso-linear regulariser weight '
-                             '(0 = Variant A: torso-linear removed).')
     parser.add_argument('--n-steps', type=int, default=5,
                         help='Traversal steps (default 5; use 1 for the '
                              'Phase-2.1 single-step swing).')
@@ -755,9 +745,6 @@ if __name__ == '__main__':
                         help='Fix C ε_pos: dock position tolerance [m] '
                              '(default = config 0.005). The gap-couple knob.')
     # α (J2 #2): CoM-mobile DS.
-    parser.add_argument('--ds-mobile-com-magnitude', type=float, default=None,
-                        help='α (J2 #2): translate the CoM this far [m] toward '
-                             'the next anchor during the DWELL (0=hold).')
     parser.add_argument('--dt-ds', type=float, default=None,
                         help='α (J2 #2): DS phase duration [s] (default 0.5; '
                              '>~1.5 triggers the DWELL where moving-CoM runs).')
@@ -771,9 +758,6 @@ if __name__ == '__main__':
     parser.add_argument('--log-dock-work', action='store_true',
                         help='dock-floor: trace per-SS-tick dqⱼᵀτ_q + d + passivity.')
     # Piste A (J2 #3).
-    parser.add_argument('--ds-passivity-beta', type=float, default=None,
-                        help='Piste A LOT A: β for the envelope-coupled passivity '
-                             'budget W=β·α·max(0,τ_w_max−‖Ḣ_s(λ_ref)‖∞). 0=strict.')
     parser.add_argument('--qp-envelope-exact', action='store_true',
                         help='Piste A LOT B (FLAG 2): exact origin-referenced Ḣ_s '
                              'envelope box (vs the |M_λ·λ| proxy).')
@@ -793,10 +777,6 @@ if __name__ == '__main__':
                              'DS QP (0=off=byte-identical). >0 makes the λ-cost '
                              'strictly convex ⇒ unique min-norm wrench, breaking the '
                              'period-2 active-set chatter.')
-    parser.add_argument('--interstep-settle-alpha-sigf', type=float, default=0.0,
-                        help='J2 chatter fix (principled): settle-only penalty on the '
-                             'net contact force Σf=f1+f2=m·a_com (0=off). Removes the '
-                             'flat direction in the Σf sign by construction.')
     parser.add_argument('--preplanner-tstep-standoff-gain', type=float, default=0.0,
                         help='STEP5-MARGIN: dock-margin safety factor. If '
                              '|r_com_0|>knee, T_step *= (1 + gain). 0 = off (default).')
@@ -828,9 +808,7 @@ if __name__ == '__main__':
              scenario=args.scenario,
              baseline_ds_rework=args.baseline_ds_rework,
              out_dir_override=args.out_dir,
-             ss_centroidal_momentum_task=args.ss_centroidal_momentum_task,
              ss_alpha_mom=args.ss_alpha_mom,
-             ss_alpha_tl_weak=args.ss_alpha_tl_weak,
              n_steps=args.n_steps,
              ss_two_task=args.ss_two_task,
              alpha_torso_pose=args.alpha_torso_pose,
@@ -842,17 +820,14 @@ if __name__ == '__main__':
              dock_twist_max=args.dock_twist_max,
              dock_gate_linear=args.dock_gate_linear,
              weld_radius=args.weld_radius,
-             ds_mobile_com_magnitude=args.ds_mobile_com_magnitude,
              dt_ds=args.dt_ds,
              dock_hold_passivity_on=args.dock_hold_passivity_on,
              passivity_W_budget=args.passivity_w_budget,
              log_dock_work=args.log_dock_work,
-             ds_passivity_beta=args.ds_passivity_beta,
              qp_envelope_exact=args.qp_envelope_exact,
              aocs_active_in_interstep=args.aocs_active_in_interstep,
              interstep_hw_refresh=args.interstep_hw_refresh,
              interstep_settle_alpha_wrench=args.interstep_settle_alpha_wrench,
-             interstep_settle_alpha_sigf=args.interstep_settle_alpha_sigf,
              interstep_settle_epsilon_v=args.interstep_settle_epsilon_v,
              preplanner_tstep_standoff_gain=args.preplanner_tstep_standoff_gain,
              preplanner_tstep_standoff_knee=args.preplanner_tstep_standoff_knee,

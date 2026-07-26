@@ -1,7 +1,7 @@
 # Phase COPRIORITY-1000-FINAL — Idriss's 1:1:1 design is INFEASIBLE (step-0 dock timeout)
 
 **Branch** `j2/ds-active-rework` · measurement, NO canonical commit · pushed, never merged.
-Data: `results/j2_adjconv/copri1000_result.json`; script `scripts/diag_copriority1000_run.py` (full vector
+Data: `results/j2_adjconv/copri1000_result.json`; script `Misc/scripts/diag_copriority1000_run.py` (full vector
 forced via monkeypatch + κ capture). Raw run `figC_copri1000` (gitignored).
 
 **Verdict:** the co-priority 1:1:1-at-1000 design **times out on step 0** (min d 6.9 mm, never < 5 mm) →

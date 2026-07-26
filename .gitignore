@@ -102,3 +102,12 @@ results/figN_mom*/
 results/figU_plan_check*/
 results/figC25_*/
 results/figU25_*/
+
+# CLEANUP chantier gate — scratch outputs regenerated on every gate run
+# (the replay sim + the re-exported fulldiag CSV). Never committed; the
+# committed baseline is results/j2_adjconv/c25_fulldiag.csv @ bfd5509.
+gate/_run/
+results/gate_run_scratch/
+# pytest plot outputs — were tracked, and matplotlib
+# rewrites them byte-differently on every run (CARRYOVER C2)
+results/test_scratch/

@@ -61,6 +61,14 @@ pip uninstall -y -q pinocchio 2>/dev/null || true
 PIP="pip install --break-system-packages -q --upgrade-strategy only-if-needed"
 echo "  install pin==3.9.0  (the REAL Pinocchio 3.x)"
 $PIP "pin==3.9.0"
+# CRITICAL — pin 3.9.0's binary wheel links against liburdfdom_*.so.4.0 and
+# libtinyxml2.so.10, but its cmeel dependencies are UNPINNED upstream, so a
+# fresh resolve pulls cmeel-urdfdom 6.x / cmeel-tinyxml2 11.x and `import
+# pinocchio` then dies on a missing shared object. Nothing in the repo runs.
+# Pinning the ABI-compatible majors is the whole fix (CLEANUP_CARRYOVER C1 —
+# this was hand-applied in every session for months before being committed).
+echo "  pin the cmeel ABI deps that pin==3.9.0 needs (urdfdom 4.x, tinyxml2 10.x)"
+$PIP "cmeel-urdfdom~=4.0" "cmeel-tinyxml2~=10.0"
 echo "  install mujoco, casadi, numpy, matplotlib, Pillow, qpsolvers, osqp, pytest, scipy"
 $PIP "mujoco>=3.1,<4"
 $PIP "casadi>=3.6,<4"
@@ -121,7 +129,7 @@ assert pin.__version__.startswith('3.'), (
     f'ERROR: need real Pinocchio 3.x (PyPI package: pin), got '
     f'{pin.__version__}. The deprecated `pinocchio` 0.x PyPI package '
     f'may be shadowing it. Try: pip uninstall pinocchio && '
-    f'pip install pin==3.9.0')
+    f'pip install pin==3.9.0 cmeel-urdfdom~=4.0 cmeel-tinyxml2~=10.0')
 for attr in ('SE3', 'Quaternion', 'computeFrameJacobian',
              'getFrameJacobian', 'log3', 'LOCAL_WORLD_ALIGNED'):
     assert hasattr(pin, attr), (

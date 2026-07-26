@@ -2,7 +2,7 @@
 MomentumDisturbanceEstimator — Estimate the disturbance torque applied by
 the robot to the spacecraft structure, for AOCS feedforward.
 
-Theory (see docs/force_estimator_note.md):
+Theory (see Misc/reports/force_estimator_note.md):
 
     The total angular momentum of the robot about O (structure CoM) is:
 

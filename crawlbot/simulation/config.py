@@ -64,7 +64,6 @@ class SimConfig:
     gmo_d_contact: float = 0.005       # -> CONTACT [m] (matches weld_radius)
     gmo_d_reset: float = 0.030         # -> NO_CONTACT [m]
     gmo_debounce_count: int = 3        # -> CONFIRMED [cycles @ 100Hz = 30ms]
-    use_gmo_dock: bool = False          # False=legacy kinematic, True=GMO
 
     # ── Momentum constraints (NMPC + QP) ────────────────────────
     hw_init: np.ndarray = field(default_factory=lambda: np.zeros(3))
@@ -165,13 +164,6 @@ class SimConfig:
     # Applied only in _run_ds_passivity_loop (SS and the _step DWELL untouched).
     interstep_settle_alpha_wrench: float = 0.0
 
-    # Chatter fix (J2, principled): explicit penalty α_Σf·‖Σf‖² on the net
-    # contact force Σf=f1+f2=m·a_com in the inter-step DS settle QP. Expresses
-    # "hold ⇒ no CoM acceleration" and removes the flat direction in the Σf
-    # sign BY CONSTRUCTION (vs the Tikhonov ‖λ‖², which only recovers Σf≈0
-    # because the two vertices are A≈−B). 0.0 ⇒ off (byte-identical). DS-settle
-    # only; passed only from _run_ds_passivity_loop.
-    interstep_settle_alpha_sigf: float = 0.0
 
     # When True, the gait-phase loop breaks out of the multi-step
     # traversal as soon as a step ABORTs (dock_timeout or
@@ -189,49 +181,13 @@ class SimConfig:
     frames_per_step: int = 0
 
     # ── M2: reworked QP task stack ──────────────────────────────
-    use_m2_stack: bool = False    # Enable reworked QP (torso P1 + EE null-space P2 + soft CoM)
-    alpha_com_soft: float = 0.0   # Soft CoM residual disabled — redundant with torso 6D position task; 5.0 was fighting torso tracking
+    # NOTE (CLEANUP-7): this no longer selects a QP task stack — the M2
+    # torso-P1 / EE-null-space / soft-CoM tasks were removed. It survives
+    # because sim_loop still reads it on two unrelated paths: the torso-
+    # reference routing (δ-mapping vs raw TorsoPlanner quintic) and
+    # passivity_active, i.e. the DS passivity constraint. Do not delete.
+    use_m2_stack: bool = False    # gates torso-ref routing + DS passivity
     alpha_passivity: float = 1.0  # DS passivity decay rate [1/s]
-
-    # ── Cooperative-arms mode (deviation from spec §4.3) ────────
-    # When True, the WBC task stack splits the torso 6D task into:
-    #   P1 — torso ANGULAR 3D (strict-equality strength, alpha_torso_ang)
-    #   P2 — torso LINEAR 3D + EE 6D as weighted-LS co-contributors,
-    #        BOTH projected through N_torso_ang (no projection between them)
-    #   P3 — posture, projected through N(combined P1+P2)
-    # This drops the strict EE→torso null-space hierarchy: the EE task can
-    # now pull the body forward in the linear DOFs when its reach margin
-    # demands it. The torso angular DOF stays strict (protects AOCS
-    # budget). Stance-arm thrust still flows passively through the
-    # dynamics constraint (no explicit QP cost on stance thrust —
-    # documented limitation; cooperative reaction is structurally
-    # rewarded by the LS arbitration, not by a dedicated task).
-    # Default False preserves the legacy M2 strict-priority stack.
-    cooperative_arms_mode: bool = False
-
-    # ── Stance-thrust inertial-coupling correction (experimental, OFF) ─
-    # Negative-result experiment: see WholeBodyQPConfig docstring and
-    # results/diag_cooperative_arms_thrust/. Adds an explicit
-    # M_fj · ddq_j feedforward to the stance wrench reference. Was
-    # hypothesized to close the 2.4 mm step-2 gap by absorbing the
-    # joint-acceleration coupling at the contact; in practice it
-    # regressed step 0 to TIMEOUT 12.1 mm. Kept available behind this
-    # flag for future investigation.
-    stance_thrust_correction: bool = False
-
-    # ── Option D: torso linear soft tube ────────────────────────
-    # When r_tube > 0, the WBC torso P1 task is split:
-    #   (a) angular 3D — always enforced at the full α_torso weight
-    #       (hard-equality-strength task)
-    #   (b) linear 3D — gated. Skipped while ||p_torso - p_ref|| ≤ r_tube;
-    #       outside the tube, added with weight w_tube_lin · (|e|² - r²)
-    #       so the cost grows with the violation magnitude.
-    # When the linear task is skipped, the null-space projection for
-    # the EE / posture / soft-CoM tasks is computed against the 3D
-    # angular Jacobian only, freeing the linear-base DOFs for EE
-    # tracking. Default 0 disables the tube (legacy 6D equality task).
-    r_tube: float = 0.0           # [m] tube radius for torso linear position
-    w_tube_lin: float = 50.0      # cost scale on (|e|² - r²) when violated
 
     # ── M3: NMPC conservation-law box constraint ────────────────
     enforce_hw_conservation: bool = False  # Enable B2 Option B hw box
@@ -290,6 +246,17 @@ class SimConfig:
     nmpc_tau_max: float = 8.0
     nmpc_Wv: float = 10.0
     nmpc_p_max: float = 50.0      # Linear momentum bound [kg·m/s]
+    # Centroidal-NMPC cost weights (Eq. VI-E.17). These were
+    # CentroidalNMPCConfig defaults that sim_loop never overrode — i.e.
+    # canonical values living silently outside SimConfig (CLEANUP-2 finding
+    # F5, Rule 5). Hoisted verbatim: the numbers below ARE the frozen
+    # canonical ones, so the plant is unchanged.
+    nmpc_Wr: float = 100.0        # CoM position tracking (stage)
+    nmpc_Wu_f: float = 0.01       # contact-force regularization
+    nmpc_Wu_tau: float = 0.001    # contact-torque regularization
+    nmpc_Qf_r: float = 1000.0     # terminal CoM position
+    nmpc_Qf_v: float = 100.0      # terminal CoM velocity
+    nmpc_Qf_L: float = 10.0       # terminal L_com tracking
     t_settle_final: float = 20.0
     # Inter-step settle (between successive locomotion steps).
     # Spec §7.1.1 mandates an energy-based exit, not a fixed timer: after a
@@ -312,30 +279,15 @@ class SimConfig:
     t_settle_inter_min: float = 0.1                 # min runtime [s]
 
     # ── QP weights — Single-support ─────────────────────────────
-    ss_alpha_com: float = 2e2
-    ss_alpha_torso: float = 5e2
-    ss_alpha_torso_ang: float = 5e2  # Cooperative-arms P1 torso angular weight
-    ss_alpha_torso_lin: float = 5e2  # Cooperative-arms P2 torso linear weight (co-equal w/ EE)
     ss_alpha_ee: float = 1e3       # CANONICAL-2p5 / Add-5 freeze (was 3e3)
     ss_alpha_posture: float = 2e1
-    ss_alpha_wrench: float = 1.0   # regulariser-floor tier (Add-5 freeze; was 1e-2). Keep ≤1: 1e2 penalised contact forces (the only actuation path through the stance weld) and attenuated the torso task 7x (see scripts/test_qp_tracking.py)
-    ss_alpha_reaction: float = 0.0   # Reaction null-space (0 = disabled)
+    ss_alpha_wrench: float = 1.0   # regulariser-floor tier (Add-5 freeze; was 1e-2). Keep ≤1: 1e2 penalised contact forces (the only actuation path through the stance weld) and attenuated the torso task 7x (see Misc/scripts/test_qp_tracking.py)
     ss_alpha_lambda_int: float = 0.0  # Internal-stress regularization on
     # the welded-loop λ in DS (both contacts active). No effect in SS
     # (single contact has no internal-stress null space). 0 ⇒ legacy.
 
     # ── SS centroidal-momentum task (T-MOM) ─────────────────────
-    # memo: docs/architecture/SS_CENTROIDAL_MOMENTUM_TASK_2026-06.md
-    # When True, the linear centroidal-momentum task replaces the
-    # torso-linear channel at P2 (weight ss_alpha_mom): [A_G]_lin q̈ +
-    # [Ȧ_G]_lin q̇ = m·a_com_des, realised via the CoM Jacobian, with the
-    # NMPC centroidal plan as reference (no state-dependent mapping, no
-    # F-SAT). Kp/Kd reuse ss_Kp_com/ss_Kd_com. Default OFF = canonical
-    # torso-linear P2 (bit-identical to the pre-task baseline).
-    ss_centroidal_momentum_task: bool = False
     ss_alpha_mom: float = 4e2        # T-MOM linear weight — CANONICAL-2p5 / Add-5 freeze (was 5e3; momentum weight near-inert on Hdot_s, see PHASE_NMPC_PLAN_SATURATION)
-    ss_alpha_tl_weak: float = 0.0    # Variant B weak torso-linear regulariser
-    #                                  (0 ⇒ Variant A: torso-linear removed)
     # Phase-2.1 instrumentation: log τ_w + h_w at the 100 Hz QP rate during SS
     # (vs the default 10 Hz per-NMPC-step cadence). Default OFF ⇒ no behavioural
     # change, flag-OFF bit-identical preserved. Only populates extra buffers.
@@ -364,7 +316,6 @@ class SimConfig:
     # task tracks the moving target; the torso-ori task holds; the posture
     # task holds q_nominal. 0.0 = hold (default; unchanged). >0 exercises
     # the moving-CoM-under-strict-passivity conflict (J2 #2).
-    ds_mobile_com_magnitude: float = 0.0
 
     # Dock-floor passivity audit. ────────────────────────────────────
     # The SS convergence-hold window (the last-mm dock close) runs
@@ -380,7 +331,6 @@ class SimConfig:
     # LOT A — per-tick DS passivity budget W_budget = β·α·max(0, τ_w,max −
     #   ‖Ḣ_s(lambda_ref)‖∞), using the NMPC-exact planned Ḣ_s. β (this knob)
     #   is dimensionless; β=0 ⇒ W_budget=0 ⇒ strict passivity (byte-identical).
-    ds_passivity_beta: float = 0.0
     # LOT B — FLAG 2: the QP momentum-rate envelope box uses the EXACT Ḣ_s
     #   (origin-referenced, |M_exact·λ|, M_exact = momentum map with levers
     #   from O_s) instead of the |M_λ·λ| proxy (lever-from-robot-CoM, which
@@ -452,7 +402,7 @@ class SimConfig:
     # fixed-rotation dock IK pins CoM-z = com_z_standoff (structure
     # frame), holding a uniform standoff; x,y stay free to crawl. The
     # value -0.35 m is the worst-direction-manipulability optimum from
-    # scripts/diag_standoff_feasibility.py (sigma_min peak 0.099, torso
+    # Misc/scripts/diag_standoff_feasibility.py (sigma_min peak 0.099, torso
     # clearance >=273mm), feasible for every anchor pair.
     use_com_z_standoff: bool = False        # off by default (bit-identical ablation)
     com_z_standoff: float = -0.35           # [m] target CoM-z in structure frame
@@ -466,66 +416,13 @@ class SimConfig:
     # which matches reality (live arm joints) AND has no base-position
     # feedback, so F-SAT becomes unnecessary. Default False = legacy
     # world-frame delta (bit-identical ablation).
-    use_local_delta_mapping: bool = False
 
-    # ── M7 Manipulability-IK-1: trajectory-aware IK (Candidate 1) ──
-    # When True, sim_loop builds an additional torso_map_traj dict
-    # whose q_end is optimised for worst-case σ_min(J_a)·σ_min(J_b)
-    # across K interior samples of the planned SS swing, chained by
-    # q_start = q_end_prev. Falls back to the endpoint torso_map when
-    # the chain drift exceeds `trajectory_ik_qstart_tolerance`.
-    # Default False preserves existing behaviour (bit-for-bit ablation).
-    # See docs/architecture/T15_MANIPULABILITY_IK_DESIGN.md.
-    use_trajectory_aware_ik: bool = False
-    trajectory_ik_qstart_tolerance: float = 0.05  # [rad] chain-drift fallback
-    trajectory_ik_n_samples: int = 5              # K samples along τ∈(0,1]
-    # Below this σ_min(J_a)·σ_min(J_b) at the converged trajectory-aware
-    # IK endpoint, the result is considered pathological (likely landed
-    # in a singular branch despite §9.1–9.2 fixes). The caller should
-    # fall back to fixed_rotation IK. Spec: IK_FORMULATION.md §9.3.
-    trajectory_ik_w_min_threshold: float = 1e-3
-
-    # ── Mid-waypoint reshape (Option B per T15_step2_path_geometry §7.3) ──
-    # When True, after the SS-entry IK returns q_end, sample the implied
-    # planner-style reference path's whole-body Jacobian conditioning at
-    # 21 points (check_path_feasibility). If any sample's σ_min product
-    # falls below path_feasibility_w_threshold, attempt a mid-waypoint
-    # reshape via manipulability_config_mid_waypoint and pass the result
-    # to TorsoPlanner / SwingPlanner as a piecewise quintic. This
-    # addresses the H2 finding (T15_step2_path_geometry §6.2): the
-    # single-quintic reference for some anchor pairs visits a
-    # near-singular interior region that the QP cannot track.
-    use_path_feasibility_check: bool = False
-    use_mid_waypoint_reshape: bool = False
-    # When True (and use_mid_waypoint_reshape is also True), bypass the
-    # feasibility check and ALWAYS attempt mid-waypoint reshape. Useful
-    # for validation when the simplified planner-style references in
-    # check_path_feasibility underreport vs the actual mapped references
-    # (T15_step2_path_geometry §7 caveat: the M5 CoM-mapping layer is
-    # not modelled in the runtime check). Default False preserves the
-    # gated behaviour.
-    mid_waypoint_force_on: bool = False
-    # Threshold below which a sample's σ_min product is considered
-    # pathologically singular. Per IK_FORMULATION.md §9.3.
-    path_feasibility_w_threshold: float = 1e-3
-
-    # ── Reference generation source (M7 / FK-on-smoothed-q) ─────
-    # 'task_space'      : legacy independent SLERP per planner. Default;
-    #                     keeps existing test/sim outputs byte-identical.
-    # 'joint_space_fk'  : derive task-space refs from FK on a single
-    #                     task-space-smoothed constrained geodesic.
-    #                     Eliminates the kinematically-uncoupled-refs
-    #                     failure mode at T15 step 2 (synthesis §6,
-    #                     plan §2.2). Adds ~0.3 s smoother overhead at
-    #                     each SS-entry; zero runtime cost in the QP loop.
-    # See docs/architecture/T15_step2_diagnosis_and_resolution.md and
-    # results/diagnostic/stance_deviation_along_geodesic/PHASE0_FINDINGS.md.
-    reference_source: str = 'task_space'
-    # Smoothed-geodesic discretisation parameters
-    # (used only when reference_source='joint_space_fk').
-    geodesic_n_tau: int = 21
-    geodesic_n_iter: int = 120
-    geodesic_tol: float = 1e-5
+    # CLEANUP-15 removed the trajectory-aware IK, the mid-waypoint reshape /
+    # path-feasibility probe, and the joint_space_fk reference source, together
+    # with their config fields. All three were opt-in research paths, off on the
+    # canonical, and their sim_loop implementations never executed.
+    # CLEANUP-17 also removed the planner-side FK wiring and deleted
+    # crawlbot/planning/constrained_geodesic.py, which had become unreachable.
 
     # ── Torso-vs-swing velocity profile ─────────────────────────
     # 1.0 = torso quintic runs over the full [0, T_step] alongside
@@ -556,7 +453,6 @@ class SimConfig:
     #   (a) T < T_settle, or
     #   (b) T stops decreasing (plateau detection), or
     #   (c) n_settle_max_steps reached (safety cap).
-    n_settle_damping_steps: int = 0         # stage 1: skipped — manipulability-optimized init places arms near weld equilibrium, no impulse to absorb; stage 2 passivity QP holds posture
     Kd_settle_damping: float = 20.0         # Nm·s/rad per joint (stage 1)
     n_settle_max_steps: int = 1000          # stage 2: safety cap
     settle_epsilon_v: float = 1e-3          # target ‖dq_full‖ bound [m/s]
@@ -566,7 +462,7 @@ class SimConfig:
     # All three default False. When enabled individually they apply
     # ONLY to the trailing-DS phase entered after a dock_timeout
     # abort — never to SS, never to the pre-SS DS settle, never to
-    # the pre-planner. See docs/architecture/M7_DS_DIAGNOSTIC_EXPERIMENTS.md.
+    # the pre-planner. See Misc/reports/architecture/M7_DS_DIAGNOSTIC_EXPERIMENTS.md.
     diag_freeze_torso_ref_on_abort: bool = False
     # Diagnostic for H_DS2 (POST_ABORT_DIVERGENCE.md).
     # When True, skip dock_configuration + set_hold at sim_loop.py:1365-1375
@@ -604,7 +500,7 @@ class SimConfig:
     # continuous with s(0)=0, s(1)=1, s'(0)=s'(1)=s''(0)=s''(1)=0.
     # Set to 0.0 to disable (reverts to the pre-Option-A step
     # behavior). Introduced to close the T12 DS1 divergence;
-    # see docs/architecture/M7_T12_MEMO.md §5.
+    # see Misc/reports/architecture/M7_T12_MEMO.md §5.
 
     # ── Gait geometry ───────────────────────────────────────────
     gait_anchor_dx: float = 0.8  # Anchor-grid pitch [m]; rewrites MJCF anchor sites to x=(i-3.5)·dx (i=1..6) via _mutate_mjcf

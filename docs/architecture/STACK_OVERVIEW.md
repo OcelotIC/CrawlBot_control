@@ -111,7 +111,7 @@ is held only through the **single stance-arm weld**. [V]
 - **Soft-CoM residual OFF** (`alpha_com_soft=0`, ~L826) → QP has **no
   direct CoM/momentum feedback**; trusts the mapping. [V]
   - ⚠ **Two confounds before re-engaging it (see §5):** (a) the only
-    sweep on record (`results/M5_alpha_sweep/`) ran
+    sweep on record (`Misc/runs/M5_alpha_sweep/`) ran
     `cooperative_arms_mode=False` — the **wrong stack** — so its
     "every non-zero α diverges" is not evidence against soft-CoM here;
     (b) the projection basis `null(A_torso)∩null(A_ee)` (~L842)

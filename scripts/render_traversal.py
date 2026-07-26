@@ -1,6 +1,6 @@
 """Render PNG frames of the cooperative-arms 5-step traversal.
 
-Reads snapshots from ``results/diag_cooperative_arms/sim_log.json``
+Reads snapshots from ``Misc/runs/diag_cooperative_arms/sim_log.json``
 (captured with ``cfg.frames_per_step > 0``) and renders an isometric
 view of each snapshot using MuJoCo's offscreen Renderer.
 
@@ -12,8 +12,8 @@ Overlays drawn into the MjvScene:
 Frame label ("Step X — t=Xs — d=Xmm") drawn with PIL after render.
 
 Output:
-  results/frames/step{S}_frame{K}.png
-  results/t15fk_traversal_overview.png   (3×5 grid of all frames)
+  Misc/runs/frames/step{S}_frame{K}.png
+  Misc/runs/t15fk_traversal_overview.png   (3×5 grid of all frames)
 
 Usage:
   MUJOCO_GL=osmesa PYTHONPATH=. python3 scripts/render_traversal.py
@@ -37,10 +37,11 @@ sys.path.insert(0, _root)
 from crawlbot.planning.contact_scheduler import ContactScheduler  # noqa: E402
 
 MJCF = os.path.join(_root, 'models', 'VISPA_crawling_rwa3.xml')
-_default_simlog = os.path.join(_root, 'results', 'diag_cooperative_arms', 'sim_log.json')
+_default_simlog = os.path.join(_root, 'Misc', 'runs', 'diag_cooperative_arms', 'sim_log.json')
 SIMLOG = sys.argv[1] if len(sys.argv) > 1 else _default_simlog
-FRAMES_DIR = os.path.join(_root, 'results', 'frames')
-OVERVIEW_PNG = os.path.join(_root, 'results', 't15fk_traversal_overview.png')
+FRAMES_DIR = os.path.join(_root, 'Misc', 'runs', 'frames')
+OVERVIEW_PNG = os.path.join(_root, 'Misc', 'runs',
+                            't15fk_traversal_overview.png')
 WIDTH, HEIGHT = 1280, 720
 
 LABEL_RE = re.compile(r'frame_step(\d+)_(\d+)')

@@ -9,7 +9,7 @@ trajectories. Prints:
   - Unique phase strings in the log (must be {'DS', 'SS'} — no 'EXT')
   - Dock success under d<5mm AND ori<5° gate
 
-Output: results/M7_1pct_1step/.
+Output: Misc/runs/M7_1pct_1step/.
 """
 import os
 import sys
@@ -36,15 +36,10 @@ def _make_m7_config():
     are synchronized over [0, T_step].
     """
     return SimConfig(
-        # M2: reworked QP stack
+        # Gates the torso-reference routing and DS passivity (the QP task
+        # stack it used to select was removed in CLEANUP-6).
         use_m2_stack=True,
-        alpha_com_soft=0.0,
         alpha_passivity=1.0,
-        # Cooperative-arms mode left OFF in this helper to preserve
-        # legacy behaviour for every script and test that consumes it.
-        # Diagnostic runners that exercise the deviation (e.g.
-        # scripts/diag_cooperative_arms.py) flip the flag explicitly.
-        cooperative_arms_mode=False,
         # M3: NMPC conservation-law box
         enforce_hw_conservation=True,
         h_max_tight=np.full(3, 5.0),
@@ -315,7 +310,7 @@ if __name__ == "__main__":
     if args.output is not None:
         out_dir = args.output
     elif n_steps == 1:
-        out_dir = "results/M7_1pct_1step"
+        out_dir = "Misc/runs/M7_1pct_1step"
     else:
-        out_dir = f"results/M7_1pct_{n_steps}step"
+        out_dir = f"Misc/runs/M7_1pct_{n_steps}step"
     run_case(f"1pct {n_steps}-step", out_dir, n_steps=n_steps)

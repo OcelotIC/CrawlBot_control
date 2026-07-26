@@ -34,7 +34,7 @@ Author: Translated from MATLAB (I. Chelikh) to Python.
 """
 
 import numpy as np
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional, List, Dict, Any, Tuple
 import warnings
 import logging

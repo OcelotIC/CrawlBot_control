@@ -5,7 +5,7 @@
 Consolidated record of the interactive SS-docking-QP weight-tuning campaign (9 runs). This is the standalone
 reference; the blow-by-blow is in `PHASE_COPRIORITY_1000.md` (Addenda 1–8). All numbers are read from the 9
 per-run summary JSONs (`results/j2_adjconv/copri*result.json`); the tidy machine-readable table is
-`results/j2_adjconv/copri_sweep_complete.csv` (built by `scripts/diag_copri_sweep_export.py`).
+`results/j2_adjconv/copri_sweep_complete.csv` (built by `Misc/scripts/diag_copri_sweep_export.py`).
 
 **Stack** (canonical SS `_two_task`, `wholebody_qp.py:678–722`): momentum P2, torso-pose P2, swing-EE P2,
 posture P3, wrench-track P4, torque-min P5, accel-reg P6, hw-slack P1. Solver qpOASES, `method='weighted'`,
@@ -133,10 +133,10 @@ Everything else is pinned inert.
 | artifact | path |
 |---|---|
 | complete sweep CSV (this campaign, one row / run) | `results/j2_adjconv/copri_sweep_complete.csv` |
-| CSV builder | `scripts/diag_copri_sweep_export.py` |
+| CSV builder | `Misc/scripts/diag_copri_sweep_export.py` |
 | per-run summary JSONs (9) | `results/j2_adjconv/copri*result.json` |
 | blow-by-blow (Addenda 1–8) | `results/j2_adjconv/PHASE_COPRIORITY_1000.md` |
-| runner (weight monkeypatch + κ capture) | `scripts/diag_copriority1000_run.py` |
+| runner (weight monkeypatch + κ capture) | `Misc/scripts/diag_copriority1000_run.py` |
 | per-tick tidy CSV — *docking* userw2 (≈ Add-5) | `results/j2_adjconv/userw2_timeseries.csv`, `userw2_fulldiag.csv` |
 
 Raw per-tick sim_logs for the copri runs live in gitignored `results/figC_copri*/`; a tidy per-tick CSV for any

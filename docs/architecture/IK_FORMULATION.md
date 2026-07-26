@@ -1,9 +1,34 @@
 # IK formulation — trajectory-aware manipulability IK for VISPA crawling
 
+> ## ⚠ PARTLY RETIRED — read this first (CLEANUP-30)
+>
+> **IK 3 and everything built on it no longer exist in `crawlbot/`.** Retired
+> with zero callers and 0 lines executed by the canonical replay:
+> `manipulability_config_trajectory`, `manipulability_config_mid_waypoint`,
+> `check_path_feasibility`, `precompute_torso_map`, plus four helpers that
+> stranded with them — 695 lines, 47 % of `ik.py`.
+>
+> | section | subject | status |
+> |---|---|---|
+> | §1–§4 | configuration space, Jacobian decomposition, anchor constraints, manipulability metrics | **live** — the maths still applies |
+> | §5 | IK 1 `dock_configuration_fixed_rotation` | **live** |
+> | §6 | IK 2 `manipulability_config` (endpoint-only) | **live** — this is what `sim_loop` calls (`sim_loop.py:307`) |
+> | §7–§9 | IK 3 `manipulability_config_trajectory`, its pathologies, the corrected formulation | **RETIRED** — describes code that is gone |
+> | §11 | implementation plan | **RETIRED** — was carried out, then retired |
+> | §10, §12 | open questions, notation | live as background |
+>
+> The analysis in §7–§9 is kept deliberately, not left to rot: it is the record
+> of *why* the path was built and the recipe for reviving it if the T15 step-2
+> singularity class ever recurs. Revival starts at
+> `git show d61e1a0:crawlbot/core/ik.py`, and the regression tests are in
+> `Misc/tests/` with their fixture. Measurements and reasoning:
+> `results/j2_adjconv/PHASE_CLEANUP_30_IK_OPTION_B_RETIRED.md`.
+
 **Status:** Working specification, draft 1. Captures the
-mathematical structure of the three IK variants currently in the
-codebase, the pathologies identified in the Phase-3 / Phase-4 /
-diagnostic chain, and the corrected formulation to be implemented.
+mathematical structure of the three IK variants that were in the
+codebase when it was written, the pathologies identified in the Phase-3 /
+Phase-4 / diagnostic chain, and the corrected formulation that was then
+implemented (and has since been retired — see the banner above).
 
 This document is foundational reference for both:
 - The next round of IK code changes (the path-dependence and
@@ -681,7 +706,10 @@ The corrected formulation per §9 maps to:
 3. **`crawlbot/core/ik.py::manipulability_config_trajectory`:**
    - Optional: implement the §9.3 safety check.
 4. **Test:** the diagnostic fixture
-   `diagnostic/step2_ss_entry_fixture.npz` is the regression test.
+   `Misc/tests/fixtures/step2_ss_entry_fixture.npz` is the regression test
+   (`Misc/tests/test_mid_waypoint_reshape.py`,
+   `Misc/tests/test_ik_anomaly_regression.py` — retired with their subject in
+   CLEANUP-30, see the banner at the top of this file).
    The corrected IK on this fixture should yield
    $w_{\text{worst}} \geq 0.045$ (within the order of the grid
    maximum), with no order-of-magnitude variability across runs.

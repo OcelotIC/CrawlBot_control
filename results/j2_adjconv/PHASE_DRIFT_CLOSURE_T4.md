@@ -3,8 +3,8 @@
 **Scope:** re-run of the frozen 2.5 **managed** canonical with the trailing DS settle extended
 20 s → 450 s (`settle_seconds` → `cfg.t_settle_final`, `sim_loop.py:2482`, the terminal-only
 "end of gait" branch). Freeze `32aefaf` control path untouched; new gitignored output dir
-`figC25_t4_450s` (canonical `figC25_addfive` not touched). Runner `scripts/diag_t4_settle450.py`,
-analysis `scripts/diag_t4_analyze.py` (both committed `0fbbe58`).
+`figC25_t4_450s` (canonical `figC25_addfive` not touched). Runner `Misc/scripts/diag_t4_settle450.py`,
+analysis `Misc/scripts/diag_t4_analyze.py` (both committed `0fbbe58`).
 
 **Result: 3 of 4 criteria PASS + traversal bit-identical; C3 (θ_s < 0.05°) FAILS — θ_s is still
 decaying at 450 s (0.16°), a slow-asymptote miss, not a static floor.** Per the phase contract I
@@ -94,4 +94,4 @@ at the 20 s canonical cutoff is confirmed as the truncation point of this decay 
 | criteria summary | `results/j2_adjconv/t4_settle450_analysis.json` |
 | run sanity (weights/cap/clamp) | `results/j2_adjconv/t4_settle450_result.json` |
 | sim log + dense L_total captures | `results/figC25_t4_450s/{sim_log.json, ltot_dense.json}` (gitignored) |
-| runner / analysis | `scripts/diag_t4_settle450.py`, `scripts/diag_t4_analyze.py` (committed `0fbbe58`) |
+| runner / analysis | `Misc/scripts/diag_t4_settle450.py`, `Misc/scripts/diag_t4_analyze.py` (committed `0fbbe58`) |

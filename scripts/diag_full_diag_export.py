@@ -15,6 +15,19 @@ struct frame) — validated vs dock_gate_trace to <=0.13 deg. twist / docked fla
 ONLY at the 103 dock_gate_trace evaluation ticks (per-tick twist needs qpos/qvel, which
 are NOT logged -> MISSING, marked, not fabricated).
 
+CAVEAT — `nmpc_ok` conflates "not called" with "failed" (CLEANUP-2 finding F3).
+The NMPC is only invoked in SS and in the terminal DS settle; it is NOT invoked
+during DS_interstep, and those ticks are exported as `nmpc_ok = 0`. On the frozen
+canonical run that is 1368 of 2077 ticks, so reading the column as a whole gives a
+FALSE 34.1 % success rate. The true rate is 100 % — 508/508 SS + 201/201
+DS_terminal = 709/709 solves succeeded. **Always filter by `phase` before
+interpreting `nmpc_ok`** (`phase == 'SS' or phase == 'DS_terminal'`).
+
+The encoding is deliberately left as-is: changing the value or adding an
+`nmpc_called` column would alter this CSV and therefore require regenerating the
+frozen paper baseline `results/j2_adjconv/c25_fulldiag.csv` under a Tier-1
+exception (see gate/EXCEPTIONS.md). Deferred until after submission.
+
 Run: MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/diag_full_diag_export.py [--run-dir DIR]
 """
 import sys

@@ -3,7 +3,7 @@
 **Branch** `j2/ds-active-rework` · push-only, never merge (Idriss merges via GitHub UI).
 **Frozen-config commit: `32aefaf`** (`freeze(canonical-2p5): tau_w_max 2.5 (controller + plant) + Add-5 weights`).
 Data: `results/j2_adjconv/canonical2p5_result.json`; per-tick fulldiag CSVs `c25_fulldiag.csv` (C) and
-`u25_fulldiag.csv` (U) + `*_fulldiag_meta.json`; runner `scripts/diag_canonical2p5_run.py`. Raw runs
+`u25_fulldiag.csv` (U) + `*_fulldiag_meta.json`; runner `Misc/scripts/diag_canonical2p5_run.py`. Raw runs
 `results/figC25_addfive`, `figU25_addfive` (gitignored).
 
 ## The frozen configuration (confirmed applied exactly — captured from the live QP, not asserted)
@@ -129,7 +129,7 @@ in both runs (stance-only Ḣ_s = exact full NMPC quantity).
 | result JSON (smoke + U + C, full detail) | `results/j2_adjconv/canonical2p5_result.json` |
 | per-tick fulldiag CSV — C(2.5) | `results/j2_adjconv/c25_fulldiag.csv` (+ `c25_fulldiag_meta.json`) |
 | per-tick fulldiag CSV — U | `results/j2_adjconv/u25_fulldiag.csv` (+ `u25_fulldiag_meta.json`) |
-| runner | `scripts/diag_canonical2p5_run.py` |
+| runner | `Misc/scripts/diag_canonical2p5_run.py` |
 | frozen config | commit `32aefaf` |
 
 **STOP for cross-check.** Push only, never merge.

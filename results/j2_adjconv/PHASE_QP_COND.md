@@ -1,9 +1,9 @@
 # Phase QP-COND — a common-factor weight rescale CANNOT reduce κ(H); the premise is scale-invariant
 
 **Branch** `j2/ds-active-rework` · read + measure only, NO canonical change · pushed, never merged.
-Data: `results/j2_adjconv/qpcond_measure.json`; scripts `scripts/diag_qpcond_measure.py`
+Data: `results/j2_adjconv/qpcond_measure.json`; scripts `Misc/scripts/diag_qpcond_measure.py`
 (instrumented 1-step canonical, monkeypatch capture — nothing committed to `crawlbot/`) and
-`scripts/diag_qpcond_confirm.py` (closed-loop 6-step confirmation). Solver: **qpOASES** (CasADi conic).
+`Misc/scripts/diag_qpcond_confirm.py` (closed-loop 6-step confirmation). Solver: **qpOASES** (CasADi conic).
 
 **Headline:** κ(H) is genuinely large (DS ≈ 1.0e6, SS ≈ 3.6e6) — but it is set **entirely by the weight
 span**, and the condition number of a weighted-LS Hessian is **invariant under a common-factor rescale**
@@ -84,7 +84,7 @@ weights does — `regularization` is a separate absolute constructor arg, `hiera
 
 ### Closed-loop confirmation (full 6-step canonical C, realistic rescale: all task weights ÷24, reg fixed)
 
-`scripts/diag_qpcond_confirm.py 24 0 6` — divides EVERY task weight by 24 (24 000→1 000, ratios exact),
+`Misc/scripts/diag_qpcond_confirm.py 24 0 6` — divides EVERY task weight by 24 (24 000→1 000, ratios exact),
 reg left at 1e-6, full traversal. SS-phase closest-approach dock (C5 metric) vs committed baseline
 `results/figC_sw_s5_x1`:
 

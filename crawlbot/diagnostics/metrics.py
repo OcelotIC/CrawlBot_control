@@ -7,7 +7,7 @@ Usage:
 
 import csv
 import numpy as np
-from typing import Dict, Tuple, Optional
+from typing import Dict, Tuple
 
 DEFAULT_THRESHOLDS = {
     # Tracking

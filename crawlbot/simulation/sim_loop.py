@@ -33,17 +33,13 @@ try:
 except ImportError:
     pin = None
 
-from crawlbot.core.robot_interface import RobotInterface, FRAME_TOOL_A, FRAME_TOOL_B
+from crawlbot.core.robot_interface import RobotInterface
 from crawlbot.core.state_conversions import (
     mujoco_to_pinocchio, pinocchio_to_mujoco, quat_wxyz_to_euler_deg)
 from crawlbot.core.com_to_torso_mapping import CoMToTorsoMapping
 from crawlbot.core.ik import (
     dock_configuration, dock_configuration_fixed_rotation,
-    solve_ik, solve_ik_waypoints,
-    manipulability_config, manipulability_config_trajectory,
-    manipulability_config_mid_waypoint, check_path_feasibility,
-    precompute_torso_map,
-)
+    manipulability_config)
 from crawlbot.planning.contact_scheduler import ContactScheduler, read_anchors_from_mujoco
 # LocomotionPlanner removed — CoM reference comes from TorsoPlanner
 from crawlbot.planning.swing_planner import SwingPlanner
@@ -120,7 +116,7 @@ class SimulationLoop:
         # Option A (T12 fix, 2026-04-22): post-dock blend state for
         # the DS torso position reference. Populated at weld
         # activation; cleared on SS entry. See
-        # cfg.ds_ramp_duration_s and docs/architecture/M7_T12_MEMO.md §5.
+        # cfg.ds_ramp_duration_s and Misc/reports/architecture/M7_T12_MEMO.md §5.
         self._ds_ramp_t_start: Optional[float] = None
         self._ds_ramp_p_start: Optional[np.ndarray] = None
         self._ds_ramp_p_end: Optional[np.ndarray] = None
@@ -269,13 +265,10 @@ class SimulationLoop:
             self.sched,
             clearance=cfg.swing_clearance,
             bump_peak_tau=cfg.swing_bump_peak_tau,
-            early_finish_fraction=cfg.swing_early_finish_fraction,
-            model=self.robot.model)
+            early_finish_fraction=cfg.swing_early_finish_fraction)
 
         # Torso planner (reconfigured per step)
-        self.torso_planner = TorsoPlanner(
-            model=self.robot.model,
-            frame_torso=self.robot.frame_torso)
+        self.torso_planner = TorsoPlanner()
         # M5: provide torso body inertia so l_com_reference_at() can
         # produce a meaningful feedforward for the NMPC cost.
         # Pinocchio joint index 1 == root_joint (torso); .inertia is
@@ -392,6 +385,11 @@ class SimulationLoop:
             L_max=cfg.L_max, tau_w_max=cfg.tau_w_max,
             p_max=cfg.nmpc_p_max,
             Wv=cfg.nmpc_Wv * np.ones(3),
+            Wr=cfg.nmpc_Wr * np.ones(3),
+            Wu_f=cfg.nmpc_Wu_f, Wu_tau=cfg.nmpc_Wu_tau,
+            Qf_r=cfg.nmpc_Qf_r * np.ones(3),
+            Qf_v=cfg.nmpc_Qf_v * np.ones(3),
+            Qf_L=cfg.nmpc_Qf_L,
             enforce_hw_conservation=cfg.enforce_hw_conservation,
             h_max_tight=cfg.h_max_tight,
             w_L=cfg.w_L_nmpc,
@@ -434,8 +432,8 @@ class SimulationLoop:
         # synchronized trajectories (both torso and swing over [0, T_step])
         # bring the EE to zero velocity at the target without gain ramps.
         self.qp_ss = self._build_qp(
-            cfg.ss_alpha_com, cfg.ss_alpha_torso, cfg.ss_alpha_ee,
-            cfg.ss_alpha_posture, cfg.ss_alpha_wrench, cfg.ss_alpha_reaction,
+            cfg.ss_alpha_ee,
+            cfg.ss_alpha_posture, cfg.ss_alpha_wrench,
             cfg.ss_Kp_com, cfg.ss_Kd_com,
             cfg.ss_Kp_torso, cfg.ss_Kd_torso,
             cfg.ss_Kp_ee, cfg.ss_Kd_ee,
@@ -456,7 +454,7 @@ class SimulationLoop:
         # GMO contact estimator
         from crawlbot.estimation.contact_estimator import (
             GeneralizedMomentumObserver, ContactStateMachine,
-            ContactObserverConfig, ContactState)
+            ContactObserverConfig)
         obs_cfg = ContactObserverConfig(
             K_O=cfg.gmo_K_O, dt=cfg.dt_qp, nv=self.robot.model.nv,
             F_threshold=cfg.gmo_F_threshold,
@@ -466,10 +464,9 @@ class SimulationLoop:
             debounce_count=cfg.gmo_debounce_count)
         self.gmo = GeneralizedMomentumObserver(obs_cfg)
         self.contact_sm = ContactStateMachine(obs_cfg)
-        self._contact_confirmed = False
 
         # ── Two-stage setup settling ──────────────────────────────────
-        # Stage 1: strong joint-velocity damping for n_settle_damping_steps
+        # Stage 1 (open-loop damping) removed - see _settle_setup.
         #          steps to absorb the weld activation impulse.
         # Stage 2: M2 QP with settle_mode + passivity_active, exit when
         #          T_kin < 0.5·epsilon_v²·lambda_min(H).
@@ -482,7 +479,6 @@ class SimulationLoop:
         print(f"  Robot mass:     {rs0.total_mass:.1f} kg")
         print(f"  RWA model:      {'YES (3 wheels)' if self.has_rwa else 'NO'}")
         print(f"  AOCS estimator: {'H_{r/O}' if cfg.aocs_use_H_estimator else 'L_dot (legacy)'}")
-        print(f"  GMO dock:       {'YES' if cfg.use_gmo_dock else 'NO (legacy kinematic)'}")
         print(f"  NMPC:           {1/cfg.dt_nmpc:.0f} Hz, N={cfg.nmpc_N}")
         print(f"  QP:             {1/cfg.dt_qp:.0f} Hz, {self.n_qp_per_nmpc} per NMPC")
         print(f"  Gait:           {n_steps} step(s), "
@@ -507,7 +503,6 @@ class SimulationLoop:
         """Two-stage setup-phase settling.
 
         Stage 1 — weld-snap absorption (open-loop damping):
-            Apply tau_j = -Kd * dq_j for n_settle_damping_steps steps.
             No QP. Purpose: dissipate the large constraint-force impulse
             from the weld activation (~300 N) which the QP cannot handle
             gracefully because the initial constraint violation is large.
@@ -526,7 +521,6 @@ class SimulationLoop:
             'initial_vcom', 'initial_Lcom'
         """
         cfg = self.cfg
-        n_j = self.robot.n_joints
         dt = cfg.dt_qp
 
         log = {
@@ -547,24 +541,11 @@ class SimulationLoop:
         T_initial = _kinetic_energy(rs0.v, rs0.H)
         log['T_start'] = T_initial
 
-        # ── Stage 1: open-loop damping ────────────────────────────────
-        Kd = cfg.Kd_settle_damping
-        for k in range(cfg.n_settle_damping_steps):
-            dq_j = self.mj_data.qvel[
-                -n_j - (3 if self.has_rwa else 0):
-                None if not self.has_rwa else -3]
-            tau_damp = np.clip(-Kd * dq_j, -cfg.tau_max, cfg.tau_max)
-            self.mj_data.ctrl[:n_j] = tau_damp
-            mujoco.mj_step(self.mj_model, self.mj_data)
-            log['stage1_steps'] += 1
-
-            if k % 5 == 0:
-                pq, pv = mujoco_to_pinocchio(
-                    self.mj_data.qpos, self.mj_data.qvel)
-                rs = self.robot.update(pq, pv)
-                T = _kinetic_energy(rs.v, rs.H)
-                log['t_log'].append(k * dt)
-                log['T_log'].append(T)
+        # Stage 1 (open-loop joint-velocity damping) was removed in
+        # CLEANUP-13: n_settle_damping_steps is 0 on the canonical, so the
+        # loop never executed. The manipulability-optimized init places the
+        # arms near weld equilibrium (no impulse to absorb) and the stage-2
+        # passivity QP holds posture.
 
         # ── Stage 2: passivity-constrained QP ─────────────────────────
         # Delegated to the shared _run_ds_passivity_loop() helper so the
@@ -765,7 +746,7 @@ class SimulationLoop:
                 # Phase B). No control change — value is not consumed
                 # downstream of this branch.
                 _, _, lambda_qp_sol, tau, _ = qp.solve(
-                    q_t=rs.q_torso, dq_t=rs.dq_torso,
+                    dq_t=rs.dq_torso,
                     q=rs.q_joints, dq=rs.dq_joints,
                     r_com_ref=rs.r_com, v_com_ref=np.zeros(3),
                     lambda_ref=np.zeros(12), a_com_ff=np.zeros(3),
@@ -788,10 +769,7 @@ class SimulationLoop:
                     passivity_active=True,
                     settle_alpha_wrench=(cfg.interstep_settle_alpha_wrench
                                          if cfg.interstep_settle_alpha_wrench > 0
-                                         else None),
-                    settle_alpha_sigf=(cfg.interstep_settle_alpha_sigf
-                                       if cfg.interstep_settle_alpha_sigf > 0
-                                       else None))
+                                         else None))
                 tau = np.clip(tau, -cfg.tau_max, cfg.tau_max)
             except Exception:
                 tau = -fallback_Kd * rs.dq_joints
@@ -1128,21 +1106,20 @@ class SimulationLoop:
         # Energy / passivity
         log.T_kinetic.append(0.5 * float(rs.v @ rs.H @ rs.v))
 
-    def _build_qp(self, ac, at, ae, ap, aw, ar_react,
+    def _build_qp(self, ae, ap, aw,
                    kpc, kdc, kpt, kdt, kpe, kde,
                    kpe_ang=5.0, kde_ang=3.0):
         cfg = self.cfg
-        # M2: when use_m2_stack is on, the explicit CoM task is dropped,
-        # the torso 6D task becomes primary P1, EE is null-space projected
-        # against the torso task, and a soft CoM residual cost is added.
+        # The QP runs the Phase-2.1 two-task SS stack plus the centroidal-DS
+        # tasks. The legacy CoM / torso-6D-P1 / cooperative-split / Option-D
+        # / soft-CoM channels were removed in CLEANUP-6, so their weights
+        # (alpha_com, alpha_torso, alpha_com_soft, r_tube, w_tube_lin,
+        # alpha_torso_ang/lin, ...) are no longer passed.
         c = WholeBodyQPConfig(
             nq=self.robot.n_joints, nc_max=2, dt_qp=cfg.dt_qp,
             tau_max=cfg.tau_max * np.ones(self.robot.n_joints),
-            alpha_com=ac if not cfg.use_m2_stack else 0.0,
-            alpha_torso=at,
             alpha_ee=ae,
             alpha_posture=ap, alpha_wrench=aw,
-            alpha_reaction=ar_react,
             # CANONICAL-2p5 / Add-5 freeze: torque-min must stay ≳5× the
             # accel-reg floor or SS redundancy resolution degrades to a
             # step-0 dock timeout (PHASE_COPRIORITY_1000 Addendum 5).
@@ -1173,23 +1150,13 @@ class SimulationLoop:
             # the planner BUDGETS for; the QP delivers what the
             # CoM/torso/EE tracking needs. The WB QP default 3000 N
             # is effectively unbounded and stays as a sanity backstop.
-            use_m2_stack=cfg.use_m2_stack,
-            ee_null_space=cfg.use_m2_stack,
-            alpha_com_soft=cfg.alpha_com_soft,
             alpha_passivity=cfg.alpha_passivity,
             passivity_W_budget=cfg.passivity_W_budget,
             qp_envelope_exact=cfg.qp_envelope_exact,
-            r_tube=cfg.r_tube,
-            w_tube_lin=cfg.w_tube_lin,
-            cooperative_arms_mode=cfg.cooperative_arms_mode,
-            alpha_torso_ang=cfg.ss_alpha_torso_ang,
-            alpha_torso_lin=cfg.ss_alpha_torso_lin,
-            ss_centroidal_momentum_task=cfg.ss_centroidal_momentum_task,
             ss_alpha_mom=cfg.ss_alpha_mom,
-            ss_alpha_tl_weak=cfg.ss_alpha_tl_weak,
             ss_two_task_mode=cfg.ss_two_task_mode,
             alpha_torso_pose=cfg.alpha_torso_pose,
-            stance_thrust_correction=cfg.stance_thrust_correction)
+            )
         qp = WholeBodyQP(c)
         qp.set_nominal_posture(self.q_dock_init[self.robot.joints_q_slice])
         return qp
@@ -1332,10 +1299,7 @@ class SimulationLoop:
             vel_ok = twist_norm < cfg.dock_twist_max
         else:
             vel_ok = self._gripper_speed(swing_arm) < cfg.dock_vel_max
-        if cfg.use_gmo_dock:
-            docked = self._contact_confirmed and ori_ok and vel_ok
-        else:
-            docked = pos_ok and ori_ok and vel_ok
+        docked = pos_ok and ori_ok and vel_ok
         if log is not None:
             log.dock_gate_trace.append({
                 't': round(float(t), 3), 'step': int(step_idx),
@@ -1372,14 +1336,6 @@ class SimulationLoop:
         # M7 / FK-on-smoothed-q (cfg.reference_source='joint_space_fk'):
         # use the same task-space-smoothed q-sequence the planners use,
         # so the M5 mapping consumes the same q(τ) the QP is tracking.
-        if (self.cfg.reference_source == 'joint_space_fk'
-                and self._step_q_seq is not None):
-            from crawlbot.planning.constrained_geodesic import q_v_real_at_tau
-            q_plan, v_real = q_v_real_at_tau(
-                self.robot.model, self._step_q_seq, self._step_dq_seg,
-                tau=tau, T_phase=T,
-            )
-            return q_plan, v_real
         s = 10.0*tau**3 - 15.0*tau**4 + 6.0*tau**5
         sd = (30.0*tau**2 - 60.0*tau**3 + 30.0*tau**4) / T
         sl_q = self.robot.joints_q_slice
@@ -1442,47 +1398,12 @@ class SimulationLoop:
         w_fixed = float('nan')          # Yoshikawa, fixed_rotation
         w_sigma_min_fixed = float('nan')  # σ_min product, fixed_rotation
         traj_drift = float('nan')
-        traj_w_worst = float('nan')
-        traj_w_end = float('nan')
-        traj_ik_elapsed_s = float('nan')
 
-        # M7 Manipulability-IK-1 Phase 4 — on-demand trajectory-aware IK.
-        # Phase 3 (results/M7_1pct_3step_v22_t15_trajIK/T15_trajIK_report.md
-        # §5) showed that the chained-precompute cache's q_start_assumed
-        # diverged from live state by 30–60× the tolerance at every SS
-        # entry, so the cache was never consumed. Phase 4 bypasses the
-        # cache and calls manipulability_config_trajectory with the
-        # live pq_live so the optimiser sees the actual SS-entry state.
-        # The cache build in setup() is retained unchanged (dead code
-        # in this run) per the Phase-4 prompt — future work may
-        # repurpose it as a warm-start seed source.
-        if cfg.use_trajectory_aware_ik:
-            t0 = time.perf_counter()
-            try:
-                q_end, traj_w_worst, traj_w_end = manipulability_config_trajectory(
-                    model,
-                    se3_a.translation, se3_b.translation,
-                    q_start=pq_live,
-                    n_samples=cfg.trajectory_ik_n_samples,
-                    w_min_threshold=cfg.trajectory_ik_w_min_threshold,
-                )
-                if q_end is None:
-                    # IK_FORMULATION.md §9.3 safety check rejected
-                    # the converged endpoint (w_end below threshold).
-                    # Fall through to the fixed_rotation IK below.
-                    ik_mode = 'trajectory_aware_rejected_singular'
-                    print(
-                        f"  [IK] trajectory-aware IK rejected: "
-                        f"w_end={traj_w_end:.2e} < threshold "
-                        f"{cfg.trajectory_ik_w_min_threshold:.2e}; "
-                        f"falling back to fixed_rotation"
-                    )
-                else:
-                    ik_mode = 'trajectory_aware_on_demand'
-            except RuntimeError:
-                q_end = None
-                ik_mode = 'trajectory_aware_on_demand_failed'
-            traj_ik_elapsed_s = float(time.perf_counter() - t0)
+        # q_end is produced by the fixed-rotation IK below, falling back to the
+        # endpoint-only manipulability IK (IK 1 / IK 2, IK_FORMULATION.md §5-§6).
+        # A third path used to sit here — the trajectory-aware IK 3 — disabled on
+        # the canonical by CLEANUP-15 and retired from ik.py entirely by
+        # CLEANUP-30. Do not re-add a branch for it without reviving its subject.
 
         if q_end is None and cfg.ik_fixed_rotation:
             try:
@@ -1517,13 +1438,6 @@ class SimulationLoop:
         dR = R_t0.T @ R_t1
         theta_goal = float(np.linalg.norm(pin.log3(dR)))
         dp_torso = p_t1 - p_t0
-        traj_suffix = ""
-        if cfg.use_trajectory_aware_ik:
-            traj_suffix = (
-                f"  traj_ik_t = {traj_ik_elapsed_s:.2f} s"
-                f"  w_worst(traj) = {traj_w_worst:.2e}"
-                f"  w_end(traj) = {traj_w_end:.2e}"
-            )
         print(
             f"  [IK] mode={ik_mode}  "
             f"||log(R_start^T R_goal)|| = {np.degrees(theta_goal):.2f} deg  "
@@ -1544,109 +1458,10 @@ class SimulationLoop:
             'w_fixed': w_fixed,                    # Yoshikawa
             'w_sigma_min_fixed': w_sigma_min_fixed,  # σ_min product
             'traj_drift': traj_drift,
-            'traj_w_worst': traj_w_worst,
-            'traj_w_end': traj_w_end,
-            'traj_ik_elapsed_s': traj_ik_elapsed_s,
         })
 
-        # ── 1b. Mid-waypoint reshape (Option B per
-        #        T15_step2_path_geometry.md §7.3) ─────────────────────────
-        # When enabled, sample the planner-style reference path's
-        # whole-body Jacobian conditioning. If infeasible (or
-        # mid_waypoint_force_on=True), insert a manipulability-aware
-        # mid-waypoint into TorsoPlanner and SwingPlanner, generating a
-        # piecewise quintic that visits a known-feasible configuration
-        # at the midpoint. Default flags off → byte-identical to the
-        # IK-fix branch.
-        # Always clear any prior swing override so old steps' mid-waypoints
-        # don't leak into the next step.
-        self.swing_planner.clear_phase_overrides()
-        mid_wp_p_t = None
-        mid_wp_R_t = None
-        mid_wp_p_ee = None
-        mid_wp_R_ee = None
-        path_feasibility_result = None
-        mid_w_worst = float('nan')
-        mid_wp_used = False
-        if cfg.use_path_feasibility_check or cfg.use_mid_waypoint_reshape:
-            should_attempt_reshape = False
-            if cfg.use_path_feasibility_check:
-                t_pf0 = time.perf_counter()
-                path_feasibility_result = check_path_feasibility(
-                    model, pq_live, q_end, se3_a, se3_b,
-                    swing_arm=target_arm, fid_torso=self.robot.frame_torso,
-                    n_samples=21,
-                    w_min_threshold=cfg.path_feasibility_w_threshold,
-                )
-                t_pf = time.perf_counter() - t_pf0
-                print(
-                    f"  [path-feasibility] feasible="
-                    f"{path_feasibility_result['all_samples_feasible']} "
-                    f"w_min={path_feasibility_result['w_min']:.2e} "
-                    f"@τ={path_feasibility_result['w_min_tau']:.2f} "
-                    f"({t_pf:.2f} s)"
-                )
-                if not path_feasibility_result['all_samples_feasible']:
-                    should_attempt_reshape = True
-            if (cfg.use_mid_waypoint_reshape and
-                    (should_attempt_reshape or cfg.mid_waypoint_force_on)):
-                t_mid_ik0 = time.perf_counter()
-                try:
-                    q_mid, mid_w_worst, mid_success = (
-                        manipulability_config_mid_waypoint(
-                            model, se3_a, se3_b,
-                            q_start=pq_live, q_end=q_end,
-                            swing_arm=target_arm,
-                            n_interior_samples=5,
-                            w_min_threshold=cfg.path_feasibility_w_threshold,
-                        )
-                    )
-                except Exception as e:
-                    q_mid = None
-                    mid_success = False
-                    print(f"  [mid-waypoint] IK raised: {type(e).__name__}: {e}")
-                t_mid_ik = time.perf_counter() - t_mid_ik0
-                if mid_success and q_mid is not None:
-                    # Extract mid-waypoint poses via FK on q_mid.
-                    rs_m = self.robot.update(
-                        q_mid, np.zeros(self.robot.model.nv))
-                    mid_wp_p_t = rs_m.oMf_torso.translation.copy()
-                    mid_wp_R_t = rs_m.oMf_torso.rotation.copy()
-                    # Swing arm EE at q_mid (for SwingPlanner override).
-                    fid_swing = (FRAME_TOOL_B if target_arm == 'b'
-                                 else FRAME_TOOL_A)
-                    pin.forwardKinematics(self.robot.model,
-                                          self.robot.data, q_mid)
-                    pin.updateFramePlacements(self.robot.model,
-                                              self.robot.data)
-                    mid_wp_p_ee = self.robot.data.oMf[fid_swing].translation.copy()
-                    mid_wp_R_ee = self.robot.data.oMf[fid_swing].rotation.copy()
-                    mid_wp_used = True
-                    print(
-                        f"  [mid-waypoint] inserted: "
-                        f"w_worst_mid={mid_w_worst:.2e} "
-                        f"q_mid_torso={mid_wp_p_t.round(3).tolist()} "
-                        f"({t_mid_ik:.1f} s)"
-                    )
-                else:
-                    print(
-                        f"  [mid-waypoint] IK failed (w_worst="
-                        f"{mid_w_worst:.2e}); falling back to single-quintic "
-                        f"({t_mid_ik:.1f} s)"
-                    )
-        # Append mid-waypoint diagnostics to the IK trace entry.
-        self._debug_ik_trace[-1].update({
-            'mid_wp_used': bool(mid_wp_used),
-            'mid_w_worst': float(mid_w_worst),
-            'mid_wp_p_t': (mid_wp_p_t.tolist() if mid_wp_p_t is not None
-                           else None),
-            'path_feasibility_w_min': (
-                None if path_feasibility_result is None
-                else float(path_feasibility_result['w_min'])),
-            'path_feasibility_all_ok': (
-                None if path_feasibility_result is None
-                else bool(path_feasibility_result['all_samples_feasible'])),
-        })
+        # CLEANUP-18: the SwingPlanner phase-override mechanism was removed
+        # entirely; reference_at() always takes the scheduler-driven gait plan.
 
         # 2. Run the coarse pre-planner. T_step is produced by the
         #    pre-planner from the momentum envelope; on failure we do
@@ -1697,10 +1512,6 @@ class SimulationLoop:
         torso_phase_kwargs = dict(
             delta_com_start=delta0, delta_com_end=delta1,
             early_finish_fraction=cfg.torso_early_finish_fraction)
-        if mid_wp_used:
-            t_mid_phase = t_ss_start + 0.5 * T_step
-            torso_phase_kwargs.update(
-                p_mid=mid_wp_p_t, R_mid=mid_wp_R_t, t_mid=t_mid_phase)
 
         # M7 / FK-on-smoothed-q reference path
         # (cfg.reference_source='joint_space_fk').
@@ -1711,44 +1522,9 @@ class SimulationLoop:
         # Phase-0 measurement: ~0.3 s wall-clock for n_tau=21,
         # n_iter=120; eliminates the kinematically-uncoupled-refs
         # failure mode at T15 step 2 (synthesis §6, plan §2.2).
-        fk_torso_extra = {}
-        fk_swing_extra = {}
-        fk_q_seq = None
-        if cfg.reference_source == 'joint_space_fk':
-            from crawlbot.planning.constrained_geodesic import (
-                smoothed_constrained_geodesic,
-            )
-            fid_stance_fk = (self.robot.frame_tool_a
-                             if target_arm == 'b'
-                             else self.robot.frame_tool_b)
-            fid_swing_fk = (self.robot.frame_tool_b
-                            if target_arm == 'b'
-                            else self.robot.frame_tool_a)
-            t_smooth0 = time.perf_counter()
-            fk_q_seq, fk_info = smoothed_constrained_geodesic(
-                self.robot.model, pq_live, q_end,
-                fid_stance=fid_stance_fk,
-                fid_torso=self.robot.frame_torso,
-                fid_swing=fid_swing_fk,
-                n_tau=cfg.geodesic_n_tau,
-                n_iter=cfg.geodesic_n_iter,
-                tol=cfg.geodesic_tol,
-                verbose=False,
-            )
-            print(
-                f"  [smoother] {fk_info['iters']} iters in "
-                f"{time.perf_counter() - t_smooth0:.2f}s, "
-                f"converged={fk_info['converged']}, "
-                f"fallbacks={fk_info['fallbacks_total']}"
-            )
-            if fk_info['fallbacks_total'] > 0:
-                print(
-                    f"  [smoother] WARNING: {fk_info['fallbacks_total']} "
-                    f"3-task IK fallbacks during smoothing"
-                )
-            fk_torso_extra['q_seq'] = fk_q_seq
-            fk_swing_extra['q_seq'] = fk_q_seq
-            fk_swing_extra['frame_swing'] = fid_swing_fk
+        # CLEANUP-15: reference_source is task_space on the canonical, so the
+        # joint-space-FK (smoothed constrained geodesic) reference path,
+        # including its swing-phase override below, never ran.
 
         # Orientation: R_start = R_end = R_flat (R_t1 == R_flat via the
         # R_torso_fixed=R_flat dock-IK above), so the SS orientation reference
@@ -1758,47 +1534,11 @@ class SimulationLoop:
         self.torso_planner.add_phase(
             t_ss_start, t_ss_start + T_step,
             p_t0, self._R_torso_flat, p_t1, R_t1,
-            **torso_phase_kwargs, **fk_torso_extra)
+            **torso_phase_kwargs)
         # Install the swing-EE phase override when mid-waypoint
         # reshape succeeded OR FK mode is on. Endpoints come from FK
         # at pq_live (start) and FK at q_end (end). The legacy
         # SwingPlanner path is taken when no override is registered.
-        if cfg.reference_source == 'joint_space_fk':
-            fid_swing_for_log = fk_swing_extra['frame_swing']
-            pin.forwardKinematics(self.robot.model, self.robot.data, pq_live)
-            pin.updateFramePlacements(self.robot.model, self.robot.data)
-            p_swing_start_pose = self.robot.data.oMf[fid_swing_for_log].translation.copy()
-            R_swing_start_pose = self.robot.data.oMf[fid_swing_for_log].rotation.copy()
-            pin.forwardKinematics(self.robot.model, self.robot.data, q_end)
-            pin.updateFramePlacements(self.robot.model, self.robot.data)
-            p_swing_end_pose = self.robot.data.oMf[fid_swing_for_log].translation.copy()
-            R_swing_end_pose = self.robot.data.oMf[fid_swing_for_log].rotation.copy()
-            self.swing_planner.add_phase(
-                t_start=t_ss_start, t_end=t_ss_start + T_step,
-                p_ee_start=p_swing_start_pose, R_ee_start=R_swing_start_pose,
-                p_ee_end=p_swing_end_pose, R_ee_end=R_swing_end_pose,
-                swing_arm=target_arm,
-                **fk_swing_extra,
-            )
-        elif mid_wp_used:
-            fid_swing_for_log = (FRAME_TOOL_B if target_arm == 'b'
-                                 else FRAME_TOOL_A)
-            pin.forwardKinematics(self.robot.model, self.robot.data, pq_live)
-            pin.updateFramePlacements(self.robot.model, self.robot.data)
-            p_swing_start_pose = self.robot.data.oMf[fid_swing_for_log].translation.copy()
-            R_swing_start_pose = self.robot.data.oMf[fid_swing_for_log].rotation.copy()
-            pin.forwardKinematics(self.robot.model, self.robot.data, q_end)
-            pin.updateFramePlacements(self.robot.model, self.robot.data)
-            p_swing_end_pose = self.robot.data.oMf[fid_swing_for_log].translation.copy()
-            R_swing_end_pose = self.robot.data.oMf[fid_swing_for_log].rotation.copy()
-            self.swing_planner.add_phase(
-                t_start=t_ss_start, t_end=t_ss_start + T_step,
-                p_ee_start=p_swing_start_pose, R_ee_start=R_swing_start_pose,
-                p_ee_end=p_swing_end_pose, R_ee_end=R_swing_end_pose,
-                swing_arm=target_arm,
-                p_ee_mid=mid_wp_p_ee, R_ee_mid=mid_wp_R_ee,
-                t_mid=t_mid_phase,
-            )
 
         # M7 v19: capture per-step planned joint trajectory endpoints so
         # the CoM->torso mapping can be fed q_planned (arm configuration
@@ -1815,16 +1555,8 @@ class SimulationLoop:
         # mapping sees the same q(τ) the planners are tracking).
         # Cleared (set to None) under legacy mode so the legacy quintic
         # path is taken.
-        if fk_q_seq is not None:
-            from crawlbot.planning.constrained_geodesic import (
-                precompute_segment_tangents,
-            )
-            self._step_q_seq = fk_q_seq
-            self._step_dq_seg = precompute_segment_tangents(
-                self.robot.model, fk_q_seq)
-        else:
-            self._step_q_seq = None
-            self._step_dq_seg = None
+        self._step_q_seq = None
+        self._step_dq_seg = None
         # Snapshot the torso linear position at SS entry — read by the
         # mapping_bypass_in_ss diagnostic in _step() to freeze the SS
         # linear torso reference. p_t0 is the torso pose computed from
@@ -2119,39 +1851,12 @@ class SimulationLoop:
                             self.mj_data.qpos, self.mj_data.qvel)
                         rs_d = self.robot.update(pq_d, pv_d)
                         t_dwell_end = t + _dwell_target
-                        if cfg.ds_mobile_com_magnitude > 0.0:
-                            # α (J2 #2): CoM-mobile DS. Translate the CoM toward
-                            # the next swing arm's target anchor (held ori +
-                            # posture) via the existing trajectory machinery —
-                            # NOT a mode. set_hold is the degenerate constant
-                            # case; here the CoM content is non-constant.
-                            p0 = rs_d.oMf_torso.translation.copy()
-                            R0 = rs_d.oMf_torso.rotation.copy()
-                            com0 = rs_d.r_com.copy()
-                            anchors = (self.sched.anchors_a if swing_arm == 'a'
-                                       else self.sched.anchors_b)
-                            anchor_next = np.asarray(anchors[target_idx],
-                                                     dtype=float)
-                            dirvec = anchor_next - com0
-                            nrm = float(np.linalg.norm(dirvec))
-                            offset = (cfg.ds_mobile_com_magnitude * dirvec / nrm
-                                      if nrm > 1e-6 else np.zeros(3))
-                            # CoM + torso position translate by `offset`
-                            # (constant δ_com ⇒ r_com(t)=p(t)+R·δ translates);
-                            # orientation held at global R_flat (both waypoints).
-                            self.torso_planner.set_from_waypoints(
-                                t, t_dwell_end,
-                                [(p0, self._R_torso_flat),
-                                 (p0 + offset, self._R_torso_flat)],
-                                [com0, com0 + offset])
-                            if verbose:
-                                print(f"  DS-mobile: CoM +{nrm and cfg.ds_mobile_com_magnitude:.3f}m "
-                                      f"toward anchor {swing_arm}{target_idx}")
-                        else:
-                            self.torso_planner.set_hold(
-                                rs_d.oMf_torso.translation.copy(),
-                                self._R_torso_flat.copy(),
-                                r_com=rs_d.r_com.copy())
+                        # CLEANUP-14: ds_mobile_com_magnitude was 0.0 on the canonical;
+                        # the CoM-mobile DS variant never ran. Hold the welded state.
+                        self.torso_planner.set_hold(
+                            rs_d.oMf_torso.translation.copy(),
+                            self._R_torso_flat.copy(),
+                            r_com=rs_d.r_com.copy())
                         # Use stance pair from the upcoming SS phase as the
                         # contact config (both arms welded → DOUBLE).
                         last_sa_d = stance_a
@@ -2231,7 +1936,6 @@ class SimulationLoop:
                     rs_r = self.robot.update(pq_r, pv_r)
                     self.gmo.reset(rs_r.H, rs_r.v)
                     self.contact_sm.reset()
-                    self._contact_confirmed = False
                     _, _, oMf_release = self._get_ee_data(rs_r, swing_arm)
                     self.swing_planner.set_swing_orientation(
                         oMf_release.rotation)
@@ -2307,8 +2011,7 @@ class SimulationLoop:
                                     'ori_deg': round(ori_err_deg, 2),
                                     'twist': round(twist_norm, 6),
                                     'arm': swing_arm, 'anchor': target_idx,
-                                    'method': ('gmo' if cfg.use_gmo_dock
-                                               else 'kinematic')})
+                                    'method': 'kinematic'})
                                 self._capture_snapshot(
                                     log, t, f'dock_step{step_idx}')
                                 if verbose:
@@ -2357,8 +2060,7 @@ class SimulationLoop:
                                     'ori_deg': round(ori_err_deg, 2),
                                     'twist': round(twist_norm, 6),
                                     'arm': swing_arm, 'anchor': target_idx,
-                                    'method': ('gmo' if cfg.use_gmo_dock
-                                               else 'kinematic')})
+                                    'method': 'kinematic'})
                                 self._capture_snapshot(
                                     log, t, f'dock_step{step_idx}')
                                 if verbose:
@@ -2883,41 +2585,21 @@ class SimulationLoop:
                 # smoothly at WBC rate via the existing interpolation.
                 ratio = self.mapping.ratio
                 m_b = self.mapping.m_b
-                if cfg.use_local_delta_mapping:
-                    # Loop-free: r_b_ref = r_com_ref - D_local(q)/m_total.
-                    # D_local is base-position invariant -> no mapping->q
-                    # feedback even with live q (and no q_planned mismatch).
-                    # Computed every WBC tick (NOT F-RATE cached): the
-                    # 10Hz caching existed only to break the base-position
-                    # feedback loop, which D_local does not have. Caching
-                    # would instead STEP D_local at NMPC boundaries and
-                    # re-introduce reference jitter.
-                    m_total = self.mapping.m_total
-                    _delta_q = np.asarray(
-                        self.mapping.compute_delta_local(rs.q), dtype=float)
-                    _delta_dot = np.asarray(
-                        self.mapping.compute_delta_local_dot(rs.q, rs.v),
-                        dtype=float)
-                    # Keep the telemetry cache vars populated (the block
-                    # below copies self._mapping_cache_delta).
-                    self._mapping_cache_delta = _delta_q.copy()
-                    self._mapping_cache_delta_dot = _delta_dot.copy()
-                    r_b_ref_m = rp_interp - _delta_q / m_total
-                    v_b_ref_m = vp_interp - _delta_dot / m_total
-                    a_b_ff_m = af_for_mapping
-                else:
-                    if qs == 0 or self._mapping_cache_delta is None:
-                        self._mapping_cache_delta = np.asarray(
-                            self.mapping.compute_delta(rs.q),
-                            dtype=float).copy()
-                        self._mapping_cache_delta_dot = np.asarray(
-                            self.mapping.compute_delta_dot(rs.q, rs.v),
-                            dtype=float).copy()
-                    _delta_q = self._mapping_cache_delta
-                    _delta_dot = self._mapping_cache_delta_dot
-                    r_b_ref_m = ratio * rp_interp - _delta_q / m_b
-                    v_b_ref_m = ratio * vp_interp - _delta_dot / m_b
-                    a_b_ff_m = ratio * af_for_mapping
+                # CLEANUP-14: use_local_delta_mapping was False on the canonical, so
+                # only the cached-delta path below ever ran. The loop-free D_local
+                # variant and its flag were removed.
+                if qs == 0 or self._mapping_cache_delta is None:
+                    self._mapping_cache_delta = np.asarray(
+                        self.mapping.compute_delta(rs.q),
+                        dtype=float).copy()
+                    self._mapping_cache_delta_dot = np.asarray(
+                        self.mapping.compute_delta_dot(rs.q, rs.v),
+                        dtype=float).copy()
+                _delta_q = self._mapping_cache_delta
+                _delta_dot = self._mapping_cache_delta_dot
+                r_b_ref_m = ratio * rp_interp - _delta_q / m_b
+                v_b_ref_m = ratio * vp_interp - _delta_dot / m_b
+                a_b_ff_m = ratio * af_for_mapping
                 # F-SAT: cap the per-WBC-tick r_b_ref increment at the
                 # *planned* torso-reference velocity (|v_b_ref_m|, already
                 # feasibility-bounded by the pre-planner CoM trajectory)
@@ -3025,11 +2707,6 @@ class SimulationLoop:
                               v_ee_ref=np.concatenate([sr.v_ee, sr.omega_ee]),
                               a_ee_ff=np.concatenate([sr.a_ee, sr.alpha_ee]))
 
-            # Reaction null-space: coupling block H_base ← swing_arm
-            sw_slice = (self.robot.arm_b_v_slice if swing_arm == 'b'
-                        else self.robot.arm_a_v_slice)
-            H_bs = rs.H[:6, sw_slice]
-
             # M2: enable passivity inequality during DS (settling) when the
             # reworked task stack is active. settle_mode already bypasses
             # torso/EE tasks; passivity just adds dq^T*tau_q + 2α*T ≤ 0.
@@ -3058,20 +2735,9 @@ class SimulationLoop:
             # NMPC envelope path constraint enforces). A pre-solve scalar that
             # opens the strict passivity RHS only by the planned envelope
             # headroom. β=0 ⇒ None ⇒ strict (byte-identical).
-            _pisteA_W = None
-            if cfg.ds_passivity_beta > 0.0 and passivity_active:
-                _lr = np.asarray(lr, dtype=float)
-                _rCa = np.asarray(self.sched.anchors_a[stance_a], dtype=float)
-                _rCb = np.asarray(self.sched.anchors_b[stance_b], dtype=float)
-                _Hs_plan = (np.cross(_rCa, _lr[0:3]) + _lr[3:6]
-                            + np.cross(_rCb, _lr[6:9]) + _lr[9:12])
-                _margin = max(0.0, cfg.tau_w_max
-                              - float(np.max(np.abs(_Hs_plan))))
-                _pisteA_W = (cfg.ds_passivity_beta * cfg.alpha_passivity
-                             * _margin)
             try:
                 qdd_t_qp, qdd_qp, lambda_qp_sol, tau, _ = qp.solve(
-                    q_t=rs.q_torso, dq_t=rs.dq_torso,
+                    dq_t=rs.dq_torso,
                     q=rs.q_joints, dq=rs.dq_joints,
                     r_com_ref=rp_interp, v_com_ref=vp_interp,
                     lambda_ref=lr, a_com_ff=af,
@@ -3081,11 +2747,11 @@ class SimulationLoop:
                     hw_current=hw,
                     hw_min=-cfg.hw_qp_tight, hw_max=cfg.hw_qp_tight,
                     r_com=rs.r_com, L_com_current=rs.L_com,
-                    H_base_swing=H_bs, swing_v_slice=sw_slice,
                     settle_mode=settle_mode,
                     passivity_active=passivity_active,
                     ds_centroidal_active=ds_centroidal_active,
-                    passivity_W_budget=_pisteA_W,
+                    # strict passivity RHS (the Piste-A budget was removed)
+                    passivity_W_budget=None,
                     **tkw, **ek)
             except Exception as _qp_exc:
                 # Surface QP failures (silent swallow -> zero torque is
@@ -3106,38 +2772,6 @@ class SimulationLoop:
             #               (→ τ_w_max ⇒ envelope binding),
             #   com_err    = ‖r_com − cref_r‖  (tracking),
             #   qp_ok / nmpc_status  (feasibility).
-            if (cfg.ds_mobile_com_magnitude > 0.0 and settle_mode
-                    and ds_centroidal_active):
-                dqj = rs.dq_joints
-                T_kin = 0.5 * float(dqj @ rs.H[6:, 6:] @ dqj)
-                pass_resid = float(dqj @ tau + 2.0 * cfg.alpha_passivity * T_kin)
-                lam = np.asarray(lambda_qp_sol, dtype=float)
-                rCa = np.asarray(self.sched.anchors_a[stance_a], dtype=float)
-                rCb = np.asarray(self.sched.anchors_b[stance_b], dtype=float)
-                Hdot = (np.cross(rCa, lam[0:3]) + lam[3:6]
-                        + np.cross(rCb, lam[6:9]) + lam[9:12])
-                # Next swing arm's Jacobian manipulability (byproduct: does
-                # "rapprocher" improve conditioning?). Arm-block of the tool
-                # Jacobian; sqrt(det(J Jᵀ)).
-                J_sw = (np.asarray(rs.J_tool_a) if swing_arm == 'a'
-                        else np.asarray(rs.J_tool_b))
-                sl_sw = (self.robot.arm_a_v_slice if swing_arm == 'a'
-                         else self.robot.arm_b_v_slice)
-                J_arm = J_sw[:, sl_sw]
-                JJt = J_arm @ J_arm.T
-                manip = float(np.sqrt(max(np.linalg.det(JJt), 0.0)))
-                log.ds_mobile_trace.append({
-                    't': round(float(t), 3),
-                    'com_err': float(np.linalg.norm(
-                        rs.r_com - np.asarray(cref_r, dtype=float))),
-                    'pass_resid': pass_resid,
-                    'dq_tau': float(dqj @ tau),   # joint mech. power (>0 ⇒ +work)
-                    'W_budget': (float(_pisteA_W) if _pisteA_W is not None
-                                 else 0.0),       # Piste A per-tick budget
-                    'Hdot_inf': float(np.max(np.abs(Hdot))),
-                    'swing_manip': manip,
-                    'qp_ok': bool(qp_ok),
-                    'nmpc_status': int(nmpc_status_code)})
 
             # Dock-floor audit: per-SS-tick joint mechanical power + dock
             # distance, to confirm whether the arm does positive work
@@ -3478,19 +3112,6 @@ class SimulationLoop:
             tau_applied[6:6 + self.robot.n_joints] = tau
             self.gmo.update(rs2.H, rs2.v, rs2.C_matrix, tau_applied)
 
-            # Contact state machine (EXT phase only)
-            # M7: GMO-based contact detection runs throughout SS (the
-            # EXT phase no longer exists; dock detection is continuous).
-            if phase == 'SS' and cfg.use_gmo_dock:
-                from crawlbot.estimation.contact_estimator import ContactState
-                d_gmo = self._gripper_distance(swing_arm, target_anchor)
-                sw_slice = (self.robot.arm_b_v_slice if swing_arm == 'b'
-                            else self.robot.arm_a_v_slice)
-                r_norm = self.gmo.swing_residual_norm(sw_slice)
-                cs = self.contact_sm.update(r_norm, d_gmo)
-                if cs == ContactState.CONFIRMED and not self._contact_confirmed:
-                    self._contact_confirmed = True
-
             if self.has_rwa:
                 hw = cfg.rwa_I_w * self.mj_data.qvel[6:9].copy()
             else:
@@ -3540,11 +3161,11 @@ class SimulationLoop:
         # switch and ramps during settle. Log the clamped planner pose
         # instead (terminal quintic pose p_t1 / initial hold) so the
         # exported reference is continuous across the whole traversal.
-        # When a phase DOES cover t_log (run-B DWELL set_from_waypoints
-        # moving reference), p_torso_ref_used is kept — the QP genuinely
-        # tracks that moving centroidal reference. NB the guard cannot
-        # key on ds_centroidal_active: the locked config runs centroidal
-        # DS in the trailing settle too (dca sets ds_centroidal_mode).
+        # When a phase DOES cover t_log, p_torso_ref_used is kept — the QP
+        # genuinely tracks that moving centroidal reference. NB the guard
+        # cannot key on ds_centroidal_active: the locked config runs
+        # centroidal DS in the trailing settle too (dca sets
+        # ds_centroidal_mode).
         if (phase == 'DS' and settle_mode
                 and not self.torso_planner.has_phase_at(t_log)):
             p_torso_ref_log = self.torso_planner.reference_at_clamped(
@@ -3609,20 +3230,14 @@ class SimulationLoop:
             log.rw_speed.append(np.zeros(3))
             log.transport_term_mag.append(0.0)
 
-        # H_{r/O} estimator diagnostics
-        if self.has_rwa and cfg.aocs_use_H_estimator:
-            log.H_rO.append(self.H_estimator.H_rO.copy())
-            log.H_dot_est.append(self.H_estimator.H_dot.copy())
-            log.omega_struct.append(_omega_s_last.copy())
-            # MuJoCo ground truth: constraint torque on structure about O
-            mujoco.mj_forward(self.mj_model, self.mj_data)
-            log.qfrc_constraint_torque.append(
-                self.mj_data.qfrc_constraint[3:6].copy())
-        else:
-            log.H_rO.append(np.zeros(3))
-            log.H_dot_est.append(np.zeros(3))
-            log.omega_struct.append(np.zeros(3))
-            log.qfrc_constraint_torque.append(np.zeros(3))
+        # H_{r/O} estimator diagnostics — the estimator branch was removed in
+        # CLEANUP-13 (aocs_use_H_estimator is False on the canonical, so only
+        # the zero-fill path ever ran). The channels stay so the log schema is
+        # unchanged.
+        log.H_rO.append(np.zeros(3))
+        log.H_dot_est.append(np.zeros(3))
+        log.omega_struct.append(np.zeros(3))
+        log.qfrc_constraint_torque.append(np.zeros(3))
         log.tau.append(tau_last.copy())
         log.tau_max_joint.append(float(np.max(np.abs(tau_last))))
         log.struct_pos.append(self.mj_data.qpos[0:3].copy())

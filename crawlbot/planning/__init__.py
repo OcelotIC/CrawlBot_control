@@ -9,3 +9,16 @@ from .coarse_preplanner import (
     CoarsePrePlannerConfig,
     CoarsePlanResult,
 )
+
+# Re-exported package API. Declared so the names are not read as
+# unused imports — they are the interface, not leftovers.
+__all__ = [
+    'ContactScheduler',
+    'read_anchors_from_mujoco',
+    'TorsoPlanner',
+    'SwingPlanner',
+    'LocomotionPlanner',
+    'CoarsePrePlanner',
+    'CoarsePrePlannerConfig',
+    'CoarsePlanResult',
+]
