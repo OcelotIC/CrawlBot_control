@@ -34,6 +34,9 @@ for f in files:
         s = open(f, encoding='utf-8').read()
     except UnicodeDecodeError:
         continue
+    # Fenced code blocks are verbatim output or examples (tool transcripts,
+    # corrupted-path illustrations), not citations of real files.
+    s = re.sub(r'```.*?```', '', s, flags=re.S)
     for m in set(pat.findall(s)):
         cited.setdefault(m, set()).add(f)
 

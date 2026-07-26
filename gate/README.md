@@ -97,3 +97,23 @@ basename like `sim_log.json` reads as a false alarm.
 to its real path and asserts it equals the repo root. This matters because
 `_root` feeds both `sys.path` *and* path construction (URDF, MJCF, OUT_DIR): a
 wrong `sys.path` fails loudly, a wrong `OUT_DIR` silently writes elsewhere.
+
+## Documentation check — `verify_docs.py`
+
+```bash
+PYTHONPATH=. python3 gate/verify_docs.py    # exits 1 on an unresolved reference
+```
+
+Checks every claim in `docs/crawlbot/` that can be checked mechanically: each
+`file:line` reference points inside a file that is long enough, and each
+`Class.method` symbol is still defined in `crawlbot/`.
+
+It exists because this repo has already lost one per-package documentation set
+to silent rot (`docs/api/`, now under `Misc/reports/`, carrying a SUPERSEDED
+banner and describing a module that does not exist). It earned its keep on the
+first run: the new docs had inherited `sim_loop.py:2865-2870` from CLAUDE.md,
+stale by ~280 lines after the chantier shrank `sim_loop`. The real site is
+`sim_loop.py:2581-2584`; CLAUDE.md and CLEANUP_CARRYOVER were corrected too.
+
+It does **not** check numeric values (weights, gains, thresholds) — those are
+still verified by hand against CLAUDE.md.

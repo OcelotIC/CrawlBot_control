@@ -41,8 +41,8 @@ CLEANUP-8) but is load-bearing on two paths that have nothing to do with the QP 
 
 | site | what it gates |
 |---|---|
-| `sim_loop.py:~2871` | torso-reference routing — CoM→torso δ-mapping vs raw TorsoPlanner quintic |
-| `sim_loop.py:~3038` | `passivity_active` — **the DS passivity constraint** |
+| `sim_loop.py:~2581` | torso-reference routing — CoM→torso δ-mapping vs raw TorsoPlanner quintic |
+| `sim_loop.py:~2728` | `passivity_active` — **the DS passivity constraint** |
 
 Deleting it would silently disable DS passivity. Its declaration in `config.py` now carries a
 NOTE saying so. Same-named fields, opposite fates.

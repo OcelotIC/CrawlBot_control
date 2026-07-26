@@ -54,7 +54,8 @@ root** (`gate/_run/verify_roots.py`): the `_root = …` / `_ROOT = …` assignme
 `sys.path.insert(0, <expr>)` form are extracted, `eval`'d with `__file__` bound to the script's
 real new path, and compared.
 
-**It caught one.** `scripts/diagnostics/t15_post4_singularity.py` sat one level deeper than its
+**It caught one.** `Misc/scripts/diagnostics/t15_post4_singularity.py` (pre-move: one level
+deeper inside `scripts/`) sat one level deeper than its
 siblings, so it needed **two** extra levels, not one:
 
 ```
@@ -118,10 +119,16 @@ theta_s 0.540 deg   h_w 4.102 / 4.243 Nms   e_com 0.154 m   qp_fail 0
 `gate/link_audit.py` was generalised from `results/`-only to every repo-relative path, and it
 immediately earned its keep by catching a bug the previous narrow check missed:
 
-**`Misc/runs/Misc/runs/q1_q2/…`** — a double prefix, 9 occurrences across 5 files. CLEANUP-21's
+A double prefix, 9 occurrences across 5 files:
+
+```
+Misc/runs/Misc/runs/q1_q2/...
+```
+
+CLEANUP-21's
 citation table mapped `diagnostic/` → `Misc/runs/q1_q2/`, but there is *also* a run directory
 named `diagnostic` (`results/diagnostic/` → `Misc/runs/diagnostic/`), and the rule rewrote the
-substring inside it. My earlier `grep "Misc/Misc"` check did not match `Misc/runs/Misc/runs`.
+substring inside it. My earlier `grep "Misc/Misc"` check did not match the doubled form.
 **A corruption check narrower than the corruption is worthless.**
 
 The tool then had to be tightened twice, because its first two versions cried wolf:
