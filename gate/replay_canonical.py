@@ -12,6 +12,7 @@ Run standalone:
     MUJOCO_GL=disabled PYTHONPATH=. python3 gate/replay_canonical.py
 """
 import os
+import sys
 os.environ.setdefault('MUJOCO_GL', 'disabled')
 
 import crawlbot.solvers.hierarchical_qp as hq
@@ -45,6 +46,15 @@ C_KWARGS = dict(
     out_dir_override=OUT,
 )
 
+# Delete last run's log FIRST. Without this a replay that dies mid-sim leaves
+# the previous artifact in place, the export re-exports it, and the identity
+# check passes against stale data — a false PASS. That is not hypothetical:
+# CLEANUP-32 shipped a broken TickState and the gate reported PASS on a
+# 33-minute-old log.
+_LOG = f'results/{OUT}/sim_log.json'
+if os.path.exists(_LOG):
+    os.remove(_LOG)
+
 with open(MJCF) as f:
     _orig = f.read()
 _pre = _mjcf_md5(MJCF)
@@ -52,9 +62,18 @@ try:
     _mutate_mjcf(damping=0.0, armature=0.05, anchor_dx=0.8, mass_ratio=0.01)
     try:
         dca.main(**C_KWARGS)
-    except Exception as e:              # dca.main may raise after the sim_log
-        print(f'[replay] main() raised after sim: '                       # is
-              f'{type(e).__name__}: {str(e)[:160]}', flush=True)          # written
+    except Exception as e:
+        # dca.main can raise AFTER writing the log (post-sim reporting). That is
+        # tolerable. Raising BEFORE the log exists is a failed replay and must
+        # not exit 0 — the gate would otherwise validate a stale artifact.
+        print(f'[replay] main() raised: '
+              f'{type(e).__name__}: {str(e)[:200]}', flush=True)
+        if not os.path.exists(_LOG):
+            print('[replay] FAILED — no sim_log.json produced; the exception '
+                  'came before the log was written.', flush=True)
+            with open(MJCF, 'w') as f:
+                f.write(_orig)
+            sys.exit(1)
 finally:
     with open(MJCF, 'w') as f:
         f.write(_orig)

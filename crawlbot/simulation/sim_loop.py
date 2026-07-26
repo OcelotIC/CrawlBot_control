@@ -17,10 +17,37 @@ Phase machine per step (M7, two-phase):
     DS (double support, energy-based exit) ->
     SS (single support, T_step-synchronized trajectories) ->
     dock (d<5mm AND ori<5deg)
+
+Reading this file
+-----------------
+It is ~2950 lines and four methods are most of it. Where to start depends on
+the question:
+
+    "how is a step orchestrated?"      run()        — one 546-line `while`,
+                                                      the traversal loop
+    "what happens in one tick?"        _step()      — 878 lines in four phases,
+                                                      each behind a ══ banner:
+                                                      read state -> NMPC ->
+                                                      QP sub-loop -> hand off
+    "how is a step prepared?"          _setup_torso_for_step(), _run_preplanner()
+    "how does DS settle?"              _run_ds_passivity_loop()
+    "where is X logged?"               NOT HERE — tick_logging.py
+
+Per-tick telemetry lives in `tick_logging.py` (`_log_ds_tick`, `_log_ss_tick`,
+`TickState`), split out in CLEANUP-32 because control and telemetry fail
+differently. `logging.py` is a third thing again: the `SimLog` container.
+
+Two structural debts, both measured and both deliberate (see
+docs/crawlbot/simulation/sim_loop.md):
+  - `_step`'s QP sub-loop keeps ~25 live locals throughout, so no single cut
+    extracts it; it needs a threaded state object, not a helper.
+  - `run()`'s problem is nesting depth rather than sequence — its 546-line
+    `while` has no cheap top-level seam.
 """
 
 import numpy as np
 import time
+from dataclasses import dataclass
 from typing import Optional
 
 try:
@@ -55,10 +82,14 @@ from crawlbot.aocs.force_estimator import (
 
 from .config import SimConfig
 from .logging import SimLog, capture_environment
+from .tick_logging import TickState, TickLoggingMixin
 from .plotting import plot_simulation
 # ── Simulation loop ──────────────────────────────────────────────────────────
+# TickState and the two per-tick recorders (_log_ds_tick / _log_ss_tick) live in
+# tick_logging.py — telemetry, separated from control. See that module's
+# docstring for why, and for the three loop-owned geometry queries it calls back.
 
-class SimulationLoop:
+class SimulationLoop(TickLoggingMixin):
     """Closed-loop MuJoCo simulation with hierarchical NMPC+QP controller."""
 
     def __init__(self, mjcf_path: str, urdf_path: str,
@@ -95,9 +126,13 @@ class SimulationLoop:
         self._coarse_plan: Optional[CoarsePlanResult] = None
         # M7: T_step from the pre-planner for the active step.
         self._current_T_step: float = 0.0
-        # M7 v19: planned arm-joint trajectory endpoints (captured in
-        # _setup_torso_for_step). Used by _planned_arm_config so the
-        # mapping can see where the arm *will* be, not where it is.
+        # Per-step planned arm-joint trajectory endpoints. Their original
+        # consumer, `_planned_arm_config`, was retired in CLEANUP-34 (zero
+        # callers). These four SURVIVE because the canonical driver reads them:
+        # `scripts/diag_cooperative_arms.py:510-511` logs q_start/q_end per step
+        # into `_step_q_end_log`. Deleting them as "stranded" broke the canonical
+        # replay immediately — an AST orphan-scan over sim_loop.py alone cannot
+        # see a reader that lives in scripts/.
         self._step_q_start: Optional[np.ndarray] = None
         self._step_q_end: Optional[np.ndarray] = None
         self._step_t_ss_start: float = 0.0
@@ -105,7 +140,7 @@ class SimulationLoop:
         # M7 / FK-on-smoothed-q: cached smoothed q-sequence + per-segment
         # tangents for the active SS step. Populated by
         # _setup_torso_for_step under cfg.reference_source='joint_space_fk';
-        # consumed by _planned_arm_config so the M5 mapping sees the same
+        # consumed by the torso-reference path so the mapping sees the same
         # q(τ) the planners are tracking.
         self._step_q_seq: Optional[list] = None
         self._step_dq_seg: Optional[list] = None
@@ -895,216 +930,6 @@ class SimulationLoop:
             tau_w_max=cfg.aocs_tau_w_max,
             tau_struct_ff=tau_struct_ff)
 
-    def _log_ds_tick(self, log, t_abs, step_idx, just_landed_arm,
-                     anchor_a_idx, anchor_b_idx, tau, lambda_qp_sol,
-                     tau_w_applied=None):
-        """Append one per-tick DS log row (logging-only; no control change).
-
-        Called from ``_run_ds_passivity_loop`` AFTER ``mj_step``. The row
-        has the SAME field set as the SS row written by ``_step`` so the
-        SimLog stays schema-consistent (every list grows by 1 per tick,
-        all lengths equal). NaN sentinels are used for NMPC-side fields
-        (NMPC is bypassed in this loop); zeros for the AOCS-side wheel
-        torque (wheels are commanded to zero at line ~754).
-
-        Phase-B guarantee: this method only reads MuJoCo / Pinocchio
-        state and appends to the log. It does not call qp.solve, does
-        not change ``self.mj_data.ctrl``, does not advance MuJoCo time,
-        does not mutate ``self.gmo`` / ``self.contact_sm`` / planner
-        state. Side-effect-free w.r.t. control.
-        """
-        cfg = self.cfg
-        nq = self.robot.n_joints
-
-        # Recompute Pinocchio state from current MuJoCo state.
-        # This duplicates the next iteration's top-of-loop computation
-        # by one tick; harmless (the next iteration recomputes anyway).
-        pq, pv = mujoco_to_pinocchio(self.mj_data.qpos, self.mj_data.qvel)
-        rs = self.robot.update(pq, pv)
-
-        # Torso planner reference at the absolute tick time, clamped
-        # into the phase window: during inter-step DS (t past the
-        # step's t_end) this holds the quintic's TERMINAL pose p_t1, so
-        # the exported p_torso_ref is continuous across SS->DS instead
-        # of jumping back to the set_hold pose p_t0 (a full step stride
-        # behind). Logging-only — the DS QP does not consume this value
-        # (settle_mode gates all torso tasks off).
-        tref = self.torso_planner.reference_at_clamped(t_abs)
-        p_torso_ref = tref.p.copy()
-        R_torso_ref = tref.R.copy()
-        q_torso_ref = pin.Quaternion(R_torso_ref)
-        # Torso tracking error (geodesic angle).
-        R_err = R_torso_ref.T @ rs.oMf_torso.rotation
-        angle_err = np.arccos(np.clip((np.trace(R_err) - 1) / 2, -1, 1))
-
-        # End-effector data for the JUST-LANDED arm (the one whose
-        # contact tenure we are measuring). If '' (initial DS), default
-        # to arm A so the field is well-defined; the post-processor
-        # knows to drop initial-DS rows.
-        ee_arm = just_landed_arm if just_landed_arm in ('a', 'b') else 'a'
-        J_ee, _, oMf_ee = self._get_ee_data(rs, ee_arm)
-        # d_grip_swing = distance to the welded contact anchor (just-landed
-        # arm). For initial DS (anchor < 0), report NaN.
-        try:
-            if ee_arm == 'a' and anchor_a_idx >= 0:
-                d_swing = self._gripper_distance('a', anchor_a_idx)
-            elif ee_arm == 'b' and anchor_b_idx >= 0:
-                d_swing = self._gripper_distance('b', anchor_b_idx)
-            else:
-                d_swing = float('nan')
-        except Exception:
-            d_swing = float('nan')
-        # d_grip_stance: the OTHER arm (continuing stance).
-        try:
-            if ee_arm == 'a' and anchor_b_idx >= 0:
-                d_stance = self._gripper_distance('b', anchor_b_idx)
-            elif ee_arm == 'b' and anchor_a_idx >= 0:
-                d_stance = self._gripper_distance('a', anchor_a_idx)
-            else:
-                d_stance = float('nan')
-        except Exception:
-            d_stance = float('nan')
-
-        # Wheel momentum from MJ wheel state.
-        if self.has_rwa:
-            rw_vel = self.mj_data.qvel[6:9].copy()
-            hw = (cfg.rwa_I_w * rw_vel).copy()
-        else:
-            rw_vel = np.zeros(3)
-            hw = np.zeros(3)
-
-        # SS convention: tau_max_joint is the SCALAR max|tau| at this tick.
-
-        # ── Schema-identical append ───────────────────────────────────
-        log.t.append(float(t_abs))
-        log.phase.append('DS')
-        log.step_idx.append(int(step_idx))
-
-        # Torso tracking
-        log.p_torso.append(rs.oMf_torso.translation.copy())
-        log.p_torso_ref.append(p_torso_ref)
-        log.e_torso_pos.append(float(
-            np.linalg.norm(rs.oMf_torso.translation - p_torso_ref)))
-        log.e_torso_ori.append(float(np.degrees(angle_err)))
-        q_torso_actual = pin.Quaternion(rs.oMf_torso.rotation)
-        log.q_torso.append(np.array([q_torso_actual.w, q_torso_actual.x,
-                                      q_torso_actual.y, q_torso_actual.z]))
-        log.q_torso_ref.append(np.array([q_torso_ref.w, q_torso_ref.x,
-                                          q_torso_ref.y, q_torso_ref.z]))
-
-        # End-effector
-        log.d_grip_swing.append(float(d_swing))
-        log.d_grip_stance.append(float(d_stance))
-        log.swing_arm.append(just_landed_arm)
-        log.p_ee.append(oMf_ee.translation.copy())
-        # No swing planner reference in DS — anchor IS the target.
-        log.p_ee_ref.append(oMf_ee.translation.copy())
-        q_ee_a = pin.Quaternion(oMf_ee.rotation)
-        log.q_ee.append(np.array([q_ee_a.w, q_ee_a.x, q_ee_a.y, q_ee_a.z]))
-        log.q_ee_ref.append(np.array([q_ee_a.w, q_ee_a.x,
-                                       q_ee_a.y, q_ee_a.z]))
-
-        # Joint / EE / torso velocities
-        v_a = rs.J_tool_a @ rs.v
-        v_b = rs.J_tool_b @ rs.v
-        v_t = rs.J_torso @ rs.v
-        log.qvel_joints_a.append(rs.dq_joints[:nq // 2].copy())
-        log.qvel_joints_b.append(rs.dq_joints[nq // 2:].copy())
-        log.v_ee_a.append(v_a[:3].copy())
-        log.omega_ee_a.append(v_a[3:].copy())
-        log.v_ee_b.append(v_b[:3].copy())
-        log.omega_ee_b.append(v_b[3:].copy())
-        log.v_torso.append(v_t[:3].copy())
-        log.omega_torso.append(v_t[3:].copy())
-
-        # CoM (use measured as ref → e_com = 0)
-        log.r_com.append(rs.r_com.copy())
-        log.r_com_ref.append(rs.r_com.copy())
-        log.e_com.append(0.0)
-        log.v_com.append(rs.v_com.copy())
-        log.v_com_ref.append(np.zeros(3))
-
-        # Momentum (L_dot left as zeros — would require prior tick state)
-        log.L_com.append(rs.L_com.copy())
-        log.L_com_norm.append(float(np.linalg.norm(rs.L_com)))
-        log.L_com_ref.append(np.zeros(3))
-        log.L_dot.append(np.zeros(3))
-        log.L_dot_norm.append(0.0)
-        log.hw.append(hw.copy())
-
-        # RWA physical. With the inter-step AOCS re-activated (flag on),
-        # tau_w_applied is the ACTUAL wheel torque commanded this tick;
-        # when the AOCS is off (flag off / no RWA) it is zeros — the
-        # legacy commanded value. None defaults to zeros for any caller
-        # that does not pass it (schema-safe).
-        log.hw_physical.append(hw.copy())
-        log.tau_w.append((np.zeros(3) if tau_w_applied is None
-                          else np.asarray(tau_w_applied, dtype=float)).copy())
-        log.rw_speed.append(rw_vel.copy())
-
-        # EE tracking error (vs same-frame ref → 0).
-        log.e_ee_pos.append(0.0)
-        log.e_ee_ori.append(0.0)
-
-        # GMO / contact estimator: not updated in DS loop; report best-
-        # effort current state (the GMO object is stateful; reading it
-        # does NOT mutate). Fall back to zeros on any attribute error.
-        try:
-            log.gmo_residual_norm.append(float(np.linalg.norm(self.gmo.residual)))
-        except Exception:
-            log.gmo_residual_norm.append(0.0)
-        # gmo_swing_residual requires a v-slice; not tracked in DS.
-        log.gmo_swing_residual.append(0.0)
-        try:
-            log.gmo_contact_state.append(self.contact_sm.state.value)
-        except Exception:
-            log.gmo_contact_state.append(0)
-
-        # H_rO / H estimator diagnostics — H_estimator not advanced here.
-        try:
-            log.H_rO.append(self.H_estimator.H_rO.copy())
-            log.H_dot_est.append(self.H_estimator.H_dot.copy())
-        except Exception:
-            log.H_rO.append(np.zeros(3))
-            log.H_dot_est.append(np.zeros(3))
-        log.omega_struct.append(self.mj_data.qvel[3:6].copy())
-        log.qfrc_constraint_torque.append(np.zeros(3))
-
-        # Joint torques (clipped value commanded to MJ).
-        log.tau.append(tau.copy())
-        log.tau_max_joint.append(float(np.max(np.abs(tau))))
-
-        # Structure state.
-        log.struct_pos.append(self.mj_data.qpos[0:3].copy())
-        log.struct_quat.append(self.mj_data.qpos[3:7].copy())
-        # Euler (zyx) from quat — small-angle is fine for diag.
-        qw_s, qx_s, qy_s, qz_s = self.mj_data.qpos[3:7]
-        log.struct_euler_deg.append(np.degrees(np.array([
-            np.arctan2(2*(qw_s*qx_s + qy_s*qz_s), 1 - 2*(qx_s*qx_s + qy_s*qy_s)),
-            np.arcsin(np.clip(2*(qw_s*qy_s - qz_s*qx_s), -1, 1)),
-            np.arctan2(2*(qw_s*qz_s + qx_s*qy_s), 1 - 2*(qy_s*qy_s + qz_s*qz_s)),
-        ])))
-        log.omega_s.append(self.mj_data.qvel[3:6].copy())
-
-        # ── NMPC-bypassed sentinels ───────────────────────────────────
-        # lambda_ref: NaN sentinel — there is NO plan in this regime.
-        log.lambda_ref.append(np.full(12, np.nan))
-        log.lambda_ref_norm.append(float('nan'))
-        # QP-side wrenches: real values from this loop's QP solve.
-        log.lambda_qp.append(np.asarray(lambda_qp_sol, dtype=float).copy())
-        log.lambda_qp_norm.append(float(np.linalg.norm(lambda_qp_sol)))
-        log.nmpc_ok.append(False)  # not run; not a failure
-        log.qp_ok.append(True)
-        log.nmpc_time_ms.append(0.0)
-        log.qp_time_ms.append(0.0)
-        log.nmpc_status.append(3)  # 3 = BYPASSED sentinel (post-proc reads)
-        log.nmpc_cost.append(float('nan'))
-        log.nmpc_status_str.append('NMPC_BYPASSED')
-        log.nmpc_iterations.append(0)
-        log.transport_term_mag.append(0.0)
-
-        # Energy / passivity
-        log.T_kinetic.append(0.5 * float(rs.v @ rs.H @ rs.v))
 
     def _build_qp(self, ae, ap, aw,
                    kpc, kdc, kpt, kdt, kpe, kde,
@@ -1311,43 +1136,6 @@ class SimulationLoop:
 
     # ── Per-step planning handoff (M7) ───────────────────────────────────
 
-    def _planned_arm_config(self, t: float, rs):
-        """Return (q_planned, dq_planned) at sim time `t` for v19 mapping.
-
-        Mixes the live floating-base state (rs.q / rs.v) with an arm
-        portion obtained by quintic interpolation between
-        self._step_q_start and self._step_q_end over [t_ss_start,
-        t_ss_start + T_step]. The arm slice therefore reflects the
-        trajectory the SwingPlanner is commanding at time `t`, not the
-        arm's actual (tracking-lagged) configuration.
-
-        Why: delta(q) in the mapping formula is dominated by the arms
-        (torso block contributes 0 by construction). Using the live
-        arm state makes the mapping a feedback path on arm tracking
-        error; using the planned arm state makes it a clean feedforward.
-        The floating-base portion is kept at rs.q/rs.v so the world-
-        frame assembly of delta stays consistent with where the torso
-        really is.
-        """
-        if self._step_q_start is None or self._step_q_end is None:
-            return rs.q.copy(), rs.v.copy()
-        T = max(self._step_T_step, 1e-6)
-        tau = float(np.clip((t - self._step_t_ss_start) / T, 0.0, 1.0))
-        # M7 / FK-on-smoothed-q (cfg.reference_source='joint_space_fk'):
-        # use the same task-space-smoothed q-sequence the planners use,
-        # so the M5 mapping consumes the same q(τ) the QP is tracking.
-        s = 10.0*tau**3 - 15.0*tau**4 + 6.0*tau**5
-        sd = (30.0*tau**2 - 60.0*tau**3 + 30.0*tau**4) / T
-        sl_q = self.robot.joints_q_slice
-        sl_v = self.robot.joints_v_slice
-        q_arm_start = self._step_q_start[sl_q]
-        q_arm_end = self._step_q_end[sl_q]
-        dq_arm = q_arm_end - q_arm_start
-        q_plan = rs.q.copy()
-        q_plan[sl_q] = q_arm_start + s * dq_arm
-        dq_plan = rs.v.copy()
-        dq_plan[sl_v] = sd * dq_arm
-        return q_plan, dq_plan
 
     def _setup_torso_for_step(self, t_ss_start, swing_arm,
                               stance_a, stance_b, target_arm, target_idx,
@@ -1540,19 +1328,16 @@ class SimulationLoop:
         # at pq_live (start) and FK at q_end (end). The legacy
         # SwingPlanner path is taken when no override is registered.
 
-        # M7 v19: capture per-step planned joint trajectory endpoints so
-        # the CoM->torso mapping can be fed q_planned (arm configuration
-        # the swing planner will track) instead of q_current. Turns the
-        # mapping from a feedback-on-actual-state path into a feedforward
-        # path that anticipates arm motion and is not disturbed by arm
-        # tracking errors.
+        # Capture the per-step planned joint endpoints. Read by the canonical
+        # driver's per-step q-log (diag_cooperative_arms.py:510-511), not by
+        # anything in crawlbot/ — see __init__ for the CLEANUP-34 note.
         self._step_q_start = pq_live.copy()
         self._step_q_end = q_end.copy()
         self._step_t_ss_start = float(t_ss_start)
         self._step_T_step = float(T_step)
         # M7 / FK-on-smoothed-q: cache the smoothed q-sequence + per-
-        # segment tangents for use by _planned_arm_config (so the M5
-        # mapping sees the same q(τ) the planners are tracking).
+        # segment tangents (so the mapping sees the same q(τ) the
+        # planners are tracking).
         # Cleared (set to None) under legacy mode so the legacy quintic
         # path is taken.
         self._step_q_seq = None
@@ -2330,6 +2115,12 @@ class SimulationLoop:
             when `cfg.diag_disable_passivity_on_abort` is set and the
             preceding SS aborted on dock_timeout.
         """
+        # ══════════════════════════════════════════════════════════════════
+        # PHASE 0 — read state and references
+        # Torso/CoM references at t, the pre-planner interpolation when a coarse
+        # plan is active, and the MuJoCo -> Pinocchio state conversion. Coupling
+        # starts at zero here; everything below accumulates on it.
+        # ══════════════════════════════════════════════════════════════════
         cfg = self.cfg
 
         # Torso/CoM references (structure frame — no struct pose needed)
@@ -2388,6 +2179,13 @@ class SimulationLoop:
             L_com_prev = rs.L_com.copy()
 
         # Contact config from constant structure-frame anchors (no live reading)
+        # ══════════════════════════════════════════════════════════════════
+        # STAGE 1 — centroidal NMPC  (dt_nmpc = 0.1 s, once per _step)
+        # Contact config, warm start, solve, and the shifted-fallback path when the
+        # solve fails. Produces x_plan / u_plan; everything after consumes them.
+        # The fallback branch is canonical-unreached BY DESIGN — the canonical run
+        # never has nmpc_ok False.
+        # ══════════════════════════════════════════════════════════════════
         cc_nmpc = ContactConfig.from_phase(
             cc_ss.phase,
             self.sched.anchors_a[stance_a].copy(),
@@ -2500,6 +2298,15 @@ class SimulationLoop:
 
         # M7: single QP variant throughout DS and SS. Synchronized
         # trajectories eliminate the need for gain scheduling.
+        # ══════════════════════════════════════════════════════════════════
+        # STAGE 2 — whole-body QP sub-loop  (dt_qp = 0.01 s, n_qp_per_nmpc ticks)
+        # The 615-line `for qs` below is the densest part of this file. Its phases,
+        # in order: torso-reference mapping (SS bypasses the delta-mapping and takes
+        # the raw quintic) -> reference F-SAT jitter guard -> QP solve -> integrate
+        # -> RWA / AOCS wheel command -> weld and dock bookkeeping. Coupling
+        # plateaus near 25 live locals throughout, which is why no single cut
+        # extracts it — see docs/crawlbot/simulation/sim_loop.md 5.
+        # ══════════════════════════════════════════════════════════════════
         qp = self.qp_ss
         tau_last = np.zeros(self.robot.n_joints)
         tau_w_last = np.zeros(3)
@@ -3132,197 +2939,40 @@ class SimulationLoop:
                     np.asarray(tau_w_last, dtype=float).copy())
                 log.hw_ss_hifreq.append(np.asarray(hw, dtype=float).copy())
 
+        # ══════════════════════════════════════════════════════════════════
+        # HAND OFF — telemetry
+        # Nothing below decides anything. TickState carries the tick to
+        # _log_ss_tick in tick_logging.py.
+        # ══════════════════════════════════════════════════════════════════
         t_qp_ms = (time.perf_counter() - t_qp_start) * 1000
 
-        # Logging
-        mujoco.mj_forward(self.mj_model, self.mj_data)
-        rs_f = self.robot.update(
-            *mujoco_to_pinocchio(self.mj_data.qpos, self.mj_data.qvel))
-        # Recompute torso reference at the actual logged time (after QP steps)
-        t_log = t + cfg.dt_nmpc
-        tref_log = self.torso_planner.reference_at(t_log)
-        # For the torso-position error metric use the reference the QP
-        # actually tracked at the LAST sub-step — i.e. the output of
-        # the M5 mapping layer (`p_torso_ref_used`), not the geometric
-        # TorsoPlanner quintic (`tref_log.p`). These diverge whenever
-        # the mapping is wired, and the old metric was measuring the
-        # mapping-vs-planner discrepancy, not the controller's tracking
-        # quality. Orientation still comes from the TorsoPlanner SLERP
-        # since the mapping only maps position.
+        # Everything below this point only RECORDS the tick — no control
+        # decision is taken. It lives in `_log_ss_tick`, the single-support
+        # counterpart of `_log_ds_tick`. See TickState for why the values
+        # cross as one record rather than 29 arguments.
+        #
+        # `p_torso_ref_used` is bound only if the QP sub-loop ran. That used to
+        # be handled by catching NameError inside the logging block; as a field
+        # it becomes an explicit None, which is the same behaviour said out loud.
         try:
-            p_torso_ref_log = p_torso_ref_used.copy()
+            _p_torso_ref_used = p_torso_ref_used
         except NameError:
-            # Sub-loop didn't run (shouldn't happen in production).
-            p_torso_ref_log = tref_log.p.copy()
-        # DS settle ticks with NO planner phase covering t_log (trailing
-        # settle past the last quintic, initial DS before the first): the
-        # torso-position task is settle-gated off and p_torso_ref_used
-        # carries the live CoM-mapping output, which jumps at the SS->DS
-        # switch and ramps during settle. Log the clamped planner pose
-        # instead (terminal quintic pose p_t1 / initial hold) so the
-        # exported reference is continuous across the whole traversal.
-        # When a phase DOES cover t_log, p_torso_ref_used is kept — the QP
-        # genuinely tracks that moving centroidal reference. NB the guard
-        # cannot key on ds_centroidal_active: the locked config runs
-        # centroidal DS in the trailing settle too (dca sets
-        # ds_centroidal_mode).
-        if (phase == 'DS' and settle_mode
-                and not self.torso_planner.has_phase_at(t_log)):
-            p_torso_ref_log = self.torso_planner.reference_at_clamped(
-                t_log).p.copy()
-        d_swing = self._gripper_distance(swing_arm, target_anchor)
-        d_stance = self._gripper_distance(
-            stance_arm, stance_a if stance_arm == 'a' else stance_b)
-        L_dot_est = (rs_f.L_com - L_com_prev) / cfg.dt_nmpc
-        sq = self.mj_data.qpos[3:7].copy()
-        euler = quat_wxyz_to_euler_deg(sq[0], sq[1], sq[2], sq[3])
+            _p_torso_ref_used = None
 
-        log.t.append(t)
-        log.phase.append(phase)
-        log.step_idx.append(step_idx)
-        log.p_torso.append(rs_f.oMf_torso.translation.copy())
-        log.p_torso_ref.append(p_torso_ref_log.copy())
-        log.e_torso_pos.append(float(np.linalg.norm(
-            rs_f.oMf_torso.translation - p_torso_ref_log)))
-        R_err = tref_log.R.T @ rs_f.oMf_torso.rotation
-        angle_err = np.arccos(np.clip((np.trace(R_err) - 1) / 2, -1, 1))
-        log.e_torso_ori.append(float(np.degrees(angle_err)))
-        log.d_grip_swing.append(d_swing)
-        log.d_grip_stance.append(d_stance)
-        log.swing_arm.append(swing_arm)
+        return self._log_ss_tick(log, TickState(
+            t=t, phase=phase, step_idx=step_idx, ss_end=ss_end,
+            settle_mode=settle_mode, swing_arm=swing_arm,
+            stance_arm=stance_arm, stance_a=stance_a, stance_b=stance_b,
+            target_anchor=target_anchor, hw=hw, L_com_prev=L_com_prev,
+            nmpc_ok=nmpc_ok, nmpc_status_code=nmpc_status_code,
+            nmpc_cost_val=nmpc_cost_val, t_nmpc_ms=t_nmpc_ms,
+            nmpc_info=info_n, lambda_ref=lr, v_com_ref=vp, r_com_ref=cref_r,
+            qp_ok=qp_ok, t_qp_ms=t_qp_ms, lambda_qp=lambda_qp_sol,
+            tau_joints=tau_last, tau_wheels=tau_w_last,
+            transport_term_mag=transport_mag_last,
+            p_torso_ref_used=_p_torso_ref_used,
+        ))
 
-        # EE tracking error (vs planned trajectory reference, not just target).
-        # Plan-time (offset-corrected) for the swing planner lookup.
-        import pinocchio as pin
-        sr_log = self.swing_planner.reference_at(
-            self._swing_query_time(t, phase, ss_end))
-        _, _, oMf_ee_log = self._get_ee_data(rs_f, swing_arm)
-        log.e_ee_pos.append(float(np.linalg.norm(oMf_ee_log.translation - sr_log.p_ee)))
-        e_ori_ee = pin.log3(oMf_ee_log.rotation.T @ sr_log.R_ee)
-        log.e_ee_ori.append(float(np.degrees(np.linalg.norm(e_ori_ee))))
-
-        # GMO diagnostics
-        sw_slice = (self.robot.arm_b_v_slice if swing_arm == 'b'
-                    else self.robot.arm_a_v_slice)
-        log.gmo_residual_norm.append(float(np.linalg.norm(self.gmo.residual)))
-        log.gmo_swing_residual.append(self.gmo.swing_residual_norm(sw_slice))
-        log.gmo_contact_state.append(self.contact_sm.state.value)
-        log.r_com.append(rs_f.r_com.copy())
-        # Log the reference actually fed to the NMPC (pre-planner if
-        # active, else TorsoPlanner-derived cref) so diagnostics compare
-        # against what the controller was actually tracking.
-        log.r_com_ref.append(np.asarray(cref_r, dtype=float).copy())
-        log.e_com.append(float(np.linalg.norm(rs_f.r_com - np.asarray(cref_r))))
-        log.L_com.append(rs_f.L_com.copy())
-        log.L_com_norm.append(float(np.linalg.norm(rs_f.L_com)))
-        log.L_dot.append(L_dot_est.copy())
-        log.L_dot_norm.append(float(np.linalg.norm(L_dot_est)))
-        log.hw.append(hw.copy())
-        if self.has_rwa:
-            rw_vel_f = self.mj_data.qvel[6:9].copy()
-            log.hw_physical.append((cfg.rwa_I_w * rw_vel_f).copy())
-            log.tau_w.append(tau_w_last.copy())
-            log.rw_speed.append(rw_vel_f.copy())
-            log.transport_term_mag.append(transport_mag_last)
-        else:
-            log.hw_physical.append(hw.copy())
-            log.tau_w.append(np.zeros(3))
-            log.rw_speed.append(np.zeros(3))
-            log.transport_term_mag.append(0.0)
-
-        # H_{r/O} estimator diagnostics — the estimator branch was removed in
-        # CLEANUP-13 (aocs_use_H_estimator is False on the canonical, so only
-        # the zero-fill path ever ran). The channels stay so the log schema is
-        # unchanged.
-        log.H_rO.append(np.zeros(3))
-        log.H_dot_est.append(np.zeros(3))
-        log.omega_struct.append(np.zeros(3))
-        log.qfrc_constraint_torque.append(np.zeros(3))
-        log.tau.append(tau_last.copy())
-        log.tau_max_joint.append(float(np.max(np.abs(tau_last))))
-        log.struct_pos.append(self.mj_data.qpos[0:3].copy())
-        log.struct_quat.append(sq)
-        log.struct_euler_deg.append(euler)
-        log.nmpc_ok.append(nmpc_ok)
-        log.qp_ok.append(qp_ok)
-        log.lambda_ref_norm.append(float(np.linalg.norm(lr)))
-        log.nmpc_time_ms.append(t_nmpc_ms)
-        log.qp_time_ms.append(t_qp_ms)
-
-        # ── M0.2 enrichment ────────────────────────────────────────────
-        # Torso orientation (actual vs ref) as quaternion wxyz
-        R_torso = rs_f.oMf_torso.rotation
-        q_t_actual = pin.Quaternion(R_torso)  # xyzw
-        log.q_torso.append(np.array([q_t_actual.w, q_t_actual.x,
-                                      q_t_actual.y, q_t_actual.z]))
-        R_ref = tref_log.R
-        q_t_ref = pin.Quaternion(R_ref)
-        log.q_torso_ref.append(np.array([q_t_ref.w, q_t_ref.x,
-                                          q_t_ref.y, q_t_ref.z]))
-
-        # EE position/orientation (actual and ref)
-        _, _, oMf_ee_f = self._get_ee_data(rs_f, swing_arm)
-        log.p_ee.append(oMf_ee_f.translation.copy())
-        q_ee_actual = pin.Quaternion(oMf_ee_f.rotation)
-        log.q_ee.append(np.array([q_ee_actual.w, q_ee_actual.x,
-                                   q_ee_actual.y, q_ee_actual.z]))
-        sr_f = self.swing_planner.reference_at(
-            self._swing_query_time(t_log, phase, ss_end))
-        log.p_ee_ref.append(sr_f.p_ee.copy())
-        q_ee_r = pin.Quaternion(sr_f.R_ee)
-        log.q_ee_ref.append(np.array([q_ee_r.w, q_ee_r.x,
-                                       q_ee_r.y, q_ee_r.z]))
-
-        # Joint, EE, and torso velocities (T15-post-2 instrumentation).
-        # Joint rates: Pinocchio-ordered v[arm_{a,b}_v_slice]; same convention
-        # as q_joints slicing. EE/torso velocities: J @ v in LOCAL_WORLD_ALIGNED
-        # (matches the frame of oMf_*.translation = p_ee / p_torso).
-        log.qvel_joints_a.append(
-            rs_f.v[self.robot.arm_a_v_slice].copy())
-        log.qvel_joints_b.append(
-            rs_f.v[self.robot.arm_b_v_slice].copy())
-        V_tool_a = rs_f.J_tool_a @ rs_f.v
-        V_tool_b = rs_f.J_tool_b @ rs_f.v
-        V_torso_body = rs_f.J_torso @ rs_f.v
-        log.v_ee_a.append(V_tool_a[:3].copy())
-        log.omega_ee_a.append(V_tool_a[3:].copy())
-        log.v_ee_b.append(V_tool_b[:3].copy())
-        log.omega_ee_b.append(V_tool_b[3:].copy())
-        log.v_torso.append(V_torso_body[:3].copy())
-        log.omega_torso.append(V_torso_body[3:].copy())
-
-        # CoM velocity (actual from Pinocchio, ref from NMPC)
-        log.v_com.append(rs_f.v_com.copy())
-        log.v_com_ref.append(vp.copy())
-
-        # L_com reference (NMPC-planned)
-        log.L_com_ref.append(rs_f.L_com.copy())  # best available: actual (no L plan)
-
-        # Platform angular velocity
-        log.omega_s.append(self.mj_data.qvel[3:6].copy())
-
-        # NMPC solver diagnostics
-        log.nmpc_status.append(nmpc_status_code)
-        log.nmpc_cost.append(nmpc_cost_val)
-        log.nmpc_status_str.append(
-            info_n.status if info_n is not None else "no_info")
-        log.nmpc_iterations.append(
-            int(info_n.solver_stats.get('iter_count', -1))
-            if info_n is not None and info_n.solver_stats else -1)
-
-        # Contact wrenches
-        log.lambda_ref.append(lr.copy())
-        _lqp = (lambda_qp_sol.copy() if hasattr(lambda_qp_sol, 'copy')
-                else np.zeros(12))
-        log.lambda_qp.append(_lqp)
-        log.lambda_qp_norm.append(float(np.linalg.norm(_lqp)))
-
-        # Kinetic energy: 0.5 * v^T H v (relative to structure)
-        v_rel = rs_f.v[:rs_f.H.shape[0]]
-        T_kin = 0.5 * float(v_rel @ rs_f.H @ v_rel)
-        log.T_kinetic.append(T_kin)
-
-        return hw, rs_f.L_com.copy()
 
     def _get_ee_data(self, rs, arm):
         """Return (J_ee, Jdq_ee, oMf_ee) for the given arm."""

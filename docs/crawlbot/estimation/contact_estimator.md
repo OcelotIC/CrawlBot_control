@@ -97,7 +97,7 @@ different quantity.
 
 ## 3. Where it runs
 
-`update()` is called **in single support only** (`sim_loop.py:3123`); in double
+`update()` is called **in single support only** (`sim_loop.py:2913`); in double
 support the log records `0.0` (`:1057`), because `gmo_swing_residual` needs a
 swing-velocity slice that DS does not track.
 
