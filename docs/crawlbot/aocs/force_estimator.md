@@ -1,6 +1,6 @@
 # `crawlbot.aocs.force_estimator`
 
-**File**: `crawlbot/aocs/force_estimator.py` — **657 lines** — canonical coverage **39 %**
+**File**: [`crawlbot/aocs/force_estimator.py`](../../../crawlbot/aocs/force_estimator.py) — **657 lines** — canonical coverage **39 %**
 
 > Module docstring: *"MomentumDisturbanceEstimator — Estimate the disturbance torque applied by"*
 
@@ -14,26 +14,26 @@ demand more than `tau_w_max`; this module is what actually spends it.
 
 ## Public API
 
-| symbol | signature | canonical? |
-|---|---|---|
-| **`EstimatorConfig`** *(dataclass)* |  |  |
-|   `robot_mass` | `71.0` | _field_ |
-|   `dt` | `0.01` | _field_ |
-|   `filter_tau` | `0.016` | _field_ |
-|   `include_transport` | `True` | _field_ |
-| **`MomentumDisturbanceEstimator`** |  |  |
-| `.reset` | `()` | not exercised |
-| `.update` | `(r_com, v_com, L_com, omega_s)` | not exercised |
-| `.update_analytical` | `(r_com, v_com, L_com, L_com_prev, a_com, omega_s)` | not exercised |
-| `.H_rO` | `()` | **yes** |
-| `.H_dot` | `()` | **yes** |
-| `.initialized` | `()` | not exercised |
-| `compute_aocs_command` | `(H_dot_est, omega_s, hw_current, hw_target=None, K_omega...)` | not exercised |
-| `compute_aocs_command_legacy_corrected` | `(L_com, L_com_prev, r_com, v_com, v_com_prev, hw_current...)` | not exercised |
-| `compute_aocs_command_legacy_pd_numerical` | `(L_com, L_com_prev, r_com, v_com, v_com_prev, omega_s, o...)` | not exercised |
-| `compute_aocs_command_legacy_pd_model` | `(L_com, L_com_prev, r_com, v_com, v_com_prev, omega_s, t...)` | not exercised |
-| `compute_aocs_command_legacy_pid_numerical` | `(L_com, L_com_prev, r_com, v_com, v_com_prev, omega_s, o...)` | **yes** |
-| `compute_aocs_command_legacy_pid_model` | `(L_com, L_com_prev, r_com, v_com, v_com_prev, omega_s, t...)` | not exercised |
+| symbol | signature | canonical? | code |
+|---|---|---|---|
+| **`EstimatorConfig`** *(dataclass)* |  |  | [L43](../../../crawlbot/aocs/force_estimator.py#L43) |
+|   `robot_mass` | `71.0` | _field_ | [L60](../../../crawlbot/aocs/force_estimator.py#L60) |
+|   `dt` | `0.01` | _field_ | [L61](../../../crawlbot/aocs/force_estimator.py#L61) |
+|   `filter_tau` | `0.016` | _field_ | [L62](../../../crawlbot/aocs/force_estimator.py#L62) |
+|   `include_transport` | `True` | _field_ | [L63](../../../crawlbot/aocs/force_estimator.py#L63) |
+| **`MomentumDisturbanceEstimator`** |  |  | [L66](../../../crawlbot/aocs/force_estimator.py#L66) |
+| `.reset` | `()` | not exercised | [L110](../../../crawlbot/aocs/force_estimator.py#L110) |
+| `.update` | `(r_com, v_com, L_com, omega_s)` | not exercised | [L118](../../../crawlbot/aocs/force_estimator.py#L118) |
+| `.update_analytical` | `(r_com, v_com, L_com, L_com_prev, a_com, omega_s)` | not exercised | [L174](../../../crawlbot/aocs/force_estimator.py#L174) |
+| `.H_rO` | `()` | **yes** | [L223](../../../crawlbot/aocs/force_estimator.py#L223) |
+| `.H_dot` | `()` | **yes** | [L228](../../../crawlbot/aocs/force_estimator.py#L228) |
+| `.initialized` | `()` | not exercised | [L233](../../../crawlbot/aocs/force_estimator.py#L233) |
+| `compute_aocs_command` | `(H_dot_est, omega_s, hw_current, hw_target=None, K_omega...)` | not exercised | [L243](../../../crawlbot/aocs/force_estimator.py#L243) |
+| `compute_aocs_command_legacy_corrected` | `(L_com, L_com_prev, r_com, v_com, v_com_prev, hw_current...)` | not exercised | [L291](../../../crawlbot/aocs/force_estimator.py#L291) |
+| `compute_aocs_command_legacy_pd_numerical` | `(L_com, L_com_prev, r_com, v_com, v_com_prev, omega_s, o...)` | not exercised | [L379](../../../crawlbot/aocs/force_estimator.py#L379) |
+| `compute_aocs_command_legacy_pd_model` | `(L_com, L_com_prev, r_com, v_com, v_com_prev, omega_s, t...)` | not exercised | [L444](../../../crawlbot/aocs/force_estimator.py#L444) |
+| `compute_aocs_command_legacy_pid_numerical` | `(L_com, L_com_prev, r_com, v_com, v_com_prev, omega_s, o...)` | **yes** | [L514](../../../crawlbot/aocs/force_estimator.py#L514) |
+| `compute_aocs_command_legacy_pid_model` | `(L_com, L_com_prev, r_com, v_com, v_com_prev, omega_s, t...)` | not exercised | [L598](../../../crawlbot/aocs/force_estimator.py#L598) |
 
 ---
 
@@ -165,6 +165,27 @@ it is ever reconnected: filtering after a finite difference amplifies the noise
 you were trying to remove.
 
 Worth knowing before plotting or analysing `H_dot_est`.
+
+## Code map
+
+| unit | source |
+|---|---|
+| `class EstimatorConfig` | [L43-63](../../../crawlbot/aocs/force_estimator.py#L43-L63) |
+| `class MomentumDisturbanceEstimator` | [L66-240](../../../crawlbot/aocs/force_estimator.py#L66-L240) |
+| `MomentumDisturbanceEstimator.reset` | [L110-116](../../../crawlbot/aocs/force_estimator.py#L110-L116) |
+| `MomentumDisturbanceEstimator.update` | [L118-172](../../../crawlbot/aocs/force_estimator.py#L118-L172) |
+| `MomentumDisturbanceEstimator.update_analytical` | [L174-218](../../../crawlbot/aocs/force_estimator.py#L174-L218) |
+| `MomentumDisturbanceEstimator.H_rO` | [L223-225](../../../crawlbot/aocs/force_estimator.py#L223-L225) |
+| `MomentumDisturbanceEstimator.H_dot` | [L228-230](../../../crawlbot/aocs/force_estimator.py#L228-L230) |
+| `MomentumDisturbanceEstimator.initialized` | [L233-234](../../../crawlbot/aocs/force_estimator.py#L233-L234) |
+| `compute_aocs_command()` | [L243-288](../../../crawlbot/aocs/force_estimator.py#L243-L288) |
+| `compute_aocs_command_legacy_corrected()` | [L291-376](../../../crawlbot/aocs/force_estimator.py#L291-L376) |
+| `compute_aocs_command_legacy_pd_numerical()` | [L379-441](../../../crawlbot/aocs/force_estimator.py#L379-L441) |
+| `compute_aocs_command_legacy_pd_model()` | [L444-511](../../../crawlbot/aocs/force_estimator.py#L444-L511) |
+| `compute_aocs_command_legacy_pid_numerical()` | [L514-595](../../../crawlbot/aocs/force_estimator.py#L514-L595) |
+| `compute_aocs_command_legacy_pid_model()` | [L598-656](../../../crawlbot/aocs/force_estimator.py#L598-L656) |
+
+---
 
 ## See also
 

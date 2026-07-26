@@ -1,6 +1,6 @@
 # `crawlbot.planning.sequence_loader`
 
-**File**: `crawlbot/planning/sequence_loader.py` — **255 lines** — canonical coverage **0 %**
+**File**: [`crawlbot/planning/sequence_loader.py`](../../../crawlbot/planning/sequence_loader.py) — **255 lines** — canonical coverage **0 %**
 
 > Module docstring: *"Locomotion-sequence file loader."*
 
@@ -11,19 +11,19 @@ specifying a traversal through arguments.
 
 ## Public API
 
-| symbol | signature | canonical? |
-|---|---|---|
-| **`SwingTarget`** *(dataclass)* |  |  |
-|   `arm` |  | _field_ |
-|   `anchor_idx` |  | _field_ |
-|   `dwell_after` | `0.0` | _field_ |
-| **`LoadedSequence`** *(dataclass)* |  |  |
-|   `start_a` |  | _field_ |
-|   `start_b` |  | _field_ |
-|   `swing_targets` |  | _field_ |
-|   `source_path` |  | _field_ |
-| `load_sequence` | `(path, n_anchors)` | not exercised |
-| `plan_from_sequence` | `(sched, seq)` | not exercised |
+| symbol | signature | canonical? | code |
+|---|---|---|---|
+| **`SwingTarget`** *(dataclass)* |  |  | [L58](../../../crawlbot/planning/sequence_loader.py#L58) |
+|   `arm` | `` | _field_ | [L59](../../../crawlbot/planning/sequence_loader.py#L59) |
+|   `anchor_idx` | `` | _field_ | [L60](../../../crawlbot/planning/sequence_loader.py#L60) |
+|   `dwell_after` | `0.0` | _field_ | [L61](../../../crawlbot/planning/sequence_loader.py#L61) |
+| **`LoadedSequence`** *(dataclass)* |  |  | [L65](../../../crawlbot/planning/sequence_loader.py#L65) |
+|   `start_a` | `` | _field_ | [L66](../../../crawlbot/planning/sequence_loader.py#L66) |
+|   `start_b` | `` | _field_ | [L67](../../../crawlbot/planning/sequence_loader.py#L67) |
+|   `swing_targets` | `` | _field_ | [L68](../../../crawlbot/planning/sequence_loader.py#L68) |
+|   `source_path` | `` | _field_ | [L69](../../../crawlbot/planning/sequence_loader.py#L69) |
+| `load_sequence` | `(path, n_anchors)` | — | [L88](../../../crawlbot/planning/sequence_loader.py#L88) |
+| `plan_from_sequence` | `(sched, seq)` | — | [L193](../../../crawlbot/planning/sequence_loader.py#L193) |
 
 ### Module constants
 
@@ -66,6 +66,17 @@ is a documented user input.
 
 No gate coverage. A regression introduced here will be caught by nothing, so the
 scenario path must be exercised by hand if it is modified.
+
+## Code map
+
+| unit | source |
+|---|---|
+| `class SwingTarget` | [L58-61](../../../crawlbot/planning/sequence_loader.py#L58-L61) |
+| `class LoadedSequence` | [L65-69](../../../crawlbot/planning/sequence_loader.py#L65-L69) |
+| `load_sequence()` | [L88-190](../../../crawlbot/planning/sequence_loader.py#L88-L190) |
+| `plan_from_sequence()` | [L193-254](../../../crawlbot/planning/sequence_loader.py#L193-L254) |
+
+---
 
 ## See also
 

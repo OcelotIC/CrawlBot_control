@@ -1,6 +1,6 @@
 # `crawlbot.core.ik`
 
-**File**: `crawlbot/core/ik.py` — **1468 lines** — canonical coverage **40 %**
+**File**: [`crawlbot/core/ik.py`](../../../crawlbot/core/ik.py) — **1468 lines** — canonical coverage **40 %**
 
 > Module docstring: *"Inverse kinematics for VISPA docking configurations."*
 
@@ -16,17 +16,17 @@ canonical path.
 
 ## Public API
 
-| symbol | signature | canonical? |
-|---|---|---|
-| `solve_ik` | `(model, q0, targets, max_iter=500, tol=1e-08, base_gain=...)` | **yes** |
-| `dock_configuration` | `(model, anchor_a, anchor_b, torso_pos=None, q_init=None,...)` | not exercised |
-| `dock_configuration_fixed_rotation` | `(model, anchor_a, anchor_b, R_torso_fixed, torso_pos=Non...)` | **yes** |
-| `manipulability_config` | `(model, anchor_a, anchor_b, level_axis, q_nominal, w_pos...)` | **yes** |
-| `precompute_torso_map` | `(model, anchors_a, anchors_b, anchor_pair_sequence, q_in...)` | not exercised |
-| `manipulability_config_trajectory` | `(model, anchor_a, anchor_b, q_start, n_samples=5, q_gues...)` | not exercised |
-| `manipulability_config_mid_waypoint` | `(model, anchor_a_pose, anchor_b_pose, q_start, q_end, sw...)` | not exercised |
-| `check_path_feasibility` | `(model, q_start, q_end, anchor_a_pose, anchor_b_pose, sw...)` | not exercised |
-| `solve_ik_waypoints` | `(model, q_start, stance_frame, stance_target, swing_fram...)` | not exercised |
+| symbol | signature | canonical? | code |
+|---|---|---|---|
+| `solve_ik` | `(model, q0, targets, max_iter=500, tol=1e-08, base_gain=...)` | **yes** | [L104](../../../crawlbot/core/ik.py#L104) |
+| `dock_configuration` | `(model, anchor_a, anchor_b, torso_pos=None, q_init=None,...)` | not exercised | [L309](../../../crawlbot/core/ik.py#L309) |
+| `dock_configuration_fixed_rotation` | `(model, anchor_a, anchor_b, R_torso_fixed, torso_pos=Non...)` | **yes** | [L357](../../../crawlbot/core/ik.py#L357) |
+| `manipulability_config` | `(model, anchor_a, anchor_b, level_axis, q_nominal, w_pos...)` | **yes** | [L522](../../../crawlbot/core/ik.py#L522) |
+| `precompute_torso_map` | `(model, anchors_a, anchors_b, anchor_pair_sequence, q_in...)` | not exercised | [L656](../../../crawlbot/core/ik.py#L656) |
+| `manipulability_config_trajectory` | `(model, anchor_a, anchor_b, q_start, n_samples=5, q_gues...)` | not exercised | [L798](../../../crawlbot/core/ik.py#L798) |
+| `manipulability_config_mid_waypoint` | `(model, anchor_a_pose, anchor_b_pose, q_start, q_end, sw...)` | not exercised | [L955](../../../crawlbot/core/ik.py#L955) |
+| `check_path_feasibility` | `(model, q_start, q_end, anchor_a_pose, anchor_b_pose, sw...)` | not exercised | [L1177](../../../crawlbot/core/ik.py#L1177) |
+| `solve_ik_waypoints` | `(model, q_start, stance_frame, stance_target, swing_fram...)` | not exercised | [L1350](../../../crawlbot/core/ik.py#L1350) |
 
 ---
 
@@ -120,6 +120,22 @@ IK returns a configuration that is **reachable**, which says nothing about
 whether the trajectory *to* it is realisable within torque limits. Feasibility in
 torque is a separate check, and in this architecture it is the pre-planner's job
 (`planning/coarse_preplanner.md`), not the IK's.
+
+## Code map
+
+| unit | source |
+|---|---|
+| `solve_ik()` | [L104-305](../../../crawlbot/core/ik.py#L104-L305) |
+| `dock_configuration()` | [L309-354](../../../crawlbot/core/ik.py#L309-L354) |
+| `dock_configuration_fixed_rotation()` | [L357-519](../../../crawlbot/core/ik.py#L357-L519) |
+| `manipulability_config()` | [L522-653](../../../crawlbot/core/ik.py#L522-L653) |
+| `precompute_torso_map()` | [L656-738](../../../crawlbot/core/ik.py#L656-L738) |
+| `manipulability_config_trajectory()` | [L798-940](../../../crawlbot/core/ik.py#L798-L940) |
+| `manipulability_config_mid_waypoint()` | [L955-1121](../../../crawlbot/core/ik.py#L955-L1121) |
+| `check_path_feasibility()` | [L1177-1347](../../../crawlbot/core/ik.py#L1177-L1347) |
+| `solve_ik_waypoints()` | [L1350-1467](../../../crawlbot/core/ik.py#L1350-L1467) |
+
+---
 
 ## See also
 

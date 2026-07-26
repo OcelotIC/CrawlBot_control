@@ -117,3 +117,27 @@ stale by ~280 lines after the chantier shrank `sim_loop`. The real site is
 
 It does **not** check numeric values (weights, gains, thresholds) — those are
 still verified by hand against CLAUDE.md.
+
+## Documentation sync — `sync_docs.py`
+
+```bash
+PYTHONPATH=. python3 gate/sync_docs.py           # regenerate the measured blocks
+PYTHONPATH=. python3 gate/sync_docs.py --check   # exit 1 if the docs lag the code
+```
+
+`docs/crawlbot/<pkg>/<module>.md` is half generated and half hand-written.
+`sync_docs` owns the generated half — the header line (line count, canonical
+coverage), the **Public API** table and the **Code map**, each entry carrying a
+line-anchored link into the source — and never touches the prose.
+
+`--check` is what makes CLAUDE.md rule 15 enforceable rather than aspirational:
+it fails when a symbol is added, removed or moved without the document
+following. Verified by injecting a public function into `contact_phase.py` and
+observing the check go from exit 0 to exit 1.
+
+Because every `file:line` link is generated, a refactor that shifts line numbers
+is repaired by re-running the tool — links are never typed by hand, which is how
+they went stale in CLAUDE.md before this existed.
+
+Coverage annotations come from `gate/_run/cov/cov.json`; regenerate it with
+`bash gate/_run/cov_replay.sh` after changing which paths execute.

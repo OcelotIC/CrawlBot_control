@@ -1,6 +1,6 @@
 # `crawlbot.core.robot_interface`
 
-**File**: `crawlbot/core/robot_interface.py` — **460 lines** — canonical coverage **87 %**
+**File**: [`crawlbot/core/robot_interface.py`](../../../crawlbot/core/robot_interface.py) — **460 lines** — canonical coverage **87 %**
 
 > Module docstring: *"RobotInterface — Pinocchio wrapper for the VISPA crawling controller."*
 
@@ -14,43 +14,43 @@ one consistent snapshot — no module re-derives a Jacobian on its own.
 
 ## Public API
 
-| symbol | signature | canonical? |
-|---|---|---|
-| **`RobotState`** *(dataclass)* |  |  |
-|   `q` |  | _field_ |
-|   `v` |  | _field_ |
-|   `q_joints` |  | _field_ |
-|   `dq_joints` |  | _field_ |
-|   `q_torso` |  | _field_ |
-|   `dq_torso` |  | _field_ |
-|   `H` |  | _field_ |
-|   `C` |  | _field_ |
-|   `C_matrix` |  | _field_ |
-|   `r_com` |  | _field_ |
-|   `v_com` |  | _field_ |
-|   `J_com` |  | _field_ |
-|   `Jdot_dq_com` |  | _field_ |
-|   `h_centroidal` |  | _field_ |
-|   `L_com` |  | _field_ |
-|   `oMf_tool_a` |  | _field_ |
-|   `oMf_tool_b` |  | _field_ |
-|   `J_tool_a` |  | _field_ |
-|   `J_tool_b` |  | _field_ |
-|   `Jdot_dq_tool_a` |  | _field_ |
-|   `Jdot_dq_tool_b` |  | _field_ |
-|   `oMf_torso` |  | _field_ |
-|   `J_torso` |  | _field_ |
-|   `Jdot_dq_torso` |  | _field_ |
-|   `q_min` |  | _field_ |
-|   `q_max` |  | _field_ |
-|   `tau_max` |  | _field_ |
-|   `total_mass` |  | _field_ |
-| **`RobotInterface`** |  |  |
-| `.update` | `(q, v, omega_struct=None)` | **yes** |
-| `.state` | `()` | **yes** |
-| `.compute_gjm` | `(swing_arm)` | not exercised |
-| `.get_contact_jacobians` | `(active_A, active_B)` | **yes** |
-| `.neutral_configuration` | `()` | not exercised |
+| symbol | signature | canonical? | code |
+|---|---|---|---|
+| **`RobotState`** *(dataclass)* |  |  | [L89](../../../crawlbot/core/robot_interface.py#L89) |
+|   `q` | `` | _field_ | [L95](../../../crawlbot/core/robot_interface.py#L95) |
+|   `v` | `` | _field_ | [L96](../../../crawlbot/core/robot_interface.py#L96) |
+|   `q_joints` | `` | _field_ | [L97](../../../crawlbot/core/robot_interface.py#L97) |
+|   `dq_joints` | `` | _field_ | [L98](../../../crawlbot/core/robot_interface.py#L98) |
+|   `q_torso` | `` | _field_ | [L99](../../../crawlbot/core/robot_interface.py#L99) |
+|   `dq_torso` | `` | _field_ | [L100](../../../crawlbot/core/robot_interface.py#L100) |
+|   `H` | `` | _field_ | [L103](../../../crawlbot/core/robot_interface.py#L103) |
+|   `C` | `` | _field_ | [L104](../../../crawlbot/core/robot_interface.py#L104) |
+|   `C_matrix` | `` | _field_ | [L105](../../../crawlbot/core/robot_interface.py#L105) |
+|   `r_com` | `` | _field_ | [L108](../../../crawlbot/core/robot_interface.py#L108) |
+|   `v_com` | `` | _field_ | [L109](../../../crawlbot/core/robot_interface.py#L109) |
+|   `J_com` | `` | _field_ | [L110](../../../crawlbot/core/robot_interface.py#L110) |
+|   `Jdot_dq_com` | `` | _field_ | [L111](../../../crawlbot/core/robot_interface.py#L111) |
+|   `h_centroidal` | `` | _field_ | [L114](../../../crawlbot/core/robot_interface.py#L114) |
+|   `L_com` | `` | _field_ | [L115](../../../crawlbot/core/robot_interface.py#L115) |
+|   `oMf_tool_a` | `` | _field_ | [L118](../../../crawlbot/core/robot_interface.py#L118) |
+|   `oMf_tool_b` | `` | _field_ | [L119](../../../crawlbot/core/robot_interface.py#L119) |
+|   `J_tool_a` | `` | _field_ | [L120](../../../crawlbot/core/robot_interface.py#L120) |
+|   `J_tool_b` | `` | _field_ | [L121](../../../crawlbot/core/robot_interface.py#L121) |
+|   `Jdot_dq_tool_a` | `` | _field_ | [L122](../../../crawlbot/core/robot_interface.py#L122) |
+|   `Jdot_dq_tool_b` | `` | _field_ | [L123](../../../crawlbot/core/robot_interface.py#L123) |
+|   `oMf_torso` | `` | _field_ | [L126](../../../crawlbot/core/robot_interface.py#L126) |
+|   `J_torso` | `` | _field_ | [L127](../../../crawlbot/core/robot_interface.py#L127) |
+|   `Jdot_dq_torso` | `` | _field_ | [L128](../../../crawlbot/core/robot_interface.py#L128) |
+|   `q_min` | `` | _field_ | [L131](../../../crawlbot/core/robot_interface.py#L131) |
+|   `q_max` | `` | _field_ | [L132](../../../crawlbot/core/robot_interface.py#L132) |
+|   `tau_max` | `` | _field_ | [L133](../../../crawlbot/core/robot_interface.py#L133) |
+|   `total_mass` | `` | _field_ | [L136](../../../crawlbot/core/robot_interface.py#L136) |
+| **`RobotInterface`** |  |  | [L139](../../../crawlbot/core/robot_interface.py#L139) |
+| `.update` | `(q, v, omega_struct=None)` | **yes** | [L242](../../../crawlbot/core/robot_interface.py#L242) |
+| `.state` | `()` | **yes** | [L393](../../../crawlbot/core/robot_interface.py#L393) |
+| `.compute_gjm` | `(swing_arm)` | not exercised | [L401](../../../crawlbot/core/robot_interface.py#L401) |
+| `.get_contact_jacobians` | `(active_A, active_B)` | **yes** | [L433](../../../crawlbot/core/robot_interface.py#L433) |
+| `.neutral_configuration` | `()` | not exercised | [L457](../../../crawlbot/core/robot_interface.py#L457) |
 
 ### Module constants
 
@@ -130,6 +130,20 @@ The stale module-level defaults in section 2 are the residue of that transition.
 ## 4. Unexercised
 
 `compute_gjm` (generalized momentum map) and `neutral_configuration`.
+
+## Code map
+
+| unit | source |
+|---|---|
+| `class RobotState` | [L89-136](../../../crawlbot/core/robot_interface.py#L89-L136) |
+| `class RobotInterface` | [L139-459](../../../crawlbot/core/robot_interface.py#L139-L459) |
+| `RobotInterface.update` | [L242-390](../../../crawlbot/core/robot_interface.py#L242-L390) |
+| `RobotInterface.state` | [L393-397](../../../crawlbot/core/robot_interface.py#L393-L397) |
+| `RobotInterface.compute_gjm` | [L401-431](../../../crawlbot/core/robot_interface.py#L401-L431) |
+| `RobotInterface.get_contact_jacobians` | [L433-455](../../../crawlbot/core/robot_interface.py#L433-L455) |
+| `RobotInterface.neutral_configuration` | [L457-459](../../../crawlbot/core/robot_interface.py#L457-L459) |
+
+---
 
 ## See also
 

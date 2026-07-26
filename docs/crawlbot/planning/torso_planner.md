@@ -1,6 +1,6 @@
 # `crawlbot.planning.torso_planner`
 
-**File**: `crawlbot/planning/torso_planner.py` — **481 lines** — canonical coverage **81 %**
+**File**: [`crawlbot/planning/torso_planner.py`](../../../crawlbot/planning/torso_planner.py) — **481 lines** — canonical coverage **81 %**
 
 > Module docstring: *"TorsoPlanner — Generates 6D torso + CoM reference trajectories."*
 
@@ -11,31 +11,31 @@ step. Also supplies the CoM and `L_com` references consumed by stage 1.
 
 ## Public API
 
-| symbol | signature | canonical? |
-|---|---|---|
-| **`TorsoReference`** *(dataclass)* |  |  |
-|   `p` |  | _field_ |
-|   `R` |  | _field_ |
-|   `v` |  | _field_ |
-|   `a` |  | _field_ |
-| **`ComReference`** *(dataclass)* |  |  |
-|   `r_com` |  | _field_ |
-|   `v_com` |  | _field_ |
-| **`TorsoPlanner`** |  |  |
-| `.set_torso_inertia` | `(I_body)` | **yes** |
-| `.set_hold` | `(p, R, r_com=None)` | **yes** |
-| `.add_phase` | `(t_start, t_end, p_start, R_start, p_end, R_end, delta_c...)` | **yes** |
-| `.clear_phases` | `()` | **yes** |
-| `.reference_at` | `(t)` | **yes** |
-| `.has_phase_at` | `(t)` | **yes** |
-| `.reference_at_clamped` | `(t)` | **yes** |
-| `.com_reference_at` | `(t)` | **yes** |
-| `.l_com_reference_at` | `(t)` | **yes** |
-| `._hold_reference` | `()` | **yes** |
-| `._profile_params` | `(t, phase)` | **yes** |
-| `._quintic_params` | `(t, phase)` | **yes** |
-| `._interpolate_phase` | `(t, phase)` | **yes** |
-| `._interpolate_com` | `(t, phase)` | **yes** |
+| symbol | signature | canonical? | code |
+|---|---|---|---|
+| **`TorsoReference`** *(dataclass)* |  |  | [L40](../../../crawlbot/planning/torso_planner.py#L40) |
+|   `p` | `` | _field_ | [L42](../../../crawlbot/planning/torso_planner.py#L42) |
+|   `R` | `` | _field_ | [L43](../../../crawlbot/planning/torso_planner.py#L43) |
+|   `v` | `` | _field_ | [L44](../../../crawlbot/planning/torso_planner.py#L44) |
+|   `a` | `` | _field_ | [L45](../../../crawlbot/planning/torso_planner.py#L45) |
+| **`ComReference`** *(dataclass)* |  |  | [L49](../../../crawlbot/planning/torso_planner.py#L49) |
+|   `r_com` | `` | _field_ | [L51](../../../crawlbot/planning/torso_planner.py#L51) |
+|   `v_com` | `` | _field_ | [L52](../../../crawlbot/planning/torso_planner.py#L52) |
+| **`TorsoPlanner`** |  |  | [L55](../../../crawlbot/planning/torso_planner.py#L55) |
+| `.set_torso_inertia` | `(I_body)` | **yes** | [L88](../../../crawlbot/planning/torso_planner.py#L88) |
+| `.set_hold` | `(p, R, r_com=None)` | **yes** | [L105](../../../crawlbot/planning/torso_planner.py#L105) |
+| `.add_phase` | `(t_start, t_end, p_start, R_start, p_end, R_end, delta_c...)` | **yes** | [L126](../../../crawlbot/planning/torso_planner.py#L126) |
+| `.clear_phases` | `()` | **yes** | [L269](../../../crawlbot/planning/torso_planner.py#L269) |
+| `.reference_at` | `(t)` | **yes** | [L280](../../../crawlbot/planning/torso_planner.py#L280) |
+| `.has_phase_at` | `(t)` | **yes** | [L289](../../../crawlbot/planning/torso_planner.py#L289) |
+| `.reference_at_clamped` | `(t)` | **yes** | [L296](../../../crawlbot/planning/torso_planner.py#L296) |
+| `.com_reference_at` | `(t)` | **yes** | [L317](../../../crawlbot/planning/torso_planner.py#L317) |
+| `.l_com_reference_at` | `(t)` | **yes** | [L340](../../../crawlbot/planning/torso_planner.py#L340) |
+| `._hold_reference` | `()` | **yes** | [L395](../../../crawlbot/planning/torso_planner.py#L395) |
+| `._profile_params` | `(t, phase)` | **yes** | [L411](../../../crawlbot/planning/torso_planner.py#L411) |
+| `._quintic_params` | `(t, phase)` | **yes** | [L423](../../../crawlbot/planning/torso_planner.py#L423) |
+| `._interpolate_phase` | `(t, phase)` | **yes** | [L436](../../../crawlbot/planning/torso_planner.py#L436) |
+| `._interpolate_com` | `(t, phase)` | **yes** | [L458](../../../crawlbot/planning/torso_planner.py#L458) |
 
 ---
 
@@ -122,6 +122,30 @@ it.
 Removed in CLEANUP-18: `set_from_waypoints` (orphaned by CLEANUP-14 when the
 `ds_mobile_com_magnitude` block went) and `_trapezoidal_params` (zero callers,
 including internal).
+
+## Code map
+
+| unit | source |
+|---|---|
+| `class TorsoReference` | [L40-45](../../../crawlbot/planning/torso_planner.py#L40-L45) |
+| `class ComReference` | [L49-52](../../../crawlbot/planning/torso_planner.py#L49-L52) |
+| `class TorsoPlanner` | [L55-480](../../../crawlbot/planning/torso_planner.py#L55-L480) |
+| `TorsoPlanner.set_torso_inertia` | [L88-103](../../../crawlbot/planning/torso_planner.py#L88-L103) |
+| `TorsoPlanner.set_hold` | [L105-118](../../../crawlbot/planning/torso_planner.py#L105-L118) |
+| `TorsoPlanner.add_phase` | [L126-267](../../../crawlbot/planning/torso_planner.py#L126-L267) |
+| `TorsoPlanner.clear_phases` | [L269-270](../../../crawlbot/planning/torso_planner.py#L269-L270) |
+| `TorsoPlanner.reference_at` | [L280-287](../../../crawlbot/planning/torso_planner.py#L280-L287) |
+| `TorsoPlanner.has_phase_at` | [L289-294](../../../crawlbot/planning/torso_planner.py#L289-L294) |
+| `TorsoPlanner.reference_at_clamped` | [L296-315](../../../crawlbot/planning/torso_planner.py#L296-L315) |
+| `TorsoPlanner.com_reference_at` | [L317-338](../../../crawlbot/planning/torso_planner.py#L317-L338) |
+| `TorsoPlanner.l_com_reference_at` | [L340-391](../../../crawlbot/planning/torso_planner.py#L340-L391) |
+| `TorsoPlanner._hold_reference` | [L395-408](../../../crawlbot/planning/torso_planner.py#L395-L408) |
+| `TorsoPlanner._profile_params` | [L411-421](../../../crawlbot/planning/torso_planner.py#L411-L421) |
+| `TorsoPlanner._quintic_params` | [L423-434](../../../crawlbot/planning/torso_planner.py#L423-L434) |
+| `TorsoPlanner._interpolate_phase` | [L436-456](../../../crawlbot/planning/torso_planner.py#L436-L456) |
+| `TorsoPlanner._interpolate_com` | [L458-480](../../../crawlbot/planning/torso_planner.py#L458-L480) |
+
+---
 
 ## See also
 

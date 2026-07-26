@@ -33,6 +33,9 @@ PYTHONPATH=. MUJOCO_GL=osmesa python3 -c "import pinocchio; import mujoco; impor
 
 # 3. Run existing tests
 PYTHONPATH=. MUJOCO_GL=osmesa python3 -m pytest tests/ -x -q --tb=short
+
+# 4. Confirm the documentation matches the code
+PYTHONPATH=. python3 gate/sync_docs.py --check
 ```
 
 Do not skip these steps. Do not start coding before the environment is verified.
@@ -56,6 +59,7 @@ Do not skip these steps. Do not start coding before the environment is verified.
 13. **Every delivery states: commit hash + artifact path + key numbers.** A result without its commit and its JSON/CSV path is not reproducible and does not count.
 14. **Torque-min ≳ 5× the accel-reg floor** (feasibility gate). At torque:floor = 1:1 the SS redundancy resolution degrades to a step-0 dock timeout (PHASE_COPRIORITY_1000 Addendum 5). When raising the regularizer floor for conditioning, raise `alpha_torque` with it.
 
+15. **Every change to `crawlbot/` updates its document, in the same commit.** `docs/crawlbot/<pkg>/<module>.md` is the reference for anyone reading this repo cold. The measured half (header, API table, code map) is regenerated — never hand-edited — by `gate/sync_docs.py`; the prose half (maths, design rationale, traps) is yours to update. **This is enforced, not requested:** `gate/sync_docs.py --check` exits non-zero when a symbol was added, removed or moved without the document following, and it runs as part of the pre-commit routine below. A doc that lags the code is how `docs/api/` died — it ended up describing a `dynamics` module that does not exist.
 ---
 
 ## Commands
@@ -78,6 +82,33 @@ run_diagnostics(log, 'results/<output_dir>/')
 # pip install
 pip install <package> --break-system-packages
 ```
+
+### Mandatory routine after ANY change to `crawlbot/` (Rule 15)
+
+```bash
+# 1. regenerate the measured half of the docs (header, API table, code map)
+PYTHONPATH=. python3 gate/sync_docs.py
+
+# 2. update the prose half by hand where the behaviour or the maths changed
+#    docs/crawlbot/<pkg>/<module>.md
+
+# 3. verify — all three must pass before committing
+PYTHONPATH=. python3 gate/sync_docs.py --check    # docs match the code
+PYTHONPATH=. python3 gate/verify_docs.py          # every file:line + symbol resolves
+PYTHONPATH=. python3 gate/link_audit.py           # no path citation broken
+
+# 4. and the canonical invariant, as always
+MUJOCO_GL=disabled PYTHONPATH=. python3 gate/run_gate.py
+MUJOCO_GL=disabled PYTHONPATH=. python3 gate/dock_check.py results/gate_run_scratch/sim_log.json
+```
+
+If a removal or rename changed line numbers, step 1 fixes every `file:line`
+link automatically — that is why the links are generated rather than typed.
+
+**Coverage annotations** (`canonical? = yes / not exercised`) come from
+`gate/_run/cov/cov.json`. After changing which code paths execute, regenerate it
+with `bash gate/_run/cov_replay.sh` before step 1, otherwise the column reflects
+the previous architecture.
 
 ---
 

@@ -1,6 +1,6 @@
 # `crawlbot.diagnostics.runner`
 
-**File**: `crawlbot/diagnostics/runner.py` — **71 lines** — canonical coverage **15 %**
+**File**: [`crawlbot/diagnostics/runner.py`](../../../crawlbot/diagnostics/runner.py) — **71 lines** — canonical coverage **15 %**
 
 > Module docstring: *"Single entry point for the diagnostic suite."*
 
@@ -10,9 +10,9 @@ Orchestrator for the diagnostic suite: metrics, plots, snapshots.
 
 ## Public API
 
-| symbol | signature | canonical? |
-|---|---|---|
-| `run_diagnostics` | `(log, output_dir, cfg=None, thresholds=None, model=None,...)` | not exercised |
+| symbol | signature | canonical? | code |
+|---|---|---|---|
+| `run_diagnostics` | `(log, output_dir, cfg=None, thresholds=None, model=None,...)` | not exercised | [L14](../../../crawlbot/diagnostics/runner.py#L14) |
 
 ---
 
@@ -67,6 +67,14 @@ Reported, not fixed: this is a rule-compliance question, orthogonal to the code
 
 Practical consequence: **no gate coverage anywhere in this package**. A
 regression introduced here will be caught by nothing.
+
+## Code map
+
+| unit | source |
+|---|---|
+| `run_diagnostics()` | [L14-70](../../../crawlbot/diagnostics/runner.py#L14-L70) |
+
+---
 
 ## See also
 

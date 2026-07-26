@@ -1,6 +1,6 @@
 # `crawlbot.diagnostics.metrics`
 
-**File**: `crawlbot/diagnostics/metrics.py` — **424 lines** — canonical coverage **5 %**
+**File**: [`crawlbot/diagnostics/metrics.py`](../../../crawlbot/diagnostics/metrics.py) — **424 lines** — canonical coverage **5 %**
 
 > Module docstring: *"Compute scalar summary metrics from SimLog time series."*
 
@@ -11,11 +11,11 @@ a verdict.
 
 ## Public API
 
-| symbol | signature | canonical? |
-|---|---|---|
-| `compute_metrics` | `(log, cfg=None, thresholds=None)` | not exercised |
-| `print_metrics` | `(results, file=None)` | not exercised |
-| `save_metrics_csv` | `(results, path)` | not exercised |
+| symbol | signature | canonical? | code |
+|---|---|---|---|
+| `compute_metrics` | `(log, cfg=None, thresholds=None)` | not exercised | [L82](../../../crawlbot/diagnostics/metrics.py#L82) |
+| `print_metrics` | `(results, file=None)` | not exercised | [L383](../../../crawlbot/diagnostics/metrics.py#L383) |
+| `save_metrics_csv` | `(results, path)` | not exercised | [L414](../../../crawlbot/diagnostics/metrics.py#L414) |
 
 ### Module constants
 
@@ -64,6 +64,16 @@ Reported, not fixed: this is a rule-compliance question, orthogonal to the code
 
 Practical consequence: **no gate coverage anywhere in this package**. A
 regression introduced here will be caught by nothing.
+
+## Code map
+
+| unit | source |
+|---|---|
+| `compute_metrics()` | [L82-369](../../../crawlbot/diagnostics/metrics.py#L82-L369) |
+| `print_metrics()` | [L383-411](../../../crawlbot/diagnostics/metrics.py#L383-L411) |
+| `save_metrics_csv()` | [L414-423](../../../crawlbot/diagnostics/metrics.py#L414-L423) |
+
+---
 
 ## See also
 

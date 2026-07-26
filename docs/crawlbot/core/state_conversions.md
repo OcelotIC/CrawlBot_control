@@ -1,6 +1,6 @@
 # `crawlbot.core.state_conversions`
 
-**File**: `crawlbot/core/state_conversions.py` — **165 lines** — canonical coverage **100 %**
+**File**: [`crawlbot/core/state_conversions.py`](../../../crawlbot/core/state_conversions.py) — **165 lines** — canonical coverage **100 %**
 
 > Module docstring: *"State conversions between MuJoCo (world frame) and Pinocchio (structure frame)."*
 
@@ -11,11 +11,11 @@ canonical coverage** — every conversion in the controller goes through it.
 
 ## Public API
 
-| symbol | signature | canonical? |
-|---|---|---|
-| `mujoco_to_pinocchio` | `(mj_qpos, mj_qvel)` | **yes** |
-| `pinocchio_to_mujoco` | `(pin_q, pin_v, struct_pos=None, struct_quat=None, rwa=False)` | **yes** |
-| `quat_wxyz_to_euler_deg` | `(qw, qx, qy, qz)` | **yes** |
+| symbol | signature | canonical? | code |
+|---|---|---|---|
+| `mujoco_to_pinocchio` | `(mj_qpos, mj_qvel)` | **yes** | [L43](../../../crawlbot/core/state_conversions.py#L43) |
+| `pinocchio_to_mujoco` | `(pin_q, pin_v, struct_pos=None, struct_quat=None, rwa=False)` | **yes** | [L107](../../../crawlbot/core/state_conversions.py#L107) |
+| `quat_wxyz_to_euler_deg` | `(qw, qx, qy, qz)` | **yes** | [L154](../../../crawlbot/core/state_conversions.py#L154) |
 
 ### Module constants
 
@@ -70,6 +70,16 @@ because a wrong quaternion still normalises and still integrates.
 (0.13 / 0.27 / 0.53) are all smaller.
 
 100 % coverage: all three run on every tick of the canonical.
+
+## Code map
+
+| unit | source |
+|---|---|
+| `mujoco_to_pinocchio()` | [L43-104](../../../crawlbot/core/state_conversions.py#L43-L104) |
+| `pinocchio_to_mujoco()` | [L107-151](../../../crawlbot/core/state_conversions.py#L107-L151) |
+| `quat_wxyz_to_euler_deg()` | [L154-164](../../../crawlbot/core/state_conversions.py#L154-L164) |
+
+---
 
 ## See also
 

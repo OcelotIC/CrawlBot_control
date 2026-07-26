@@ -1,6 +1,6 @@
 # `crawlbot.diagnostics.snapshots`
 
-**File**: `crawlbot/diagnostics/snapshots.py` — **71 lines** — canonical coverage **0 %**
+**File**: [`crawlbot/diagnostics/snapshots.py`](../../../crawlbot/diagnostics/snapshots.py) — **71 lines** — canonical coverage **0 %**
 
 > Module docstring: *"Render MuJoCo frames at key simulation instants for visual diagnostics."*
 
@@ -10,9 +10,9 @@ MuJoCo image captures at the instants recorded in the log.
 
 ## Public API
 
-| symbol | signature | canonical? |
-|---|---|---|
-| `capture_snapshots` | `(model, data, sim_log, output_dir, width=1280, height=72...)` | not exercised |
+| symbol | signature | canonical? | code |
+|---|---|---|---|
+| `capture_snapshots` | `(model, data, sim_log, output_dir, width=1280, height=72...)` | — | [L11](../../../crawlbot/diagnostics/snapshots.py#L11) |
 
 ---
 
@@ -50,6 +50,14 @@ Reported, not fixed: this is a rule-compliance question, orthogonal to the code
 
 Practical consequence: **no gate coverage anywhere in this package**. A
 regression introduced here will be caught by nothing.
+
+## Code map
+
+| unit | source |
+|---|---|
+| `capture_snapshots()` | [L11-70](../../../crawlbot/diagnostics/snapshots.py#L11-L70) |
+
+---
 
 ## See also
 

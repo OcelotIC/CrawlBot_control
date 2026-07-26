@@ -1,6 +1,6 @@
 # `crawlbot.planning.contact_scheduler`
 
-**File**: `crawlbot/planning/contact_scheduler.py` — **350 lines** — canonical coverage **87 %**
+**File**: [`crawlbot/planning/contact_scheduler.py`](../../../crawlbot/planning/contact_scheduler.py) — **350 lines** — canonical coverage **87 %**
 
 > Module docstring: *"ContactScheduler — Gait timing and contact management for VISPA crawling."*
 
@@ -11,31 +11,31 @@ timeline — which is rebuilt in cascade once a step duration becomes known.
 
 ## Public API
 
-| symbol | signature | canonical? |
-|---|---|---|
-| `make_anchor_grid` | `(n=DEFAULT_N_ANCHORS, dx=DEFAULT_DX, dy=DEFAULT_DY)` | not exercised |
-| `read_anchors_from_mujoco` | `(mj_model, mj_data)` | **yes** |
-| **`GaitPhase`** *(dataclass)* |  |  |
-|   `phase` |  | _field_ |
-|   `duration` |  | _field_ |
-|   `anchor_a_idx` |  | _field_ |
-|   `anchor_b_idx` |  | _field_ |
-|   `swing_arm` | `''` | _field_ |
-|   `swing_from_idx` | `-1` | _field_ |
-|   `swing_to_idx` | `-1` | _field_ |
-| **`GaitPlan`** *(dataclass)* |  |  |
-|   `phases` |  | _field_ |
-|   `t_start` |  | _field_ |
-|   `t_end` |  | _field_ |
-|   `total_duration` |  | _field_ |
-| `.phase_at` | `(t)` | **yes** |
-| `.set_step_duration` | `(idx, T_step)` | **yes** |
-| **`ContactScheduler`** |  |  |
-| `.plan_traversal` | `(start_a=0, start_b=0, n_steps=4)` | **yes** |
-| `.plan` | `()` | **yes** |
-| `.contact_config_at` | `(t)` | **yes** |
-| `.contact_sequence_over_horizon` | `(t, dt, N)` | not exercised |
-| `.anchor_se3` | `(arm, idx)` | **yes** |
+| symbol | signature | canonical? | code |
+|---|---|---|---|
+| `make_anchor_grid` | `(n=DEFAULT_N_ANCHORS, dx=DEFAULT_DX, dy=DEFAULT_DY)` | not exercised | [L42](../../../crawlbot/planning/contact_scheduler.py#L42) |
+| `read_anchors_from_mujoco` | `(mj_model, mj_data)` | **yes** | [L61](../../../crawlbot/planning/contact_scheduler.py#L61) |
+| **`GaitPhase`** *(dataclass)* |  |  | [L103](../../../crawlbot/planning/contact_scheduler.py#L103) |
+|   `phase` | `` | _field_ | [L105](../../../crawlbot/planning/contact_scheduler.py#L105) |
+|   `duration` | `` | _field_ | [L106](../../../crawlbot/planning/contact_scheduler.py#L106) |
+|   `anchor_a_idx` | `` | _field_ | [L107](../../../crawlbot/planning/contact_scheduler.py#L107) |
+|   `anchor_b_idx` | `` | _field_ | [L108](../../../crawlbot/planning/contact_scheduler.py#L108) |
+|   `swing_arm` | `''` | _field_ | [L110](../../../crawlbot/planning/contact_scheduler.py#L110) |
+|   `swing_from_idx` | `-1` | _field_ | [L111](../../../crawlbot/planning/contact_scheduler.py#L111) |
+|   `swing_to_idx` | `-1` | _field_ | [L112](../../../crawlbot/planning/contact_scheduler.py#L112) |
+| **`GaitPlan`** *(dataclass)* |  |  | [L116](../../../crawlbot/planning/contact_scheduler.py#L116) |
+|   `phases` | `` | _field_ | [L121](../../../crawlbot/planning/contact_scheduler.py#L121) |
+|   `t_start` | `` | _field_ | [L122](../../../crawlbot/planning/contact_scheduler.py#L122) |
+|   `t_end` | `` | _field_ | [L123](../../../crawlbot/planning/contact_scheduler.py#L123) |
+|   `total_duration` | `` | _field_ | [L124](../../../crawlbot/planning/contact_scheduler.py#L124) |
+| `.phase_at` | `(t)` | **yes** | [L126](../../../crawlbot/planning/contact_scheduler.py#L126) |
+| `.set_step_duration` | `(idx, T_step)` | **yes** | [L135](../../../crawlbot/planning/contact_scheduler.py#L135) |
+| **`ContactScheduler`** |  |  | [L162](../../../crawlbot/planning/contact_scheduler.py#L162) |
+| `.plan_traversal` | `(start_a=0, start_b=0, n_steps=4)` | **yes** | [L203](../../../crawlbot/planning/contact_scheduler.py#L203) |
+| `.plan` | `()` | **yes** | [L291](../../../crawlbot/planning/contact_scheduler.py#L291) |
+| `.contact_config_at` | `(t)` | **yes** | [L296](../../../crawlbot/planning/contact_scheduler.py#L296) |
+| `.contact_sequence_over_horizon` | `(t, dt, N)` | not exercised | [L313](../../../crawlbot/planning/contact_scheduler.py#L313) |
+| `.anchor_se3` | `(arm, idx)` | **yes** | [L333](../../../crawlbot/planning/contact_scheduler.py#L333) |
 
 ### Module constants
 
@@ -104,6 +104,25 @@ All dead **because the system is healthy**. Keep.
 
 **One genuinely dead method**: `contact_sequence_over_horizon` (19 lines, zero
 callers) — plumbing intended for the NMPC horizon that the NMPC never took up.
+
+## Code map
+
+| unit | source |
+|---|---|
+| `make_anchor_grid()` | [L42-58](../../../crawlbot/planning/contact_scheduler.py#L42-L58) |
+| `read_anchors_from_mujoco()` | [L61-99](../../../crawlbot/planning/contact_scheduler.py#L61-L99) |
+| `class GaitPhase` | [L103-112](../../../crawlbot/planning/contact_scheduler.py#L103-L112) |
+| `class GaitPlan` | [L116-159](../../../crawlbot/planning/contact_scheduler.py#L116-L159) |
+| `GaitPlan.phase_at` | [L126-133](../../../crawlbot/planning/contact_scheduler.py#L126-L133) |
+| `GaitPlan.set_step_duration` | [L135-159](../../../crawlbot/planning/contact_scheduler.py#L135-L159) |
+| `class ContactScheduler` | [L162-349](../../../crawlbot/planning/contact_scheduler.py#L162-L349) |
+| `ContactScheduler.plan_traversal` | [L203-288](../../../crawlbot/planning/contact_scheduler.py#L203-L288) |
+| `ContactScheduler.plan` | [L291-294](../../../crawlbot/planning/contact_scheduler.py#L291-L294) |
+| `ContactScheduler.contact_config_at` | [L296-311](../../../crawlbot/planning/contact_scheduler.py#L296-L311) |
+| `ContactScheduler.contact_sequence_over_horizon` | [L313-331](../../../crawlbot/planning/contact_scheduler.py#L313-L331) |
+| `ContactScheduler.anchor_se3` | [L333-349](../../../crawlbot/planning/contact_scheduler.py#L333-L349) |
+
+---
 
 ## See also
 

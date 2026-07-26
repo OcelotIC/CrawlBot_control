@@ -1,6 +1,6 @@
 # `crawlbot.core.com_to_torso_mapping`
 
-**File**: `crawlbot/core/com_to_torso_mapping.py` — **257 lines** — canonical coverage **52 %**
+**File**: [`crawlbot/core/com_to_torso_mapping.py`](../../../crawlbot/core/com_to_torso_mapping.py) — **257 lines** — canonical coverage **52 %**
 
 > Module docstring: *"CoM-to-torso reference mapping (M1, v1: with delta_dot)."*
 
@@ -15,16 +15,16 @@ Jacobian level, but the first is far better conditioned.
 
 ## Public API
 
-| symbol | signature | canonical? |
-|---|---|---|
-| **`CoMToTorsoMapping`** |  |  |
-| `.compute_delta` | `(q)` | **yes** |
-| `.compute_delta_dot` | `(q, dq)` | **yes** |
-| `.compute_delta_local` | `(q)` | not exercised |
-| `.compute_delta_local_dot` | `(q, dq)` | not exercised |
-| `.compute` | `(r_com_ref, v_com_ref, a_com_ff, q_current, dq_current=None)` | not exercised |
-| `.body_com_jacobian` | `(data, joint_idx)` | **yes** |
-| `.torso_pos_jacobian_from_com` | `(q)` | not exercised |
+| symbol | signature | canonical? | code |
+|---|---|---|---|
+| **`CoMToTorsoMapping`** |  |  | [L44](../../../crawlbot/core/com_to_torso_mapping.py#L44) |
+| `.compute_delta` | `(q)` | **yes** | [L97](../../../crawlbot/core/com_to_torso_mapping.py#L97) |
+| `.compute_delta_dot` | `(q, dq)` | **yes** | [L110](../../../crawlbot/core/com_to_torso_mapping.py#L110) |
+| `.compute_delta_local` | `(q)` | not exercised | [L143](../../../crawlbot/core/com_to_torso_mapping.py#L143) |
+| `.compute_delta_local_dot` | `(q, dq)` | not exercised | [L160](../../../crawlbot/core/com_to_torso_mapping.py#L160) |
+| `.compute` | `(r_com_ref, v_com_ref, a_com_ff, q_current, dq_current=None)` | not exercised | [L181](../../../crawlbot/core/com_to_torso_mapping.py#L181) |
+| `.body_com_jacobian` | `(data, joint_idx)` | **yes** | [L224](../../../crawlbot/core/com_to_torso_mapping.py#L224) |
+| `.torso_pos_jacobian_from_com` | `(q)` | not exercised | [L239](../../../crawlbot/core/com_to_torso_mapping.py#L239) |
 
 ### Module constants
 
@@ -129,6 +129,21 @@ the DS path.
 
 `TORSO_JOINT_IDX = 1` because in a free-flyer URDF joint 1 is the root joint and
 its body is the torso.
+
+## Code map
+
+| unit | source |
+|---|---|
+| `class CoMToTorsoMapping` | [L44-256](../../../crawlbot/core/com_to_torso_mapping.py#L44-L256) |
+| `CoMToTorsoMapping.compute_delta` | [L97-108](../../../crawlbot/core/com_to_torso_mapping.py#L97-L108) |
+| `CoMToTorsoMapping.compute_delta_dot` | [L110-127](../../../crawlbot/core/com_to_torso_mapping.py#L110-L127) |
+| `CoMToTorsoMapping.compute_delta_local` | [L143-158](../../../crawlbot/core/com_to_torso_mapping.py#L143-L158) |
+| `CoMToTorsoMapping.compute_delta_local_dot` | [L160-175](../../../crawlbot/core/com_to_torso_mapping.py#L160-L175) |
+| `CoMToTorsoMapping.compute` | [L181-218](../../../crawlbot/core/com_to_torso_mapping.py#L181-L218) |
+| `CoMToTorsoMapping.body_com_jacobian` | [L224-237](../../../crawlbot/core/com_to_torso_mapping.py#L224-L237) |
+| `CoMToTorsoMapping.torso_pos_jacobian_from_com` | [L239-256](../../../crawlbot/core/com_to_torso_mapping.py#L239-L256) |
+
+---
 
 ## See also
 

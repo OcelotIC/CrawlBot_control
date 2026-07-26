@@ -1,6 +1,6 @@
 # `crawlbot.diagnostics.plots`
 
-**File**: `crawlbot/diagnostics/plots.py` — **689 lines** — canonical coverage **5 %**
+**File**: [`crawlbot/diagnostics/plots.py`](../../../crawlbot/diagnostics/plots.py) — **689 lines** — canonical coverage **5 %**
 
 > Module docstring: *"Generate the fixed set of 8 diagnostic figures from SimLog."*
 
@@ -10,9 +10,9 @@ Diagnostic figure plates generated from a simulation log.
 
 ## Public API
 
-| symbol | signature | canonical? |
-|---|---|---|
-| `generate_plots` | `(log, output_dir, cfg=None, dpi=150)` | not exercised |
+| symbol | signature | canonical? | code |
+|---|---|---|---|
+| `generate_plots` | `(log, output_dir, cfg=None, dpi=150)` | not exercised | [L67](../../../crawlbot/diagnostics/plots.py#L67) |
 
 ### Module constants
 
@@ -57,6 +57,14 @@ Reported, not fixed: this is a rule-compliance question, orthogonal to the code
 
 Practical consequence: **no gate coverage anywhere in this package**. A
 regression introduced here will be caught by nothing.
+
+## Code map
+
+| unit | source |
+|---|---|
+| `generate_plots()` | [L67-93](../../../crawlbot/diagnostics/plots.py#L67-L93) |
+
+---
 
 ## See also
 

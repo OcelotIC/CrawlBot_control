@@ -114,9 +114,21 @@ These documents are **checkable**, which is the substantive difference from the
 `docs/api/` that rotted:
 
 ```bash
-PYTHONPATH=. python3 gate/verify_docs.py   # every file:line and every symbol
-PYTHONPATH=. python3 gate/link_audit.py    # every path cited in the repository
+PYTHONPATH=. python3 gate/sync_docs.py --check   # docs match the code
+PYTHONPATH=. python3 gate/verify_docs.py         # every file:line and every symbol
+PYTHONPATH=. python3 gate/link_audit.py          # every path cited in the repository
 ```
+
+`sync_docs --check` is the one that makes staying current a routine rather than
+a good intention: it exits non-zero when a symbol has been added, removed or
+moved without the document following. CLAUDE.md rule 15 makes running it
+mandatory after any change to `crawlbot/`.
+
+Every symbol in the **Public API** table and every entry in the **Code map**
+carries a line-anchored link into the source, and those links are *generated*.
+A refactor that shifts line numbers is repaired by re-running the tool — which
+is precisely the failure mode that left a stale line reference in CLAUDE.md
+before this existed.
 
 `verify_docs` fails if a `file:line` reference exceeds the file's length, or if a
 cited symbol is no longer defined in `crawlbot/`.

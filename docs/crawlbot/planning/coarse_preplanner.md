@@ -1,6 +1,6 @@
 # `crawlbot.planning.coarse_preplanner`
 
-**File**: `crawlbot/planning/coarse_preplanner.py` — **540 lines** — canonical coverage **81 %**
+**File**: [`crawlbot/planning/coarse_preplanner.py`](../../../crawlbot/planning/coarse_preplanner.py) — **540 lines** — canonical coverage **81 %**
 
 > Module docstring: *"CoarsePrePlanner — momentum-feasible CoM trajectory optimization (M6)."*
 
@@ -14,50 +14,50 @@ parameter, it is an *output* of the momentum envelope.
 
 ## Public API
 
-| symbol | signature | canonical? |
-|---|---|---|
-| **`CoarsePrePlannerConfig`** *(dataclass)* |  |  |
-|   `M` | `15` | _field_ |
-|   `robot_mass` | `71.0` | _field_ |
-|   `h_max` | `np.full(3, 5.0)` | _field_ |
-|   `kappa_terminal` | `0.7` | _field_ |
-|   `f_max` | `25.0` | _field_ |
-|   `tau_max` | `8.0` | _field_ |
-|   `tau_w_max` | `2.5` | _field_ |
-|   `w_L` | `1.0` | _field_ |
-|   `w_u` | `0.01` | _field_ |
-|   `w_v_terminal` | `100.0` | _field_ |
-|   `w_L_terminal` | `100.0` | _field_ |
-|   `eps_v_terminal` | `0.005` | _field_ |
-|   `eps_L_terminal` | `0.05` | _field_ |
-|   `T_step_default` | `6.0` | _field_ |
-|   `a_cruise_max` | `0.0` | _field_ |
-|   `cruise_ramp_frac` | `0.2` | _field_ |
-|   `ipopt_print_level` | `0` | _field_ |
-|   `ipopt_max_iter` | `300` | _field_ |
-|   `ipopt_tol` | `1e-06` | _field_ |
-| **`CoarsePlanResult`** *(dataclass)* |  |  |
-|   `T_step` |  | _field_ |
-|   `t_grid` |  | _field_ |
-|   `r_com` |  | _field_ |
-|   `v_com` |  | _field_ |
-|   `L_com` |  | _field_ |
-|   `f_stance` |  | _field_ |
-|   `tau_stance` |  | _field_ |
-|   `success` |  | _field_ |
-|   `solve_time_ms` |  | _field_ |
-|   `cost` |  | _field_ |
-|   `status` |  | _field_ |
-|   `iter_count` | `0` | _field_ |
-| `.r_com_at` | `(t)` | **yes** |
-| `.v_com_at` | `(t)` | **yes** |
-| `.L_com_at` | `(t)` | not exercised |
-| `._interp` | `(t, traj)` | **yes** |
-| `.hw_at_knots` | `(c_const)` | not exercised |
-| `.from_heuristic` | `(cls, r_com_0, r_com_goal, h_max, robot_mass, M=15, leve...)` | not exercised |
-| **`CoarsePrePlanner`** |  |  |
-| `.build` | `()` | **yes** |
-| `.solve` | `(r_com_0, v_com_0, L_com_0, r_com_goal, r_C_stance, c_co...)` | **yes** |
+| symbol | signature | canonical? | code |
+|---|---|---|---|
+| **`CoarsePrePlannerConfig`** *(dataclass)* |  |  | [L59](../../../crawlbot/planning/coarse_preplanner.py#L59) |
+|   `M` | `15` | _field_ | [L67](../../../crawlbot/planning/coarse_preplanner.py#L67) |
+|   `robot_mass` | `71.0` | _field_ | [L68](../../../crawlbot/planning/coarse_preplanner.py#L68) |
+|   `h_max` | `np.full(3, 5.0)` | _field_ | [L71](../../../crawlbot/planning/coarse_preplanner.py#L71) |
+|   `kappa_terminal` | `0.7` | _field_ | [L72](../../../crawlbot/planning/coarse_preplanner.py#L72) |
+|   `f_max` | `25.0` | _field_ | [L75](../../../crawlbot/planning/coarse_preplanner.py#L75) |
+|   `tau_max` | `8.0` | _field_ | [L76](../../../crawlbot/planning/coarse_preplanner.py#L76) |
+|   `tau_w_max` | `2.5` | _field_ | [L79](../../../crawlbot/planning/coarse_preplanner.py#L79) |
+|   `w_L` | `1.0` | _field_ | [L82](../../../crawlbot/planning/coarse_preplanner.py#L82) |
+|   `w_u` | `0.01` | _field_ | [L83](../../../crawlbot/planning/coarse_preplanner.py#L83) |
+|   `w_v_terminal` | `100.0` | _field_ | [L84](../../../crawlbot/planning/coarse_preplanner.py#L84) |
+|   `w_L_terminal` | `100.0` | _field_ | [L85](../../../crawlbot/planning/coarse_preplanner.py#L85) |
+|   `eps_v_terminal` | `0.005` | _field_ | [L88](../../../crawlbot/planning/coarse_preplanner.py#L88) |
+|   `eps_L_terminal` | `0.05` | _field_ | [L89](../../../crawlbot/planning/coarse_preplanner.py#L89) |
+|   `T_step_default` | `6.0` | _field_ | [L92](../../../crawlbot/planning/coarse_preplanner.py#L92) |
+|   `a_cruise_max` | `0.0` | _field_ | [L99](../../../crawlbot/planning/coarse_preplanner.py#L99) |
+|   `cruise_ramp_frac` | `0.2` | _field_ | [L100](../../../crawlbot/planning/coarse_preplanner.py#L100) |
+|   `ipopt_print_level` | `0` | _field_ | [L103](../../../crawlbot/planning/coarse_preplanner.py#L103) |
+|   `ipopt_max_iter` | `300` | _field_ | [L104](../../../crawlbot/planning/coarse_preplanner.py#L104) |
+|   `ipopt_tol` | `1e-06` | _field_ | [L105](../../../crawlbot/planning/coarse_preplanner.py#L105) |
+| **`CoarsePlanResult`** *(dataclass)* |  |  | [L109](../../../crawlbot/planning/coarse_preplanner.py#L109) |
+|   `T_step` | `` | _field_ | [L115](../../../crawlbot/planning/coarse_preplanner.py#L115) |
+|   `t_grid` | `` | _field_ | [L116](../../../crawlbot/planning/coarse_preplanner.py#L116) |
+|   `r_com` | `` | _field_ | [L117](../../../crawlbot/planning/coarse_preplanner.py#L117) |
+|   `v_com` | `` | _field_ | [L118](../../../crawlbot/planning/coarse_preplanner.py#L118) |
+|   `L_com` | `` | _field_ | [L119](../../../crawlbot/planning/coarse_preplanner.py#L119) |
+|   `f_stance` | `` | _field_ | [L120](../../../crawlbot/planning/coarse_preplanner.py#L120) |
+|   `tau_stance` | `` | _field_ | [L121](../../../crawlbot/planning/coarse_preplanner.py#L121) |
+|   `success` | `` | _field_ | [L123](../../../crawlbot/planning/coarse_preplanner.py#L123) |
+|   `solve_time_ms` | `` | _field_ | [L124](../../../crawlbot/planning/coarse_preplanner.py#L124) |
+|   `cost` | `` | _field_ | [L125](../../../crawlbot/planning/coarse_preplanner.py#L125) |
+|   `status` | `` | _field_ | [L126](../../../crawlbot/planning/coarse_preplanner.py#L126) |
+|   `iter_count` | `0` | _field_ | [L127](../../../crawlbot/planning/coarse_preplanner.py#L127) |
+| `.r_com_at` | `(t)` | **yes** | [L129](../../../crawlbot/planning/coarse_preplanner.py#L129) |
+| `.v_com_at` | `(t)` | **yes** | [L133](../../../crawlbot/planning/coarse_preplanner.py#L133) |
+| `.L_com_at` | `(t)` | not exercised | [L137](../../../crawlbot/planning/coarse_preplanner.py#L137) |
+| `._interp` | `(t, traj)` | **yes** | [L141](../../../crawlbot/planning/coarse_preplanner.py#L141) |
+| `.hw_at_knots` | `(c_const)` | not exercised | [L153](../../../crawlbot/planning/coarse_preplanner.py#L153) |
+| `.from_heuristic` | `(cls, r_com_0, r_com_goal, h_max, robot_mass, M=15, leve...)` | not exercised | [L171](../../../crawlbot/planning/coarse_preplanner.py#L171) |
+| **`CoarsePrePlanner`** |  |  | [L260](../../../crawlbot/planning/coarse_preplanner.py#L260) |
+| `.build` | `()` | **yes** | [L288](../../../crawlbot/planning/coarse_preplanner.py#L288) |
+| `.solve` | `(r_com_0, v_com_0, L_com_0, r_com_goal, r_C_stance, c_co...)` | **yes** | [L419](../../../crawlbot/planning/coarse_preplanner.py#L419) |
 
 ---
 
@@ -181,6 +181,24 @@ defaults. Signature of a healthy system. Keep.
 The cruise-acceleration block (`a_cruise_max`, M7 v21) is disabled (`0.0`) and
 reachable only by hand-editing `SimConfig`. Its removal awaits a ruling: it is a
 *documented* CLAUDE.md parameter.
+
+## Code map
+
+| unit | source |
+|---|---|
+| `class CoarsePrePlannerConfig` | [L59-105](../../../crawlbot/planning/coarse_preplanner.py#L59-L105) |
+| `class CoarsePlanResult` | [L109-252](../../../crawlbot/planning/coarse_preplanner.py#L109-L252) |
+| `CoarsePlanResult.r_com_at` | [L129-131](../../../crawlbot/planning/coarse_preplanner.py#L129-L131) |
+| `CoarsePlanResult.v_com_at` | [L133-135](../../../crawlbot/planning/coarse_preplanner.py#L133-L135) |
+| `CoarsePlanResult.L_com_at` | [L137-139](../../../crawlbot/planning/coarse_preplanner.py#L137-L139) |
+| `CoarsePlanResult._interp` | [L141-151](../../../crawlbot/planning/coarse_preplanner.py#L141-L151) |
+| `CoarsePlanResult.hw_at_knots` | [L153-167](../../../crawlbot/planning/coarse_preplanner.py#L153-L167) |
+| `CoarsePlanResult.from_heuristic` | [L171-252](../../../crawlbot/planning/coarse_preplanner.py#L171-L252) |
+| `class CoarsePrePlanner` | [L260-539](../../../crawlbot/planning/coarse_preplanner.py#L260-L539) |
+| `CoarsePrePlanner.build` | [L288-415](../../../crawlbot/planning/coarse_preplanner.py#L288-L415) |
+| `CoarsePrePlanner.solve` | [L419-539](../../../crawlbot/planning/coarse_preplanner.py#L419-L539) |
+
+---
 
 ## See also
 

@@ -1,6 +1,6 @@
 # `crawlbot.planning.swing_planner`
 
-**File**: `crawlbot/planning/swing_planner.py` — **338 lines** — canonical coverage **95 %**
+**File**: [`crawlbot/planning/swing_planner.py`](../../../crawlbot/planning/swing_planner.py) — **338 lines** — canonical coverage **95 %**
 
 > Module docstring: *"Swing arm trajectory planner for crawling locomotion."*
 
@@ -14,32 +14,32 @@ points — which is why no live-anchor transform machinery is needed.
 
 ## Public API
 
-| symbol | signature | canonical? |
-|---|---|---|
-| **`SwingReference`** *(dataclass)* |  |  |
-|   `p_ee` |  | _field_ |
-|   `v_ee` |  | _field_ |
-|   `a_ee` |  | _field_ |
-|   `R_ee` |  | _field_ |
-|   `omega_ee` |  | _field_ |
-|   `alpha_ee` |  | _field_ |
-|   `swing_arm` |  | _field_ |
-|   `is_swinging` |  | _field_ |
-|   `phase_progress` |  | _field_ |
-| **`SwingPlanner`** |  |  |
-| `.set_swing_orientation` | `(R_start)` | **yes** |
-| `.plan` | `()` | **yes** |
-| `._quintic` | `(tau)` | **yes** |
-| `._quintic_dot` | `(tau)` | **yes** |
-| `._quintic_ddot` | `(tau)` | **yes** |
-| `._bump` | `(tau)` | **yes** |
-| `._bump_dot` | `(tau)` | **yes** |
-| `._bump_ddot` | `(tau)` | **yes** |
-| `._delayed_cosine` | `(tau, tau_d)` | **yes** |
-| `._delayed_cosine_dot` | `(tau, tau_d)` | **yes** |
-| `._delayed_cosine_ddot` | `(tau, tau_d)` | **yes** |
-| `.reference_at` | `(t)` | **yes** |
-| `._last_swing_position` | `(current_idx)` | **yes** |
+| symbol | signature | canonical? | code |
+|---|---|---|---|
+| **`SwingReference`** *(dataclass)* |  |  | [L48](../../../crawlbot/planning/swing_planner.py#L48) |
+|   `p_ee` | `` | _field_ | [L50](../../../crawlbot/planning/swing_planner.py#L50) |
+|   `v_ee` | `` | _field_ | [L51](../../../crawlbot/planning/swing_planner.py#L51) |
+|   `a_ee` | `` | _field_ | [L52](../../../crawlbot/planning/swing_planner.py#L52) |
+|   `R_ee` | `` | _field_ | [L53](../../../crawlbot/planning/swing_planner.py#L53) |
+|   `omega_ee` | `` | _field_ | [L54](../../../crawlbot/planning/swing_planner.py#L54) |
+|   `alpha_ee` | `` | _field_ | [L55](../../../crawlbot/planning/swing_planner.py#L55) |
+|   `swing_arm` | `` | _field_ | [L56](../../../crawlbot/planning/swing_planner.py#L56) |
+|   `is_swinging` | `` | _field_ | [L57](../../../crawlbot/planning/swing_planner.py#L57) |
+|   `phase_progress` | `` | _field_ | [L58](../../../crawlbot/planning/swing_planner.py#L58) |
+| **`SwingPlanner`** |  |  | [L61](../../../crawlbot/planning/swing_planner.py#L61) |
+| `.set_swing_orientation` | `(R_start)` | **yes** | [L126](../../../crawlbot/planning/swing_planner.py#L126) |
+| `.plan` | `()` | **yes** | [L137](../../../crawlbot/planning/swing_planner.py#L137) |
+| `._quintic` | `(tau)` | **yes** | [L143](../../../crawlbot/planning/swing_planner.py#L143) |
+| `._quintic_dot` | `(tau)` | **yes** | [L149](../../../crawlbot/planning/swing_planner.py#L149) |
+| `._quintic_ddot` | `(tau)` | **yes** | [L154](../../../crawlbot/planning/swing_planner.py#L154) |
+| `._bump` | `(tau)` | **yes** | [L164](../../../crawlbot/planning/swing_planner.py#L164) |
+| `._bump_dot` | `(tau)` | **yes** | [L172](../../../crawlbot/planning/swing_planner.py#L172) |
+| `._bump_ddot` | `(tau)` | **yes** | [L183](../../../crawlbot/planning/swing_planner.py#L183) |
+| `._delayed_cosine` | `(tau, tau_d)` | **yes** | [L204](../../../crawlbot/planning/swing_planner.py#L204) |
+| `._delayed_cosine_dot` | `(tau, tau_d)` | **yes** | [L213](../../../crawlbot/planning/swing_planner.py#L213) |
+| `._delayed_cosine_ddot` | `(tau, tau_d)` | **yes** | [L221](../../../crawlbot/planning/swing_planner.py#L221) |
+| `.reference_at` | `(t)` | **yes** | [L230](../../../crawlbot/planning/swing_planner.py#L230) |
+| `._last_swing_position` | `(current_idx)` | **yes** | [L323](../../../crawlbot/planning/swing_planner.py#L323) |
 
 ### Module constants
 
@@ -144,6 +144,28 @@ to 337 lines.
 
 ⚠ Do not confuse: **`torso_planner.add_phase` is live**. Only the *swing*
 planner's `add_phase` was dead.
+
+## Code map
+
+| unit | source |
+|---|---|
+| `class SwingReference` | [L48-58](../../../crawlbot/planning/swing_planner.py#L48-L58) |
+| `class SwingPlanner` | [L61-336](../../../crawlbot/planning/swing_planner.py#L61-L336) |
+| `SwingPlanner.set_swing_orientation` | [L126-130](../../../crawlbot/planning/swing_planner.py#L126-L130) |
+| `SwingPlanner.plan` | [L137-138](../../../crawlbot/planning/swing_planner.py#L137-L138) |
+| `SwingPlanner._quintic` | [L143-146](../../../crawlbot/planning/swing_planner.py#L143-L146) |
+| `SwingPlanner._quintic_dot` | [L149-151](../../../crawlbot/planning/swing_planner.py#L149-L151) |
+| `SwingPlanner._quintic_ddot` | [L154-155](../../../crawlbot/planning/swing_planner.py#L154-L155) |
+| `SwingPlanner._bump` | [L164-170](../../../crawlbot/planning/swing_planner.py#L164-L170) |
+| `SwingPlanner._bump_dot` | [L172-181](../../../crawlbot/planning/swing_planner.py#L172-L181) |
+| `SwingPlanner._bump_ddot` | [L183-192](../../../crawlbot/planning/swing_planner.py#L183-L192) |
+| `SwingPlanner._delayed_cosine` | [L204-210](../../../crawlbot/planning/swing_planner.py#L204-L210) |
+| `SwingPlanner._delayed_cosine_dot` | [L213-218](../../../crawlbot/planning/swing_planner.py#L213-L218) |
+| `SwingPlanner._delayed_cosine_ddot` | [L221-226](../../../crawlbot/planning/swing_planner.py#L221-L226) |
+| `SwingPlanner.reference_at` | [L230-316](../../../crawlbot/planning/swing_planner.py#L230-L316) |
+| `SwingPlanner._last_swing_position` | [L323-336](../../../crawlbot/planning/swing_planner.py#L323-L336) |
+
+---
 
 ## See also
 

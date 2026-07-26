@@ -1,6 +1,6 @@
 # `crawlbot.solvers.contact_phase`
 
-**File**: `crawlbot/solvers/contact_phase.py` — **138 lines** — canonical coverage **85 %**
+**File**: [`crawlbot/solvers/contact_phase.py`](../../../crawlbot/solvers/contact_phase.py) — **138 lines** — canonical coverage **85 %**
 
 > Module docstring: *"Contact phase definitions for crawling multi-arm robot locomotion."*
 
@@ -12,19 +12,19 @@ rate. Small file, but both stages depend on it agreeing with itself.
 
 ## Public API
 
-| symbol | signature | canonical? |
-|---|---|---|
-| **`ContactPhase`** |  |  |
-| **`ContactConfig`** *(dataclass)* |  |  |
-|   `phase` |  | _field_ |
-|   `nc` |  | _field_ |
-|   `active_contacts` |  | _field_ |
-|   `r_contact_A` |  | _field_ |
-|   `r_contact_B` |  | _field_ |
-| `.from_phase` | `(cls, phase, r_contact_A, r_contact_B)` | **yes** |
-| `.active_contact_positions` | `()` | not exercised |
-| `skew` | `(v)` | **yes** |
-| `compute_momentum_map` | `(r_com, contact_config)` | **yes** |
+| symbol | signature | canonical? | code |
+|---|---|---|---|
+| **`ContactPhase`** |  |  | [L19](../../../crawlbot/solvers/contact_phase.py#L19) |
+| **`ContactConfig`** *(dataclass)* |  |  | [L27](../../../crawlbot/solvers/contact_phase.py#L27) |
+|   `phase` | `` | _field_ | [L43](../../../crawlbot/solvers/contact_phase.py#L43) |
+|   `nc` | `` | _field_ | [L44](../../../crawlbot/solvers/contact_phase.py#L44) |
+|   `active_contacts` | `` | _field_ | [L45](../../../crawlbot/solvers/contact_phase.py#L45) |
+|   `r_contact_A` | `` | _field_ | [L46](../../../crawlbot/solvers/contact_phase.py#L46) |
+|   `r_contact_B` | `` | _field_ | [L47](../../../crawlbot/solvers/contact_phase.py#L47) |
+| `.from_phase` | `(cls, phase, r_contact_A, r_contact_B)` | **yes** | [L50](../../../crawlbot/solvers/contact_phase.py#L50) |
+| `.active_contact_positions` | `()` | not exercised | [L70](../../../crawlbot/solvers/contact_phase.py#L70) |
+| `skew` | `(v)` | **yes** | [L80](../../../crawlbot/solvers/contact_phase.py#L80) |
+| `compute_momentum_map` | `(r_com, contact_config)` | **yes** | [L101](../../../crawlbot/solvers/contact_phase.py#L101) |
 
 ---
 
@@ -91,6 +91,19 @@ CAMPAIGN_5STEP section 9.
 
 `ContactConfig.active_contact_positions` — a convenience accessor with no
 callers.
+
+## Code map
+
+| unit | source |
+|---|---|
+| `class ContactPhase` | [L19-23](../../../crawlbot/solvers/contact_phase.py#L19-L23) |
+| `class ContactConfig` | [L27-77](../../../crawlbot/solvers/contact_phase.py#L27-L77) |
+| `ContactConfig.from_phase` | [L50-67](../../../crawlbot/solvers/contact_phase.py#L50-L67) |
+| `ContactConfig.active_contact_positions` | [L70-77](../../../crawlbot/solvers/contact_phase.py#L70-L77) |
+| `skew()` | [L80-98](../../../crawlbot/solvers/contact_phase.py#L80-L98) |
+| `compute_momentum_map()` | [L101-137](../../../crawlbot/solvers/contact_phase.py#L101-L137) |
+
+---
 
 ## See also
 

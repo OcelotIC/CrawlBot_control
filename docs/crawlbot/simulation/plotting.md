@@ -1,6 +1,6 @@
 # `crawlbot.simulation.plotting`
 
-**File**: `crawlbot/simulation/plotting.py` — **154 lines** — canonical coverage **2 %**
+**File**: [`crawlbot/simulation/plotting.py`](../../../crawlbot/simulation/plotting.py) — **154 lines** — canonical coverage **2 %**
 
 > Module docstring: *"9-panel diagnostic plot for simulation results."*
 
@@ -10,9 +10,9 @@ Simulation plots — **not used by the canonical run** (2 % coverage).
 
 ## Public API
 
-| symbol | signature | canonical? |
-|---|---|---|
-| `plot_simulation` | `(log, save_path=None, cfg=None)` | not exercised |
+| symbol | signature | canonical? | code |
+|---|---|---|---|
+| `plot_simulation` | `(log, save_path=None, cfg=None)` | not exercised | [L10](../../../crawlbot/simulation/plotting.py#L10) |
 
 ---
 
@@ -39,6 +39,14 @@ quantities.
 ## 3. Consequence
 
 No gate coverage. A regression introduced here will be caught by nothing.
+
+## Code map
+
+| unit | source |
+|---|---|
+| `plot_simulation()` | [L10-153](../../../crawlbot/simulation/plotting.py#L10-L153) |
+
+---
 
 ## See also
 
