@@ -159,12 +159,23 @@ calls). That is a paper artifact, not research sediment — the same KEEP class 
 Step 5 was executed then reverted within CLEANUP-18. To revisit, the question is not "is it dead
 on the canonical" (it is) but "is the Lutze baseline still to be re-run" — an Idriss call.
 
-### C4. Eight silent canonical values (Rule 5)
+### C4. Thirteen silent canonical values (Rule 5)
 
-`WholeBodyQPConfig` fields `sim_loop` never overrides, so the dataclass default **is** the
-canonical value: `method`, `solver`, `weight_ratio`, `w_hw_slack`, `alpha_settle`,
-`Kd_settle`, `qdd_max`, `tau_contact_max`. Only `w_hw_slack` is cited in CLAUDE.md. Same class
-as the six NMPC weights already hoisted in CLEANUP-3.
+Dataclass fields `sim_loop` never overrides, so the default **is** the canonical value.
+
+`WholeBodyQPConfig` (8, CLEANUP-8): `method`, `solver`, `weight_ratio`, `w_hw_slack`,
+`alpha_settle`, `Kd_settle`, `qdd_max`, `tau_contact_max`. Only `w_hw_slack` is cited in
+CLAUDE.md. Same class as the six NMPC weights already hoisted in CLEANUP-3.
+
+`CoarsePrePlannerConfig` (5, CLEANUP-19): `eps_v_terminal` (5e-3 m/s) and `eps_L_terminal`
+(5e-2 Nms) — **hard boxes on the terminal state of every step's plan**, i.e. the constraint
+deciding where a step may end — plus `w_v_terminal` / `w_L_terminal` (1e2 each, soft penalties
+on the same residual) and `ipopt_tol` (1e-6). None is in CLAUDE.md. The first four are physics,
+not numerics, and are the higher-priority half of this item.
+
+Also `CoarsePrePlannerConfig.T_step_default = 6.0` is never used at all — `sim_loop` always
+passes `T_step` explicitly (its own comment at `sim_loop:403` calls the field "only a
+bootstrap"), so the `if T_step is None` branch is dead. Removable rather than documentable.
 
 ---
 
@@ -175,3 +186,24 @@ CLEANUP-11 did step 1 (extract `Build QP`). **Step 2**, not done: extract the SS
 the canonical controller a named unit. Explicitly **not** recommended: merging or reordering
 task blocks — the order encodes the cost-assembly sequence, so that would be a behavioural
 change dressed as a refactor.
+
+---
+
+## E. Awaiting an Idriss ruling (not measurement questions)
+
+### E1. `a_cruise_max` — delete a documented-but-off capability?
+
+The pre-planner's cruise-phase acceleration constraint (`coarse_preplanner.py:349-356`, M7 v21)
+is gated on `a_cruise_max > 0.0`. `SimConfig.preplanner_a_cruise_max` defaults to `0.0`, is not
+exposed by `dca.main` or `run_m7_single_step`, and is reachable only by hand-editing
+`SimConfig` — research sediment by the chantier's usual test (7 dead statements + 2 config
+fields, ~12 lines).
+
+But CLAUDE.md documents it as a parameter ("CoM shaping — a_cruise_max=0.0 (off)"), so removing
+it deletes a documented capability rather than dead plumbing. Not a call the chantier should
+make on its own.
+
+### E2. `locomotion_planner.py` — see §C5
+
+Same shape: dead on the canonical, live in the M0/Lutze paper baseline. The question is whether
+that baseline is still to be re-run.
