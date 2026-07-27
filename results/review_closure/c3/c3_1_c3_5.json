@@ -1,0 +1,377 @@
+{
+  "n_ticks": 2077,
+  "traversal_ticks": 1876,
+  "c3_1_components_traversal": {
+    "tau_ff": {
+      "peak_per_axis": [
+        2.5,
+        2.5,
+        2.653727
+      ],
+      "rms_per_axis": [
+        0.359267,
+        0.755128,
+        1.224248
+      ],
+      "peak": 2.653727,
+      "rms": 0.855974
+    },
+    "tau_att_p": {
+      "peak_per_axis": [
+        0.002325,
+        0.004652,
+        0.006401
+      ],
+      "rms_per_axis": [
+        0.000701,
+        0.002276,
+        0.002833
+      ],
+      "peak": 0.006401,
+      "rms": 0.002137
+    },
+    "tau_rate_d": {
+      "peak_per_axis": [
+        0.041039,
+        0.049293,
+        0.089313
+      ],
+      "rms_per_axis": [
+        0.011086,
+        0.015668,
+        0.032508
+      ],
+      "peak": 0.089313,
+      "rms": 0.021796
+    },
+    "tau_accel_d": {
+      "peak_per_axis": [
+        0.59947,
+        1.382346,
+        0.217198
+      ],
+      "rms_per_axis": [
+        0.030696,
+        0.047316,
+        0.013498
+      ],
+      "peak": 1.382346,
+      "rms": 0.033483
+    },
+    "tau_antiwindup": {
+      "peak_per_axis": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "rms_per_axis": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "peak": 0.0,
+      "rms": 0.0
+    },
+    "tau_w_preclip": {
+      "peak_per_axis": [
+        2.507659,
+        3.898989,
+        2.738463
+      ],
+      "rms_per_axis": [
+        0.357075,
+        0.763112,
+        1.220396
+      ],
+      "peak": 3.898989,
+      "rms": 0.856195
+    }
+  },
+  "c3_1_shares": {
+    "ff_rms": 0.855974,
+    "feedback_rms": 0.038943,
+    "ff_to_feedback_rms_ratio": 21.98,
+    "ff_share_of_rms_pct": 95.65,
+    "antiwindup_rms": 0.0,
+    "antiwindup_max_abs": 0.0,
+    "antiwindup_nonzero_ticks": 0
+  },
+  "c3_1_identity_max_abs_residual": 9.88000000035072e-07,
+  "c3_1_saturation": {
+    "traversal": {
+      "n_ticks": 1876,
+      "ticks_any_axis": 95,
+      "pct_ticks_any_axis": 5.064,
+      "axis_samples": 99,
+      "pct_axis_samples": 1.759,
+      "per_axis_pct": [
+        0.16,
+        1.119,
+        3.998
+      ],
+      "peak_demand": 3.899
+    },
+    "full_log": {
+      "n_ticks": 2077,
+      "ticks_any_axis": 95,
+      "pct_ticks_any_axis": 4.574,
+      "axis_samples": 99,
+      "pct_axis_samples": 1.589,
+      "per_axis_pct": [
+        0.144,
+        1.011,
+        3.611
+      ],
+      "peak_demand": 3.899
+    },
+    "by_phase": {
+      "SS": {
+        "n_ticks": 508,
+        "ticks_any_axis": 20,
+        "pct_ticks_any_axis": 3.937,
+        "axis_samples": 20,
+        "pct_axis_samples": 1.312,
+        "per_axis_pct": [
+          0.0,
+          0.0,
+          3.937
+        ],
+        "peak_demand": 2.7385
+      },
+      "DS_interstep": {
+        "n_ticks": 1368,
+        "ticks_any_axis": 75,
+        "pct_ticks_any_axis": 5.482,
+        "axis_samples": 79,
+        "pct_axis_samples": 1.925,
+        "per_axis_pct": [
+          0.219,
+          1.535,
+          4.02
+        ],
+        "peak_demand": 3.899
+      },
+      "DS_terminal": {
+        "n_ticks": 201,
+        "ticks_any_axis": 0,
+        "pct_ticks_any_axis": 0.0,
+        "axis_samples": 0,
+        "pct_axis_samples": 0.0,
+        "per_axis_pct": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "peak_demand": 0.7053
+      }
+    },
+    "paper_cited_pct": 4.1,
+    "note": "No convention reproduces the cited 4.1 %. Nearest is any-axis-per-tick over the FULL log (4.574 %); the traversal-window and axis-sample figures are further away. The cited \"368/51448 plant clamps\" counts at a third cadence: 51448 is neither the tick count (2077) nor the axis-sample count (6231) nor ticks x 10 sub-steps (20770), so its denominator is unrecorded in the repository."
+  },
+  "c3_5_docks": [
+    {
+      "step": 0,
+      "arm": "b",
+      "anchor": 3,
+      "t_s": 3.01,
+      "d_mm": 4.02,
+      "ori_deg": 0.14,
+      "twist_norm": 0.020058,
+      "twist_lin_s": [
+        0.006512412,
+        0.013266894,
+        -0.00117834
+      ],
+      "twist_ang_s": [
+        0.010451298,
+        -0.00856114,
+        -9.5581e-05
+      ],
+      "twist_lin_norm": 0.014826007,
+      "twist_ang_norm": 0.013510436,
+      "linear_share_pct": 73.9,
+      "eps_pos_m": 0.005,
+      "eps_ori_deg": 5.0,
+      "eps_twist": 0.05,
+      "margin_pos_mm": 0.98,
+      "margin_twist": 0.029942
+    },
+    {
+      "step": 1,
+      "arm": "a",
+      "anchor": 3,
+      "t_s": 14.72,
+      "d_mm": 4.89,
+      "ori_deg": 0.04,
+      "twist_norm": 0.007735,
+      "twist_lin_s": [
+        -0.004935109,
+        -0.004512708,
+        -0.002898572
+      ],
+      "twist_ang_s": [
+        -0.000982977,
+        0.002390687,
+        -0.000167181
+      ],
+      "twist_lin_norm": 0.007288454,
+      "twist_ang_norm": 0.002590285,
+      "linear_share_pct": 94.2,
+      "eps_pos_m": 0.005,
+      "eps_ori_deg": 5.0,
+      "eps_twist": 0.05,
+      "margin_pos_mm": 0.11,
+      "margin_twist": 0.042265
+    },
+    {
+      "step": 2,
+      "arm": "b",
+      "anchor": 4,
+      "t_s": 28.5,
+      "d_mm": 4.99,
+      "ori_deg": 0.02,
+      "twist_norm": 0.005781,
+      "twist_lin_s": [
+        -0.002246217,
+        -0.004866024,
+        5.5693e-05
+      ],
+      "twist_ang_s": [
+        -0.001647024,
+        0.001405536,
+        3.159e-05
+      ],
+      "twist_lin_norm": 0.005359737,
+      "twist_ang_norm": 0.00216546,
+      "linear_share_pct": 92.7,
+      "eps_pos_m": 0.005,
+      "eps_ori_deg": 5.0,
+      "eps_twist": 0.05,
+      "margin_pos_mm": 0.01,
+      "margin_twist": 0.044219
+    },
+    {
+      "step": 3,
+      "arm": "a",
+      "anchor": 4,
+      "t_s": 40.06,
+      "d_mm": 4.97,
+      "ori_deg": 0.05,
+      "twist_norm": 0.00717,
+      "twist_lin_s": [
+        -0.004964855,
+        -0.003767468,
+        -0.002527215
+      ],
+      "twist_ang_s": [
+        -0.000682609,
+        0.002383713,
+        -0.000187982
+      ],
+      "twist_lin_norm": 0.006725356,
+      "twist_ang_norm": 0.00248664,
+      "linear_share_pct": 93.8,
+      "eps_pos_m": 0.005,
+      "eps_ori_deg": 5.0,
+      "eps_twist": 0.05,
+      "margin_pos_mm": 0.03,
+      "margin_twist": 0.04283
+    },
+    {
+      "step": 4,
+      "arm": "b",
+      "anchor": 5,
+      "t_s": 53.38,
+      "d_mm": 4.95,
+      "ori_deg": 0.01,
+      "twist_norm": 0.00499,
+      "twist_lin_s": [
+        -0.001881801,
+        -0.004248524,
+        -6.4895e-05
+      ],
+      "twist_ang_s": [
+        -0.001424152,
+        0.001129187,
+        5.8478e-05
+      ],
+      "twist_lin_norm": 0.004647079,
+      "twist_ang_norm": 0.001818431,
+      "linear_share_pct": 93.1,
+      "eps_pos_m": 0.005,
+      "eps_ori_deg": 5.0,
+      "eps_twist": 0.05,
+      "margin_pos_mm": 0.05,
+      "margin_twist": 0.04501
+    },
+    {
+      "step": 5,
+      "arm": "a",
+      "anchor": 5,
+      "t_s": 64.54,
+      "d_mm": 4.62,
+      "ori_deg": 0.04,
+      "twist_norm": 0.00702,
+      "twist_lin_s": [
+        -0.005014886,
+        -0.003462849,
+        -0.00241009
+      ],
+      "twist_ang_s": [
+        -0.000526083,
+        0.002451838,
+        -0.000206139
+      ],
+      "twist_lin_norm": 0.006553544,
+      "twist_ang_norm": 0.002516101,
+      "linear_share_pct": 93.4,
+      "eps_pos_m": 0.005,
+      "eps_ori_deg": 5.0,
+      "eps_twist": 0.05,
+      "margin_pos_mm": 0.38,
+      "margin_twist": 0.04298
+    }
+  ],
+  "c3_5_pose_valid_refusals": [
+    {
+      "step": 2,
+      "t_s": 21.9,
+      "d_mm": 4.334,
+      "ori_deg": 0.105,
+      "twist_norm": 0.060522,
+      "twist_lin_norm": 0.0478191,
+      "twist_ang_norm": 0.0370982,
+      "exceeded_eps_twist_by_pct": 21.0
+    },
+    {
+      "step": 2,
+      "t_s": 22.0,
+      "d_mm": 4.941,
+      "ori_deg": 0.234,
+      "twist_norm": 0.057386,
+      "twist_lin_norm": 0.045566061,
+      "twist_ang_norm": 0.034883438,
+      "exceeded_eps_twist_by_pct": 14.8
+    },
+    {
+      "step": 4,
+      "t_s": 46.58,
+      "d_mm": 3.409,
+      "ori_deg": 0.157,
+      "twist_norm": 0.057616,
+      "twist_lin_norm": 0.045019469,
+      "twist_ang_norm": 0.03595544,
+      "exceeded_eps_twist_by_pct": 15.2
+    },
+    {
+      "step": 4,
+      "t_s": 46.68,
+      "d_mm": 3.326,
+      "ori_deg": 0.23,
+      "twist_norm": 0.050607,
+      "twist_lin_norm": 0.038919506,
+      "twist_ang_norm": 0.032347773,
+      "exceeded_eps_twist_by_pct": 1.2
+    }
+  ]
+}
