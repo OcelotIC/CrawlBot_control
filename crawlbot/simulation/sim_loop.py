@@ -160,6 +160,11 @@ class SimulationLoop(TickLoggingMixin):
         self._coarse_plan_t0: float = 0.0
         # Per-step telemetry (infeasibilities, solve times, etc.)
         self._preplanner_stats = []
+        # C2.1: last weld-relative twist 6-vector seen by `_dock_gate`, so the
+        # dock_events row can carry the decomposition without recomputing it
+        # (the gate already ran mj_forward; a second evaluation here would
+        # read a different qvel). Logging-only.
+        self._last_twist_vec = np.zeros(6)
         # ── Diagnostic hooks (runtime-only, not config fields) ────────
         # _diag_disable_aocs: if True, force tau_w_cmd = 0 every QP sub-
         #   step (used to measure the raw robot-disturbance-induced
@@ -820,10 +825,16 @@ class SimulationLoop(TickLoggingMixin):
             # settle-QP wrench (lambda_qp_sol). Flag OFF: the legacy
             # hardcoded-zero path, byte-identical to the pre-fix loop.
             tau_w_applied = np.zeros(3)
+            # C2.3: bound BEFORE the branches — on the flag-OFF / no-RWA paths
+            # the AOCS does not run, and an empty dict is exactly the
+            # documented not-measured sentinel. Binding it inside the branch
+            # would raise NameError at the recorder on those paths.
+            _aocs_decomp = {}
             if self.has_rwa:
                 if cfg.aocs_active_in_interstep:
                     tau_w_applied = self._interstep_aocs_command(
-                        rs, cc_ds, lambda_qp_sol, _omega_s_prev)
+                        rs, cc_ds, lambda_qp_sol, _omega_s_prev,
+                        decomposition=_aocs_decomp)
                     self.mj_data.ctrl[n_j:n_j + 3] = tau_w_applied
                     # Update the ω_s history BEFORE mj_step (current ω_s
                     # is this tick's pre-step value, the next tick's prev).
@@ -842,6 +853,7 @@ class SimulationLoop(TickLoggingMixin):
                     log_step_idx, log_just_landed_arm,
                     log_anchor_a_idx, log_anchor_b_idx,
                     tau, lambda_qp_sol, tau_w_applied,
+                    aocs_decomp=_aocs_decomp,
                     # C2.2.1: this loop solves exactly ONE QP per tick, so the
                     # qp_* columns are a real measurement here — these are the
                     # 1368 canonical ticks on which QP status was previously
@@ -864,7 +876,8 @@ class SimulationLoop(TickLoggingMixin):
             'exit_reason': exit_reason,
         }
 
-    def _interstep_aocs_command(self, rs, cc_ds, lambda_qp_sol, omega_s_prev):
+    def _interstep_aocs_command(self, rs, cc_ds, lambda_qp_sol, omega_s_prev,
+                                decomposition=None):
         """Canonical AOCS wheel-torque command for the inter-step DS loop.
 
         Re-activates the structure attitude controller inside
@@ -934,7 +947,8 @@ class SimulationLoop(TickLoggingMixin):
             K_d=cfg.aocs_K_d, K_theta=cfg.aocs_K_theta,
             hw_min=cfg.hw_min, hw_max=cfg.hw_max,
             tau_w_max=cfg.aocs_tau_w_max,
-            tau_struct_ff=tau_struct_ff)
+            tau_struct_ff=tau_struct_ff,
+            decomposition=decomposition)      # C2.3 telemetry (may be None)
 
 
     def _build_qp(self, ae, ap, aw,
@@ -1122,8 +1136,12 @@ class SimulationLoop(TickLoggingMixin):
         cfg = self.cfg
         d = self._gripper_distance(swing_arm, target_idx)
         ori_err_deg = self._gripper_ori_err_deg(swing_arm, target_idx)
-        twist_norm = float(np.linalg.norm(
-            self._weld_relative_twist(swing_arm, target_idx)))
+        # C2.1: keep the 6-VECTOR, not just its norm. `_weld_relative_twist`
+        # already builds it; everything below this line used to throw the
+        # components away, so the gate could report "twist too high" without
+        # ever saying whether it was linear or angular.
+        twist_vec = self._weld_relative_twist(swing_arm, target_idx)
+        twist_norm = float(np.linalg.norm(twist_vec))
         pos_ok = d < cfg.weld_radius
         ori_ok = ori_err_deg < cfg.dock_ori_threshold_deg
         if cfg.dock_use_6d_twist:
@@ -1132,13 +1150,62 @@ class SimulationLoop(TickLoggingMixin):
             vel_ok = self._gripper_speed(swing_arm) < cfg.dock_vel_max
         docked = pos_ok and ori_ok and vel_ok
         if log is not None:
-            log.dock_gate_trace.append({
+            row = {
                 't': round(float(t), 3), 'step': int(step_idx),
                 'd_mm': round(d * 1000, 3),
                 'ori_deg': round(ori_err_deg, 3),
                 'twist': round(twist_norm, 6),
-                'fired': bool(docked)})
+                'fired': bool(docked)}
+            row.update(self._twist_components(twist_vec))
+            log.dock_gate_trace.append(row)
+        self._last_twist_vec = twist_vec           # for the dock_events row
         return docked, d, ori_err_deg, twist_norm
+
+    def _dock_thresholds(self):
+        """The capture criteria in force, for the record (C2.1, logging-only).
+
+        `dock_twist_max` in particular is documented in-source as a starting
+        point for a characterization sweep and **not a tuned value**
+        (`config.py`), and review-closure C1.6 found it is what sets the
+        worst reported dock and ~70 % of the managed-vs-unmanaged traversal
+        difference. Stamping it on every dock event means a result can never
+        again be read without the gate that produced it.
+        """
+        cfg = self.cfg
+        return {
+            'eps_pos_m': float(cfg.weld_radius),
+            'eps_ori_deg': float(cfg.dock_ori_threshold_deg),
+            'eps_twist': float(cfg.dock_twist_max),
+            'gate_uses_6d_twist': bool(cfg.dock_use_6d_twist),
+            'dock_check_delay_s': float(cfg.dock_check_delay),
+        }
+
+    def _twist_components(self, twist_vec):
+        """Split a weld-relative twist into named STRUCTURE-frame components.
+
+        C2.1 (logging-only). ``_weld_relative_twist`` returns
+        ``[j_pos(gripper) − j_pos(anchor); j_rot(gripper) − j_rot(anchor)] · qvel``
+        from ``mj_jacSite``, i.e. in MuJoCo's **global** frame. The structure is
+        free-floating, so the structure frame differs from global by the
+        structure's own attitude R_s; the components are rotated by R_sᵀ to
+        match the frame every other reported quantity uses (θ_s, h_w, the
+        anchor grid).
+
+        The **norm is rotation-invariant**, so `twist_norm` — the quantity the
+        capture gate actually thresholds — is unchanged by this. That is what
+        makes the whole addition control-neutral.
+        """
+        v = np.asarray(twist_vec, dtype=float).ravel()
+        qw, qx, qy, qz = self.mj_data.qpos[3:7]
+        R_s = pin.Quaternion(qw, qx, qy, qz).toRotationMatrix()
+        lin_s = R_s.T @ v[0:3]
+        ang_s = R_s.T @ v[3:6]
+        return {
+            'twist_lin_s': [round(float(x), 9) for x in lin_s],
+            'twist_ang_s': [round(float(x), 9) for x in ang_s],
+            'twist_lin_norm': round(float(np.linalg.norm(lin_s)), 9),
+            'twist_ang_norm': round(float(np.linalg.norm(ang_s)), 9),
+        }
 
     # ── Per-step planning handoff (M7) ───────────────────────────────────
 
@@ -1796,13 +1863,21 @@ class SimulationLoop(TickLoggingMixin):
                                     swing_arm, target_idx,
                                     log=log, t=t, step_idx=step_idx))
                             if docked:
-                                log.dock_events.append({
+                                _ev = {
                                     't': round(t, 3), 'step': step_idx,
                                     'd_mm': round(d*1000, 2),
                                     'ori_deg': round(ori_err_deg, 2),
                                     'twist': round(twist_norm, 6),
                                     'arm': swing_arm, 'anchor': target_idx,
-                                    'method': 'kinematic'})
+                                    'method': 'kinematic'}
+                                # C2.1: the 6-D twist AT CAPTURE, decomposed,
+                                # plus the thresholds in force when this dock
+                                # fired — so a dock can be read against its own
+                                # gate without cross-referencing the run config.
+                                _ev.update(self._twist_components(
+                                    self._last_twist_vec))
+                                _ev.update(self._dock_thresholds())
+                                log.dock_events.append(_ev)
                                 self._capture_snapshot(
                                     log, t, f'dock_step{step_idx}')
                                 if verbose:
@@ -1845,13 +1920,21 @@ class SimulationLoop(TickLoggingMixin):
                                     swing_arm, target_idx,
                                     log=log, t=t, step_idx=step_idx))
                             if docked:
-                                log.dock_events.append({
+                                _ev = {
                                     't': round(t, 3), 'step': step_idx,
                                     'd_mm': round(d*1000, 2),
                                     'ori_deg': round(ori_err_deg, 2),
                                     'twist': round(twist_norm, 6),
                                     'arm': swing_arm, 'anchor': target_idx,
-                                    'method': 'kinematic'})
+                                    'method': 'kinematic'}
+                                # C2.1: the 6-D twist AT CAPTURE, decomposed,
+                                # plus the thresholds in force when this dock
+                                # fired — so a dock can be read against its own
+                                # gate without cross-referencing the run config.
+                                _ev.update(self._twist_components(
+                                    self._last_twist_vec))
+                                _ev.update(self._dock_thresholds())
+                                log.dock_events.append(_ev)
                                 self._capture_snapshot(
                                     log, t, f'dock_step{step_idx}')
                                 if verbose:
@@ -2331,6 +2414,12 @@ class SimulationLoop(TickLoggingMixin):
         # logging); this accumulates the QP alone. Telemetry only — nothing
         # reads it back.
         qp_acc = QPStatAccumulator()
+        # C2.3: AOCS decomposition of the LAST WBC sub-step of this tick — the
+        # same sub-step whose sum is logged as `tau_wheels`, so parts and total
+        # describe one instant. Overwritten each sub-step; empty ⇒ sentinel.
+        # Only the canonical `legacy_pid_numerical` mode fills it; every other
+        # AOCS mode leaves it empty and the recorder writes the sentinel row.
+        aocs_decomp = {}
         t_qp_start = time.perf_counter()
 
         if ss_end is None:
@@ -2883,7 +2972,8 @@ class SimulationLoop(TickLoggingMixin):
                             K_d=cfg.aocs_K_d, K_theta=cfg.aocs_K_theta,
                             hw_min=cfg.hw_min, hw_max=cfg.hw_max,
                             tau_w_max=cfg.aocs_tau_w_max,
-                            tau_struct_ff=tau_struct_ff_aocs)
+                            tau_struct_ff=tau_struct_ff_aocs,
+                            decomposition=aocs_decomp)     # C2.3 telemetry
                     else:
                         from crawlbot.aocs.force_estimator import (
                             compute_aocs_command_legacy_pid_model)
@@ -2997,6 +3087,7 @@ class SimulationLoop(TickLoggingMixin):
             qp_n_solves=qp_acc.n_solves,
             qp_n_failed=qp_acc.n_failed,
             qp_status_worst=qp_acc.status_worst,
+            aocs_decomposition=aocs_decomp,
         ))
 
 

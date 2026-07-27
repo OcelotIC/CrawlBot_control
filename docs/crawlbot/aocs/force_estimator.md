@@ -1,6 +1,6 @@
 # `crawlbot.aocs.force_estimator`
 
-**File**: [`crawlbot/aocs/force_estimator.py`](../../../crawlbot/aocs/force_estimator.py) — **657 lines** — canonical coverage **39 %**
+**File**: [`crawlbot/aocs/force_estimator.py`](../../../crawlbot/aocs/force_estimator.py) — **685 lines** — canonical coverage **39 %**
 
 > Module docstring: *"MomentumDisturbanceEstimator — Estimate the disturbance torque applied by"*
 
@@ -33,7 +33,7 @@ demand more than `tau_w_max`; this module is what actually spends it.
 | `compute_aocs_command_legacy_pd_numerical` | `(L_com, L_com_prev, r_com, v_com, v_com_prev, omega_s, o...)` | not exercised | [L379](../../../crawlbot/aocs/force_estimator.py#L379) |
 | `compute_aocs_command_legacy_pd_model` | `(L_com, L_com_prev, r_com, v_com, v_com_prev, omega_s, t...)` | not exercised | [L444](../../../crawlbot/aocs/force_estimator.py#L444) |
 | `compute_aocs_command_legacy_pid_numerical` | `(L_com, L_com_prev, r_com, v_com, v_com_prev, omega_s, o...)` | **yes** | [L514](../../../crawlbot/aocs/force_estimator.py#L514) |
-| `compute_aocs_command_legacy_pid_model` | `(L_com, L_com_prev, r_com, v_com, v_com_prev, omega_s, t...)` | not exercised | [L598](../../../crawlbot/aocs/force_estimator.py#L598) |
+| `compute_aocs_command_legacy_pid_model` | `(L_com, L_com_prev, r_com, v_com, v_com_prev, omega_s, t...)` | not exercised | [L626](../../../crawlbot/aocs/force_estimator.py#L626) |
 
 ---
 
@@ -106,6 +106,44 @@ With `h_w_max = 5 Nms` and `I_s ~ 1500 kg*m^2` that is about **3.3 mrad/s**. A
 typical per-traversal rotation (~2 deg = 35 mrad) therefore needs **~10 s
 minimum**, whatever the torque budget. This is why K_theta is sized for a slow
 (~60 s) rotate-back rather than a fast correction.
+
+### 2b. Reading the law term by term (C2.3)
+
+The law is a sum of five contributions, and until C2.3 only the sum left the
+function — so no artifact could say which term produced a given wheel torque,
+and the saturation was invisible. `decomposition`, an optional out-dict, now
+records them:
+
+| key | term | note |
+|---|---|---|
+| `tau_ff` | feedforward | FD-on-`L_com` in SS, contact-wrench couple in DS — see §3 |
+| `tau_att_p` | `K_θ · θ_s` | attitude proportional |
+| `tau_rate_d` | `K_ω · ω_s` | rate damping |
+| `tau_accel_d` | `K_d · ω̇_s` | second-order damping, ω̇ by one-step FD |
+| `tau_antiwindup` | `K_hw · (sat(h_w) − h_w)` | **identically zero while `|h_w| ≤ h_max`** |
+| `tau_w_preclip` | their sum | before the ±`tau_w_max` clip |
+| `tau_w` | `clip(tau_w_preclip)` | what is commanded |
+
+Two properties make this worth having rather than re-deriving downstream:
+
+- **The identity holds by construction.** The logged objects *are* the summands
+  the function adds, so `Σ terms == tau_w_preclip` exactly. A reader checks it;
+  they do not reproduce the arithmetic and hope the gains they assumed match
+  the ones that ran.
+- **`tau_w_preclip` vs `tau_w` is the only way to measure saturation.** The
+  clip is where commanded torque becomes applied torque, and on the unmanaged
+  run the controller demands up to 26.9 N·m against a ±2.5 plant cap. Logging
+  only the clipped value hides the entire demand.
+
+⚠ **Signs.** All three feedback terms enter with **`+`**, not the `−` a reader
+expects from a textbook PD. That is deliberate and derived in the docstring
+(`:545-548`): τ_w on the wheels produces −τ_w on the structure, so driving
+`θ_s → 0` needs a *positive* contribution. It is a genuine divergence from how
+the paper writes the law — see review-closure `C1_EXACTNESS.md` §C1.4.
+
+⚠ **Only `legacy_pid_numerical` fills the dict.** The `_model` variants take
+the same terms but were left alone (they are not the canonical mode and are
+unexercised); their callers pass nothing and the recorder writes its sentinel.
 
 ## 3. Two feedforwards — and why one is not enough
 
@@ -182,8 +220,8 @@ Worth knowing before plotting or analysing `H_dot_est`.
 | `compute_aocs_command_legacy_corrected()` | [L291-376](../../../crawlbot/aocs/force_estimator.py#L291-L376) |
 | `compute_aocs_command_legacy_pd_numerical()` | [L379-441](../../../crawlbot/aocs/force_estimator.py#L379-L441) |
 | `compute_aocs_command_legacy_pd_model()` | [L444-511](../../../crawlbot/aocs/force_estimator.py#L444-L511) |
-| `compute_aocs_command_legacy_pid_numerical()` | [L514-595](../../../crawlbot/aocs/force_estimator.py#L514-L595) |
-| `compute_aocs_command_legacy_pid_model()` | [L598-656](../../../crawlbot/aocs/force_estimator.py#L598-L656) |
+| `compute_aocs_command_legacy_pid_numerical()` | [L514-623](../../../crawlbot/aocs/force_estimator.py#L514-L623) |
+| `compute_aocs_command_legacy_pid_model()` | [L626-684](../../../crawlbot/aocs/force_estimator.py#L626-L684) |
 
 ---
 

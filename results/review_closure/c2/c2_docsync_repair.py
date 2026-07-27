@@ -74,11 +74,19 @@ NEW_SYMBOL_COVERAGE = {
     '.as_dict':                   '**yes**',
     '_qp_stats_from_info':        '**yes**',
     '.add_raised':                'not exercised',
+    # C2.1 / C2.3. Same basis: measured from the replay, not assumed.
+    # `_twist_components` runs at every gate evaluation and every dock;
+    # `_dock_thresholds` at every dock; `_log_aocs_decomposition` on every
+    # logged tick through both recorders.
+    '._twist_components':         '**yes**',
+    '._dock_thresholds':          '**yes**',
+    '_log_aocs_decomposition':    '**yes**',
     # SimLog / TickState / QPSolveInfo new fields are dataclass fields, which
     # the generator renders as `_field_` with no coverage cell.
 }
 
 TARGETS = [
+    'crawlbot/aocs/force_estimator.py',
     'crawlbot/solvers/hierarchical_qp.py',
     'crawlbot/simulation/logging.py',
     'crawlbot/simulation/tick_logging.py',

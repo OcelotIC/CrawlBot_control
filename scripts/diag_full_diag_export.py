@@ -149,10 +149,25 @@ if SOLVER_DIAG:
     qpsw = _sd('qp_status_worst', -1).astype(int)
     nmss = (list(sl['nmpc_status_str']) if 'nmpc_status_str' in sl
             else [''] * n)
+    # C2.3 — AOCS decomposition, 6 per-axis vectors + the measured flag.
+    _AT = ('tau_ff', 'tau_att_p', 'tau_rate_d', 'tau_accel_d',
+           'tau_antiwindup', 'tau_w_preclip')
+    aocs = {k: (np.asarray(sl[f'aocs_{k}'], float) if f'aocs_{k}' in sl
+                else np.zeros((n, 3))) for k in _AT}
+    aocs_meas = (np.asarray(sl['aocs_decomp_measured'], int)
+                 if 'aocs_decomp_measured' in sl else np.zeros(n, int))
 
-SOLVER_DIAG_COLS = ['qp_solve_ms_sum', 'qp_solve_ms_max', 'qp_iter_sum',
-                    'qp_n_solves', 'qp_n_failed', 'qp_status_worst',
-                    'nmpc_status_str']
+SOLVER_DIAG_COLS = (['qp_solve_ms_sum', 'qp_solve_ms_max', 'qp_iter_sum',
+                     'qp_n_solves', 'qp_n_failed', 'qp_status_worst',
+                     'nmpc_status_str']
+                    # C2.3 — AOCS decomposition. The five terms sum to
+                    # aocs_tau_w_preclip by construction; clip(preclip) is the
+                    # already-exported tauw_*_Nm, so the saturation is the
+                    # difference between the two.
+                    + [f'aocs_{k}_{a}_Nm' for k in
+                       ('tau_ff', 'tau_att_p', 'tau_rate_d', 'tau_accel_d',
+                        'tau_antiwindup', 'tau_w_preclip') for a in 'xyz']
+                    + ['aocs_decomp_measured'])
 
 cols = (['t_s', 'phase', 'step_index', 'swing_arm',
          'd_grip_swing_mm', 'ori_err_deg', 'pos_ok', 'ori_ok',
@@ -202,6 +217,8 @@ with open(out_csv, 'w', newline='') as fh:
                    ['' if not np.isfinite(ltot_norm[i]) else f6(ltot_norm[i])] +
                    ([f6(qpsms[i]), f6(qpsmx[i]), int(qpits[i]), int(qpns[i]),
                      int(qpnf[i]), int(qpsw[i]), nmss[i]]
+                    + [f6(aocs[k][i, j]) for k in _AT for j in range(3)]
+                    + [int(aocs_meas[i])]
                     if SOLVER_DIAG else []))
 print(f'wrote {out_csv}  ({n} ticks, {len(cols)} cols'
       f'{" incl. --solver-diag" if SOLVER_DIAG else ""})')
@@ -226,7 +243,13 @@ for k in range(6):
 # timings, into the run metadata. Unconditional (the meta JSON is not
 # byte-compared by any gate) and empty on logs predating the channels, so an
 # archived run still exports without them rather than failing.
+# C2.1 — the per-dock 6-D twist at capture and the thresholds in force now
+# ride on the dock_events rows themselves; pass them through verbatim rather
+# than re-deriving, and carry the gate trace so a refused capture can be read
+# against the same decomposition as an accepted one.
 _meta = {'run': RUN, 'csv': out_csv, 'n_ticks': n, 'at_weld_vs_min': Brows,
+         'dock_events': sl.get('dock_events', []),
+         'dock_gate_trace': sl.get('dock_gate_trace', []),
          'ltot_snapshots': ltot_snaps,
          'preplanner_stats': sl.get('preplanner_stats', []),
          'host': (sl.get('environment') or {}).get('host', {}),

@@ -120,6 +120,29 @@ def _qp_stats_from_info(info):
     return acc.as_dict()
 
 
+_AOCS_TERMS = ('tau_ff', 'tau_att_p', 'tau_rate_d', 'tau_accel_d',
+               'tau_antiwindup', 'tau_w_preclip')
+
+
+def _log_aocs_decomposition(log, decomp):
+    """Append one AOCS-decomposition row (C2.3, logging-only).
+
+    ``decomp`` is the dict filled by
+    ``compute_aocs_command_legacy_pid_numerical``; None (or empty, e.g. a
+    non-PID AOCS mode) writes the documented sentinel: six zero vectors and
+    ``aocs_decomp_measured = 0``. Test that flag rather than the values —
+    zero is a legitimate measurement for four of the six terms, and
+    ``tau_antiwindup`` is legitimately zero on every tick of the canonical.
+    """
+    ok = bool(decomp)
+    for name in _AOCS_TERMS:
+        v = decomp.get(name) if ok else None
+        getattr(log, f'aocs_{name}').append(
+            np.asarray(v, dtype=float).copy() if v is not None
+            else np.zeros(3))
+    log.aocs_decomp_measured.append(int(ok))
+
+
 @dataclass
 class TickState:
     """Everything `_step` produces that its logging tail consumes.
@@ -198,13 +221,19 @@ class TickState:
     qp_n_failed: int = 0
     qp_status_worst: int = -1
 
+    # C2.3: the AOCS decomposition from the LAST WBC sub-step of this tick —
+    # the same sub-step whose sum is already logged as `tau_wheels`, so the
+    # parts and the total describe one instant. None ⇒ the documented
+    # not-measured sentinel row.
+    aocs_decomposition: Optional[dict] = None
+
 
 class TickLoggingMixin:
     """The per-tick recorders, mixed into `SimulationLoop`."""
 
     def _log_ds_tick(self, log, t_abs, step_idx, just_landed_arm,
                      anchor_a_idx, anchor_b_idx, tau, lambda_qp_sol,
-                     tau_w_applied=None, qp_info=None):
+                     tau_w_applied=None, qp_info=None, aocs_decomp=None):
         """Append one per-tick DS log row (logging-only; no control change).
 
         Called from ``_run_ds_passivity_loop`` AFTER ``mj_step``. The row
@@ -420,6 +449,9 @@ class TickLoggingMixin:
         log.qp_n_solves.append(_qs['n_solves'])
         log.qp_n_failed.append(_qs['n_failed'])
         log.qp_status_worst.append(_qs['status_worst'])
+        # C2.3 — the inter-step settle runs the canonical AOCS every tick
+        # (aocs_active_in_interstep), so this is a real measurement here too.
+        _log_aocs_decomposition(log, aocs_decomp)
         log.nmpc_status.append(3)  # 3 = BYPASSED sentinel (post-proc reads)
         log.nmpc_cost.append(float('nan'))
         log.nmpc_status_str.append('NMPC_BYPASSED')
@@ -564,6 +596,8 @@ class TickLoggingMixin:
         log.qp_n_solves.append(int(ts.qp_n_solves))
         log.qp_n_failed.append(int(ts.qp_n_failed))
         log.qp_status_worst.append(int(ts.qp_status_worst))
+        # C2.3 — AOCS wheel-torque decomposition for this tick.
+        _log_aocs_decomposition(log, ts.aocs_decomposition)
 
         # ── M0.2 enrichment ────────────────────────────────────────────
         # Torso orientation (actual vs ref) as quaternion wxyz

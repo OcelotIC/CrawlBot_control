@@ -123,6 +123,20 @@ artifact of a channel that could not say otherwise.
 The accumulator is telemetry: nothing reads it back, and the canonical replay
 is byte-identical on all 66 frozen columns with it in place.
 
+## 7. `_log_aocs_decomposition` — the same discipline, one level down
+
+C2.3 splits the AOCS wheel torque into its five contributions plus the pre-clip
+total (`logging.md` §3bb). Like the QP statistics, the reduction lives here and
+is called by **both** recorders, so the columns cannot come to mean different
+things in SS and in the inter-step settle — the failure mode §5 documents.
+
+The sentinel is `aocs_decomp_measured = 0` with six zero vectors, and the
+distinction matters more here than for the QP channels: **zero is a legitimate
+measurement** for four of the six terms, and `tau_antiwindup` is legitimately
+zero on every tick of the canonical. A reader who tests the values instead of
+the flag will mistake a real result for missing data. That is the same trap the
+`nmpc_time_ms == 0.0` convention sets, written down so it is not re-sprung.
+
 ---
 
 ## Code map
@@ -133,10 +147,10 @@ is byte-identical on all 66 frozen columns with it in place.
 | `QPStatAccumulator.add` | [L81-100](../../../crawlbot/simulation/tick_logging.py#L81-L100) |
 | `QPStatAccumulator.add_raised` | [L102-104](../../../crawlbot/simulation/tick_logging.py#L102-L104) |
 | `QPStatAccumulator.as_dict` | [L106-112](../../../crawlbot/simulation/tick_logging.py#L106-L112) |
-| `class TickState` | [L124-199](../../../crawlbot/simulation/tick_logging.py#L124-L199) |
-| `class TickLoggingMixin` | [L202-641](../../../crawlbot/simulation/tick_logging.py#L202-L641) |
-| `TickLoggingMixin._log_ds_tick` | [L205-430](../../../crawlbot/simulation/tick_logging.py#L205-L430) |
-| `TickLoggingMixin._log_ss_tick` | [L432-641](../../../crawlbot/simulation/tick_logging.py#L432-L641) |
+| `class TickState` | [L147-228](../../../crawlbot/simulation/tick_logging.py#L147-L228) |
+| `class TickLoggingMixin` | [L231-675](../../../crawlbot/simulation/tick_logging.py#L231-L675) |
+| `TickLoggingMixin._log_ds_tick` | [L234-462](../../../crawlbot/simulation/tick_logging.py#L234-L462) |
+| `TickLoggingMixin._log_ss_tick` | [L464-675](../../../crawlbot/simulation/tick_logging.py#L464-L675) |
 
 ---
 

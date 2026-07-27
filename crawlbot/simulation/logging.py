@@ -237,6 +237,37 @@ class SimLog:
     # infeasible QP returns normally instead of raising) · 2 the solve raised.
     # "Worst" = max over the tick, with -1 ranking below 0.
     qp_status_worst: list = field(default_factory=list)
+
+    # ── C2.3: AOCS wheel-torque decomposition, per axis, per logged tick ──
+    # `tau_w` records only the sum, so no artifact could say which term drove
+    # a given wheel torque. These are the five contributions that form it in
+    # compute_aocs_command_legacy_pid_numerical, plus the pre-clip total:
+    #
+    #   tau_w_preclip = tau_ff + tau_att_p + tau_rate_d + tau_accel_d
+    #                   + tau_antiwindup
+    #   tau_w         = clip(tau_w_preclip, ±aocs_tau_w_max)
+    #
+    # The identity holds by construction (the logged objects ARE the summands),
+    # so a reader can check it rather than re-derive it. `tau_w_preclip` vs
+    # `tau_w` is what makes the saturation fraction measurable — on the managed
+    # canonical the clip is the difference between demand and applied torque.
+    #
+    # `tau_antiwindup` is K_hw·(sat(h_w) − h_w) and is identically zero
+    # whenever |h_w| ≤ hw_max, which is every tick of the frozen canonical
+    # (|h_w|_∞ = 4.1019 < 5) — a fact the paper asserts and this channel now
+    # demonstrates per-tick rather than by inference from the h_w peak.
+    #
+    # Same sentinel discipline as the qp_* channels: on ticks where the AOCS
+    # did not run under a recorder that collects them, all six are zeros and
+    # `aocs_decomp_measured` is 0. Test THAT flag, not the values — zero is a
+    # legitimate measurement for four of the six terms.
+    aocs_tau_ff: list = field(default_factory=list)
+    aocs_tau_att_p: list = field(default_factory=list)
+    aocs_tau_rate_d: list = field(default_factory=list)
+    aocs_tau_accel_d: list = field(default_factory=list)
+    aocs_tau_antiwindup: list = field(default_factory=list)
+    aocs_tau_w_preclip: list = field(default_factory=list)
+    aocs_decomp_measured: list = field(default_factory=list)
     transport_term_mag: list = field(default_factory=list)
     # |ω_s × H_{r/O}| per tick, N·m. Diagnostic for Mode B
     # transport-term gap (see AOCS_CONCERN.md).

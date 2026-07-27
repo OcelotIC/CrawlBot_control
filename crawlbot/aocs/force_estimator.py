@@ -531,6 +531,7 @@ def compute_aocs_command_legacy_pid_numerical(
     hw_max: np.ndarray = None,
     tau_w_max: float = 2.5,
     tau_struct_ff: np.ndarray = None,
+    decomposition: Optional[dict] = None,
 ) -> np.ndarray:
     """Legacy-corrected AOCS + PID on attitude (numerical ω̇_s).
 
@@ -574,7 +575,17 @@ def compute_aocs_command_legacy_pid_numerical(
 
     hw_error = np.clip(hw_current, hw_min, hw_max) - hw_current
     omega_dot_est = (omega_s - omega_s_prev) / dt
-    pid_term = K_theta * theta_s + K_omega * omega_s + K_d * omega_dot_est
+    # C2.3: the five contributions are formed separately here and then summed;
+    # only the sum used to leave this function, so no artifact could say which
+    # term produced a given wheel torque, nor what the clip removed. Kept as
+    # separate names so `decomposition` records the same objects the sum uses
+    # — the parts are guaranteed to add up to the whole by construction, not
+    # by a reader re-deriving them.
+    term_att_p = K_theta * theta_s          # attitude proportional
+    term_rate_d = K_omega * omega_s         # rate damping
+    term_accel_d = K_d * omega_dot_est      # second-order damping
+    term_antiwindup = K_hw * hw_error       # desaturation; ≡0 while |h_w| ≤ h_max
+    pid_term = term_att_p + term_rate_d + term_accel_d
 
     if tau_struct_ff is None:
         # Kinematic feedforward via FD on robot centroidal momentum.
@@ -591,8 +602,25 @@ def compute_aocs_command_legacy_pid_numerical(
         # already signed and summed by the caller from λ_qp.
         ff_term = tau_struct_ff
 
-    tau_w = ff_term + K_hw * hw_error + pid_term
-    return np.clip(tau_w, -tau_w_max, tau_w_max)
+    tau_w = ff_term + term_antiwindup + pid_term
+    tau_w_clipped = np.clip(tau_w, -tau_w_max, tau_w_max)
+    if decomposition is not None:
+        # C2.3 (logging-only): fill the caller's dict. `tau_w_preclip` vs
+        # `tau_w` is what makes the saturation fraction measurable — the
+        # clip is the plant-side cap and, on the managed canonical, the
+        # difference between demand and applied torque.
+        decomposition.update({
+            'tau_ff': np.asarray(ff_term, dtype=float).copy(),
+            'tau_att_p': np.asarray(term_att_p, dtype=float).copy(),
+            'tau_rate_d': np.asarray(term_rate_d, dtype=float).copy(),
+            'tau_accel_d': np.asarray(term_accel_d, dtype=float).copy(),
+            'tau_antiwindup': np.asarray(term_antiwindup, dtype=float).copy(),
+            'tau_w_preclip': np.asarray(tau_w, dtype=float).copy(),
+            'tau_w': np.asarray(tau_w_clipped, dtype=float).copy(),
+            'ff_source': ('wrench' if tau_struct_ff is not None
+                          else 'fd_on_L_com'),
+        })
+    return tau_w_clipped
 
 
 def compute_aocs_command_legacy_pid_model(

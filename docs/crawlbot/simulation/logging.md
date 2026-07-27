@@ -1,6 +1,6 @@
 # `crawlbot.simulation.logging`
 
-**File**: [`crawlbot/simulation/logging.py`](../../../crawlbot/simulation/logging.py) — **343 lines** — canonical coverage **93 %**
+**File**: [`crawlbot/simulation/logging.py`](../../../crawlbot/simulation/logging.py) — **374 lines** — canonical coverage **93 %**
 
 > Module docstring: *"Simulation data logger."*
 
@@ -88,29 +88,36 @@ execution environment. This is the file every downstream analysis reads.
 |   `qp_n_solves` | `field(default_factory=list)` | _field_ | [L231](../../../crawlbot/simulation/logging.py#L231) |
 |   `qp_n_failed` | `field(default_factory=list)` | _field_ | [L232](../../../crawlbot/simulation/logging.py#L232) |
 |   `qp_status_worst` | `field(default_factory=list)` | _field_ | [L239](../../../crawlbot/simulation/logging.py#L239) |
-|   `transport_term_mag` | `field(default_factory=list)` | _field_ | [L240](../../../crawlbot/simulation/logging.py#L240) |
-|   `lambda_ref` | `field(default_factory=list)` | _field_ | [L245](../../../crawlbot/simulation/logging.py#L245) |
-|   `lambda_qp` | `field(default_factory=list)` | _field_ | [L246](../../../crawlbot/simulation/logging.py#L246) |
-|   `T_kinetic` | `field(default_factory=list)` | _field_ | [L249](../../../crawlbot/simulation/logging.py#L249) |
-|   `settling_t` | `field(default_factory=list)` | _field_ | [L252](../../../crawlbot/simulation/logging.py#L252) |
-|   `settling_T` | `field(default_factory=list)` | _field_ | [L253](../../../crawlbot/simulation/logging.py#L253) |
-|   `settling_T_target` | `0.0` | _field_ | [L254](../../../crawlbot/simulation/logging.py#L254) |
-|   `settling_stage1_steps` | `0` | _field_ | [L255](../../../crawlbot/simulation/logging.py#L255) |
-|   `settling_stage2_steps` | `0` | _field_ | [L256](../../../crawlbot/simulation/logging.py#L256) |
-|   `settling_exit_reason` | `''` | _field_ | [L257](../../../crawlbot/simulation/logging.py#L257) |
-|   `inter_step_settles` | `field(default_factory=list)` | _field_ | [L263](../../../crawlbot/simulation/logging.py#L263) |
-|   `dock_events` | `field(default_factory=list)` | _field_ | [L266](../../../crawlbot/simulation/logging.py#L266) |
-|   `dock_gate_trace` | `field(default_factory=list)` | _field_ | [L274](../../../crawlbot/simulation/logging.py#L274) |
-|   `ds_mobile_trace` | `field(default_factory=list)` | _field_ | [L281](../../../crawlbot/simulation/logging.py#L281) |
-|   `dock_work_trace` | `field(default_factory=list)` | _field_ | [L287](../../../crawlbot/simulation/logging.py#L287) |
-|   `aborted_steps` | `field(default_factory=list)` | _field_ | [L292](../../../crawlbot/simulation/logging.py#L292) |
-|   `preplanner_T_steps` | `field(default_factory=list)` | _field_ | [L296](../../../crawlbot/simulation/logging.py#L296) |
-|   `preplanner_stats` | `field(default_factory=list)` | _field_ | [L304](../../../crawlbot/simulation/logging.py#L304) |
-|   `snapshots` | `field(default_factory=list)` | _field_ | [L307](../../../crawlbot/simulation/logging.py#L307) |
-|   `environment` | `field(default_factory=dict)` | _field_ | [L313](../../../crawlbot/simulation/logging.py#L313) |
-| `.to_dict` | `()` | **yes** | [L315](../../../crawlbot/simulation/logging.py#L315) |
-| `.save` | `(path)` | **yes** | [L330](../../../crawlbot/simulation/logging.py#L330) |
-| `.load` | `(path)` | not exercised | [L335](../../../crawlbot/simulation/logging.py#L335) |
+|   `aocs_tau_ff` | `field(default_factory=list)` | _field_ | [L264](../../../crawlbot/simulation/logging.py#L264) |
+|   `aocs_tau_att_p` | `field(default_factory=list)` | _field_ | [L265](../../../crawlbot/simulation/logging.py#L265) |
+|   `aocs_tau_rate_d` | `field(default_factory=list)` | _field_ | [L266](../../../crawlbot/simulation/logging.py#L266) |
+|   `aocs_tau_accel_d` | `field(default_factory=list)` | _field_ | [L267](../../../crawlbot/simulation/logging.py#L267) |
+|   `aocs_tau_antiwindup` | `field(default_factory=list)` | _field_ | [L268](../../../crawlbot/simulation/logging.py#L268) |
+|   `aocs_tau_w_preclip` | `field(default_factory=list)` | _field_ | [L269](../../../crawlbot/simulation/logging.py#L269) |
+|   `aocs_decomp_measured` | `field(default_factory=list)` | _field_ | [L270](../../../crawlbot/simulation/logging.py#L270) |
+|   `transport_term_mag` | `field(default_factory=list)` | _field_ | [L271](../../../crawlbot/simulation/logging.py#L271) |
+|   `lambda_ref` | `field(default_factory=list)` | _field_ | [L276](../../../crawlbot/simulation/logging.py#L276) |
+|   `lambda_qp` | `field(default_factory=list)` | _field_ | [L277](../../../crawlbot/simulation/logging.py#L277) |
+|   `T_kinetic` | `field(default_factory=list)` | _field_ | [L280](../../../crawlbot/simulation/logging.py#L280) |
+|   `settling_t` | `field(default_factory=list)` | _field_ | [L283](../../../crawlbot/simulation/logging.py#L283) |
+|   `settling_T` | `field(default_factory=list)` | _field_ | [L284](../../../crawlbot/simulation/logging.py#L284) |
+|   `settling_T_target` | `0.0` | _field_ | [L285](../../../crawlbot/simulation/logging.py#L285) |
+|   `settling_stage1_steps` | `0` | _field_ | [L286](../../../crawlbot/simulation/logging.py#L286) |
+|   `settling_stage2_steps` | `0` | _field_ | [L287](../../../crawlbot/simulation/logging.py#L287) |
+|   `settling_exit_reason` | `''` | _field_ | [L288](../../../crawlbot/simulation/logging.py#L288) |
+|   `inter_step_settles` | `field(default_factory=list)` | _field_ | [L294](../../../crawlbot/simulation/logging.py#L294) |
+|   `dock_events` | `field(default_factory=list)` | _field_ | [L297](../../../crawlbot/simulation/logging.py#L297) |
+|   `dock_gate_trace` | `field(default_factory=list)` | _field_ | [L305](../../../crawlbot/simulation/logging.py#L305) |
+|   `ds_mobile_trace` | `field(default_factory=list)` | _field_ | [L312](../../../crawlbot/simulation/logging.py#L312) |
+|   `dock_work_trace` | `field(default_factory=list)` | _field_ | [L318](../../../crawlbot/simulation/logging.py#L318) |
+|   `aborted_steps` | `field(default_factory=list)` | _field_ | [L323](../../../crawlbot/simulation/logging.py#L323) |
+|   `preplanner_T_steps` | `field(default_factory=list)` | _field_ | [L327](../../../crawlbot/simulation/logging.py#L327) |
+|   `preplanner_stats` | `field(default_factory=list)` | _field_ | [L335](../../../crawlbot/simulation/logging.py#L335) |
+|   `snapshots` | `field(default_factory=list)` | _field_ | [L338](../../../crawlbot/simulation/logging.py#L338) |
+|   `environment` | `field(default_factory=dict)` | _field_ | [L344](../../../crawlbot/simulation/logging.py#L344) |
+| `.to_dict` | `()` | **yes** | [L346](../../../crawlbot/simulation/logging.py#L346) |
+| `.save` | `(path)` | **yes** | [L361](../../../crawlbot/simulation/logging.py#L361) |
+| `.load` | `(path)` | not exercised | [L366](../../../crawlbot/simulation/logging.py#L366) |
 
 ### Module constants
 
@@ -216,6 +223,37 @@ On the canonical there are **zero** sentinel rows: 1368 ticks × 1 solve +
 backend reported success · `1` the backend reported **not** success (the case
 `qp_ok` cannot see) · `2` the solve raised.
 
+## 3bb. The `aocs_*` channels (C2.3)
+
+`tau_w` records only the sum of the AOCS law, so no artifact could attribute a
+wheel torque to a term, and the clip — where commanded becomes applied — was
+invisible. Six per-axis vectors plus a flag now close that:
+
+`aocs_tau_ff`, `aocs_tau_att_p`, `aocs_tau_rate_d`, `aocs_tau_accel_d`,
+`aocs_tau_antiwindup`, `aocs_tau_w_preclip`, `aocs_decomp_measured`.
+
+```
+tau_w_preclip = tau_ff + tau_att_p + tau_rate_d + tau_accel_d + tau_antiwindup
+tau_w         = clip(tau_w_preclip, ±aocs_tau_w_max)      # the existing tauw_* column
+```
+
+The identity holds **by construction** — the logged objects are the summands the
+AOCS adds — so it is checkable rather than re-derivable. And `tau_w_preclip`
+against the already-exported `tauw_*_Nm` is the only way to measure saturation:
+on the unmanaged run the controller demands up to 26.9 N·m against a ±2.5 plant
+cap, which the clipped value alone cannot show.
+
+`aocs_tau_antiwindup` is `K_hw·(sat(h_w) − h_w)`, identically zero whenever
+`|h_w| ≤ hw_max` — every tick of the frozen canonical (`|h_w|_∞ = 4.1019 < 5`).
+The paper asserts that; this channel demonstrates it per-tick instead of
+inferring it from the h_w peak.
+
+**Sentinel:** on ticks where no AOCS ran under a collecting recorder, all six
+are zero vectors and `aocs_decomp_measured = 0`. **Test the flag, not the
+values** — zero is a legitimate measurement for four of the six terms, and
+`tau_antiwindup` is legitimately zero throughout. Only the canonical
+`legacy_pid_numerical` mode fills the dict; other AOCS modes write sentinels.
+
 ## 3c. `preplanner_stats` and `environment['host']`
 
 `preplanner_stats` (C2.2.3) carries one record per coarse-pre-planner NLP
@@ -241,10 +279,10 @@ Reference metrics do not come from here directly but from the gate
 | unit | source |
 |---|---|
 | `capture_environment()` | [L21-105](../../../crawlbot/simulation/logging.py#L21-L105) |
-| `class SimLog` | [L109-342](../../../crawlbot/simulation/logging.py#L109-L342) |
-| `SimLog.to_dict` | [L315-328](../../../crawlbot/simulation/logging.py#L315-L328) |
-| `SimLog.save` | [L330-332](../../../crawlbot/simulation/logging.py#L330-L332) |
-| `SimLog.load` | [L335-342](../../../crawlbot/simulation/logging.py#L335-L342) |
+| `class SimLog` | [L109-373](../../../crawlbot/simulation/logging.py#L109-L373) |
+| `SimLog.to_dict` | [L346-359](../../../crawlbot/simulation/logging.py#L346-L359) |
+| `SimLog.save` | [L361-363](../../../crawlbot/simulation/logging.py#L361-L363) |
+| `SimLog.load` | [L366-373](../../../crawlbot/simulation/logging.py#L366-L373) |
 
 ---
 
