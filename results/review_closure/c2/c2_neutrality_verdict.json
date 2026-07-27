@@ -1,0 +1,23 @@
+{
+  "verdict": "PASS",
+  "candidate": "results/review_closure/c2/c25_c2_fulldiag.csv",
+  "baseline": "results/j2_adjconv/c25_fulldiag.csv",
+  "rows": 2077,
+  "baseline_columns": 66,
+  "candidate_columns": 73,
+  "appended_columns": [
+    "qp_solve_ms_sum",
+    "qp_solve_ms_max",
+    "qp_iter_sum",
+    "qp_n_solves",
+    "qp_n_failed",
+    "qp_status_worst",
+    "nmpc_status_str"
+  ],
+  "columns_excluded": [
+    "nmpc_time_ms",
+    "qp_time_ms"
+  ],
+  "fields_compared": 132928,
+  "diffs": []
+}
