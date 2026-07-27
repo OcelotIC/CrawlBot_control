@@ -1,0 +1,434 @@
+{
+  "sources": {
+    "C_committed": {
+      "path": "results/j2_adjconv/c25_fulldiag.csv",
+      "n_rows": 2077,
+      "n_nmpc_active": 709,
+      "n_nmpc_bypassed": 1368,
+      "phase_counts": {
+        "DS_terminal": 201,
+        "SS": 508
+      },
+      "nmpc_solve_ms": {
+        "n": 709,
+        "min": 10.43049,
+        "median": 16.8667,
+        "mean": 16.972046629055008,
+        "p95": 22.745336,
+        "p99": 27.74853639999998,
+        "max": 38.56193,
+        "stdev": 3.785277712273571
+      },
+      "wbc_block_ms": {
+        "n": 709,
+        "min": 48.31663,
+        "median": 56.92496,
+        "mean": 59.33676289139633,
+        "p95": 72.0133,
+        "p99": 85.2158552,
+        "max": 107.122,
+        "stdev": 7.381079456193632
+      },
+      "wbc_per_qp_solve_ms_upper_bound": {
+        "n": 709,
+        "min": 4.831663000000001,
+        "median": 5.692496,
+        "mean": 5.933676289139632,
+        "p95": 7.2013300000000005,
+        "p99": 8.521585519999999,
+        "max": 10.7122,
+        "stdev": 0.7381079456193632
+      },
+      "nmpc_iterations": {
+        "n": 709,
+        "min": 6,
+        "median": 11,
+        "mean": 10.867418899858956,
+        "p95": 15.0,
+        "p99": 17.0,
+        "max": 18,
+        "stdev": 2.9784220168198954
+      },
+      "nmpc_iterations_histogram": {
+        "6": 4,
+        "7": 163,
+        "8": 33,
+        "9": 78,
+        "10": 57,
+        "11": 49,
+        "12": 43,
+        "13": 112,
+        "14": 99,
+        "15": 43,
+        "16": 16,
+        "17": 10,
+        "18": 2
+      },
+      "nmpc_ok_false_count": 1368,
+      "nmpc_ok_false_among_active": 0,
+      "qp_ok_false_count": 0,
+      "qp_status_unrecorded_ticks": 1368,
+      "nmpc_solve_ms_by_phase": {
+        "DS_terminal": {
+          "n": 201,
+          "min": 11.50841,
+          "median": 12.80152,
+          "mean": 13.365144179104476,
+          "p95": 16.84501,
+          "p99": 17.86524,
+          "max": 19.93271,
+          "stdev": 1.588951550918597
+        },
+        "SS": {
+          "n": 508,
+          "min": 10.43049,
+          "median": 18.526645000000002,
+          "mean": 18.39918716535433,
+          "p95": 23.818972499999997,
+          "p99": 29.590340800000003,
+          "max": 38.56193,
+          "stdev": 3.437200445432952
+        }
+      },
+      "wbc_block_ms_by_phase": {
+        "DS_terminal": {
+          "n": 201,
+          "min": 58.58136,
+          "median": 66.09969,
+          "mean": 66.97188213930347,
+          "p95": 74.82591,
+          "p99": 88.33138,
+          "max": 94.40336,
+          "stdev": 5.399383274957377
+        },
+        "SS": {
+          "n": 508,
+          "min": 48.31663,
+          "median": 55.129515,
+          "mean": 56.31578066929134,
+          "p95": 64.76329249999999,
+          "p99": 84.86009910000001,
+          "max": 107.122,
+          "stdev": 5.684149424776841
+        }
+      },
+      "nmpc_iterations_by_phase": {
+        "DS_terminal": {
+          "n": 201,
+          "min": 6,
+          "median": 7,
+          "mean": 7.393034825870647,
+          "p95": 9.0,
+          "p99": 9.0,
+          "max": 9,
+          "stdev": 0.7725072211619499
+        },
+        "SS": {
+          "n": 508,
+          "min": 7,
+          "median": 13.0,
+          "mean": 12.242125984251969,
+          "p95": 16.0,
+          "p99": 17.0,
+          "max": 18,
+          "stdev": 2.3406786585418264
+        }
+      }
+    },
+    "U_committed": {
+      "path": "results/j2_adjconv/u25_fulldiag.csv",
+      "n_rows": 1905,
+      "n_nmpc_active": 622,
+      "n_nmpc_bypassed": 1283,
+      "phase_counts": {
+        "DS_terminal": 201,
+        "SS": 421
+      },
+      "nmpc_solve_ms": {
+        "n": 622,
+        "min": 9.35581,
+        "median": 12.18426,
+        "mean": 13.741104056270096,
+        "p95": 23.1186405,
+        "p99": 29.483520099999996,
+        "max": 44.94386,
+        "stdev": 4.3313186827583845
+      },
+      "wbc_block_ms": {
+        "n": 622,
+        "min": 48.83965,
+        "median": 57.256190000000004,
+        "mean": 59.64441961414791,
+        "p95": 72.059498,
+        "p99": 93.83573919999994,
+        "max": 135.9958,
+        "stdev": 8.669050230416893
+      },
+      "wbc_per_qp_solve_ms_upper_bound": {
+        "n": 622,
+        "min": 4.883965,
+        "median": 5.725619,
+        "mean": 5.964441961414791,
+        "p95": 7.2059498,
+        "p99": 9.383573919999993,
+        "max": 13.59958,
+        "stdev": 0.8669050230416893
+      },
+      "nmpc_iterations": {
+        "n": 622,
+        "min": 6,
+        "median": 7.0,
+        "mean": 8.562700964630226,
+        "p95": 16.950000000000045,
+        "p99": 21.0,
+        "max": 23,
+        "stdev": 3.3458364639797953
+      },
+      "nmpc_iterations_histogram": {
+        "6": 132,
+        "7": 250,
+        "8": 61,
+        "9": 20,
+        "10": 39,
+        "11": 25,
+        "12": 24,
+        "13": 14,
+        "14": 11,
+        "15": 8,
+        "16": 6,
+        "17": 11,
+        "18": 4,
+        "19": 6,
+        "20": 2,
+        "21": 3,
+        "22": 3,
+        "23": 3
+      },
+      "nmpc_ok_false_count": 1283,
+      "nmpc_ok_false_among_active": 0,
+      "qp_ok_false_count": 0,
+      "qp_status_unrecorded_ticks": 1283,
+      "nmpc_solve_ms_by_phase": {
+        "DS_terminal": {
+          "n": 201,
+          "min": 10.11534,
+          "median": 11.0941,
+          "mean": 11.60066960199005,
+          "p95": 13.72821,
+          "p99": 15.94226,
+          "max": 21.46147,
+          "stdev": 1.3383523900643233
+        },
+        "SS": {
+          "n": 421,
+          "min": 9.35581,
+          "median": 12.82239,
+          "mean": 14.7630216935867,
+          "p95": 25.50304,
+          "p99": 30.863154000000005,
+          "max": 44.94386,
+          "stdev": 4.861101870996689
+        }
+      },
+      "wbc_block_ms_by_phase": {
+        "DS_terminal": {
+          "n": 201,
+          "min": 58.29262,
+          "median": 65.80292,
+          "mean": 66.61748890547264,
+          "p95": 73.93971,
+          "p99": 88.75719,
+          "max": 113.5956,
+          "stdev": 6.329158522223286
+        },
+        "SS": {
+          "n": 421,
+          "min": 48.83965,
+          "median": 54.67918,
+          "mean": 56.315234513064134,
+          "p95": 63.52205,
+          "p99": 93.85147400000001,
+          "max": 135.9958,
+          "stdev": 7.590092271743106
+        }
+      },
+      "nmpc_iterations_by_phase": {
+        "DS_terminal": {
+          "n": 201,
+          "min": 6,
+          "median": 6,
+          "mean": 6.378109452736318,
+          "p95": 7.0,
+          "p99": 7.0,
+          "max": 8,
+          "stdev": 0.4950686247824428
+        },
+        "SS": {
+          "n": 421,
+          "min": 6,
+          "median": 8,
+          "mean": 9.605700712589073,
+          "p95": 17.0,
+          "p99": 22.0,
+          "max": 23,
+          "stdev": 3.6132989769911625
+        }
+      }
+    },
+    "C_replay_here": {
+      "path": "gate/_run/c25_replay_fulldiag.csv",
+      "n_rows": 2077,
+      "n_nmpc_active": 709,
+      "n_nmpc_bypassed": 1368,
+      "phase_counts": {
+        "DS_terminal": 201,
+        "SS": 508
+      },
+      "nmpc_solve_ms": {
+        "n": 709,
+        "min": 13.19674,
+        "median": 20.83287,
+        "mean": 20.931212369534556,
+        "p95": 27.688966,
+        "p99": 32.730505199999975,
+        "max": 39.49718,
+        "stdev": 4.545011776550664
+      },
+      "wbc_block_ms": {
+        "n": 709,
+        "min": 60.87994,
+        "median": 72.63656,
+        "mean": 76.12596486600846,
+        "p95": 95.52775000000001,
+        "p99": 110.69871999999985,
+        "max": 143.4257,
+        "stdev": 10.492587278214005
+      },
+      "wbc_per_qp_solve_ms_upper_bound": {
+        "n": 709,
+        "min": 6.087994,
+        "median": 7.263656,
+        "mean": 7.612596486600847,
+        "p95": 9.552775,
+        "p99": 11.069871999999986,
+        "max": 14.34257,
+        "stdev": 1.0492587278214005
+      },
+      "nmpc_iterations": {
+        "n": 709,
+        "min": 6,
+        "median": 11,
+        "mean": 10.867418899858956,
+        "p95": 15.0,
+        "p99": 17.0,
+        "max": 18,
+        "stdev": 2.9784220168198954
+      },
+      "nmpc_iterations_histogram": {
+        "6": 4,
+        "7": 163,
+        "8": 33,
+        "9": 78,
+        "10": 57,
+        "11": 49,
+        "12": 43,
+        "13": 112,
+        "14": 99,
+        "15": 43,
+        "16": 16,
+        "17": 10,
+        "18": 2
+      },
+      "nmpc_ok_false_count": 1368,
+      "nmpc_ok_false_among_active": 0,
+      "qp_ok_false_count": 0,
+      "qp_status_unrecorded_ticks": 1368,
+      "nmpc_solve_ms_by_phase": {
+        "DS_terminal": {
+          "n": 201,
+          "min": 13.67052,
+          "median": 15.47365,
+          "mean": 16.4870068159204,
+          "p95": 20.27181,
+          "p99": 28.01801,
+          "max": 32.16626,
+          "stdev": 2.723382571697864
+        },
+        "SS": {
+          "n": 508,
+          "min": 13.19674,
+          "median": 23.00379,
+          "mean": 22.689648031496066,
+          "p95": 28.437333499999998,
+          "p99": 34.2720884,
+          "max": 39.49718,
+          "stdev": 3.8715596777069727
+        }
+      },
+      "wbc_block_ms_by_phase": {
+        "DS_terminal": {
+          "n": 201,
+          "min": 74.08381,
+          "median": 86.10568,
+          "mean": 87.3650035323383,
+          "p95": 100.4902,
+          "p99": 123.6399,
+          "max": 136.1251,
+          "stdev": 8.845500880001168
+        },
+        "SS": {
+          "n": 508,
+          "min": 60.87994,
+          "median": 70.352815,
+          "mean": 71.6790224015748,
+          "p95": 79.66022749999999,
+          "p99": 102.834001,
+          "max": 143.4257,
+          "stdev": 7.2761523773147365
+        }
+      },
+      "nmpc_iterations_by_phase": {
+        "DS_terminal": {
+          "n": 201,
+          "min": 6,
+          "median": 7,
+          "mean": 7.393034825870647,
+          "p95": 9.0,
+          "p99": 9.0,
+          "max": 9,
+          "stdev": 0.7725072211619499
+        },
+        "SS": {
+          "n": 508,
+          "min": 7,
+          "median": 13.0,
+          "mean": 12.242125984251969,
+          "p95": 16.0,
+          "p99": 17.0,
+          "max": 18,
+          "stdev": 2.3406786585418264
+        }
+      }
+    }
+  },
+  "notes": {
+    "C_committed": "committed canonical (managed) \u2014 timings from the ARTIFACT-GENERATION machine, hardware unrecorded",
+    "U_committed": "committed canonical (unmanaged) \u2014 same, hardware unrecorded",
+    "C_replay_here": "C0 replay on THIS container \u2014 hardware known, physics byte-identical"
+  },
+  "ipopt_return_status_from_sim_log": {
+    "NMPC_BYPASSED": 1368,
+    "Solve_Succeeded": 704,
+    "Solved_To_Acceptable_Level": 5
+  },
+  "ipopt_return_status_active_only": {
+    "Solve_Succeeded": 704,
+    "Solved_To_Acceptable_Level": 5
+  },
+  "real_time_budget": {
+    "dt_nmpc_ms": 100.0,
+    "dt_qp_ms": 10.0,
+    "n_qp_per_nmpc": 10,
+    "comment": "the WBC block must fit in dt_nmpc = 100 ms and the NMPC solve must fit alongside it for real-time operation; these runs are NOT real-time and make no such claim"
+  }
+}
