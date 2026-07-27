@@ -1,6 +1,6 @@
 # `crawlbot.simulation.logging`
 
-**File**: [`crawlbot/simulation/logging.py`](../../../crawlbot/simulation/logging.py) — **269 lines** — canonical coverage **93 %**
+**File**: [`crawlbot/simulation/logging.py`](../../../crawlbot/simulation/logging.py) — **343 lines** — canonical coverage **93 %**
 
 > Module docstring: *"Simulation data logger."*
 
@@ -14,96 +14,103 @@ execution environment. This is the file every downstream analysis reads.
 | symbol | signature | canonical? | code |
 |---|---|---|---|
 | `capture_environment` | `()` | **yes** | [L21](../../../crawlbot/simulation/logging.py#L21) |
-| **`SimLog`** *(dataclass)* |  |  | [L73](../../../crawlbot/simulation/logging.py#L73) |
-|   `t` | `field(default_factory=list)` | _field_ | [L76](../../../crawlbot/simulation/logging.py#L76) |
-|   `phase` | `field(default_factory=list)` | _field_ | [L77](../../../crawlbot/simulation/logging.py#L77) |
-|   `step_idx` | `field(default_factory=list)` | _field_ | [L78](../../../crawlbot/simulation/logging.py#L78) |
-|   `p_torso` | `field(default_factory=list)` | _field_ | [L81](../../../crawlbot/simulation/logging.py#L81) |
-|   `p_torso_ref` | `field(default_factory=list)` | _field_ | [L82](../../../crawlbot/simulation/logging.py#L82) |
-|   `e_torso_pos` | `field(default_factory=list)` | _field_ | [L83](../../../crawlbot/simulation/logging.py#L83) |
-|   `e_torso_ori` | `field(default_factory=list)` | _field_ | [L84](../../../crawlbot/simulation/logging.py#L84) |
-|   `q_torso` | `field(default_factory=list)` | _field_ | [L85](../../../crawlbot/simulation/logging.py#L85) |
-|   `q_torso_ref` | `field(default_factory=list)` | _field_ | [L86](../../../crawlbot/simulation/logging.py#L86) |
-|   `d_grip_swing` | `field(default_factory=list)` | _field_ | [L89](../../../crawlbot/simulation/logging.py#L89) |
-|   `d_grip_stance` | `field(default_factory=list)` | _field_ | [L90](../../../crawlbot/simulation/logging.py#L90) |
-|   `swing_arm` | `field(default_factory=list)` | _field_ | [L91](../../../crawlbot/simulation/logging.py#L91) |
-|   `p_ee` | `field(default_factory=list)` | _field_ | [L92](../../../crawlbot/simulation/logging.py#L92) |
-|   `p_ee_ref` | `field(default_factory=list)` | _field_ | [L93](../../../crawlbot/simulation/logging.py#L93) |
-|   `q_ee` | `field(default_factory=list)` | _field_ | [L94](../../../crawlbot/simulation/logging.py#L94) |
-|   `q_ee_ref` | `field(default_factory=list)` | _field_ | [L95](../../../crawlbot/simulation/logging.py#L95) |
-|   `qvel_joints_a` | `field(default_factory=list)` | _field_ | [L98](../../../crawlbot/simulation/logging.py#L98) |
-|   `qvel_joints_b` | `field(default_factory=list)` | _field_ | [L99](../../../crawlbot/simulation/logging.py#L99) |
-|   `v_ee_a` | `field(default_factory=list)` | _field_ | [L100](../../../crawlbot/simulation/logging.py#L100) |
-|   `v_ee_b` | `field(default_factory=list)` | _field_ | [L101](../../../crawlbot/simulation/logging.py#L101) |
-|   `omega_ee_a` | `field(default_factory=list)` | _field_ | [L102](../../../crawlbot/simulation/logging.py#L102) |
-|   `omega_ee_b` | `field(default_factory=list)` | _field_ | [L103](../../../crawlbot/simulation/logging.py#L103) |
-|   `v_torso` | `field(default_factory=list)` | _field_ | [L104](../../../crawlbot/simulation/logging.py#L104) |
-|   `omega_torso` | `field(default_factory=list)` | _field_ | [L105](../../../crawlbot/simulation/logging.py#L105) |
-|   `r_com` | `field(default_factory=list)` | _field_ | [L108](../../../crawlbot/simulation/logging.py#L108) |
-|   `r_com_ref` | `field(default_factory=list)` | _field_ | [L109](../../../crawlbot/simulation/logging.py#L109) |
-|   `e_com` | `field(default_factory=list)` | _field_ | [L110](../../../crawlbot/simulation/logging.py#L110) |
-|   `v_com` | `field(default_factory=list)` | _field_ | [L111](../../../crawlbot/simulation/logging.py#L111) |
-|   `v_com_ref` | `field(default_factory=list)` | _field_ | [L112](../../../crawlbot/simulation/logging.py#L112) |
-|   `L_com` | `field(default_factory=list)` | _field_ | [L115](../../../crawlbot/simulation/logging.py#L115) |
-|   `L_com_norm` | `field(default_factory=list)` | _field_ | [L116](../../../crawlbot/simulation/logging.py#L116) |
-|   `L_com_ref` | `field(default_factory=list)` | _field_ | [L117](../../../crawlbot/simulation/logging.py#L117) |
-|   `L_dot` | `field(default_factory=list)` | _field_ | [L118](../../../crawlbot/simulation/logging.py#L118) |
-|   `L_dot_norm` | `field(default_factory=list)` | _field_ | [L119](../../../crawlbot/simulation/logging.py#L119) |
-|   `hw` | `field(default_factory=list)` | _field_ | [L120](../../../crawlbot/simulation/logging.py#L120) |
-|   `hw_physical` | `field(default_factory=list)` | _field_ | [L123](../../../crawlbot/simulation/logging.py#L123) |
-|   `tau_w` | `field(default_factory=list)` | _field_ | [L124](../../../crawlbot/simulation/logging.py#L124) |
-|   `rw_speed` | `field(default_factory=list)` | _field_ | [L125](../../../crawlbot/simulation/logging.py#L125) |
-|   `t_ss_hifreq` | `field(default_factory=list)` | _field_ | [L131](../../../crawlbot/simulation/logging.py#L131) |
-|   `tau_w_ss_hifreq` | `field(default_factory=list)` | _field_ | [L132](../../../crawlbot/simulation/logging.py#L132) |
-|   `hw_ss_hifreq` | `field(default_factory=list)` | _field_ | [L133](../../../crawlbot/simulation/logging.py#L133) |
-|   `e_ee_pos` | `field(default_factory=list)` | _field_ | [L136](../../../crawlbot/simulation/logging.py#L136) |
-|   `e_ee_ori` | `field(default_factory=list)` | _field_ | [L137](../../../crawlbot/simulation/logging.py#L137) |
-|   `gmo_residual_norm` | `field(default_factory=list)` | _field_ | [L140](../../../crawlbot/simulation/logging.py#L140) |
-|   `gmo_swing_residual` | `field(default_factory=list)` | _field_ | [L141](../../../crawlbot/simulation/logging.py#L141) |
-|   `gmo_contact_state` | `field(default_factory=list)` | _field_ | [L142](../../../crawlbot/simulation/logging.py#L142) |
-|   `H_rO` | `field(default_factory=list)` | _field_ | [L145](../../../crawlbot/simulation/logging.py#L145) |
-|   `H_dot_est` | `field(default_factory=list)` | _field_ | [L146](../../../crawlbot/simulation/logging.py#L146) |
-|   `omega_struct` | `field(default_factory=list)` | _field_ | [L147](../../../crawlbot/simulation/logging.py#L147) |
-|   `qfrc_constraint_torque` | `field(default_factory=list)` | _field_ | [L148](../../../crawlbot/simulation/logging.py#L148) |
-|   `tau` | `field(default_factory=list)` | _field_ | [L151](../../../crawlbot/simulation/logging.py#L151) |
-|   `tau_max_joint` | `field(default_factory=list)` | _field_ | [L152](../../../crawlbot/simulation/logging.py#L152) |
-|   `struct_pos` | `field(default_factory=list)` | _field_ | [L155](../../../crawlbot/simulation/logging.py#L155) |
-|   `struct_quat` | `field(default_factory=list)` | _field_ | [L156](../../../crawlbot/simulation/logging.py#L156) |
-|   `struct_euler_deg` | `field(default_factory=list)` | _field_ | [L157](../../../crawlbot/simulation/logging.py#L157) |
-|   `omega_s` | `field(default_factory=list)` | _field_ | [L158](../../../crawlbot/simulation/logging.py#L158) |
-|   `nmpc_ok` | `field(default_factory=list)` | _field_ | [L161](../../../crawlbot/simulation/logging.py#L161) |
-|   `qp_ok` | `field(default_factory=list)` | _field_ | [L162](../../../crawlbot/simulation/logging.py#L162) |
-|   `lambda_ref_norm` | `field(default_factory=list)` | _field_ | [L163](../../../crawlbot/simulation/logging.py#L163) |
-|   `lambda_qp` | `field(default_factory=list)` | _field_ | [L166](../../../crawlbot/simulation/logging.py#L166) |
-|   `lambda_qp_norm` | `field(default_factory=list)` | _field_ | [L167](../../../crawlbot/simulation/logging.py#L167) |
-|   `nmpc_time_ms` | `field(default_factory=list)` | _field_ | [L168](../../../crawlbot/simulation/logging.py#L168) |
-|   `qp_time_ms` | `field(default_factory=list)` | _field_ | [L169](../../../crawlbot/simulation/logging.py#L169) |
-|   `nmpc_status` | `field(default_factory=list)` | _field_ | [L170](../../../crawlbot/simulation/logging.py#L170) |
-|   `nmpc_cost` | `field(default_factory=list)` | _field_ | [L171](../../../crawlbot/simulation/logging.py#L171) |
-|   `nmpc_status_str` | `field(default_factory=list)` | _field_ | [L172](../../../crawlbot/simulation/logging.py#L172) |
-|   `nmpc_iterations` | `field(default_factory=list)` | _field_ | [L173](../../../crawlbot/simulation/logging.py#L173) |
-|   `transport_term_mag` | `field(default_factory=list)` | _field_ | [L174](../../../crawlbot/simulation/logging.py#L174) |
-|   `lambda_ref` | `field(default_factory=list)` | _field_ | [L179](../../../crawlbot/simulation/logging.py#L179) |
-|   `lambda_qp` | `field(default_factory=list)` | _field_ | [L180](../../../crawlbot/simulation/logging.py#L180) |
-|   `T_kinetic` | `field(default_factory=list)` | _field_ | [L183](../../../crawlbot/simulation/logging.py#L183) |
-|   `settling_t` | `field(default_factory=list)` | _field_ | [L186](../../../crawlbot/simulation/logging.py#L186) |
-|   `settling_T` | `field(default_factory=list)` | _field_ | [L187](../../../crawlbot/simulation/logging.py#L187) |
-|   `settling_T_target` | `0.0` | _field_ | [L188](../../../crawlbot/simulation/logging.py#L188) |
-|   `settling_stage1_steps` | `0` | _field_ | [L189](../../../crawlbot/simulation/logging.py#L189) |
-|   `settling_stage2_steps` | `0` | _field_ | [L190](../../../crawlbot/simulation/logging.py#L190) |
-|   `settling_exit_reason` | `''` | _field_ | [L191](../../../crawlbot/simulation/logging.py#L191) |
-|   `inter_step_settles` | `field(default_factory=list)` | _field_ | [L197](../../../crawlbot/simulation/logging.py#L197) |
-|   `dock_events` | `field(default_factory=list)` | _field_ | [L200](../../../crawlbot/simulation/logging.py#L200) |
-|   `dock_gate_trace` | `field(default_factory=list)` | _field_ | [L208](../../../crawlbot/simulation/logging.py#L208) |
-|   `ds_mobile_trace` | `field(default_factory=list)` | _field_ | [L215](../../../crawlbot/simulation/logging.py#L215) |
-|   `dock_work_trace` | `field(default_factory=list)` | _field_ | [L221](../../../crawlbot/simulation/logging.py#L221) |
-|   `aborted_steps` | `field(default_factory=list)` | _field_ | [L226](../../../crawlbot/simulation/logging.py#L226) |
-|   `preplanner_T_steps` | `field(default_factory=list)` | _field_ | [L230](../../../crawlbot/simulation/logging.py#L230) |
-|   `snapshots` | `field(default_factory=list)` | _field_ | [L233](../../../crawlbot/simulation/logging.py#L233) |
-|   `environment` | `field(default_factory=dict)` | _field_ | [L239](../../../crawlbot/simulation/logging.py#L239) |
-| `.to_dict` | `()` | **yes** | [L241](../../../crawlbot/simulation/logging.py#L241) |
-| `.save` | `(path)` | **yes** | [L256](../../../crawlbot/simulation/logging.py#L256) |
-| `.load` | `(path)` | not exercised | [L261](../../../crawlbot/simulation/logging.py#L261) |
+| **`SimLog`** *(dataclass)* |  |  | [L109](../../../crawlbot/simulation/logging.py#L109) |
+|   `t` | `field(default_factory=list)` | _field_ | [L112](../../../crawlbot/simulation/logging.py#L112) |
+|   `phase` | `field(default_factory=list)` | _field_ | [L113](../../../crawlbot/simulation/logging.py#L113) |
+|   `step_idx` | `field(default_factory=list)` | _field_ | [L114](../../../crawlbot/simulation/logging.py#L114) |
+|   `p_torso` | `field(default_factory=list)` | _field_ | [L117](../../../crawlbot/simulation/logging.py#L117) |
+|   `p_torso_ref` | `field(default_factory=list)` | _field_ | [L118](../../../crawlbot/simulation/logging.py#L118) |
+|   `e_torso_pos` | `field(default_factory=list)` | _field_ | [L119](../../../crawlbot/simulation/logging.py#L119) |
+|   `e_torso_ori` | `field(default_factory=list)` | _field_ | [L120](../../../crawlbot/simulation/logging.py#L120) |
+|   `q_torso` | `field(default_factory=list)` | _field_ | [L121](../../../crawlbot/simulation/logging.py#L121) |
+|   `q_torso_ref` | `field(default_factory=list)` | _field_ | [L122](../../../crawlbot/simulation/logging.py#L122) |
+|   `d_grip_swing` | `field(default_factory=list)` | _field_ | [L125](../../../crawlbot/simulation/logging.py#L125) |
+|   `d_grip_stance` | `field(default_factory=list)` | _field_ | [L126](../../../crawlbot/simulation/logging.py#L126) |
+|   `swing_arm` | `field(default_factory=list)` | _field_ | [L127](../../../crawlbot/simulation/logging.py#L127) |
+|   `p_ee` | `field(default_factory=list)` | _field_ | [L128](../../../crawlbot/simulation/logging.py#L128) |
+|   `p_ee_ref` | `field(default_factory=list)` | _field_ | [L129](../../../crawlbot/simulation/logging.py#L129) |
+|   `q_ee` | `field(default_factory=list)` | _field_ | [L130](../../../crawlbot/simulation/logging.py#L130) |
+|   `q_ee_ref` | `field(default_factory=list)` | _field_ | [L131](../../../crawlbot/simulation/logging.py#L131) |
+|   `qvel_joints_a` | `field(default_factory=list)` | _field_ | [L134](../../../crawlbot/simulation/logging.py#L134) |
+|   `qvel_joints_b` | `field(default_factory=list)` | _field_ | [L135](../../../crawlbot/simulation/logging.py#L135) |
+|   `v_ee_a` | `field(default_factory=list)` | _field_ | [L136](../../../crawlbot/simulation/logging.py#L136) |
+|   `v_ee_b` | `field(default_factory=list)` | _field_ | [L137](../../../crawlbot/simulation/logging.py#L137) |
+|   `omega_ee_a` | `field(default_factory=list)` | _field_ | [L138](../../../crawlbot/simulation/logging.py#L138) |
+|   `omega_ee_b` | `field(default_factory=list)` | _field_ | [L139](../../../crawlbot/simulation/logging.py#L139) |
+|   `v_torso` | `field(default_factory=list)` | _field_ | [L140](../../../crawlbot/simulation/logging.py#L140) |
+|   `omega_torso` | `field(default_factory=list)` | _field_ | [L141](../../../crawlbot/simulation/logging.py#L141) |
+|   `r_com` | `field(default_factory=list)` | _field_ | [L144](../../../crawlbot/simulation/logging.py#L144) |
+|   `r_com_ref` | `field(default_factory=list)` | _field_ | [L145](../../../crawlbot/simulation/logging.py#L145) |
+|   `e_com` | `field(default_factory=list)` | _field_ | [L146](../../../crawlbot/simulation/logging.py#L146) |
+|   `v_com` | `field(default_factory=list)` | _field_ | [L147](../../../crawlbot/simulation/logging.py#L147) |
+|   `v_com_ref` | `field(default_factory=list)` | _field_ | [L148](../../../crawlbot/simulation/logging.py#L148) |
+|   `L_com` | `field(default_factory=list)` | _field_ | [L151](../../../crawlbot/simulation/logging.py#L151) |
+|   `L_com_norm` | `field(default_factory=list)` | _field_ | [L152](../../../crawlbot/simulation/logging.py#L152) |
+|   `L_com_ref` | `field(default_factory=list)` | _field_ | [L153](../../../crawlbot/simulation/logging.py#L153) |
+|   `L_dot` | `field(default_factory=list)` | _field_ | [L154](../../../crawlbot/simulation/logging.py#L154) |
+|   `L_dot_norm` | `field(default_factory=list)` | _field_ | [L155](../../../crawlbot/simulation/logging.py#L155) |
+|   `hw` | `field(default_factory=list)` | _field_ | [L156](../../../crawlbot/simulation/logging.py#L156) |
+|   `hw_physical` | `field(default_factory=list)` | _field_ | [L159](../../../crawlbot/simulation/logging.py#L159) |
+|   `tau_w` | `field(default_factory=list)` | _field_ | [L160](../../../crawlbot/simulation/logging.py#L160) |
+|   `rw_speed` | `field(default_factory=list)` | _field_ | [L161](../../../crawlbot/simulation/logging.py#L161) |
+|   `t_ss_hifreq` | `field(default_factory=list)` | _field_ | [L167](../../../crawlbot/simulation/logging.py#L167) |
+|   `tau_w_ss_hifreq` | `field(default_factory=list)` | _field_ | [L168](../../../crawlbot/simulation/logging.py#L168) |
+|   `hw_ss_hifreq` | `field(default_factory=list)` | _field_ | [L169](../../../crawlbot/simulation/logging.py#L169) |
+|   `e_ee_pos` | `field(default_factory=list)` | _field_ | [L172](../../../crawlbot/simulation/logging.py#L172) |
+|   `e_ee_ori` | `field(default_factory=list)` | _field_ | [L173](../../../crawlbot/simulation/logging.py#L173) |
+|   `gmo_residual_norm` | `field(default_factory=list)` | _field_ | [L176](../../../crawlbot/simulation/logging.py#L176) |
+|   `gmo_swing_residual` | `field(default_factory=list)` | _field_ | [L177](../../../crawlbot/simulation/logging.py#L177) |
+|   `gmo_contact_state` | `field(default_factory=list)` | _field_ | [L178](../../../crawlbot/simulation/logging.py#L178) |
+|   `H_rO` | `field(default_factory=list)` | _field_ | [L181](../../../crawlbot/simulation/logging.py#L181) |
+|   `H_dot_est` | `field(default_factory=list)` | _field_ | [L182](../../../crawlbot/simulation/logging.py#L182) |
+|   `omega_struct` | `field(default_factory=list)` | _field_ | [L183](../../../crawlbot/simulation/logging.py#L183) |
+|   `qfrc_constraint_torque` | `field(default_factory=list)` | _field_ | [L184](../../../crawlbot/simulation/logging.py#L184) |
+|   `tau` | `field(default_factory=list)` | _field_ | [L187](../../../crawlbot/simulation/logging.py#L187) |
+|   `tau_max_joint` | `field(default_factory=list)` | _field_ | [L188](../../../crawlbot/simulation/logging.py#L188) |
+|   `struct_pos` | `field(default_factory=list)` | _field_ | [L191](../../../crawlbot/simulation/logging.py#L191) |
+|   `struct_quat` | `field(default_factory=list)` | _field_ | [L192](../../../crawlbot/simulation/logging.py#L192) |
+|   `struct_euler_deg` | `field(default_factory=list)` | _field_ | [L193](../../../crawlbot/simulation/logging.py#L193) |
+|   `omega_s` | `field(default_factory=list)` | _field_ | [L194](../../../crawlbot/simulation/logging.py#L194) |
+|   `nmpc_ok` | `field(default_factory=list)` | _field_ | [L197](../../../crawlbot/simulation/logging.py#L197) |
+|   `qp_ok` | `field(default_factory=list)` | _field_ | [L198](../../../crawlbot/simulation/logging.py#L198) |
+|   `lambda_ref_norm` | `field(default_factory=list)` | _field_ | [L199](../../../crawlbot/simulation/logging.py#L199) |
+|   `lambda_qp` | `field(default_factory=list)` | _field_ | [L202](../../../crawlbot/simulation/logging.py#L202) |
+|   `lambda_qp_norm` | `field(default_factory=list)` | _field_ | [L203](../../../crawlbot/simulation/logging.py#L203) |
+|   `nmpc_time_ms` | `field(default_factory=list)` | _field_ | [L204](../../../crawlbot/simulation/logging.py#L204) |
+|   `qp_time_ms` | `field(default_factory=list)` | _field_ | [L205](../../../crawlbot/simulation/logging.py#L205) |
+|   `nmpc_status` | `field(default_factory=list)` | _field_ | [L206](../../../crawlbot/simulation/logging.py#L206) |
+|   `nmpc_cost` | `field(default_factory=list)` | _field_ | [L207](../../../crawlbot/simulation/logging.py#L207) |
+|   `nmpc_status_str` | `field(default_factory=list)` | _field_ | [L208](../../../crawlbot/simulation/logging.py#L208) |
+|   `nmpc_iterations` | `field(default_factory=list)` | _field_ | [L209](../../../crawlbot/simulation/logging.py#L209) |
+|   `qp_solve_ms_sum` | `field(default_factory=list)` | _field_ | [L228](../../../crawlbot/simulation/logging.py#L228) |
+|   `qp_solve_ms_max` | `field(default_factory=list)` | _field_ | [L229](../../../crawlbot/simulation/logging.py#L229) |
+|   `qp_iter_sum` | `field(default_factory=list)` | _field_ | [L230](../../../crawlbot/simulation/logging.py#L230) |
+|   `qp_n_solves` | `field(default_factory=list)` | _field_ | [L231](../../../crawlbot/simulation/logging.py#L231) |
+|   `qp_n_failed` | `field(default_factory=list)` | _field_ | [L232](../../../crawlbot/simulation/logging.py#L232) |
+|   `qp_status_worst` | `field(default_factory=list)` | _field_ | [L239](../../../crawlbot/simulation/logging.py#L239) |
+|   `transport_term_mag` | `field(default_factory=list)` | _field_ | [L240](../../../crawlbot/simulation/logging.py#L240) |
+|   `lambda_ref` | `field(default_factory=list)` | _field_ | [L245](../../../crawlbot/simulation/logging.py#L245) |
+|   `lambda_qp` | `field(default_factory=list)` | _field_ | [L246](../../../crawlbot/simulation/logging.py#L246) |
+|   `T_kinetic` | `field(default_factory=list)` | _field_ | [L249](../../../crawlbot/simulation/logging.py#L249) |
+|   `settling_t` | `field(default_factory=list)` | _field_ | [L252](../../../crawlbot/simulation/logging.py#L252) |
+|   `settling_T` | `field(default_factory=list)` | _field_ | [L253](../../../crawlbot/simulation/logging.py#L253) |
+|   `settling_T_target` | `0.0` | _field_ | [L254](../../../crawlbot/simulation/logging.py#L254) |
+|   `settling_stage1_steps` | `0` | _field_ | [L255](../../../crawlbot/simulation/logging.py#L255) |
+|   `settling_stage2_steps` | `0` | _field_ | [L256](../../../crawlbot/simulation/logging.py#L256) |
+|   `settling_exit_reason` | `''` | _field_ | [L257](../../../crawlbot/simulation/logging.py#L257) |
+|   `inter_step_settles` | `field(default_factory=list)` | _field_ | [L263](../../../crawlbot/simulation/logging.py#L263) |
+|   `dock_events` | `field(default_factory=list)` | _field_ | [L266](../../../crawlbot/simulation/logging.py#L266) |
+|   `dock_gate_trace` | `field(default_factory=list)` | _field_ | [L274](../../../crawlbot/simulation/logging.py#L274) |
+|   `ds_mobile_trace` | `field(default_factory=list)` | _field_ | [L281](../../../crawlbot/simulation/logging.py#L281) |
+|   `dock_work_trace` | `field(default_factory=list)` | _field_ | [L287](../../../crawlbot/simulation/logging.py#L287) |
+|   `aborted_steps` | `field(default_factory=list)` | _field_ | [L292](../../../crawlbot/simulation/logging.py#L292) |
+|   `preplanner_T_steps` | `field(default_factory=list)` | _field_ | [L296](../../../crawlbot/simulation/logging.py#L296) |
+|   `preplanner_stats` | `field(default_factory=list)` | _field_ | [L304](../../../crawlbot/simulation/logging.py#L304) |
+|   `snapshots` | `field(default_factory=list)` | _field_ | [L307](../../../crawlbot/simulation/logging.py#L307) |
+|   `environment` | `field(default_factory=dict)` | _field_ | [L313](../../../crawlbot/simulation/logging.py#L313) |
+| `.to_dict` | `()` | **yes** | [L315](../../../crawlbot/simulation/logging.py#L315) |
+| `.save` | `(path)` | **yes** | [L330](../../../crawlbot/simulation/logging.py#L330) |
+| `.load` | `(path)` | not exercised | [L335](../../../crawlbot/simulation/logging.py#L335) |
 
 ### Module constants
 
@@ -162,6 +169,67 @@ writes `e_com = 0` with `ref := measured`). Logging convention, decision pending
 **The torso reference is continuous** across SS->DS->SS since the terminal-hold
 fix — logging only, control proven byte-identical by full re-run.
 
+**`qp_time_ms` is not a QP solve time.** Its timer spans the whole WBC block
+(`sim_loop.py`, `t_qp_start` … `t_qp_ms`), which contains
+`for qs in range(n_qp_per_nmpc)` — **ten** QP solves plus ten Pinocchio
+`computeAllTerms`, ten AOCS evaluations, ten `mj_step` calls and this logging.
+Measured on the canonical, the QP itself is **~71 %** of that block (median),
+so `qp_time_ms / 10` overstates a solve by roughly 1.4×. Use `qp_solve_ms_*`
+below for the QP; keep `qp_time_ms` for the block. The name is wrong and stays
+wrong: it is one of the 66 frozen columns.
+
+**`qp_ok` is not a measurement.** Two independent reasons, both structural:
+
+1. `_log_ds_tick` hardcodes `log.qp_ok.append(True)` on inter-step ticks even
+   though that loop solves a QP every tick — **1368 of 2077 rows** on the
+   canonical.
+2. Where it *is* computed, it comes from a `try/except RuntimeError` around a
+   backend configured with `error_on_fail: False`, which returns instead of
+   raising on failure. See `solvers/hierarchical_qp.md` §4.
+
+So "0 QP failures" was never a claim about the run. `qp_status_worst` /
+`qp_n_failed` below are the measurement; they cover all 2077 ticks and all
+8458 solves.
+
+## 3b. The `qp_*` channels (C2.2.1) and their sentinel convention
+
+Six per-tick aggregates over the QP solves inside one logged tick, reduced by
+`tick_logging.QPStatAccumulator` (one definition, shared by both recorders):
+`qp_solve_ms_sum`, `qp_solve_ms_max`, `qp_iter_sum`, `qp_n_solves`,
+`qp_n_failed`, `qp_status_worst`.
+
+They aggregate because the CSV is one row per logged tick while an SS or
+DS-terminal tick contains ten solves; an inter-step tick contains one.
+
+**Sentinel convention — read this before computing any statistic.** A row where
+no solve was offered to the accumulator carries
+`sum = max = 0.0`, `iter_sum = n_solves = n_failed = 0`, `status_worst = -1`.
+`status_worst = -1` is *not measured*, never an outcome. **Test
+`qp_n_solves == 0`** for sentinel rows — do not test the timers against 0.0,
+which is how the `nmpc_time_ms` convention traps readers.
+
+On the canonical there are **zero** sentinel rows: 1368 ticks × 1 solve +
+709 ticks × 10 solves = 8458 solves, all recorded. That is the difference from
+`qp_ok`, which is a measurement on 709 ticks and a constant on the rest.
+
+`qp_status_worst` ordering, ascending severity: `-1` not measured · `0` the
+backend reported success · `1` the backend reported **not** success (the case
+`qp_ok` cannot see) · `2` the solve raised.
+
+## 3c. `preplanner_stats` and `environment['host']`
+
+`preplanner_stats` (C2.2.3) carries one record per coarse-pre-planner NLP
+solve — `{success, solve_ms, iter_count, cost, status, t_plan_start, T_step}`,
+six on a six-step traversal. These were collected in
+`SimulationLoop._preplanner_stats` and printed, but never persisted, so no
+artifact predating this field records the IPOPT solves that gate every step.
+
+`environment['host']` (C2.2.4) records CPU model, logical CPU count, total
+memory and platform. Wall-clock solver timings move ~25 % between machines
+while iteration counts are byte-identical, so a timing number is only citable
+next to the hardware that produced it — and the frozen canonical artifacts,
+which predate this field, do not carry one.
+
 ## 4. What is authoritative
 
 Reference metrics do not come from here directly but from the gate
@@ -172,11 +240,11 @@ Reference metrics do not come from here directly but from the gate
 
 | unit | source |
 |---|---|
-| `capture_environment()` | [L21-69](../../../crawlbot/simulation/logging.py#L21-L69) |
-| `class SimLog` | [L73-268](../../../crawlbot/simulation/logging.py#L73-L268) |
-| `SimLog.to_dict` | [L241-254](../../../crawlbot/simulation/logging.py#L241-L254) |
-| `SimLog.save` | [L256-258](../../../crawlbot/simulation/logging.py#L256-L258) |
-| `SimLog.load` | [L261-268](../../../crawlbot/simulation/logging.py#L261-L268) |
+| `capture_environment()` | [L21-105](../../../crawlbot/simulation/logging.py#L21-L105) |
+| `class SimLog` | [L109-342](../../../crawlbot/simulation/logging.py#L109-L342) |
+| `SimLog.to_dict` | [L315-328](../../../crawlbot/simulation/logging.py#L315-L328) |
+| `SimLog.save` | [L330-332](../../../crawlbot/simulation/logging.py#L330-L332) |
+| `SimLog.load` | [L335-342](../../../crawlbot/simulation/logging.py#L335-L342) |
 
 ---
 

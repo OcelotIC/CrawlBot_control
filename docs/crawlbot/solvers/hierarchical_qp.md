@@ -1,6 +1,6 @@
 # `crawlbot.solvers.hierarchical_qp`
 
-**File**: [`crawlbot/solvers/hierarchical_qp.py`](../../../crawlbot/solvers/hierarchical_qp.py) — **529 lines** — canonical coverage **70 %**
+**File**: [`crawlbot/solvers/hierarchical_qp.py`](../../../crawlbot/solvers/hierarchical_qp.py) — **568 lines** — canonical coverage **70 %**
 
 > Module docstring: *"HierarchicalQP - Generic hierarchical quadratic program solver."*
 
@@ -35,19 +35,21 @@ projection, exact priorities) and `weighted` (one QP, approximate priorities).
 |   `failed_priority` | `None` | _field_ | [L65](../../../crawlbot/solvers/hierarchical_qp.py#L65) |
 |   `solve_time_ms` | `0.0` | _field_ | [L66](../../../crawlbot/solvers/hierarchical_qp.py#L66) |
 |   `n_iter` | `0` | _field_ | [L67](../../../crawlbot/solvers/hierarchical_qp.py#L67) |
-| **`HierarchicalQP`** |  |  | [L70](../../../crawlbot/solvers/hierarchical_qp.py#L70) |
-| `.add_task` | `(A, b, W, priority)` | **yes** | [L129](../../../crawlbot/solvers/hierarchical_qp.py#L129) |
-| `.add_equality_constraint` | `(C, d)` | **yes** | [L171](../../../crawlbot/solvers/hierarchical_qp.py#L171) |
-| `.add_inequality_constraint` | `(C, d)` | **yes** | [L182](../../../crawlbot/solvers/hierarchical_qp.py#L182) |
-| `.set_bounds` | `(lb, ub)` | **yes** | [L193](../../../crawlbot/solvers/hierarchical_qp.py#L193) |
-| `.clear_tasks` | `()` | not exercised | [L198](../../../crawlbot/solvers/hierarchical_qp.py#L198) |
-| `.clear_constraints` | `()` | not exercised | [L202](../../../crawlbot/solvers/hierarchical_qp.py#L202) |
-| `.solve` | `(x0=None)` | **yes** | [L214](../../../crawlbot/solvers/hierarchical_qp.py#L214) |
-| `._solve_weighted` | `(sorted_tasks, x0)` | **yes** | [L252](../../../crawlbot/solvers/hierarchical_qp.py#L252) |
-| `._solve_strict` | `(sorted_tasks, x0)` | not exercised | [L297](../../../crawlbot/solvers/hierarchical_qp.py#L297) |
-| `._solve_qp_raw` | `(H, g, C_eq, d_eq, C_ineq, d_ineq, lb, ub, x0=None)` | **yes** | [L379](../../../crawlbot/solvers/hierarchical_qp.py#L379) |
-| `._get_solver_options` | `()` | **yes** | [L493](../../../crawlbot/solvers/hierarchical_qp.py#L493) |
-| `.n_tasks` | `()` | not exercised | [L521](../../../crawlbot/solvers/hierarchical_qp.py#L521) |
+|   `solver_success` | `None` | _field_ | [L80](../../../crawlbot/solvers/hierarchical_qp.py#L80) |
+|   `return_status` | `''` | _field_ | [L81](../../../crawlbot/solvers/hierarchical_qp.py#L81) |
+| **`HierarchicalQP`** |  |  | [L84](../../../crawlbot/solvers/hierarchical_qp.py#L84) |
+| `.add_task` | `(A, b, W, priority)` | **yes** | [L143](../../../crawlbot/solvers/hierarchical_qp.py#L143) |
+| `.add_equality_constraint` | `(C, d)` | **yes** | [L185](../../../crawlbot/solvers/hierarchical_qp.py#L185) |
+| `.add_inequality_constraint` | `(C, d)` | **yes** | [L196](../../../crawlbot/solvers/hierarchical_qp.py#L196) |
+| `.set_bounds` | `(lb, ub)` | **yes** | [L207](../../../crawlbot/solvers/hierarchical_qp.py#L207) |
+| `.clear_tasks` | `()` | not exercised | [L212](../../../crawlbot/solvers/hierarchical_qp.py#L212) |
+| `.clear_constraints` | `()` | not exercised | [L216](../../../crawlbot/solvers/hierarchical_qp.py#L216) |
+| `.solve` | `(x0=None)` | **yes** | [L228](../../../crawlbot/solvers/hierarchical_qp.py#L228) |
+| `._solve_weighted` | `(sorted_tasks, x0)` | **yes** | [L266](../../../crawlbot/solvers/hierarchical_qp.py#L266) |
+| `._solve_strict` | `(sorted_tasks, x0)` | not exercised | [L315](../../../crawlbot/solvers/hierarchical_qp.py#L315) |
+| `._solve_qp_raw` | `(H, g, C_eq, d_eq, C_ineq, d_ineq, lb, ub, x0=None)` | **yes** | [L397](../../../crawlbot/solvers/hierarchical_qp.py#L397) |
+| `._get_solver_options` | `()` | **yes** | [L532](../../../crawlbot/solvers/hierarchical_qp.py#L532) |
+| `.n_tasks` | `()` | not exercised | [L560](../../../crawlbot/solvers/hierarchical_qp.py#L560) |
 
 ---
 
@@ -117,6 +119,45 @@ small dense QPs here) or `osqp` (ADMM, better for large sparse problems).
 Selected by `WholeBodyQPConfig.solver`, which is never overridden, so `qpoases`
 is the canonical value by default.
 
+### ⚠ `info.success` cannot report a solver failure
+
+`_get_solver_options` sets `error_on_fail: False`. That is what the option
+says on the tin: CasADi **returns normally** instead of raising when the
+backend fails. But `_solve_qp_raw` derives its outcome from whether the call
+raised —
+
+```python
+try:    sol = solver(**solve_args); success = True;  exitflag = 0
+except RuntimeError: ...            success = False; exitflag = -1
+```
+
+— so on the weighted path `success` is **True for an infeasible QP as well as a
+feasible one**, and `exitflag` is 0 either way. Verified directly: a QP with
+`lba = uba = 5` against `lbx = ubx = ±1` makes qpOASES print *"Premature
+homotopy termination because QP is infeasible"*, and the Python call returns
+without raising.
+
+Everything downstream inherits the blindness. `WholeBodyQP` passes `info`
+through, `sim_loop` sets `qp_ok` from the same try/except, and the fulldiag
+`qp_ok` column is therefore **structurally incapable of ever being 0** on the
+canonical path. "0 QP failures over the run" is not a measurement; it is the
+only value that column can take.
+
+**What to use instead.** `casadi.Function.stats()` carries the backend's own
+verdict, and `_solve_qp_raw` now reads it into three additive `QPSolveInfo`
+fields:
+
+| field | source | meaning |
+|---|---|---|
+| `solver_success` | `stats()['success']` | the backend's verdict; `None` if stats are unavailable |
+| `return_status` | `stats()['return_status']` | its own string, e.g. *"Initial QP could not be solved due to infeasibility!"* |
+| `n_iter` | `stats()['iter_count']` | qpOASES working-set recalculations. Previously declared on `QPSolveInfo` and **never assigned** — it read 0 for every solve |
+
+These are **additive**: `success`, `exitflag` and `cost` keep their old values
+bit-for-bit, so `qp_ok` stays byte-stable and the frozen baseline is untouched.
+The honest fix — deriving `success` from `stats()` — changes an existing
+fulldiag column and needs the baseline regenerated first.
+
 ## 5. `_solve_strict` — unexercised, and not obviously removable
 
 76 lines, the largest unexercised block left in `crawlbot/`. It implements the
@@ -139,20 +180,20 @@ reproducible, not an obvious cleanup (`CLEANUP_CARRYOVER` B2).
 | unit | source |
 |---|---|
 | `class Task` | [L46-51](../../../crawlbot/solvers/hierarchical_qp.py#L46-L51) |
-| `class QPSolveInfo` | [L55-67](../../../crawlbot/solvers/hierarchical_qp.py#L55-L67) |
-| `class HierarchicalQP` | [L70-528](../../../crawlbot/solvers/hierarchical_qp.py#L70-L528) |
-| `HierarchicalQP.add_task` | [L129-169](../../../crawlbot/solvers/hierarchical_qp.py#L129-L169) |
-| `HierarchicalQP.add_equality_constraint` | [L171-180](../../../crawlbot/solvers/hierarchical_qp.py#L171-L180) |
-| `HierarchicalQP.add_inequality_constraint` | [L182-191](../../../crawlbot/solvers/hierarchical_qp.py#L182-L191) |
-| `HierarchicalQP.set_bounds` | [L193-196](../../../crawlbot/solvers/hierarchical_qp.py#L193-L196) |
-| `HierarchicalQP.clear_tasks` | [L198-200](../../../crawlbot/solvers/hierarchical_qp.py#L198-L200) |
-| `HierarchicalQP.clear_constraints` | [L202-207](../../../crawlbot/solvers/hierarchical_qp.py#L202-L207) |
-| `HierarchicalQP.solve` | [L214-246](../../../crawlbot/solvers/hierarchical_qp.py#L214-L246) |
-| `HierarchicalQP._solve_weighted` | [L252-291](../../../crawlbot/solvers/hierarchical_qp.py#L252-L291) |
-| `HierarchicalQP._solve_strict` | [L297-373](../../../crawlbot/solvers/hierarchical_qp.py#L297-L373) |
-| `HierarchicalQP._solve_qp_raw` | [L379-491](../../../crawlbot/solvers/hierarchical_qp.py#L379-L491) |
-| `HierarchicalQP._get_solver_options` | [L493-514](../../../crawlbot/solvers/hierarchical_qp.py#L493-L514) |
-| `HierarchicalQP.n_tasks` | [L521-522](../../../crawlbot/solvers/hierarchical_qp.py#L521-L522) |
+| `class QPSolveInfo` | [L55-81](../../../crawlbot/solvers/hierarchical_qp.py#L55-L81) |
+| `class HierarchicalQP` | [L84-567](../../../crawlbot/solvers/hierarchical_qp.py#L84-L567) |
+| `HierarchicalQP.add_task` | [L143-183](../../../crawlbot/solvers/hierarchical_qp.py#L143-L183) |
+| `HierarchicalQP.add_equality_constraint` | [L185-194](../../../crawlbot/solvers/hierarchical_qp.py#L185-L194) |
+| `HierarchicalQP.add_inequality_constraint` | [L196-205](../../../crawlbot/solvers/hierarchical_qp.py#L196-L205) |
+| `HierarchicalQP.set_bounds` | [L207-210](../../../crawlbot/solvers/hierarchical_qp.py#L207-L210) |
+| `HierarchicalQP.clear_tasks` | [L212-214](../../../crawlbot/solvers/hierarchical_qp.py#L212-L214) |
+| `HierarchicalQP.clear_constraints` | [L216-221](../../../crawlbot/solvers/hierarchical_qp.py#L216-L221) |
+| `HierarchicalQP.solve` | [L228-260](../../../crawlbot/solvers/hierarchical_qp.py#L228-L260) |
+| `HierarchicalQP._solve_weighted` | [L266-309](../../../crawlbot/solvers/hierarchical_qp.py#L266-L309) |
+| `HierarchicalQP._solve_strict` | [L315-391](../../../crawlbot/solvers/hierarchical_qp.py#L315-L391) |
+| `HierarchicalQP._solve_qp_raw` | [L397-530](../../../crawlbot/solvers/hierarchical_qp.py#L397-L530) |
+| `HierarchicalQP._get_solver_options` | [L532-553](../../../crawlbot/solvers/hierarchical_qp.py#L532-L553) |
+| `HierarchicalQP.n_tasks` | [L560-561](../../../crawlbot/solvers/hierarchical_qp.py#L560-L561) |
 
 ---
 

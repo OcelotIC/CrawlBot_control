@@ -121,6 +121,39 @@ def f6(v): return f'{v:.6e}'
 def fb(v): return '' if not np.isfinite(v) else str(int(v))
 
 
+# ── C2.2: solver-diagnostic columns (OPT-IN, `--solver-diag`) ───────────────
+# Appended AFTER the 66 frozen columns; the 66 are untouched either way.
+#
+# Default OFF, deliberately. `gate/run_gate.py`'s identity check requires EXACT
+# header equality (`diff_csv`, R[0] != B[0] -> FAIL "header mismatch"), so
+# emitting these unconditionally would make the shared gate fail for every
+# caller until `results/j2_adjconv/c25_fulldiag.csv` is regenerated — a frozen
+# paper artifact, and not this stream's to regenerate. With the flag off the
+# gate's export is byte-for-byte what it was; with it on the caller gets the
+# richer CSV. Flipping the default is Idriss's call, together with the
+# baseline regeneration it requires.
+SOLVER_DIAG = '--solver-diag' in sys.argv
+_has_qp_stats = 'qp_n_solves' in sl
+if SOLVER_DIAG and not _has_qp_stats:
+    print('  [solver-diag] WARNING: this sim_log predates the qp_* channels '
+          '(C2.2.1); those columns will be written as the not-measured '
+          'sentinel. Re-run the sim to populate them.')
+if SOLVER_DIAG:
+    _sd = lambda k, d: (np.asarray(sl[k]) if k in sl                # noqa: E731
+                        else np.full(n, d))
+    qpsms = _sd('qp_solve_ms_sum', 0.0).astype(float)
+    qpsmx = _sd('qp_solve_ms_max', 0.0).astype(float)
+    qpits = _sd('qp_iter_sum', 0).astype(int)
+    qpns = _sd('qp_n_solves', 0).astype(int)
+    qpnf = _sd('qp_n_failed', 0).astype(int)
+    qpsw = _sd('qp_status_worst', -1).astype(int)
+    nmss = (list(sl['nmpc_status_str']) if 'nmpc_status_str' in sl
+            else [''] * n)
+
+SOLVER_DIAG_COLS = ['qp_solve_ms_sum', 'qp_solve_ms_max', 'qp_iter_sum',
+                    'qp_n_solves', 'qp_n_failed', 'qp_status_worst',
+                    'nmpc_status_str']
+
 cols = (['t_s', 'phase', 'step_index', 'swing_arm',
          'd_grip_swing_mm', 'ori_err_deg', 'pos_ok', 'ori_ok',
          'gate_eval', 'twist_norm_at_gateeval', 'docked_at_gateeval'] +
@@ -135,7 +168,8 @@ cols = (['t_s', 'phase', 'step_index', 'swing_arm',
          'qp_ok', 'nmpc_ok', 'qp_time_ms', 'nmpc_time_ms', 'nmpc_iterations',
          'lambda_qp_norm', 'lambda_ref_norm', 'tau_max_joint_Nm'] +
         [f'omega_s_{a}_radps' for a in 'xyz'] +
-        [f'Ltot_{a}_Nms' for a in 'xyz'] + ['Ltot_norm_Nms'])
+        [f'Ltot_{a}_Nms' for a in 'xyz'] + ['Ltot_norm_Nms'] +
+        (SOLVER_DIAG_COLS if SOLVER_DIAG else []))
 
 OUT_PREFIX = 'results/j2_adjconv/userw2'
 if '--out-prefix' in sys.argv:
@@ -165,8 +199,12 @@ with open(out_csv, 'w', newline='') as fh:
                     f6(lqn[i]), ('' if not np.isfinite(lrn[i]) else f6(lrn[i])), f6(tmj[i])] +
                    [f6(oms[i, j]) for j in range(3)] +
                    [('' if not np.isfinite(ltot_col[i, j]) else f6(ltot_col[i, j])) for j in range(3)] +
-                   ['' if not np.isfinite(ltot_norm[i]) else f6(ltot_norm[i])])
-print(f'wrote {out_csv}  ({n} ticks, {len(cols)} cols)')
+                   ['' if not np.isfinite(ltot_norm[i]) else f6(ltot_norm[i])] +
+                   ([f6(qpsms[i]), f6(qpsmx[i]), int(qpits[i]), int(qpns[i]),
+                     int(qpnf[i]), int(qpsw[i]), nmss[i]]
+                    if SOLVER_DIAG else []))
+print(f'wrote {out_csv}  ({n} ticks, {len(cols)} cols'
+      f'{" incl. --solver-diag" if SOLVER_DIAG else ""})')
 
 # ── B: per-step at-weld vs min-over-swing ──
 dev = {d['step']: d for d in sl.get('dock_events', [])}
@@ -184,7 +222,19 @@ for k in range(6):
     print(f'  {k}   | {e.get("t"):6}s | {dweld:6.3f} | {dmin:10.3f}  | {flyby:+6.3f} '
           f'| {e.get("ori_deg"):7} | {e.get("twist"):.6f}')
 
-json.dump({'run': RUN, 'csv': out_csv, 'n_ticks': n, 'at_weld_vs_min': Brows,
-           'ltot_snapshots': ltot_snaps},
-          open(f'{OUT_PREFIX}_fulldiag_meta.json', 'w'), indent=2)
-print(f'\nwrote {OUT_PREFIX}_fulldiag_meta.json')
+# C2.2.3 / C2.2.4 — pre-planner NLP records and the host that produced the
+# timings, into the run metadata. Unconditional (the meta JSON is not
+# byte-compared by any gate) and empty on logs predating the channels, so an
+# archived run still exports without them rather than failing.
+_meta = {'run': RUN, 'csv': out_csv, 'n_ticks': n, 'at_weld_vs_min': Brows,
+         'ltot_snapshots': ltot_snaps,
+         'preplanner_stats': sl.get('preplanner_stats', []),
+         'host': (sl.get('environment') or {}).get('host', {}),
+         'library_versions': {
+             k: (sl.get('environment') or {}).get(k)
+             for k in ('python_version', 'mujoco_version',
+                       'pinocchio_version', 'numpy_version')}}
+json.dump(_meta, open(f'{OUT_PREFIX}_fulldiag_meta.json', 'w'), indent=2)
+print(f'\nwrote {OUT_PREFIX}_fulldiag_meta.json'
+      f"  (preplanner_stats: {len(_meta['preplanner_stats'])} records, "
+      f"host: {'yes' if _meta['host'] else 'ABSENT — log predates C2.2.4'})")

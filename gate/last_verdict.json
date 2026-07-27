@@ -26,7 +26,7 @@
           "  4   |  53.38s |  4.950 |      3.326  | +1.624 |    0.01 | 0.004990",
           "  5   |  64.54s |  4.620 |      4.624  | -0.004 |    0.04 | 0.007020",
           "",
-          "wrote gate/_run/c25_replay_fulldiag_meta.json"
+          "wrote gate/_run/c25_replay_fulldiag_meta.json  (preplanner_stats: 6 records, host: yes)"
         ],
         "stderr_tail": []
       }

@@ -82,7 +82,7 @@ from crawlbot.aocs.force_estimator import (
 
 from .config import SimConfig
 from .logging import SimLog, capture_environment
-from .tick_logging import TickState, TickLoggingMixin
+from .tick_logging import TickState, TickLoggingMixin, QPStatAccumulator
 from .plotting import plot_simulation
 # ── Simulation loop ──────────────────────────────────────────────────────────
 # TickState and the two per-tick recorders (_log_ds_tick / _log_ss_tick) live in
@@ -780,7 +780,7 @@ class SimulationLoop(TickLoggingMixin):
                 # lambda_qp_sol captured for logging-only (was `_` before
                 # Phase B). No control change — value is not consumed
                 # downstream of this branch.
-                _, _, lambda_qp_sol, tau, _ = qp.solve(
+                _, _, lambda_qp_sol, tau, _ds_qp_info = qp.solve(
                     dq_t=rs.dq_torso,
                     q=rs.q_joints, dq=rs.dq_joints,
                     r_com_ref=rs.r_com, v_com_ref=np.zeros(3),
@@ -810,6 +810,7 @@ class SimulationLoop(TickLoggingMixin):
                 tau = -fallback_Kd * rs.dq_joints
                 tau = np.clip(tau, -cfg.tau_max, cfg.tau_max)
                 lambda_qp_sol = np.zeros(12)
+                _ds_qp_info = None      # C2.2.1: None ⇒ logged as a raised solve
 
             self.mj_data.ctrl[:n_j] = tau
             # AOCS re-activation (free-floating invariant — J2 step 4a).
@@ -840,7 +841,12 @@ class SimulationLoop(TickLoggingMixin):
                     log_obj, t_abs_tick,
                     log_step_idx, log_just_landed_arm,
                     log_anchor_a_idx, log_anchor_b_idx,
-                    tau, lambda_qp_sol, tau_w_applied)
+                    tau, lambda_qp_sol, tau_w_applied,
+                    # C2.2.1: this loop solves exactly ONE QP per tick, so the
+                    # qp_* columns are a real measurement here — these are the
+                    # 1368 canonical ticks on which QP status was previously
+                    # unrecorded (`qp_ok` is hardcoded True in the recorder).
+                    qp_info=_ds_qp_info)
 
         n_steps_run = min(k + 1, max_steps) if max_steps > 0 else 0
         # Record final energy (no ctrl reset — caller manages the handoff)
@@ -2070,6 +2076,12 @@ class SimulationLoop(TickLoggingMixin):
                 i += 1
 
         self._capture_snapshot(log, t, 'final')
+        # C2.2.3 — persist the coarse-pre-planner NLP records. These were
+        # collected in `_preplanner_stats` (one per step, with solve_ms /
+        # iter_count / status) and PRINTED, but never written anywhere, so no
+        # committed artifact carried the six IPOPT solves that gate every step.
+        # Copied, not aliased, so a later run cannot mutate a returned log.
+        log.preplanner_stats = [dict(s) for s in self._preplanner_stats]
         if verbose:
             self._print_summary(log)
         return log
@@ -2313,6 +2325,12 @@ class SimulationLoop(TickLoggingMixin):
         transport_mag_last = 0.0
         _omega_s_last = np.zeros(3)
         qp_ok = True
+        # C2.2.1 — collect the per-solve QPSolveInfo that this loop used to
+        # discard. `t_qp_ms` below times the WHOLE block (ten solves plus ten
+        # Pinocchio updates, ten AOCS evaluations, ten mj_step calls and the
+        # logging); this accumulates the QP alone. Telemetry only — nothing
+        # reads it back.
+        qp_acc = QPStatAccumulator()
         t_qp_start = time.perf_counter()
 
         if ss_end is None:
@@ -2543,7 +2561,7 @@ class SimulationLoop(TickLoggingMixin):
             # opens the strict passivity RHS only by the planned envelope
             # headroom. β=0 ⇒ None ⇒ strict (byte-identical).
             try:
-                qdd_t_qp, qdd_qp, lambda_qp_sol, tau, _ = qp.solve(
+                qdd_t_qp, qdd_qp, lambda_qp_sol, tau, _qp_info = qp.solve(
                     dq_t=rs.dq_torso,
                     q=rs.q_joints, dq=rs.dq_joints,
                     r_com_ref=rp_interp, v_com_ref=vp_interp,
@@ -2560,6 +2578,7 @@ class SimulationLoop(TickLoggingMixin):
                     # strict passivity RHS (the Piste-A budget was removed)
                     passivity_W_budget=None,
                     **tkw, **ek)
+                qp_acc.add(_qp_info)                       # C2.2.1 telemetry
             except Exception as _qp_exc:
                 # Surface QP failures (silent swallow -> zero torque is
                 # dangerous). Fall back to zero torque of the correct
@@ -2571,6 +2590,7 @@ class SimulationLoop(TickLoggingMixin):
                 qdd_t_qp = np.zeros(6)
                 qdd_qp = np.zeros(self.robot.model.nv)
                 qp_ok = False
+                qp_acc.add_raised()                        # C2.2.1 telemetry
 
             # α (J2 #2): CoM-mobile DS conflict trace (gated; DWELL ticks).
             # Disentangles which constraint binds during the moving-CoM DS:
@@ -2971,6 +2991,12 @@ class SimulationLoop(TickLoggingMixin):
             tau_joints=tau_last, tau_wheels=tau_w_last,
             transport_term_mag=transport_mag_last,
             p_torso_ref_used=_p_torso_ref_used,
+            qp_solve_ms_sum=qp_acc.sum_ms,
+            qp_solve_ms_max=qp_acc.max_ms,
+            qp_iter_sum=qp_acc.iter_sum,
+            qp_n_solves=qp_acc.n_solves,
+            qp_n_failed=qp_acc.n_failed,
+            qp_status_worst=qp_acc.status_worst,
         ))
 
 

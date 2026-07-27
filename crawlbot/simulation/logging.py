@@ -58,6 +58,41 @@ def capture_environment() -> dict:
             capture_output=True, text=True, timeout=30, check=True)
         return out.stdout
 
+    def _host():
+        """CPU / memory / kernel of the machine producing this run (C2.2.4).
+
+        Wall-clock solver timings move ~25 % between machines while iteration
+        counts do not (review-closure C3.4 §3), so a timing number is only
+        citable next to the hardware that produced it — and no artifact
+        committed before this field existed records one.
+        """
+        import platform
+        info = {
+            'platform':     platform.platform(),
+            'machine':      platform.machine(),
+            'processor':    platform.processor(),
+            'cpu_count_logical': os.cpu_count(),
+        }
+        # Model name and physical core count are not in `platform`; read the
+        # two files that carry them. Both are best-effort and Linux-only.
+        try:
+            with open('/proc/cpuinfo') as fh:
+                for line in fh:
+                    if line.startswith('model name'):
+                        info['cpu_model'] = line.split(':', 1)[1].strip()
+                        break
+        except Exception:                             # noqa: BLE001
+            pass
+        try:
+            with open('/proc/meminfo') as fh:
+                for line in fh:
+                    if line.startswith('MemTotal'):
+                        info['mem_total'] = line.split(':', 1)[1].strip()
+                        break
+        except Exception:                             # noqa: BLE001
+            pass
+        return info
+
     return {
         'python_version':    sys.version,
         'mujoco_version':    _safe(lambda: _import_version('mujoco')),
@@ -66,6 +101,7 @@ def capture_environment() -> dict:
         'numpy_show_config': _safe(_show_config),
         'pip_freeze':        _safe(_pip_freeze),
         'env_vars': {k: os.environ.get(k) for k in _ENV_VAR_NAMES},
+        'host':              _safe(_host),
     }
 
 
@@ -171,6 +207,36 @@ class SimLog:
     nmpc_cost: list = field(default_factory=list)       # NMPC objective value
     nmpc_status_str: list = field(default_factory=list) # IPOPT return string
     nmpc_iterations: list = field(default_factory=list) # IPOPT iter count
+
+    # ── C2.2.1: true whole-body-QP solve statistics, per logged tick ──────
+    # `qp_time_ms` above is NOT a QP solve time: its timer spans the whole
+    # WBC block (ten QP solves plus ten Pinocchio updates, ten AOCS
+    # evaluations, ten mj_step calls and this logging). These five are the
+    # QP itself, aggregated over the `n_qp_per_nmpc` solves inside one tick,
+    # from the `QPSolveInfo` that `HierarchicalQP.solve` already produced and
+    # `sim_loop` used to discard.
+    #
+    # SENTINEL CONVENTION — these are measurements only where a QP ran under
+    # a recorder that collects them. Where one did not, the value is a
+    # sentinel and must be excluded from any statistic, exactly as
+    # nmpc_time_ms/qp_time_ms are on NMPC-bypassed ticks:
+    #     qp_solve_ms_sum / qp_solve_ms_max = 0.0
+    #     qp_iter_sum = 0 ,  qp_n_solves = 0 ,  qp_n_failed = 0
+    #     qp_status_worst = -1        (-1 = NOT MEASURED, never an outcome)
+    # `qp_n_solves == 0` is the unambiguous test for "sentinel row"; prefer
+    # it over testing the timers against 0.0.
+    qp_solve_ms_sum: list = field(default_factory=list)
+    qp_solve_ms_max: list = field(default_factory=list)
+    qp_iter_sum: list = field(default_factory=list)
+    qp_n_solves: list = field(default_factory=list)
+    qp_n_failed: list = field(default_factory=list)
+    # Worst backend outcome over the solves in this tick. Ordering, ascending
+    # severity:  -1 not measured · 0 backend reported success · 1 backend
+    # reported NOT success (stats()['success'] is False — this is the case
+    # `qp_ok` structurally cannot see, because `error_on_fail: False` means an
+    # infeasible QP returns normally instead of raising) · 2 the solve raised.
+    # "Worst" = max over the tick, with -1 ranking below 0.
+    qp_status_worst: list = field(default_factory=list)
     transport_term_mag: list = field(default_factory=list)
     # |ω_s × H_{r/O}| per tick, N·m. Diagnostic for Mode B
     # transport-term gap (see AOCS_CONCERN.md).
@@ -228,6 +294,14 @@ class SimLog:
     # M7: one T_step per SS phase, in the order they occur.  Used by
     # the per-axis tracking plots to draw τ=0.5 / τ=1.0 markers.
     preplanner_T_steps: list = field(default_factory=list)
+
+    # C2.2.3: one record per coarse-pre-planner NLP solve (one per step), from
+    # SimulationLoop._preplanner_stats. Each dict: {success, solve_ms,
+    # iter_count, cost, status, t_plan_start, T_step}. These are IPOPT NLP
+    # solves that gate every step; they were collected and printed but never
+    # persisted, so no committed artifact carries them and a solver table
+    # built from the logs alone omitted them entirely.
+    preplanner_stats: list = field(default_factory=list)
 
     # MuJoCo snapshots for offline rendering
     snapshots: list = field(default_factory=list)       # [(t, qpos, qvel, label)]

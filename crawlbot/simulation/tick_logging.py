@@ -44,6 +44,82 @@ from crawlbot.core.state_conversions import (
     mujoco_to_pinocchio, quat_wxyz_to_euler_deg)
 
 
+class QPStatAccumulator:
+    """Aggregate `QPSolveInfo` over the QP solves inside ONE logged tick.
+
+    C2.2.1. The CSV is one row per logged tick but the SS/DS-terminal tick
+    contains ``n_qp_per_nmpc`` (=10) QP solves, so the per-solve records have
+    to be reduced before they can be a column. This class is the single
+    definition of that reduction and of the status ordering, so the two
+    recorders (`_log_ss_tick` via `sim_loop`, `_log_ds_tick` via the
+    inter-step settle) cannot drift apart.
+
+    Status ordering, ascending severity:
+        -1  not measured (no solve was offered to this accumulator)
+         0  the backend reported success
+         1  the backend reported NOT success — `stats()['success']` is False.
+            This is the outcome `qp_ok` structurally cannot see: the canonical
+            backend runs with ``error_on_fail: False``, so an infeasible QP
+            returns normally instead of raising and the raise-derived
+            `info.success` stays True.
+         2  the solve raised
+
+    Purely additive telemetry: nothing here is read by control.
+    """
+
+    __slots__ = ('sum_ms', 'max_ms', 'iter_sum', 'n_solves', 'n_failed',
+                 'status_worst')
+
+    def __init__(self):
+        self.sum_ms = 0.0
+        self.max_ms = 0.0
+        self.iter_sum = 0
+        self.n_solves = 0
+        self.n_failed = 0
+        self.status_worst = -1
+
+    def add(self, info):
+        """Record one solve. ``info`` None ⇒ counted as a raised solve."""
+        self.n_solves += 1
+        if info is None:
+            self.n_failed += 1
+            self.status_worst = max(self.status_worst, 2)
+            return
+        ms = float(getattr(info, 'solve_time_ms', 0.0) or 0.0)
+        self.sum_ms += ms
+        self.max_ms = max(self.max_ms, ms)
+        self.iter_sum += int(getattr(info, 'n_iter', 0) or 0)
+        ok = getattr(info, 'solver_success', None)
+        if ok is None:
+            # stats() unavailable — fall back to the raise-derived flag rather
+            # than claiming an outcome we did not observe.
+            ok = bool(getattr(info, 'success', True))
+        status = 0 if ok else 1
+        if not ok:
+            self.n_failed += 1
+        self.status_worst = max(self.status_worst, status)
+
+    def add_raised(self):
+        """Record a solve that threw before returning an info object."""
+        self.add(None)
+
+    def as_dict(self):
+        return {
+            'sum_ms': float(self.sum_ms), 'max_ms': float(self.max_ms),
+            'iter_sum': int(self.iter_sum), 'n_solves': int(self.n_solves),
+            'n_failed': int(self.n_failed),
+            'status_worst': int(self.status_worst),
+        }
+
+
+def _qp_stats_from_info(info):
+    """Reduce a single solve (or None ⇒ the not-measured sentinel row)."""
+    acc = QPStatAccumulator()
+    if info is not None:
+        acc.add(info)
+    return acc.as_dict()
+
+
 @dataclass
 class TickState:
     """Everything `_step` produces that its logging tail consumes.
@@ -111,13 +187,24 @@ class TickState:
     # sub-loop did not run, in which case the logger falls back to the planner.
     p_torso_ref_used: Optional[np.ndarray] = None
 
+    # ── C2.2.1: true QP statistics, aggregated over the tick's solves ──
+    # `t_qp_ms` above times the whole WBC block; these time the QP alone.
+    # Defaulted so a TickState built without them logs the documented
+    # sentinel row (see SimLog.qp_* for the convention).
+    qp_solve_ms_sum: float = 0.0
+    qp_solve_ms_max: float = 0.0
+    qp_iter_sum: int = 0
+    qp_n_solves: int = 0
+    qp_n_failed: int = 0
+    qp_status_worst: int = -1
+
 
 class TickLoggingMixin:
     """The per-tick recorders, mixed into `SimulationLoop`."""
 
     def _log_ds_tick(self, log, t_abs, step_idx, just_landed_arm,
                      anchor_a_idx, anchor_b_idx, tau, lambda_qp_sol,
-                     tau_w_applied=None):
+                     tau_w_applied=None, qp_info=None):
         """Append one per-tick DS log row (logging-only; no control change).
 
         Called from ``_run_ds_passivity_loop`` AFTER ``mj_step``. The row
@@ -314,9 +401,25 @@ class TickLoggingMixin:
         log.lambda_qp.append(np.asarray(lambda_qp_sol, dtype=float).copy())
         log.lambda_qp_norm.append(float(np.linalg.norm(lambda_qp_sol)))
         log.nmpc_ok.append(False)  # not run; not a failure
+        # NOTE (C2.2.1): `qp_ok` is hardcoded True here even though this loop
+        # DOES solve a QP every tick — so on the canonical it is unmeasured on
+        # 1368 of 2077 rows, and "0 QP failures over the run" was never a
+        # measurement over the run. Left as-is because it is one of the 66
+        # frozen columns; the `qp_*` channels below record this loop's solve
+        # for real. Once the baseline is regenerated, this line should read
+        # the same source they do.
         log.qp_ok.append(True)
         log.nmpc_time_ms.append(0.0)
         log.qp_time_ms.append(0.0)
+        # C2.2.1 — this loop runs exactly ONE QP per tick, so `qp_info` (when
+        # the caller supplies it) is a real measurement, not a sentinel.
+        _qs = _qp_stats_from_info(qp_info)
+        log.qp_solve_ms_sum.append(_qs['sum_ms'])
+        log.qp_solve_ms_max.append(_qs['max_ms'])
+        log.qp_iter_sum.append(_qs['iter_sum'])
+        log.qp_n_solves.append(_qs['n_solves'])
+        log.qp_n_failed.append(_qs['n_failed'])
+        log.qp_status_worst.append(_qs['status_worst'])
         log.nmpc_status.append(3)  # 3 = BYPASSED sentinel (post-proc reads)
         log.nmpc_cost.append(float('nan'))
         log.nmpc_status_str.append('NMPC_BYPASSED')
@@ -454,6 +557,13 @@ class TickLoggingMixin:
         log.lambda_ref_norm.append(float(np.linalg.norm(ts.lambda_ref)))
         log.nmpc_time_ms.append(ts.t_nmpc_ms)
         log.qp_time_ms.append(ts.t_qp_ms)
+        # C2.2.1 — true QP statistics for this tick (see SimLog.qp_*).
+        log.qp_solve_ms_sum.append(float(ts.qp_solve_ms_sum))
+        log.qp_solve_ms_max.append(float(ts.qp_solve_ms_max))
+        log.qp_iter_sum.append(int(ts.qp_iter_sum))
+        log.qp_n_solves.append(int(ts.qp_n_solves))
+        log.qp_n_failed.append(int(ts.qp_n_failed))
+        log.qp_status_worst.append(int(ts.qp_status_worst))
 
         # ── M0.2 enrichment ────────────────────────────────────────────
         # Torso orientation (actual vs ref) as quaternion wxyz

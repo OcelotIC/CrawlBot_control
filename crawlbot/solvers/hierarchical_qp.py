@@ -65,6 +65,20 @@ class QPSolveInfo:
     failed_priority: Optional[int] = None
     solve_time_ms: float = 0.0
     n_iter: int = 0
+    # ── C2.2.1 telemetry (logging-only; never read by control) ──────────
+    # `success`/`exitflag` above are derived from whether the backend call
+    # RAISED. The canonical backend runs with `error_on_fail: False`
+    # (_get_solver_options), so an infeasible QP returns normally and those
+    # two fields report success regardless — they cannot express a solver
+    # failure on the weighted path. The three fields below carry what the
+    # backend itself reports, via `casadi.Function.stats()`:
+    #   solver_success  — stats()['success']; None when stats are unavailable
+    #   return_status   — stats()['return_status'], the backend's own string
+    #   n_iter          — stats()['iter_count'] (qpOASES working-set steps)
+    # They are additive: nothing above changes value because of them, so the
+    # legacy `qp_ok` column stays byte-stable.
+    solver_success: Optional[bool] = None
+    return_status: str = ''
 
 
 class HierarchicalQP:
@@ -287,6 +301,10 @@ class HierarchicalQP:
             success=qp_info['success'],
             exitflag=qp_info['exitflag'],
             cost=qp_info.get('cost', np.inf),
+            # C2.2.1 telemetry — see QPSolveInfo. Additive only.
+            solver_success=qp_info.get('solver_success'),
+            return_status=qp_info.get('return_status', ''),
+            n_iter=qp_info.get('n_iter', 0),
         )
         return x_opt, info
 
@@ -484,10 +502,31 @@ class HierarchicalQP:
             success = False
             exitflag = -1
 
+        # C2.2.1 — read the backend's own outcome. `success`/`exitflag` above
+        # only say whether the call raised, and with `error_on_fail: False`
+        # an infeasible QP does NOT raise, so they cannot report a failure.
+        # `stats()` can. Best-effort and additive: on any exception the keys
+        # come back as "unavailable" and NOTHING above is altered, so the
+        # legacy success/exitflag path — and therefore the logged `qp_ok`
+        # column — is bit-for-bit unchanged.
+        solver_success = None
+        return_status = ''
+        n_iter = 0
+        try:
+            st = solver.stats()
+            solver_success = bool(st.get('success', False))
+            return_status = str(st.get('return_status', ''))
+            n_iter = int(st.get('iter_count', 0))
+        except Exception:                              # noqa: BLE001
+            pass
+
         return x_opt, {
             'success': success,
             'exitflag': exitflag,
             'cost': cost,
+            'solver_success': solver_success,
+            'return_status': return_status,
+            'n_iter': n_iter,
         }
 
     def _get_solver_options(self) -> Dict[str, Any]:

@@ -1,0 +1,287 @@
+{
+  "source_csv": "results/review_closure/c2/c25_c2_fulldiag.csv",
+  "host": {
+    "platform": "Linux-6.18.5-x86_64-with-glibc2.39",
+    "machine": "x86_64",
+    "processor": "x86_64",
+    "cpu_count_logical": 4,
+    "cpu_model": "Intel(R) Xeon(R) Processor @ 2.80GHz",
+    "mem_total": "16461176 kB"
+  },
+  "library_versions": {
+    "python_version": "3.11.15 (main, Mar  3 2026, 09:26:23) [GCC 13.3.0]",
+    "mujoco_version": "3.10.0",
+    "pinocchio_version": "3.9.0",
+    "numpy_version": "2.3.5"
+  },
+  "n_ticks": 2077,
+  "n_qp_solves_recorded": 8458,
+  "per_solve_mean_ms": {
+    "n": 2077,
+    "min": 4.344863,
+    "median": 5.641415,
+    "mean": 5.873354122773231,
+    "p95": 7.755266400000001,
+    "p99": 8.895089599999997,
+    "max": 14.702000000000002,
+    "unit": "ms"
+  },
+  "per_tick_worst_solve_ms": {
+    "n": 2077,
+    "min": 4.445334,
+    "median": 5.806369,
+    "mean": 6.156654667308619,
+    "p95": 8.1163176,
+    "p99": 10.0342232,
+    "max": 97.95928,
+    "unit": "ms"
+  },
+  "per_solve_iters": {
+    "n": 2077,
+    "min": 48.0,
+    "median": 90.0,
+    "mean": 93.32070293692827,
+    "p95": 116.8,
+    "p99": 123.0,
+    "max": 132.2,
+    "unit": "iters"
+  },
+  "wbc_block_ms": {
+    "n": 2077,
+    "min": 0.0,
+    "median": 0.0,
+    "mean": 26.93556049590756,
+    "p95": 92.05776200000001,
+    "p99": 110.19008399999983,
+    "max": 174.4242,
+    "unit": "ms"
+  },
+  "qp_share_of_block_pct": {
+    "n": 709,
+    "min": 63.58692756982796,
+    "median": 70.92938901930928,
+    "mean": 70.73901244561058,
+    "p95": 73.5623609489118,
+    "p99": 74.67918963391652,
+    "max": 84.28876268315979,
+    "unit": "%"
+  },
+  "controller_only_per_nmpc_tick_ms": {
+    "n": 2077,
+    "min": 4.445334,
+    "median": 6.524195,
+    "mean": 30.09258108810785,
+    "p95": 81.65705,
+    "p99": 94.25418159999954,
+    "max": 166.05687,
+    "unit": "ms"
+  },
+  "budget": {
+    "dt_qp_ms": 10.0,
+    "dt_nmpc_ms": 100.0,
+    "ticks_with_a_solve_over_dt_qp": 22,
+    "ticks_measured": 2077,
+    "worst_single_solve_ms": 97.95928,
+    "controller_only_over_dt_nmpc": 19
+  },
+  "per_phase": {
+    "SS": {
+      "n_ticks": 508,
+      "n_solves": 5080,
+      "per_solve_mean_ms": {
+        "n": 508,
+        "min": 4.344863,
+        "median": 5.091311,
+        "mean": 5.1550226358267714,
+        "p95": 5.839603249999999,
+        "p99": 6.980707640000002,
+        "max": 8.011973000000001,
+        "unit": "ms"
+      },
+      "per_tick_worst_solve_ms": {
+        "n": 508,
+        "min": 4.642007,
+        "median": 5.6049045,
+        "mean": 5.828531767716536,
+        "p95": 7.3795534,
+        "p99": 9.266740210000005,
+        "max": 13.93684,
+        "unit": "ms"
+      },
+      "per_solve_iters": {
+        "n": 508,
+        "min": 76.0,
+        "median": 85.6,
+        "mean": 85.59862204724409,
+        "p95": 92.13,
+        "p99": 97.37200000000001,
+        "max": 104.4,
+        "unit": "iters"
+      }
+    },
+    "DS_terminal": {
+      "n_ticks": 201,
+      "n_solves": 2010,
+      "per_solve_mean_ms": {
+        "n": 201,
+        "min": 5.384513,
+        "median": 6.349315,
+        "mean": 6.634699124378109,
+        "p95": 8.892584,
+        "p99": 10.42761,
+        "max": 14.702000000000002,
+        "unit": "ms"
+      },
+      "per_tick_worst_solve_ms": {
+        "n": 201,
+        "min": 5.502061,
+        "median": 6.931127,
+        "mean": 7.859935900497512,
+        "p95": 10.66284,
+        "p99": 12.67454,
+        "max": 97.95928,
+        "unit": "ms"
+      },
+      "per_solve_iters": {
+        "n": 201,
+        "min": 94.4,
+        "median": 115.1,
+        "mean": 112.58706467661692,
+        "p95": 129.0,
+        "p99": 131.8,
+        "max": 132.2,
+        "unit": "iters"
+      }
+    },
+    "DS_interstep": {
+      "n_ticks": 1368,
+      "n_solves": 1368,
+      "per_solve_mean_ms": {
+        "n": 1368,
+        "min": 4.445334,
+        "median": 5.7830285,
+        "mean": 6.028238662280701,
+        "p95": 7.91229185,
+        "p99": 8.82420816,
+        "max": 10.09743,
+        "unit": "ms"
+      },
+      "per_tick_worst_solve_ms": {
+        "n": 1368,
+        "min": 4.445334,
+        "median": 5.7830285,
+        "mean": 6.028238662280701,
+        "p95": 7.91229185,
+        "p99": 8.82420816,
+        "max": 10.09743,
+        "unit": "ms"
+      },
+      "per_solve_iters": {
+        "n": 1368,
+        "min": 48.0,
+        "median": 92.0,
+        "mean": 93.35745614035088,
+        "p95": 111.0,
+        "p99": 119.0,
+        "max": 126.0,
+        "unit": "iters"
+      }
+    }
+  },
+  "outcomes": {
+    "qp_status_worst_histogram": {
+      "0": 2077
+    },
+    "qp_n_failed_total": 0,
+    "nmpc_status_str_histogram": {
+      "NMPC_BYPASSED": 1368,
+      "Solve_Succeeded": 704,
+      "Solved_To_Acceptable_Level": 5
+    },
+    "sentinel_rows": 0
+  },
+  "preplanner_stats": [
+    {
+      "success": true,
+      "solve_ms": 99.03349199998956,
+      "iter_count": 14,
+      "cost": 24.55128031142334,
+      "status": "Solve_Succeeded",
+      "t_plan_start": 0.11,
+      "T_step": 2.7750631466491
+    },
+    {
+      "success": true,
+      "solve_ms": 35.180764000074305,
+      "iter_count": 12,
+      "cost": 0.8852002649500657,
+      "status": "Solve_Succeeded",
+      "t_plan_start": 5.7200000000000015,
+      "T_step": 7.651952524721201
+    },
+    {
+      "success": true,
+      "solve_ms": 45.201134000080856,
+      "iter_count": 18,
+      "cost": 47.342434874546235,
+      "status": "Solve_Succeeded",
+      "t_plan_start": 18.19999999999997,
+      "T_step": 3.4523296214171038
+    },
+    {
+      "success": true,
+      "solve_ms": 28.65419300007943,
+      "iter_count": 11,
+      "cost": 0.8111827466130153,
+      "status": "Solve_Succeeded",
+      "t_plan_start": 30.860000000000117,
+      "T_step": 7.9239614430688645
+    },
+    {
+      "success": true,
+      "solve_ms": 50.86806200006322,
+      "iter_count": 21,
+      "cost": 162.97830238511511,
+      "status": "Solve_Succeeded",
+      "t_plan_start": 43.08000000000025,
+      "T_step": 3.4327953792880987
+    },
+    {
+      "success": true,
+      "solve_ms": 30.359977999978582,
+      "iter_count": 12,
+      "cost": 0.8359519772975563,
+      "status": "Solve_Succeeded",
+      "t_plan_start": 55.440000000000396,
+      "T_step": 7.771814486049968
+    }
+  ],
+  "preplanner_summary": {
+    "n_solves": 6,
+    "solve_ms": {
+      "n": 6,
+      "min": 28.65419300007943,
+      "median": 40.19094900007758,
+      "mean": 48.216270500044324,
+      "p95": 86.99213450000798,
+      "p99": 96.62522049999325,
+      "max": 99.03349199998956,
+      "unit": "ms"
+    },
+    "iter_count": {
+      "n": 6,
+      "min": 11,
+      "median": 13.0,
+      "mean": 14.666666666666666,
+      "p95": 20.25,
+      "p99": 20.85,
+      "max": 21,
+      "unit": "iters"
+    },
+    "all_success": true,
+    "statuses": [
+      "Solve_Succeeded"
+    ],
+    "total_solve_ms": 289.29762300026596
+  }
+}
