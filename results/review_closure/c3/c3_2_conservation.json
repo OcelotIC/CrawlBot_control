@@ -1,0 +1,170 @@
+{
+  "a_Ltot_profile": {
+    "n_samples": 1929,
+    "t_span_s": [
+      0.01,
+      964.01
+    ],
+    "peak_Nms": 0.001493656,
+    "at_last_dock_Nms": 0.001493656,
+    "at_traversal_end_Nms": 0.00147308,
+    "final_Nms": 0.00147308,
+    "traversal_gain_Nms": 0.001493656,
+    "tail_drift_Nms": 0.0,
+    "tail_span_s": 879.0
+  },
+  "b_structure_momentum": {
+    "peak_Nms": 3.225183679273625,
+    "peak_traversal_Nms": 3.225183679273625,
+    "mean_traversal_Nms": 1.2448913729245878,
+    "final_Nms": 0.003838530442028866,
+    "peak_per_axis_Nms": [
+      0.4908398553785044,
+      1.4729665418153564,
+      3.172603548547498
+    ],
+    "vs_hw_peak_Nms": 4.101908
+  },
+  "c_reduced_relation": {
+    "tail_mean_Nms": [
+      0.00179021036748906,
+      0.00030860175824896935,
+      0.0033622364240997564
+    ],
+    "tail_std_Nms": [
+      0.00045198129129051765,
+      0.0013564725255219793,
+      0.004812349822179036
+    ],
+    "tail_ptp_Nms": [
+      0.003554931027273999,
+      0.017919861967893476,
+      0.055215578116824995
+    ],
+    "note": "I_s*omega_s + h_w over the quiescent tail; a drifting mean would indicate the reduced relation losing validity"
+  },
+  "e_mechanism": {
+    "tail_span_s": 879.0,
+    "tail_absolute_growth_Nms": 0.0,
+    "tail_relative_growth": 0.0,
+    "alpha_fit": null,
+    "tail_is_weak_evidence": "A flat tail does NOT by itself exclude the integrator. Round-off accumulates per unit of DYNAMICAL WORK, not per unit of wall-clock: in a welded quiescent tail the state barely changes, so ~0 growth is what BOTH the round-off hypothesis and the event-injection hypothesis predict. The tail only excludes a time-driven bias. The discriminator is the leg asymmetry below.",
+    "verdict": "EVENT-INJECTED \u2014 see e_leg_summary. The discriminator is that residual injection is ANTI-correlated with dynamical activity: the swing legs carry 22x the CoM path length, 3-8x the joint torque and 1.5x the duration of the dock legs, yet inject ~300x less residual (~6600x less per metre travelled). Integrator round-off would scale WITH that activity, not against it. The dock legs are the quiet ones; what distinguishes them is that each contains a weld ACTIVATION (constraint added, inelastic impact projection) and a release."
+  },
+  "e_per_event_increments": [
+    {
+      "from": "initial",
+      "to": "release_step0",
+      "dt_s": 0.11,
+      "d_Ltot_norm_Nms": 8.08878279781754e-21
+    },
+    {
+      "from": "release_step0",
+      "to": "dock_step0",
+      "dt_s": 2.9,
+      "d_Ltot_norm_Nms": 1.3759958917692815e-06
+    },
+    {
+      "from": "dock_step0",
+      "to": "release_step1",
+      "dt_s": 2.71,
+      "d_Ltot_norm_Nms": 0.00019115891280507572
+    },
+    {
+      "from": "release_step1",
+      "to": "dock_step1",
+      "dt_s": 9.0,
+      "d_Ltot_norm_Nms": -1.2436649687787998e-06
+    },
+    {
+      "from": "dock_step1",
+      "to": "release_step2",
+      "dt_s": 3.48,
+      "d_Ltot_norm_Nms": 0.0006364444837066892
+    },
+    {
+      "from": "release_step2",
+      "to": "dock_step2",
+      "dt_s": 10.3,
+      "d_Ltot_norm_Nms": -1.3255963396655197e-06
+    },
+    {
+      "from": "dock_step2",
+      "to": "release_step3",
+      "dt_s": 2.36,
+      "d_Ltot_norm_Nms": -7.759543327175915e-05
+    },
+    {
+      "from": "release_step3",
+      "to": "dock_step3",
+      "dt_s": 9.2,
+      "d_Ltot_norm_Nms": -2.6060406444362166e-07
+    },
+    {
+      "from": "dock_step3",
+      "to": "release_step4",
+      "dt_s": 3.02,
+      "d_Ltot_norm_Nms": 0.00040606586329090604
+    },
+    {
+      "from": "release_step4",
+      "to": "dock_step4",
+      "dt_s": 10.3,
+      "d_Ltot_norm_Nms": -1.0125190795372708e-06
+    },
+    {
+      "from": "dock_step4",
+      "to": "release_step5",
+      "dt_s": 2.06,
+      "d_Ltot_norm_Nms": 0.00010351891874018585
+    },
+    {
+      "from": "release_step5",
+      "to": "dock_step5",
+      "dt_s": 9.1,
+      "d_Ltot_norm_Nms": -2.787903093397128e-07
+    },
+    {
+      "from": "dock_step5",
+      "to": "final",
+      "dt_s": 20.1,
+      "d_Ltot_norm_Nms": 0.0002162328623270082
+    }
+  ],
+  "e_leg_summary": {
+    "swing_legs_release_to_dock": {
+      "n": 6,
+      "total_abs_Nms": 5.4971706535342066e-06
+    },
+    "dock_legs_dock_to_next_release": {
+      "n": 5,
+      "total_abs_Nms": 0.001414783611814616
+    }
+  },
+  "f_plant_crosscheck": {
+    "I_eff_fitted_kgm2": [
+      951.8822634526776,
+      1904.5122845585088,
+      2158.1009164690563
+    ],
+    "fit_r2": [
+      0.9182926164470017,
+      0.9999953327347888,
+      0.9999853802796187
+    ],
+    "I_s_declared_MJCF_kgm2": [
+      597.0,
+      1493.0,
+      1777.0
+    ],
+    "ratio_I_eff_over_I_s": [
+      1.5944426523495439,
+      1.2756277860405283,
+      1.214463093117083
+    ],
+    "note": "I_eff > I_s indicates the COMPOSITE (locked) inertia \u2014 the robot is welded to the structure in the tail, so the wheels react against structure + robot, not the structure alone. T2 reported I_comp ~ 2152-2180 on the z axis. VALIDATOR ONLY: no plant state is modified.",
+    "dominant_axis": "z",
+    "omega_rms_discrepancy_radps": 4.827120326555158e-08,
+    "omega_rms_of_signal_radps": 1.606973324779079e-05
+  }
+}
