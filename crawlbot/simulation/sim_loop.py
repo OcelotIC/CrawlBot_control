@@ -422,7 +422,14 @@ class SimulationLoop(TickLoggingMixin):
             robot_mass=rs0.total_mass,
             N=cfg.nmpc_N, dt=cfg.nmpc_dt,
             f_max=cfg.nmpc_f_max, tau_max=cfg.nmpc_tau_max,
-            L_max=cfg.L_max, tau_w_max=cfg.tau_w_max,
+            L_max=cfg.L_max,
+            # C4: NMPC-only rate cap. None ⇒ cfg.tau_w_max, i.e. the canonical
+            # path byte-identical. The SAME cfg.tau_w_max is also read by the
+            # whole-body QP envelope box (`_build_qp`) and, via dca.main, by
+            # the AOCS clip — see SimConfig.nmpc_tau_w_max for why an ablation
+            # of the planner's constraint set has to separate them.
+            tau_w_max=(cfg.tau_w_max if cfg.nmpc_tau_w_max is None
+                       else cfg.nmpc_tau_w_max),
             p_max=cfg.nmpc_p_max,
             Wv=cfg.nmpc_Wv * np.ones(3),
             Wr=cfg.nmpc_Wr * np.ones(3),

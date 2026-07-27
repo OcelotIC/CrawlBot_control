@@ -77,6 +77,17 @@ class SimConfig:
     hw_qp_tight: np.ndarray = field(default_factory=lambda: np.full(3, 3.0))
     L_max: float = 10.0           # Robot angular momentum limit [Nms]
     tau_w_max: float = 2.5        # |Ḣ_s,i| ≤ τ_w_max [Nm] — wheel-torque rate cap (NMPC); CANONICAL-2p5 freeze (was 5)
+    # C4 ablation knob: NMPC-ONLY override of the momentum-rate cap.
+    # `tau_w_max` above is read by THREE consumers — the NMPC path constraint,
+    # the whole-body QP envelope box (sim_loop passes it to WholeBodyQPConfig),
+    # and, through dca.main, the AOCS clip. Moving it therefore moves all three
+    # at once, which is precisely the confound in the published unmanaged run
+    # (u25 lifts NMPC + QP + AOCS together, see C4_ABLATION.md §1).
+    # When this is not None the NMPC uses it INSTEAD of tau_w_max, leaving the
+    # QP box and the AOCS clip where they are — so an ablation can vary the
+    # planner's constraint set and nothing else.
+    # None ⇒ use tau_w_max (byte-identical to the canonical).
+    nmpc_tau_w_max: Optional[float] = None
 
     # ── AOCS ────────────────────────────────────────────────────
     aocs_K_hw: float = 2.0        # Legacy feedback gain [1/s]

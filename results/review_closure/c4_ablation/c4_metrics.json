@@ -1,0 +1,497 @@
+{
+  "none": {
+    "arm": "none",
+    "n_docked": 6,
+    "aborts": [],
+    "docks": [
+      {
+        "step": 0,
+        "t": 2.91,
+        "d_mm": 1.99,
+        "ori_deg": 0.18,
+        "twist": 0.026887,
+        "twist_lin_norm": 0.020253212,
+        "twist_ang_norm": 0.017683597
+      },
+      {
+        "step": 1,
+        "t": 14.83,
+        "d_mm": 4.82,
+        "ori_deg": 0.04,
+        "twist": 0.007199,
+        "twist_lin_norm": 0.006799508,
+        "twist_ang_norm": 0.002363645
+      },
+      {
+        "step": 2,
+        "t": 27.02,
+        "d_mm": 4.91,
+        "ori_deg": 0.04,
+        "twist": 0.004068,
+        "twist_lin_norm": 0.003747888,
+        "twist_ang_norm": 0.001581979
+      },
+      {
+        "step": 3,
+        "t": 38.29,
+        "d_mm": 4.89,
+        "ori_deg": 0.05,
+        "twist": 0.00695,
+        "twist_lin_norm": 0.006507983,
+        "twist_ang_norm": 0.002439372
+      },
+      {
+        "step": 4,
+        "t": 44.59,
+        "d_mm": 2.85,
+        "ori_deg": 0.15,
+        "twist": 0.028213,
+        "twist_lin_norm": 0.021859746,
+        "twist_ang_norm": 0.017836294
+      },
+      {
+        "step": 5,
+        "t": 56.03,
+        "d_mm": 4.99,
+        "ori_deg": 0.06,
+        "twist": 0.007431,
+        "twist_lin_norm": 0.006891354,
+        "twist_ang_norm": 0.0027797
+      }
+    ],
+    "env_planned_per_step": [
+      7.8221,
+      3.8035,
+      9.4305,
+      2.5365,
+      12.741,
+      3.3562
+    ],
+    "env_realized_per_step": [
+      2.0569,
+      2.0925,
+      2.2381,
+      1.5467,
+      2.5,
+      1.5147
+    ],
+    "theta_s_peak_traversal_deg": 0.3664,
+    "theta_s_peak_fulllog_deg": 0.3664,
+    "traversal_window_end_s": 55.93,
+    "hw_peak_axis_Nms": 3.505,
+    "hw_box_fraction_pct": 70.1,
+    "hw_ticks_over_box": 0,
+    "sat_tick_any_axis_pct": 10.15,
+    "sat_axis_sample_pct": 3.633,
+    "sat_by_phase_pct": {
+      "SS": 3.318,
+      "DS_terminal": 0.0,
+      "DS_interstep": 13.725
+    },
+    "tau_w_peak_demand_Nm": 3.5158,
+    "nmpc_solves": 623,
+    "nmpc_iters_total": 4302,
+    "nmpc_iters_median": 6.0,
+    "nmpc_iters_mean": 6.905,
+    "t_end_s": 76.03,
+    "last_dock_s": 56.03,
+    "ss_duration_per_step_s": {
+      "0": 2.7,
+      "1": 9.0,
+      "2": 8.7,
+      "3": 9.2,
+      "4": 3.2,
+      "5": 8.8
+    },
+    "gate_evals": 98,
+    "gate_refused": 92,
+    "gate_refused_pose_valid": 0,
+    "gate_refused_pose_valid_detail": [],
+    "gate_refusals_by_step": {
+      "1": {
+        "total": 13,
+        "pos": 13,
+        "ori": 0,
+        "twist": 0
+      },
+      "2": {
+        "total": 54,
+        "pos": 54,
+        "ori": 0,
+        "twist": 0
+      },
+      "3": {
+        "total": 12,
+        "pos": 12,
+        "ori": 0,
+        "twist": 0
+      },
+      "5": {
+        "total": 13,
+        "pos": 13,
+        "ori": 0,
+        "twist": 0
+      }
+    }
+  },
+  "rate": {
+    "arm": "rate",
+    "n_docked": 6,
+    "aborts": [],
+    "docks": [
+      {
+        "step": 0,
+        "t": 3.01,
+        "d_mm": 4.02,
+        "ori_deg": 0.14,
+        "twist": 0.020058,
+        "twist_lin_norm": 0.014826007,
+        "twist_ang_norm": 0.013510436
+      },
+      {
+        "step": 1,
+        "t": 14.72,
+        "d_mm": 4.89,
+        "ori_deg": 0.04,
+        "twist": 0.007735,
+        "twist_lin_norm": 0.007288453,
+        "twist_ang_norm": 0.002590285
+      },
+      {
+        "step": 2,
+        "t": 28.5,
+        "d_mm": 4.99,
+        "ori_deg": 0.02,
+        "twist": 0.005781,
+        "twist_lin_norm": 0.005359738,
+        "twist_ang_norm": 0.002165461
+      },
+      {
+        "step": 3,
+        "t": 40.06,
+        "d_mm": 4.97,
+        "ori_deg": 0.05,
+        "twist": 0.00717,
+        "twist_lin_norm": 0.006725356,
+        "twist_ang_norm": 0.00248664
+      },
+      {
+        "step": 4,
+        "t": 53.38,
+        "d_mm": 4.95,
+        "ori_deg": 0.01,
+        "twist": 0.00499,
+        "twist_lin_norm": 0.00464708,
+        "twist_ang_norm": 0.001818432
+      },
+      {
+        "step": 5,
+        "t": 64.54,
+        "d_mm": 4.62,
+        "ori_deg": 0.04,
+        "twist": 0.00702,
+        "twist_lin_norm": 0.006553544,
+        "twist_ang_norm": 0.002516102
+      }
+    ],
+    "env_planned_per_step": [
+      2.5,
+      2.5,
+      2.5,
+      2.4999,
+      2.5,
+      2.5
+    ],
+    "env_realized_per_step": [
+      1.9586,
+      2.0378,
+      2.1878,
+      1.5019,
+      2.5,
+      1.4687
+    ],
+    "theta_s_peak_traversal_deg": 0.3668,
+    "theta_s_peak_fulllog_deg": 0.5346,
+    "traversal_window_end_s": 64.44,
+    "hw_peak_axis_Nms": 4.1019,
+    "hw_box_fraction_pct": 82.04,
+    "hw_ticks_over_box": 0,
+    "sat_tick_any_axis_pct": 4.574,
+    "sat_axis_sample_pct": 1.589,
+    "sat_by_phase_pct": {
+      "SS": 3.937,
+      "DS_terminal": 0.0,
+      "DS_interstep": 5.482
+    },
+    "tau_w_peak_demand_Nm": 3.899,
+    "nmpc_solves": 709,
+    "nmpc_iters_total": 7677,
+    "nmpc_iters_median": 11.0,
+    "nmpc_iters_mean": 10.828,
+    "t_end_s": 84.54,
+    "last_dock_s": 64.54,
+    "ss_duration_per_step_s": {
+      "0": 2.8,
+      "1": 8.9,
+      "2": 10.2,
+      "3": 9.1,
+      "4": 10.2,
+      "5": 9.0
+    },
+    "gate_evals": 181,
+    "gate_refused": 175,
+    "gate_refused_pose_valid": 4,
+    "gate_refused_pose_valid_detail": [
+      {
+        "step": 2,
+        "t": 21.9,
+        "d_mm": 4.334,
+        "ori_deg": 0.105,
+        "twist": 0.060522,
+        "blocked_by": "twist"
+      },
+      {
+        "step": 2,
+        "t": 22.0,
+        "d_mm": 4.941,
+        "ori_deg": 0.234,
+        "twist": 0.057386,
+        "blocked_by": "twist"
+      },
+      {
+        "step": 4,
+        "t": 46.58,
+        "d_mm": 3.409,
+        "ori_deg": 0.157,
+        "twist": 0.057616,
+        "blocked_by": "twist"
+      },
+      {
+        "step": 4,
+        "t": 46.68,
+        "d_mm": 3.326,
+        "ori_deg": 0.23,
+        "twist": 0.050607,
+        "blocked_by": "twist"
+      }
+    ],
+    "gate_refusals_by_step": {
+      "0": {
+        "total": 1,
+        "pos": 1,
+        "ori": 0,
+        "twist": 0
+      },
+      "1": {
+        "total": 13,
+        "pos": 13,
+        "ori": 0,
+        "twist": 0
+      },
+      "2": {
+        "total": 68,
+        "pos": 66,
+        "ori": 0,
+        "twist": 2
+      },
+      "3": {
+        "total": 12,
+        "pos": 12,
+        "ori": 0,
+        "twist": 0
+      },
+      "4": {
+        "total": 68,
+        "pos": 66,
+        "ori": 0,
+        "twist": 2
+      },
+      "5": {
+        "total": 13,
+        "pos": 13,
+        "ori": 0,
+        "twist": 0
+      }
+    }
+  },
+  "full": {
+    "arm": "full",
+    "n_docked": 6,
+    "aborts": [],
+    "docks": [
+      {
+        "step": 0,
+        "t": 3.01,
+        "d_mm": 4.02,
+        "ori_deg": 0.14,
+        "twist": 0.020058,
+        "twist_lin_norm": 0.014826007,
+        "twist_ang_norm": 0.013510436
+      },
+      {
+        "step": 1,
+        "t": 14.72,
+        "d_mm": 4.89,
+        "ori_deg": 0.04,
+        "twist": 0.007735,
+        "twist_lin_norm": 0.007288454,
+        "twist_ang_norm": 0.002590285
+      },
+      {
+        "step": 2,
+        "t": 28.5,
+        "d_mm": 4.99,
+        "ori_deg": 0.02,
+        "twist": 0.005781,
+        "twist_lin_norm": 0.005359737,
+        "twist_ang_norm": 0.00216546
+      },
+      {
+        "step": 3,
+        "t": 40.06,
+        "d_mm": 4.97,
+        "ori_deg": 0.05,
+        "twist": 0.00717,
+        "twist_lin_norm": 0.006725356,
+        "twist_ang_norm": 0.00248664
+      },
+      {
+        "step": 4,
+        "t": 53.38,
+        "d_mm": 4.95,
+        "ori_deg": 0.01,
+        "twist": 0.00499,
+        "twist_lin_norm": 0.004647079,
+        "twist_ang_norm": 0.001818431
+      },
+      {
+        "step": 5,
+        "t": 64.54,
+        "d_mm": 4.62,
+        "ori_deg": 0.04,
+        "twist": 0.00702,
+        "twist_lin_norm": 0.006553544,
+        "twist_ang_norm": 0.002516101
+      }
+    ],
+    "env_planned_per_step": [
+      2.5,
+      2.5,
+      2.5,
+      2.4999,
+      2.5,
+      2.5
+    ],
+    "env_realized_per_step": [
+      1.9586,
+      2.0378,
+      2.1878,
+      1.5019,
+      2.5,
+      1.4687
+    ],
+    "theta_s_peak_traversal_deg": 0.3668,
+    "theta_s_peak_fulllog_deg": 0.5346,
+    "traversal_window_end_s": 64.44,
+    "hw_peak_axis_Nms": 4.1019,
+    "hw_box_fraction_pct": 82.04,
+    "hw_ticks_over_box": 0,
+    "sat_tick_any_axis_pct": 4.574,
+    "sat_axis_sample_pct": 1.589,
+    "sat_by_phase_pct": {
+      "SS": 3.937,
+      "DS_terminal": 0.0,
+      "DS_interstep": 5.482
+    },
+    "tau_w_peak_demand_Nm": 3.899,
+    "nmpc_solves": 709,
+    "nmpc_iters_total": 7705,
+    "nmpc_iters_median": 11.0,
+    "nmpc_iters_mean": 10.867,
+    "t_end_s": 84.54,
+    "last_dock_s": 64.54,
+    "ss_duration_per_step_s": {
+      "0": 2.8,
+      "1": 8.9,
+      "2": 10.2,
+      "3": 9.1,
+      "4": 10.2,
+      "5": 9.0
+    },
+    "gate_evals": 181,
+    "gate_refused": 175,
+    "gate_refused_pose_valid": 4,
+    "gate_refused_pose_valid_detail": [
+      {
+        "step": 2,
+        "t": 21.9,
+        "d_mm": 4.334,
+        "ori_deg": 0.105,
+        "twist": 0.060522,
+        "blocked_by": "twist"
+      },
+      {
+        "step": 2,
+        "t": 22.0,
+        "d_mm": 4.941,
+        "ori_deg": 0.234,
+        "twist": 0.057386,
+        "blocked_by": "twist"
+      },
+      {
+        "step": 4,
+        "t": 46.58,
+        "d_mm": 3.409,
+        "ori_deg": 0.157,
+        "twist": 0.057616,
+        "blocked_by": "twist"
+      },
+      {
+        "step": 4,
+        "t": 46.68,
+        "d_mm": 3.326,
+        "ori_deg": 0.23,
+        "twist": 0.050607,
+        "blocked_by": "twist"
+      }
+    ],
+    "gate_refusals_by_step": {
+      "0": {
+        "total": 1,
+        "pos": 1,
+        "ori": 0,
+        "twist": 0
+      },
+      "1": {
+        "total": 13,
+        "pos": 13,
+        "ori": 0,
+        "twist": 0
+      },
+      "2": {
+        "total": 68,
+        "pos": 66,
+        "ori": 0,
+        "twist": 2
+      },
+      "3": {
+        "total": 12,
+        "pos": 12,
+        "ori": 0,
+        "twist": 0
+      },
+      "4": {
+        "total": 68,
+        "pos": 66,
+        "ori": 0,
+        "twist": 2
+      },
+      "5": {
+        "total": 13,
+        "pos": 13,
+        "ori": 0,
+        "twist": 0
+      }
+    }
+  }
+}

@@ -120,7 +120,7 @@ records them:
 | `tau_att_p` | `K_θ · θ_s` | attitude proportional |
 | `tau_rate_d` | `K_ω · ω_s` | rate damping |
 | `tau_accel_d` | `K_d · ω̇_s` | second-order damping, ω̇ by one-step FD |
-| `tau_antiwindup` | `K_hw · (sat(h_w) − h_w)` | **identically zero while `|h_w| ≤ h_max`** |
+| `tau_antiwindup` | `K_hw · (sat(h_w) − h_w)` | **identically zero while ` |h_w| ≤ h_max`** |
 | `tau_w_preclip` | their sum | before the ±`tau_w_max` clip |
 | `tau_w` | `clip(tau_w_preclip)` | what is commanded |
 

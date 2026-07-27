@@ -264,7 +264,9 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
          preplanner_tstep_standoff_gain: float = 0.0,
          preplanner_tstep_standoff_knee: float = 1e9,
          preplanner_tstep_scale_step: int = -1,
-         preplanner_tstep_scale_factor: float = 1.0):
+         preplanner_tstep_scale_factor: float = 1.0,
+         nmpc_tau_w_max: float = None,
+         enforce_hw_conservation: bool = None):
     cfg = r_single._make_m7_config()
     cfg.gait_anchor_dx = anchor_dx
     # Sweet-spot config carry-over (these are also already the defaults
@@ -478,6 +480,15 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
         cfg.passivity_W_budget = float(passivity_W_budget)
     # Piste A (J2 #3): envelope-coupled budget (β) + exact Ḣ_s box.
     cfg.qp_envelope_exact = bool(qp_envelope_exact)
+    # C4 ablation: vary the NMPC constraint set ONLY. Both default None ⇒
+    # untouched ⇒ canonical behaviour byte-identical.
+    #   nmpc_tau_w_max        — NMPC rate cap, leaving the QP envelope box and
+    #                           the AOCS clip at cfg.tau_w_max
+    #   enforce_hw_conservation — the NMPC storage (h_w) box
+    if nmpc_tau_w_max is not None:
+        cfg.nmpc_tau_w_max = float(nmpc_tau_w_max)
+    if enforce_hw_conservation is not None:
+        cfg.enforce_hw_conservation = bool(enforce_hw_conservation)
     # Output-dir override (memo §7: new runs → new dirs; prior committed
     # baselines stay read-only). Accepts a name under results/ or an abs path.
     if out_dir_override is not None:

@@ -1,6 +1,6 @@
 {
   "verdict": "PASS",
-  "candidate": "results/review_closure/c2/c25_c2_fulldiag.csv",
+  "candidate": "results/review_closure/c4_ablation/full/c4_full_fulldiag.csv",
   "baseline": "results/j2_adjconv/c25_fulldiag.csv",
   "rows": 2077,
   "baseline_columns": 66,

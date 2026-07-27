@@ -168,7 +168,7 @@ Update this line as work progresses:
 | nq / nv / nu | 31 / 29 / 17 (MuJoCo+RWA) | — | 7-DOF + 3 wheels |
 | Free DOFs in SS | 14 | — | 20 - 6 weld |
 | hw_max | ±5 (**unchanged by design**) | Nms | `config.py:71-72`, spec §4.6 |
-| **tau_w_max** | **2.5** — enforced 3×: controller `config.py:80`, AOCS clip `config.py:84`, **plant** MJCF wheel `ctrlrange ±2.5` (`VISPA_crawling_rwa3.xml:324-326`) | Nm | freeze `32aefaf` (was 5); dca.main default aligned `ec41cd9` |
+| **tau_w_max** | **2.5** — enforced 3×: controller `config.py:79`, AOCS clip `config.py:84`, **plant** MJCF wheel `ctrlrange ±2.5` (`VISPA_crawling_rwa3.xml:324-326`) | Nm | freeze `32aefaf` (was 5); dca.main default aligned `ec41cd9` |
 | tau_max | 20 | Nm | `config.py:32` |
 | dt_nmpc | 0.1 | s | `config.py:24` |
 | dt_qp | 0.01 | s | `config.py:25` |
@@ -176,14 +176,14 @@ Update this line as work progresses:
 | NMPC state dim | 9 | — | spec §5.1 (B2) |
 | NMPC control dim | 12 | — | spec §5.1 |
 | weight_ratio | 1.0 — **α magnitudes ARE the hierarchy** (two-task weighted stack, no null-space projection; priority integers inert) | — | `wholebody_qp.py:94` |
-| **α torso-pose** | **2000** | — | `config.py:303` (Add-5) |
-| **α swing-EE** | **1000** (dock lever; needs ≥ ~1000) | — | `config.py:282` (Add-5) |
-| **α momentum (T-MOM)** | **400** (near-inert on Ḣ_s — NMPC owns the envelope) | — | `config.py:290` (Add-5) |
+| **α torso-pose** | **2000** | — | `config.py:314` (Add-5) |
+| **α swing-EE** | **1000** (dock lever; needs ≥ ~1000) | — | `config.py:293` (Add-5) |
+| **α momentum (T-MOM)** | **400** (near-inert on Ḣ_s — NMPC owns the envelope) | — | `config.py:301` (Add-5) |
 | **w hw-slack** | **800** (slacks active only if the hw box is violated) | — | `wholebody_qp.py:159` (Add-5) |
-| **α posture** | **20** | — | `config.py:283` |
-| **α torque-min** | **5** (must stay ≳ 5× accel-reg floor — Rule 14) | — | `sim_loop.py:971` (QP-construction literal) |
-| **α wrench-track** | **1.0** | — | `config.py:284` (Add-5; was 0.01 pre-freeze) |
-| **α accel-reg** | **1.0** (regularizer floor) | — | `sim_loop.py:971` |
+| **α posture** | **20** | — | `config.py:294` |
+| **α torque-min** | **5** (must stay ≳ 5× accel-reg floor — Rule 14) | — | `sim_loop.py:978` (QP-construction literal) |
+| **α wrench-track** | **1.0** | — | `config.py:295` (Add-5; was 0.01 pre-freeze) |
+| **α accel-reg** | **1.0** (regularizer floor) | — | `sim_loop.py:978` |
 | ε (Tikhonov) | 1e-6 (inert: λ_min(H_LS)=1 ≫ ε) | — | `hierarchical_qp.py:112` default |
 | **κ_SS(H)** | ≈ 7.5e3 (530× below the pre-freeze canonical 3.6e6) | — | `canonical2p5_result.json` |
 | ~~α_com_soft~~ | **field REMOVED** (CLEANUP-6), not merely 0 | — | The soft-CoM residual task is gone; the QP has no direct CoM feedback path. Do not re-add a config field for it without re-adding the task |
