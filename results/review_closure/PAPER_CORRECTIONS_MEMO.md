@@ -200,6 +200,7 @@ settle never saturating.
 | **θ_s convention** | Traversal-window and full-log peaks differ (0.3668 vs 0.5346) because attitude keeps rising through the terminal settle. Label which is quoted | `C4_ABLATION.md` §2 |
 | **Structure inertia (Table II)** | mass 7110 kg, `fullinertia 597/1493/1777` body-frame, radius of gyration 0.29/0.46/0.50 m. State it as a *declared* parameter — the same file draws a 4.8 m beam whose uniform inertia would be ~9× larger | `C1_EXACTNESS.md` §C1.7 |
 | **Storage constraint** | Inactive at the 1 % ratio: `‖h_w‖` peaks at **82.0 %** of the box and never leaves it; removing it changes solver iterations by 0.36 % and nothing physical | `C4_ABLATION.md` §4 |
+| **θ_y plateau** | Expected behaviour, not a bug: the AOCS has no integrator, so a P attitude law parks at a steady-state offset against a persistent welded-loop couple. On y the feedforward outvotes the attitude term **15.4:1** (vs 3.9 on x, 0.96 on z) because a residual net z-force at the welds torques about y on a **2.4 m lever**. State `K_θ = 1.0 N·m/rad` if the plateau is discussed | `C3_3_THETA_Y_AUDIT.md` |
 | **Conservation residual (Fig. 3)** | ‖L_total‖ ≤ **1.4937e-03** N·m·s, injected at the six weld events and **flat thereafter** (0.0000e+00 drift over 879 s). Not integrator round-off — the swing legs carry 22× the CoM path yet inject 297× less | `C3_2` §(e) |
 
 ---
