@@ -168,3 +168,73 @@ Two consequences for the paper, if θ_y is discussed at all:
 
 One open item handed on: the 45–81× τ_w-vs-`dh_w/dt` inconsistency (§3), which
 is system-wide, not y-specific, and needs one instrumented long settle to close.
+
+---
+
+# ADDENDUM — §3 closed by an instrumented 900 s settle
+
+Run: `results/review_closure/c3/settle900/`, produced by
+`c3_3_run_settle900.py` (canonical kwargs verbatim, `settle_seconds` 20 → 900,
+nothing else changed). Traversal reproduces the canonical: **6/6 docks**,
+4.02 / 4.89 / 4.99 / 4.97 / 4.95 / 4.62 mm. 8699 settle ticks at 10 Hz with the
+full C2.x instrumentation. Analysis: `c3_3_settle900_analyse.py` →
+`c3_3_settle900.json`.
+
+## The original framing was partly an artifact — and a bigger problem survives
+
+**§3 overstated the mismatch by treating a decaying transient as a steady
+state.** Over the settle, τ_w, h_w and θ_s all decay exponentially with the
+*same* time constant (**323.7 / 323.1 / 301.9 s**), so a window mean and a
+linear `dh_w/dt` fit are both meaningless. The control loop is working: the
+attitude returns to zero as designed.
+
+Three of the four hypotheses are eliminated outright:
+
+| | test | verdict |
+|---|---|---|
+| **H1** aliasing | full-rate mean vs 0.2 s subsample differs by 0.001 mN·m (0.3 %) | **rejected** |
+| **H2** armature | correcting `I = 0.01 → 0.02` moves the ratio 0.011 → 0.023 | **rejected** (factor 2, not 34) |
+| **H3** damping | explains 2.8–7.9 % of τ_w; a sustained τ_w,z would need ω_w = 33.2 rad/s, actual 2.31 | **rejected** |
+
+## What survives: a 34× momentum-bookkeeping gap
+
+The clean test is the **integral**, which is immune to the decay:
+
+| quantity | value |
+|---|---:|
+| ∫ commanded τ_w,z dt over the settle | **+2.884 N·m·s** |
+| actual Δh_w,z over the same window | **+0.084 N·m·s** |
+| ratio | **0.029 — a 34.4× gap** |
+| ω_w,z implied if the wheel had received it | **144 rad/s** |
+| actual final ω_w,z | **0.412 rad/s** |
+
+Per-tick, `Δh_w` and `τ_w·dt` correlate at only 0.478 with a ratio of 0.029, so
+this is not a windowing effect either.
+
+Both channels were checked for indexing: `hw_physical = rwa_I_w · qvel[6:9]` and
+the wheel actuators are `ctrl[14:17]`; the MJCF orders the structure freejoint
+(qvel 0:6) then `rw_x/y/z` (6:9), and the actuator list places `act_rw_*` after
+the 14 arm motors. Both are correct.
+
+## Why this matters more than the θ_y question it came from
+
+**The ±5 N·m·s storage claim rests on `hw_physical`.** C4 reports the canonical
+peaking at 82.0 % of the box, and Gate D turns on exactly that margin. If the
+wheel is absorbing momentum the logged channel does not see, the margin is
+overstated; if the commanded torque is not being applied, the AOCS is weaker
+than modelled and the attitude performance is being delivered by something else.
+Both readings are consequential and the data does not yet distinguish them.
+
+**Explicitly not resolved here.** The remaining candidates need a targeted probe
+rather than another traversal: read MuJoCo's `actuator_force` for the three
+wheel actuators and compare against `ctrl`; and integrate the wheel's *absolute*
+angular momentum (including the structure's rotation carrying the wheel) rather
+than the joint-relative `I_w·qvel`. That is one short instrumented run and a
+direct MuJoCo state read — a phase of its own, and one I would not fold into a
+θ_y audit.
+
+**Revised status of §3:** the "45–81×, all three axes" figure is withdrawn — it
+was a mean over a decaying transient. The defensible statement is a **34.4×
+integral discrepancy on the z axis** in a run where the attitude loop
+demonstrably converges, with aliasing, armature and damping eliminated as
+explanations.

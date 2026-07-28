@@ -1,0 +1,132 @@
+{
+  "n_ticks": 10876,
+  "t_end_s": 964.4400000001507,
+  "settle_window_s": [
+    94.63999999999878,
+    964.4400000001507
+  ],
+  "settle_ticks": 8699,
+  "dt_median_s": 0.10000000000002274,
+  "H1_full_rate": {
+    "mean_tau_w_mNm": [
+      0.32618,
+      -0.43142,
+      3.3156
+    ],
+    "dhw_dt_mNm": [
+      -0.00372,
+      0.00317,
+      -0.05891
+    ],
+    "ratio": [
+      -0.0114,
+      -0.0073,
+      -0.0178
+    ]
+  },
+  "H1_subsampled": {
+    "step": 2,
+    "mean_tau_w_mNm": [
+      0.32522,
+      -0.4327,
+      3.31463
+    ],
+    "aliasing_shift_mNm": [
+      -0.00096,
+      -0.00128,
+      -0.00097
+    ]
+  },
+  "H2_inertia": {
+    "I_logged": 0.01,
+    "I_effective": 0.02,
+    "dhw_dt_corrected_mNm": [
+      -0.00743,
+      0.00633,
+      -0.11782
+    ],
+    "ratio_after_correction": [
+      -0.0228,
+      -0.0147,
+      -0.0355
+    ]
+  },
+  "H3_damping": {
+    "mean_omega_w_radps": [
+      0.25896,
+      -0.11996,
+      2.30943
+    ],
+    "mean_damping_torque_mNm": [
+      0.0259,
+      -0.012,
+      0.23094
+    ],
+    "damping_explains_frac_of_tau": [
+      0.0794,
+      0.0278,
+      0.0697
+    ],
+    "omega_w_implied_by_steady_state_radps": [
+      3.262,
+      -4.314,
+      33.156
+    ]
+  },
+  "balance": {
+    "tau_minus_damping_mNm": [
+      0.30028,
+      -0.41942,
+      3.08466
+    ],
+    "I_eff_domega_dt_mNm": [
+      -0.00743,
+      0.00633,
+      -0.11782
+    ],
+    "residual_mNm": [
+      0.30771,
+      -0.42576,
+      3.20248
+    ],
+    "residual_frac_of_tau": [
+      0.9434,
+      0.9869,
+      0.9659
+    ]
+  },
+  "decomposition_mean_mNm": {
+    "tau_ff": [
+      -0.0153,
+      -1.02278,
+      0.24987
+    ],
+    "tau_att_p": [
+      0.41336,
+      0.54426,
+      3.62799
+    ],
+    "tau_rate_d": [
+      -0.06516,
+      0.04622,
+      -0.54474
+    ],
+    "tau_accel_d": [
+      -0.00672,
+      0.00089,
+      -0.01753
+    ],
+    "tau_antiwindup": [
+      0.0,
+      0.0,
+      0.0
+    ],
+    "tau_w_preclip": [
+      0.32618,
+      -0.43142,
+      3.3156
+    ]
+  },
+  "clip_active": false,
+  "_artifact_note": "The raw sim_log.json (~46 MB) is not committed; every number here is in this JSON. Regenerate with: MUJOCO_GL=disabled PYTHONPATH=. python3 results/review_closure/c3/c3_3_run_settle900.py  (~19 min), then c3_3_settle900_analyse.py."
+}

@@ -189,7 +189,34 @@ settle never saturating.
 
 ---
 
-## 7. Smaller items, each a single sentence
+## 7. OPEN — a 34x wheel-momentum bookkeeping gap, unresolved
+
+**Severity: potentially high, and unresolved. Flagged, not closed.**
+
+On an instrumented 900 s settle, the integral of the commanded wheel torque is
+**+2.884 N·m·s** while the logged wheel momentum changes by **+0.084 N·m·s** —
+a **34.4× gap** on the z axis. Aliasing, joint armature and wheel damping are
+all eliminated by measurement; channel indexing was verified correct. The
+attitude loop itself converges normally (τ_w, h_w and θ_s all decay with a
+~320 s time constant).
+
+**Why it matters for the paper: the ±5 N·m·s storage claim rests on this
+channel.** C4 reports the canonical peaking at 82.0 % of the box, and Gate D
+turns on that margin. Either the wheel absorbs momentum the channel does not
+see (margin overstated), or the commanded torque is not applied (the AOCS is
+weaker than modelled and attitude is delivered by something else). The data does
+not yet distinguish them.
+
+**Do not quote the storage margin as settled until this is closed.** Closing it
+is one short probe: read `actuator_force` for the three wheel actuators against
+`ctrl`, and integrate the wheel's *absolute* angular momentum rather than the
+joint-relative `I_w·qvel`.
+
+**Evidence**: `C3_3_THETA_Y_AUDIT.md` Addendum, `c3_3_settle900.json`.
+
+---
+
+## 8. Smaller items, each a single sentence
 
 | item | correction | evidence |
 |---|---|---|
