@@ -1,0 +1,102 @@
+{
+  "quantity_definitions": {
+    "rho_rot": "||omega_s x L_robot|| / ||Hdot_s_realized_cont||",
+    "rho_origin": "||v_s x m v_com|| / ||Hdot_s_realized_cont||",
+    "L_robot": "L_com + r_com x m v_com  (structure frame)",
+    "denominator": "sum_j (r_Cj x f_j + tau_j), CSV Hdot_s_realized_cont_*"
+  },
+  "robot_mass_kg": 71.05599999999998,
+  "v_s_provenance": {
+    "logged": false,
+    "derived_from": "struct_pos (= mj_data.qpos[0:3]), central difference",
+    "validation": {
+      "method": "central difference of struct_quat -> omega, vs logged omega_s",
+      "n_compared": 2075,
+      "abs_err_rad_s": {
+        "median": 3.337770960315399e-08,
+        "p95": 6.712608462635349e-06,
+        "max": 0.0028224215136541126
+      },
+      "rel_err_where_omega_gt_1e-3_rad_s": {
+        "n": 266,
+        "median": 0.0028651823154802946,
+        "p95": 0.007078425647148506,
+        "max": 0.8366934824830531
+      },
+      "note": "validates the finite-difference operator used to obtain v_s from struct_pos; v_s itself is not logged. Unconditioned relative error reaches O(1) only on ticks where |omega_s| < 1e-6 rad/s, i.e. where the denominator vanishes.",
+      "v_s_truncation_bound": {
+        "method": "|central(2nd order) - 5point(4th order)| on struct_pos",
+        "abs_median_m_s": 9.497223221269833e-09,
+        "abs_p95_m_s": 0.007986535336504218,
+        "abs_max_m_s": 0.011882235144179522,
+        "rel_to_|v_s|_median": 0.00013556562737924757,
+        "dt_s": 0.010000000000001563
+      }
+    }
+  },
+  "denominator_floor": 1e-09,
+  "csv_vs_simlog_max_abs_diff": {
+    "r_com": 4.991490891725903e-07,
+    "v_com": 4.964616182046022e-08,
+    "omega_s": 4.967906632943886e-10,
+    "hw_vs_hw_physical": 4.986026291842194e-07
+  },
+  "windows": {
+    "traversal_to_last_SS": {
+      "rho_rot": {
+        "n_ticks_in_window": 1876,
+        "n_valid": 1866,
+        "n_excluded_zero_denominator": 10,
+        "median": 0.0001459288075388512,
+        "p95": 0.001126258028936941,
+        "max": 0.00844624403967395,
+        "argmax_t_s": 39.66,
+        "argmax_phase": "SS",
+        "argmax_step_index": 3,
+        "denominator_at_argmax_Nm": 0.03545968982197027,
+        "numerator_at_argmax_Nm": 0.00029950119380750344
+      },
+      "rho_origin": {
+        "n_ticks_in_window": 1876,
+        "n_valid": 1866,
+        "n_excluded_zero_denominator": 10,
+        "median": 3.5193943609759687e-06,
+        "p95": 0.00044498119678330314,
+        "max": 0.005535435725131378,
+        "argmax_t_s": 9.82,
+        "argmax_phase": "SS",
+        "argmax_step_index": 1,
+        "denominator_at_argmax_Nm": 0.2030703733906697,
+        "numerator_at_argmax_Nm": 0.0011240829995824812
+      }
+    },
+    "full_logged_run": {
+      "rho_rot": {
+        "n_ticks_in_window": 2077,
+        "n_valid": 2067,
+        "n_excluded_zero_denominator": 10,
+        "median": 0.0001462747363169103,
+        "p95": 0.0010051679038927432,
+        "max": 0.00844624403967395,
+        "argmax_t_s": 39.66,
+        "argmax_phase": "SS",
+        "argmax_step_index": 3,
+        "denominator_at_argmax_Nm": 0.03545968982197027,
+        "numerator_at_argmax_Nm": 0.00029950119380750344
+      },
+      "rho_origin": {
+        "n_ticks_in_window": 2077,
+        "n_valid": 2067,
+        "n_excluded_zero_denominator": 10,
+        "median": 3.656591729626704e-06,
+        "p95": 0.0003933581750814085,
+        "max": 0.005535435725131378,
+        "argmax_t_s": 9.82,
+        "argmax_phase": "SS",
+        "argmax_step_index": 1,
+        "denominator_at_argmax_Nm": 0.2030703733906697,
+        "numerator_at_argmax_Nm": 0.0011240829995824812
+      }
+    }
+  }
+}

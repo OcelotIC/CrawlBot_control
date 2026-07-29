@@ -1,0 +1,2144 @@
+{
+  "SimConfig_live": {
+    "available": true,
+    "class": "SimConfig",
+    "file": "crawlbot/simulation/config.py",
+    "n_fields": 130,
+    "fields": {
+      "dt_nmpc": {
+        "canonical": 0.1,
+        "default": 0.1,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:24"
+      },
+      "dt_qp": {
+        "canonical": 0.01,
+        "default": 0.01,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:25"
+      },
+      "t_ss_margin": {
+        "canonical": 5.0,
+        "default": 1.0,
+        "differs": true,
+        "source": "crawlbot/simulation/config.py:26"
+      },
+      "t_hold_max": {
+        "canonical": 3.0,
+        "default": 3.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:27"
+      },
+      "dock_check_delay": {
+        "canonical": 0.5,
+        "default": 0.5,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:28"
+      },
+      "n_ds_max_steps": {
+        "canonical": 1000,
+        "default": 1000,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:29"
+      },
+      "tau_max": {
+        "canonical": 20.0,
+        "default": 20.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:32"
+      },
+      "weld_radius": {
+        "canonical": 0.005,
+        "default": 0.005,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:35"
+      },
+      "dock_vel_max": {
+        "canonical": 0.01,
+        "default": 0.01,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:36"
+      },
+      "dock_ori_threshold_deg": {
+        "canonical": 5.0,
+        "default": 5.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:42"
+      },
+      "dock_use_6d_twist": {
+        "canonical": true,
+        "default": true,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:57"
+      },
+      "dock_twist_max": {
+        "canonical": 0.05,
+        "default": 0.05,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:58"
+      },
+      "gmo_K_O": {
+        "canonical": 80.0,
+        "default": 80.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:61"
+      },
+      "gmo_F_threshold": {
+        "canonical": 5.0,
+        "default": 5.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:62"
+      },
+      "gmo_d_proximity": {
+        "canonical": 0.02,
+        "default": 0.02,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:63"
+      },
+      "gmo_d_contact": {
+        "canonical": 0.005,
+        "default": 0.005,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:64"
+      },
+      "gmo_d_reset": {
+        "canonical": 0.03,
+        "default": 0.03,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:65"
+      },
+      "gmo_debounce_count": {
+        "canonical": 3,
+        "default": 3,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:66"
+      },
+      "hw_init": {
+        "canonical": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "default": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:69"
+      },
+      "hw_min": {
+        "canonical": [
+          -5.0,
+          -5.0,
+          -5.0
+        ],
+        "default": [
+          -5.0,
+          -5.0,
+          -5.0
+        ],
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:70"
+      },
+      "hw_max": {
+        "canonical": [
+          5.0,
+          5.0,
+          5.0
+        ],
+        "default": [
+          5.0,
+          5.0,
+          5.0
+        ],
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:71"
+      },
+      "hw_qp_tight": {
+        "canonical": [
+          3.0,
+          3.0,
+          3.0
+        ],
+        "default": [
+          3.0,
+          3.0,
+          3.0
+        ],
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:77"
+      },
+      "L_max": {
+        "canonical": 10.0,
+        "default": 10.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:78"
+      },
+      "tau_w_max": {
+        "canonical": 2.5,
+        "default": 2.5,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:79"
+      },
+      "aocs_K_hw": {
+        "canonical": 2.0,
+        "default": 2.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:82"
+      },
+      "aocs_tau_w_max": {
+        "canonical": 2.5,
+        "default": 2.5,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:83"
+      },
+      "rwa_I_w": {
+        "canonical": 0.01,
+        "default": 0.01,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:84"
+      },
+      "aocs_mode": {
+        "canonical": "legacy_pid_numerical",
+        "default": "legacy",
+        "differs": true,
+        "source": "crawlbot/simulation/config.py:98"
+      },
+      "aocs_use_H_estimator": {
+        "canonical": false,
+        "default": false,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:99"
+      },
+      "aocs_use_legacy_corrected": {
+        "canonical": false,
+        "default": false,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:100"
+      },
+      "aocs_filter_tau": {
+        "canonical": 0.016,
+        "default": 0.016,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:101"
+      },
+      "aocs_K_omega": {
+        "canonical": 50.0,
+        "default": 50.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:102"
+      },
+      "aocs_K_d": {
+        "canonical": 25.0,
+        "default": 25.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:103"
+      },
+      "aocs_K_theta": {
+        "canonical": 1.0,
+        "default": 1.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:104"
+      },
+      "aocs_K_h": {
+        "canonical": 0.5,
+        "default": 0.5,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:105"
+      },
+      "aocs_hw_target": {
+        "canonical": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "default": [
+          0.0,
+          0.0,
+          0.0
+        ],
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:106"
+      },
+      "aocs_use_wrench_ff_in_ds": {
+        "canonical": true,
+        "default": false,
+        "differs": true,
+        "source": "crawlbot/simulation/config.py:114"
+      },
+      "ds_torso_ref_from_state": {
+        "canonical": true,
+        "default": false,
+        "differs": true,
+        "source": "crawlbot/simulation/config.py:123"
+      },
+      "aocs_off_in_ds": {
+        "canonical": false,
+        "default": false,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:126"
+      },
+      "aocs_active_in_interstep": {
+        "canonical": true,
+        "default": true,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:141"
+      },
+      "interstep_hw_refresh": {
+        "canonical": true,
+        "default": true,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:155"
+      },
+      "interstep_settle_alpha_wrench": {
+        "canonical": 3.0,
+        "default": 0.0,
+        "differs": true,
+        "source": "crawlbot/simulation/config.py:165"
+      },
+      "stop_on_failed_step": {
+        "canonical": true,
+        "default": true,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:175"
+      },
+      "frames_per_step": {
+        "canonical": 5,
+        "default": 0,
+        "differs": true,
+        "source": "crawlbot/simulation/config.py:181"
+      },
+      "use_m2_stack": {
+        "canonical": true,
+        "default": false,
+        "differs": true,
+        "source": "crawlbot/simulation/config.py:189"
+      },
+      "alpha_passivity": {
+        "canonical": 1.0,
+        "default": 1.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:190"
+      },
+      "enforce_hw_conservation": {
+        "canonical": true,
+        "default": false,
+        "differs": true,
+        "source": "crawlbot/simulation/config.py:193"
+      },
+      "h_max_tight": {
+        "canonical": [
+          5.0,
+          5.0,
+          5.0
+        ],
+        "default": [
+          5.0,
+          5.0,
+          5.0
+        ],
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:194"
+      },
+      "w_L_nmpc": {
+        "canonical": 1.0,
+        "default": 1.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:195"
+      },
+      "kappa_terminal": {
+        "canonical": 1.0,
+        "default": 1.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:196"
+      },
+      "preplanner_M": {
+        "canonical": 15,
+        "default": 15,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:208"
+      },
+      "preplanner_kappa": {
+        "canonical": 0.7,
+        "default": 0.7,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:209"
+      },
+      "preplanner_f_max": {
+        "canonical": 25.0,
+        "default": 25.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:210"
+      },
+      "preplanner_tau_max": {
+        "canonical": 8.0,
+        "default": 8.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:211"
+      },
+      "preplanner_w_L": {
+        "canonical": 1.0,
+        "default": 1.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:212"
+      },
+      "preplanner_w_u": {
+        "canonical": 0.01,
+        "default": 0.01,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:213"
+      },
+      "preplanner_max_iter": {
+        "canonical": 300,
+        "default": 300,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:214"
+      },
+      "preplanner_a_cruise_max": {
+        "canonical": 0.0,
+        "default": 0.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:215"
+      },
+      "preplanner_cruise_ramp_frac": {
+        "canonical": 0.2,
+        "default": 0.2,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:216"
+      },
+      "preplanner_tstep_standoff_gain": {
+        "canonical": 0.0,
+        "default": 0.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:224"
+      },
+      "preplanner_tstep_standoff_knee": {
+        "canonical": 1000000000.0,
+        "default": 1000000000.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:225"
+      },
+      "preplanner_tstep_scale_step": {
+        "canonical": -1,
+        "default": -1,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:229"
+      },
+      "preplanner_tstep_scale_factor": {
+        "canonical": 1.0,
+        "default": 1.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:230"
+      },
+      "fsat_jitter_margin": {
+        "canonical": 0.05,
+        "default": 0.05,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:240"
+      },
+      "nmpc_N": {
+        "canonical": 8,
+        "default": 8,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:243"
+      },
+      "nmpc_dt": {
+        "canonical": 0.1,
+        "default": 0.1,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:244"
+      },
+      "nmpc_f_max": {
+        "canonical": 300.0,
+        "default": 300.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:245"
+      },
+      "nmpc_tau_max": {
+        "canonical": 8.0,
+        "default": 8.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:246"
+      },
+      "nmpc_Wv": {
+        "canonical": 10.0,
+        "default": 10.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:247"
+      },
+      "nmpc_p_max": {
+        "canonical": 50.0,
+        "default": 50.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:248"
+      },
+      "nmpc_Wr": {
+        "canonical": 100.0,
+        "default": 100.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:254"
+      },
+      "nmpc_Wu_f": {
+        "canonical": 0.01,
+        "default": 0.01,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:255"
+      },
+      "nmpc_Wu_tau": {
+        "canonical": 0.001,
+        "default": 0.001,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:256"
+      },
+      "nmpc_Qf_r": {
+        "canonical": 1000.0,
+        "default": 1000.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:257"
+      },
+      "nmpc_Qf_v": {
+        "canonical": 100.0,
+        "default": 100.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:258"
+      },
+      "nmpc_Qf_L": {
+        "canonical": 10.0,
+        "default": 10.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:259"
+      },
+      "t_settle_final": {
+        "canonical": 20.0,
+        "default": 20.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:260"
+      },
+      "t_settle_inter": {
+        "canonical": 0.0,
+        "default": 0.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:267"
+      },
+      "use_energy_settle_inter": {
+        "canonical": true,
+        "default": true,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:268"
+      },
+      "settle_inter_epsilon_v": {
+        "canonical": 0.001,
+        "default": 0.001,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:269"
+      },
+      "interstep_settle_epsilon_v": {
+        "canonical": 0.005,
+        "default": 0.0,
+        "differs": true,
+        "source": "crawlbot/simulation/config.py:277"
+      },
+      "n_settle_inter_max_steps": {
+        "canonical": 500,
+        "default": 500,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:278"
+      },
+      "t_settle_inter_min": {
+        "canonical": 0.1,
+        "default": 0.1,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:279"
+      },
+      "ss_alpha_ee": {
+        "canonical": 1000.0,
+        "default": 1000.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:282"
+      },
+      "ss_alpha_posture": {
+        "canonical": 20.0,
+        "default": 20.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:283"
+      },
+      "ss_alpha_wrench": {
+        "canonical": 1.0,
+        "default": 1.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:284"
+      },
+      "ss_alpha_lambda_int": {
+        "canonical": 1.0,
+        "default": 0.0,
+        "differs": true,
+        "source": "crawlbot/simulation/config.py:285"
+      },
+      "ss_alpha_mom": {
+        "canonical": 400.0,
+        "default": 400.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:290"
+      },
+      "log_hifreq_ss": {
+        "canonical": true,
+        "default": false,
+        "differs": true,
+        "source": "crawlbot/simulation/config.py:294"
+      },
+      "ss_two_task_mode": {
+        "canonical": true,
+        "default": false,
+        "differs": true,
+        "source": "crawlbot/simulation/config.py:302"
+      },
+      "alpha_torso_pose": {
+        "canonical": 2000.0,
+        "default": 2000.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:303"
+      },
+      "dt_ds": {
+        "canonical": 0.5,
+        "default": 0.5,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:312"
+      },
+      "dock_hold_passivity_on": {
+        "canonical": false,
+        "default": false,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:326"
+      },
+      "passivity_W_budget": {
+        "canonical": 0.0,
+        "default": 0.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:327"
+      },
+      "log_dock_work": {
+        "canonical": false,
+        "default": false,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:328"
+      },
+      "qp_envelope_exact": {
+        "canonical": true,
+        "default": false,
+        "differs": true,
+        "source": "crawlbot/simulation/config.py:338"
+      },
+      "ds_centroidal_mode": {
+        "canonical": true,
+        "default": false,
+        "differs": true,
+        "source": "crawlbot/simulation/config.py:343"
+      },
+      "ds_alpha_com": {
+        "canonical": 100.0,
+        "default": 100.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:344"
+      },
+      "ds_alpha_torso_ori": {
+        "canonical": 200.0,
+        "default": 200.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:345"
+      },
+      "ds_alpha_posture": {
+        "canonical": 50.0,
+        "default": 50.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:346"
+      },
+      "ss_Kp_com": {
+        "canonical": 3.0,
+        "default": 3.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:349"
+      },
+      "ss_Kd_com": {
+        "canonical": 3.0,
+        "default": 3.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:350"
+      },
+      "ss_Kp_torso": {
+        "canonical": 3.0,
+        "default": 6.0,
+        "differs": true,
+        "source": "crawlbot/simulation/config.py:351"
+      },
+      "ss_Kd_torso": {
+        "canonical": 2.5,
+        "default": 5.0,
+        "differs": true,
+        "source": "crawlbot/simulation/config.py:352"
+      },
+      "ss_Kp_ee": {
+        "canonical": 10.0,
+        "default": 10.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:353"
+      },
+      "ss_Kd_ee": {
+        "canonical": 12.0,
+        "default": 12.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:354"
+      },
+      "ss_Kp_ee_ang": {
+        "canonical": 6.0,
+        "default": 6.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:355"
+      },
+      "ss_Kd_ee_ang": {
+        "canonical": 4.5,
+        "default": 4.5,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:356"
+      },
+      "swing_clearance": {
+        "canonical": 0.03,
+        "default": 0.03,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:359"
+      },
+      "swing_bump_peak_tau": {
+        "canonical": 0.5,
+        "default": 0.5,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:365"
+      },
+      "ik_fixed_rotation": {
+        "canonical": true,
+        "default": true,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:376"
+      },
+      "ik_fixed_rotation_w_min": {
+        "canonical": 0.0001,
+        "default": 0.0001,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:377"
+      },
+      "ik_level_axis": {
+        "canonical": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "default": null,
+        "differs": true,
+        "source": "crawlbot/simulation/config.py:392"
+      },
+      "ik_q_nominal": {
+        "canonical": [
+          0.297781,
+          1.526727,
+          0.842257,
+          1.147432,
+          0.75139,
+          0.251893,
+          1.332349,
+          -0.297781,
+          -1.526727,
+          -0.842257,
+          -1.147432,
+          -0.75139,
+          -0.251893,
+          1.332349
+        ],
+        "default": null,
+        "differs": true,
+        "source": "crawlbot/simulation/config.py:393"
+      },
+      "ik_w_posture": {
+        "canonical": 0.2,
+        "default": 0.0,
+        "differs": true,
+        "source": "crawlbot/simulation/config.py:394"
+      },
+      "use_com_z_standoff": {
+        "canonical": true,
+        "default": false,
+        "differs": true,
+        "source": "crawlbot/simulation/config.py:407"
+      },
+      "com_z_standoff": {
+        "canonical": -0.35,
+        "default": -0.35,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:408"
+      },
+      "torso_early_finish_fraction": {
+        "canonical": 1.0,
+        "default": 1.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:433"
+      },
+      "swing_early_finish_fraction": {
+        "canonical": 1.0,
+        "default": 1.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:442"
+      },
+      "n_settle_steps": {
+        "canonical": 500,
+        "default": 500,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:445"
+      },
+      "Kd_settle_damping": {
+        "canonical": 20.0,
+        "default": 20.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:456"
+      },
+      "n_settle_max_steps": {
+        "canonical": 1000,
+        "default": 1000,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:457"
+      },
+      "settle_epsilon_v": {
+        "canonical": 0.001,
+        "default": 0.001,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:458"
+      },
+      "settle_plateau_ratio": {
+        "canonical": 0.999,
+        "default": 0.999,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:459"
+      },
+      "diag_freeze_torso_ref_on_abort": {
+        "canonical": false,
+        "default": false,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:466"
+      },
+      "diag_force_single_contact_on_abort": {
+        "canonical": false,
+        "default": false,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:472"
+      },
+      "diag_disable_passivity_on_abort": {
+        "canonical": false,
+        "default": false,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:478"
+      },
+      "mapping_bypass_in_ss": {
+        "canonical": false,
+        "default": false,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:484"
+      },
+      "ds_ramp_duration_s": {
+        "canonical": 2.0,
+        "default": 2.0,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:494"
+      },
+      "gait_anchor_dx": {
+        "canonical": 0.8,
+        "default": 0.8,
+        "differs": false,
+        "source": "crawlbot/simulation/config.py:506"
+      }
+    }
+  },
+  "WholeBodyQPConfig_live[qp_ss]": {
+    "available": true,
+    "class": "WholeBodyQPConfig",
+    "file": "crawlbot/solvers/wholebody_qp.py",
+    "n_fields": 41,
+    "fields": {
+      "nq": {
+        "canonical": 14,
+        "default": 14,
+        "differs": false,
+        "source": "crawlbot/solvers/wholebody_qp.py:81"
+      },
+      "nc_max": {
+        "canonical": 2,
+        "default": 2,
+        "differs": false,
+        "source": "crawlbot/solvers/wholebody_qp.py:82"
+      },
+      "method": {
+        "canonical": "weighted",
+        "default": "weighted",
+        "differs": false,
+        "source": "crawlbot/solvers/wholebody_qp.py:85"
+      },
+      "solver": {
+        "canonical": "qpoases",
+        "default": "qpoases",
+        "differs": false,
+        "source": "crawlbot/solvers/wholebody_qp.py:86"
+      },
+      "weight_ratio": {
+        "canonical": 1.0,
+        "default": 1.0,
+        "differs": false,
+        "source": "crawlbot/solvers/wholebody_qp.py:94"
+      },
+      "alpha_ee": {
+        "canonical": 1000.0,
+        "default": 500.0,
+        "differs": true,
+        "source": "crawlbot/solvers/wholebody_qp.py:97"
+      },
+      "alpha_posture": {
+        "canonical": 20.0,
+        "default": 100.0,
+        "differs": true,
+        "source": "crawlbot/solvers/wholebody_qp.py:98"
+      },
+      "alpha_wrench": {
+        "canonical": 1.0,
+        "default": 10.0,
+        "differs": true,
+        "source": "crawlbot/solvers/wholebody_qp.py:99"
+      },
+      "alpha_torque": {
+        "canonical": 5.0,
+        "default": 1.0,
+        "differs": true,
+        "source": "crawlbot/solvers/wholebody_qp.py:100"
+      },
+      "alpha_reg": {
+        "canonical": 1.0,
+        "default": 0.01,
+        "differs": true,
+        "source": "crawlbot/solvers/wholebody_qp.py:101"
+      },
+      "alpha_lambda_int": {
+        "canonical": 1.0,
+        "default": 0.0,
+        "differs": true,
+        "source": "crawlbot/solvers/wholebody_qp.py:102"
+      },
+      "ds_centroidal_mode": {
+        "canonical": true,
+        "default": false,
+        "differs": true,
+        "source": "crawlbot/solvers/wholebody_qp.py:115"
+      },
+      "ds_alpha_com": {
+        "canonical": 100.0,
+        "default": 100.0,
+        "differs": false,
+        "source": "crawlbot/solvers/wholebody_qp.py:116"
+      },
+      "ds_alpha_torso_ori": {
+        "canonical": 200.0,
+        "default": 200.0,
+        "differs": false,
+        "source": "crawlbot/solvers/wholebody_qp.py:117"
+      },
+      "ds_alpha_posture": {
+        "canonical": 50.0,
+        "default": 50.0,
+        "differs": false,
+        "source": "crawlbot/solvers/wholebody_qp.py:118"
+      },
+      "ss_two_task_mode": {
+        "canonical": true,
+        "default": false,
+        "differs": true,
+        "source": "crawlbot/solvers/wholebody_qp.py:132"
+      },
+      "ss_alpha_mom": {
+        "canonical": 400.0,
+        "default": 500.0,
+        "differs": true,
+        "source": "crawlbot/solvers/wholebody_qp.py:133"
+      },
+      "alpha_torso_pose": {
+        "canonical": 2000.0,
+        "default": 1000.0,
+        "differs": true,
+        "source": "crawlbot/solvers/wholebody_qp.py:134"
+      },
+      "alpha_passivity": {
+        "canonical": 1.0,
+        "default": 1.0,
+        "differs": false,
+        "source": "crawlbot/solvers/wholebody_qp.py:137"
+      },
+      "passivity_W_budget": {
+        "canonical": 0.0,
+        "default": 0.0,
+        "differs": false,
+        "source": "crawlbot/solvers/wholebody_qp.py:143"
+      },
+      "qp_envelope_exact": {
+        "canonical": true,
+        "default": false,
+        "differs": true,
+        "source": "crawlbot/solvers/wholebody_qp.py:147"
+      },
+      "w_hw_slack": {
+        "canonical": 800.0,
+        "default": 800.0,
+        "differs": false,
+        "source": "crawlbot/solvers/wholebody_qp.py:159"
+      },
+      "Kp_com": {
+        "canonical": [
+          [
+            3.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            3.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            3.0
+          ]
+        ],
+        "default": [
+          100.0,
+          100.0,
+          100.0
+        ],
+        "differs": true,
+        "source": "crawlbot/solvers/wholebody_qp.py:162"
+      },
+      "Kd_com": {
+        "canonical": [
+          [
+            3.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.0,
+            3.0,
+            0.0
+          ],
+          [
+            0.0,
+            0.0,
+            3.0
+          ]
+        ],
+        "default": [
+          20.0,
+          20.0,
+          20.0
+        ],
+        "differs": true,
+        "source": "crawlbot/solvers/wholebody_qp.py:163"
+      },
+      "Kp_torso": {
+        "canonical": [
+          3.0,
+          3.0,
+          3.0,
+          3.0,
+          3.0,
+          3.0
+        ],
+        "default": [
+          8.0,
+          8.0,
+          8.0,
+          5.0,
+          5.0,
+          5.0
+        ],
+        "differs": true,
+        "source": "crawlbot/solvers/wholebody_qp.py:166"
+      },
+      "Kd_torso": {
+        "canonical": [
+          2.5,
+          2.5,
+          2.5,
+          2.5,
+          2.5,
+          2.5
+        ],
+        "default": [
+          6.0,
+          6.0,
+          6.0,
+          4.0,
+          4.0,
+          4.0
+        ],
+        "differs": true,
+        "source": "crawlbot/solvers/wholebody_qp.py:167"
+      },
+      "Kp_ee": {
+        "canonical": [
+          10.0,
+          10.0,
+          10.0
+        ],
+        "default": [
+          80.0,
+          80.0,
+          80.0
+        ],
+        "differs": true,
+        "source": "crawlbot/solvers/wholebody_qp.py:170"
+      },
+      "Kd_ee": {
+        "canonical": [
+          12.0,
+          12.0,
+          12.0
+        ],
+        "default": [
+          15.0,
+          15.0,
+          15.0
+        ],
+        "differs": true,
+        "source": "crawlbot/solvers/wholebody_qp.py:171"
+      },
+      "Kp_ee_ang": {
+        "canonical": [
+          6.0,
+          6.0,
+          6.0
+        ],
+        "default": [
+          5.0,
+          5.0,
+          5.0
+        ],
+        "differs": true,
+        "source": "crawlbot/solvers/wholebody_qp.py:172"
+      },
+      "Kd_ee_ang": {
+        "canonical": [
+          4.5,
+          4.5,
+          4.5
+        ],
+        "default": [
+          3.0,
+          3.0,
+          3.0
+        ],
+        "differs": true,
+        "source": "crawlbot/solvers/wholebody_qp.py:173"
+      },
+      "Kp_posture": {
+        "canonical": 1.0,
+        "default": 25.0,
+        "differs": true,
+        "source": "crawlbot/solvers/wholebody_qp.py:176"
+      },
+      "Kd_posture": {
+        "canonical": 1.5,
+        "default": 10.0,
+        "differs": true,
+        "source": "crawlbot/solvers/wholebody_qp.py:177"
+      },
+      "Kd_settle": {
+        "canonical": 10.0,
+        "default": 10.0,
+        "differs": false,
+        "source": "crawlbot/solvers/wholebody_qp.py:180"
+      },
+      "alpha_settle": {
+        "canonical": 1000.0,
+        "default": 1000.0,
+        "differs": false,
+        "source": "crawlbot/solvers/wholebody_qp.py:181"
+      },
+      "tau_max": {
+        "canonical": [
+          20.0,
+          20.0,
+          20.0,
+          20.0,
+          20.0,
+          20.0,
+          20.0,
+          20.0,
+          20.0,
+          20.0,
+          20.0,
+          20.0,
+          20.0,
+          20.0
+        ],
+        "default": [
+          50.0,
+          50.0,
+          50.0,
+          50.0,
+          50.0,
+          50.0,
+          50.0,
+          50.0,
+          50.0,
+          50.0,
+          50.0,
+          50.0,
+          50.0,
+          50.0
+        ],
+        "differs": true,
+        "source": "crawlbot/solvers/wholebody_qp.py:184"
+      },
+      "qdd_max": {
+        "canonical": 50.0,
+        "default": 50.0,
+        "differs": false,
+        "source": "crawlbot/solvers/wholebody_qp.py:187"
+      },
+      "dt_qp": {
+        "canonical": 0.01,
+        "default": 0.008,
+        "differs": true,
+        "source": "crawlbot/solvers/wholebody_qp.py:190"
+      },
+      "f_max": {
+        "canonical": 3000.0,
+        "default": 3000.0,
+        "differs": false,
+        "source": "crawlbot/solvers/wholebody_qp.py:193"
+      },
+      "tau_contact_max": {
+        "canonical": 300.0,
+        "default": 300.0,
+        "differs": false,
+        "source": "crawlbot/solvers/wholebody_qp.py:194"
+      },
+      "L_max": {
+        "canonical": 10.0,
+        "default": Infinity,
+        "differs": true,
+        "source": "crawlbot/solvers/wholebody_qp.py:197"
+      },
+      "tau_w_max": {
+        "canonical": 2.5,
+        "default": Infinity,
+        "differs": true,
+        "source": "crawlbot/solvers/wholebody_qp.py:198"
+      }
+    }
+  },
+  "CentroidalNMPCConfig_live": {
+    "available": true,
+    "class": "CentroidalNMPCConfig",
+    "file": "crawlbot/solvers/centroidal_nmpc.py",
+    "n_fields": 21,
+    "fields": {
+      "robot_mass": {
+        "canonical": 71.05599999999998,
+        "default": 90.0,
+        "differs": true,
+        "source": "crawlbot/solvers/centroidal_nmpc.py:81"
+      },
+      "N": {
+        "canonical": 8,
+        "default": 20,
+        "differs": true,
+        "source": "crawlbot/solvers/centroidal_nmpc.py:84"
+      },
+      "dt": {
+        "canonical": 0.1,
+        "default": 0.05,
+        "differs": true,
+        "source": "crawlbot/solvers/centroidal_nmpc.py:85"
+      },
+      "Wr": {
+        "canonical": [
+          100.0,
+          100.0,
+          100.0
+        ],
+        "default": [
+          100.0,
+          100.0,
+          100.0
+        ],
+        "differs": false,
+        "source": "crawlbot/solvers/centroidal_nmpc.py:88"
+      },
+      "Wv": {
+        "canonical": [
+          10.0,
+          10.0,
+          10.0
+        ],
+        "default": [
+          10.0,
+          10.0,
+          10.0
+        ],
+        "differs": false,
+        "source": "crawlbot/solvers/centroidal_nmpc.py:89"
+      },
+      "Wu_f": {
+        "canonical": 0.01,
+        "default": 0.01,
+        "differs": false,
+        "source": "crawlbot/solvers/centroidal_nmpc.py:90"
+      },
+      "Wu_tau": {
+        "canonical": 0.001,
+        "default": 0.001,
+        "differs": false,
+        "source": "crawlbot/solvers/centroidal_nmpc.py:91"
+      },
+      "Qf_r": {
+        "canonical": [
+          1000.0,
+          1000.0,
+          1000.0
+        ],
+        "default": [
+          1000.0,
+          1000.0,
+          1000.0
+        ],
+        "differs": false,
+        "source": "crawlbot/solvers/centroidal_nmpc.py:92"
+      },
+      "Qf_v": {
+        "canonical": [
+          100.0,
+          100.0,
+          100.0
+        ],
+        "default": [
+          100.0,
+          100.0,
+          100.0
+        ],
+        "differs": false,
+        "source": "crawlbot/solvers/centroidal_nmpc.py:93"
+      },
+      "f_max": {
+        "canonical": 300.0,
+        "default": 3000.0,
+        "differs": true,
+        "source": "crawlbot/solvers/centroidal_nmpc.py:96"
+      },
+      "tau_max": {
+        "canonical": 8.0,
+        "default": 300.0,
+        "differs": true,
+        "source": "crawlbot/solvers/centroidal_nmpc.py:97"
+      },
+      "L_max": {
+        "canonical": 10.0,
+        "default": Infinity,
+        "differs": true,
+        "source": "crawlbot/solvers/centroidal_nmpc.py:100"
+      },
+      "tau_w_max": {
+        "canonical": 2.5,
+        "default": Infinity,
+        "differs": true,
+        "source": "crawlbot/solvers/centroidal_nmpc.py:101"
+      },
+      "p_max": {
+        "canonical": 50.0,
+        "default": Infinity,
+        "differs": true,
+        "source": "crawlbot/solvers/centroidal_nmpc.py:102"
+      },
+      "enforce_hw_conservation": {
+        "canonical": true,
+        "default": false,
+        "differs": true,
+        "source": "crawlbot/solvers/centroidal_nmpc.py:110"
+      },
+      "h_max_tight": {
+        "canonical": [
+          5.0,
+          5.0,
+          5.0
+        ],
+        "default": [
+          5.0,
+          5.0,
+          5.0
+        ],
+        "differs": false,
+        "source": "crawlbot/solvers/centroidal_nmpc.py:111"
+      },
+      "w_L": {
+        "canonical": 1.0,
+        "default": 1.0,
+        "differs": false,
+        "source": "crawlbot/solvers/centroidal_nmpc.py:113"
+      },
+      "Qf_L": {
+        "canonical": 10.0,
+        "default": 10.0,
+        "differs": false,
+        "source": "crawlbot/solvers/centroidal_nmpc.py:114"
+      },
+      "kappa_terminal": {
+        "canonical": 1.0,
+        "default": 1.0,
+        "differs": false,
+        "source": "crawlbot/solvers/centroidal_nmpc.py:115"
+      },
+      "solver_name": {
+        "canonical": "ipopt",
+        "default": "ipopt",
+        "differs": false,
+        "source": "crawlbot/solvers/centroidal_nmpc.py:118"
+      },
+      "solver_opts": {
+        "canonical": "{}",
+        "default": {},
+        "differs": true,
+        "source": "crawlbot/solvers/centroidal_nmpc.py:119"
+      }
+    }
+  },
+  "CoarsePrePlannerConfig_live": {
+    "available": true,
+    "class": "CoarsePrePlannerConfig",
+    "file": "crawlbot/planning/coarse_preplanner.py",
+    "n_fields": 19,
+    "fields": {
+      "M": {
+        "canonical": 15,
+        "default": 15,
+        "differs": false,
+        "source": "crawlbot/planning/coarse_preplanner.py:67"
+      },
+      "robot_mass": {
+        "canonical": 71.05599999999998,
+        "default": 71.0,
+        "differs": true,
+        "source": "crawlbot/planning/coarse_preplanner.py:68"
+      },
+      "h_max": {
+        "canonical": [
+          5.0,
+          5.0,
+          5.0
+        ],
+        "default": [
+          5.0,
+          5.0,
+          5.0
+        ],
+        "differs": false,
+        "source": "crawlbot/planning/coarse_preplanner.py:71"
+      },
+      "kappa_terminal": {
+        "canonical": 0.7,
+        "default": 0.7,
+        "differs": false,
+        "source": "crawlbot/planning/coarse_preplanner.py:72"
+      },
+      "f_max": {
+        "canonical": 25.0,
+        "default": 25.0,
+        "differs": false,
+        "source": "crawlbot/planning/coarse_preplanner.py:75"
+      },
+      "tau_max": {
+        "canonical": 8.0,
+        "default": 8.0,
+        "differs": false,
+        "source": "crawlbot/planning/coarse_preplanner.py:76"
+      },
+      "tau_w_max": {
+        "canonical": 2.5,
+        "default": 2.5,
+        "differs": false,
+        "source": "crawlbot/planning/coarse_preplanner.py:79"
+      },
+      "w_L": {
+        "canonical": 1.0,
+        "default": 1.0,
+        "differs": false,
+        "source": "crawlbot/planning/coarse_preplanner.py:82"
+      },
+      "w_u": {
+        "canonical": 0.01,
+        "default": 0.01,
+        "differs": false,
+        "source": "crawlbot/planning/coarse_preplanner.py:83"
+      },
+      "w_v_terminal": {
+        "canonical": 100.0,
+        "default": 100.0,
+        "differs": false,
+        "source": "crawlbot/planning/coarse_preplanner.py:84"
+      },
+      "w_L_terminal": {
+        "canonical": 100.0,
+        "default": 100.0,
+        "differs": false,
+        "source": "crawlbot/planning/coarse_preplanner.py:85"
+      },
+      "eps_v_terminal": {
+        "canonical": 0.005,
+        "default": 0.005,
+        "differs": false,
+        "source": "crawlbot/planning/coarse_preplanner.py:88"
+      },
+      "eps_L_terminal": {
+        "canonical": 0.05,
+        "default": 0.05,
+        "differs": false,
+        "source": "crawlbot/planning/coarse_preplanner.py:89"
+      },
+      "T_step_default": {
+        "canonical": 6.0,
+        "default": 6.0,
+        "differs": false,
+        "source": "crawlbot/planning/coarse_preplanner.py:92"
+      },
+      "a_cruise_max": {
+        "canonical": 0.0,
+        "default": 0.0,
+        "differs": false,
+        "source": "crawlbot/planning/coarse_preplanner.py:99"
+      },
+      "cruise_ramp_frac": {
+        "canonical": 0.2,
+        "default": 0.2,
+        "differs": false,
+        "source": "crawlbot/planning/coarse_preplanner.py:100"
+      },
+      "ipopt_print_level": {
+        "canonical": 0,
+        "default": 0,
+        "differs": false,
+        "source": "crawlbot/planning/coarse_preplanner.py:103"
+      },
+      "ipopt_max_iter": {
+        "canonical": 300,
+        "default": 300,
+        "differs": false,
+        "source": "crawlbot/planning/coarse_preplanner.py:104"
+      },
+      "ipopt_tol": {
+        "canonical": 1e-06,
+        "default": 1e-06,
+        "differs": false,
+        "source": "crawlbot/planning/coarse_preplanner.py:105"
+      }
+    }
+  },
+  "_divergences_default_vs_canonical": [
+    {
+      "config": "SimConfig",
+      "field": "t_ss_margin",
+      "canonical": 5.0,
+      "default": 1.0,
+      "differs": true,
+      "source": "crawlbot/simulation/config.py:26"
+    },
+    {
+      "config": "SimConfig",
+      "field": "aocs_mode",
+      "canonical": "legacy_pid_numerical",
+      "default": "legacy",
+      "differs": true,
+      "source": "crawlbot/simulation/config.py:98"
+    },
+    {
+      "config": "SimConfig",
+      "field": "aocs_use_wrench_ff_in_ds",
+      "canonical": true,
+      "default": false,
+      "differs": true,
+      "source": "crawlbot/simulation/config.py:114"
+    },
+    {
+      "config": "SimConfig",
+      "field": "ds_torso_ref_from_state",
+      "canonical": true,
+      "default": false,
+      "differs": true,
+      "source": "crawlbot/simulation/config.py:123"
+    },
+    {
+      "config": "SimConfig",
+      "field": "interstep_settle_alpha_wrench",
+      "canonical": 3.0,
+      "default": 0.0,
+      "differs": true,
+      "source": "crawlbot/simulation/config.py:165"
+    },
+    {
+      "config": "SimConfig",
+      "field": "frames_per_step",
+      "canonical": 5,
+      "default": 0,
+      "differs": true,
+      "source": "crawlbot/simulation/config.py:181"
+    },
+    {
+      "config": "SimConfig",
+      "field": "use_m2_stack",
+      "canonical": true,
+      "default": false,
+      "differs": true,
+      "source": "crawlbot/simulation/config.py:189"
+    },
+    {
+      "config": "SimConfig",
+      "field": "enforce_hw_conservation",
+      "canonical": true,
+      "default": false,
+      "differs": true,
+      "source": "crawlbot/simulation/config.py:193"
+    },
+    {
+      "config": "SimConfig",
+      "field": "interstep_settle_epsilon_v",
+      "canonical": 0.005,
+      "default": 0.0,
+      "differs": true,
+      "source": "crawlbot/simulation/config.py:277"
+    },
+    {
+      "config": "SimConfig",
+      "field": "ss_alpha_lambda_int",
+      "canonical": 1.0,
+      "default": 0.0,
+      "differs": true,
+      "source": "crawlbot/simulation/config.py:285"
+    },
+    {
+      "config": "SimConfig",
+      "field": "log_hifreq_ss",
+      "canonical": true,
+      "default": false,
+      "differs": true,
+      "source": "crawlbot/simulation/config.py:294"
+    },
+    {
+      "config": "SimConfig",
+      "field": "ss_two_task_mode",
+      "canonical": true,
+      "default": false,
+      "differs": true,
+      "source": "crawlbot/simulation/config.py:302"
+    },
+    {
+      "config": "SimConfig",
+      "field": "qp_envelope_exact",
+      "canonical": true,
+      "default": false,
+      "differs": true,
+      "source": "crawlbot/simulation/config.py:338"
+    },
+    {
+      "config": "SimConfig",
+      "field": "ds_centroidal_mode",
+      "canonical": true,
+      "default": false,
+      "differs": true,
+      "source": "crawlbot/simulation/config.py:343"
+    },
+    {
+      "config": "SimConfig",
+      "field": "ss_Kp_torso",
+      "canonical": 3.0,
+      "default": 6.0,
+      "differs": true,
+      "source": "crawlbot/simulation/config.py:351"
+    },
+    {
+      "config": "SimConfig",
+      "field": "ss_Kd_torso",
+      "canonical": 2.5,
+      "default": 5.0,
+      "differs": true,
+      "source": "crawlbot/simulation/config.py:352"
+    },
+    {
+      "config": "SimConfig",
+      "field": "ik_level_axis",
+      "canonical": [
+        0.0,
+        0.0,
+        1.0
+      ],
+      "default": null,
+      "differs": true,
+      "source": "crawlbot/simulation/config.py:392"
+    },
+    {
+      "config": "SimConfig",
+      "field": "ik_q_nominal",
+      "canonical": [
+        0.297781,
+        1.526727,
+        0.842257,
+        1.147432,
+        0.75139,
+        0.251893,
+        1.332349,
+        -0.297781,
+        -1.526727,
+        -0.842257,
+        -1.147432,
+        -0.75139,
+        -0.251893,
+        1.332349
+      ],
+      "default": null,
+      "differs": true,
+      "source": "crawlbot/simulation/config.py:393"
+    },
+    {
+      "config": "SimConfig",
+      "field": "ik_w_posture",
+      "canonical": 0.2,
+      "default": 0.0,
+      "differs": true,
+      "source": "crawlbot/simulation/config.py:394"
+    },
+    {
+      "config": "SimConfig",
+      "field": "use_com_z_standoff",
+      "canonical": true,
+      "default": false,
+      "differs": true,
+      "source": "crawlbot/simulation/config.py:407"
+    },
+    {
+      "config": "WholeBodyQPConfig",
+      "field": "alpha_ee",
+      "canonical": 1000.0,
+      "default": 500.0,
+      "differs": true,
+      "source": "crawlbot/solvers/wholebody_qp.py:97"
+    },
+    {
+      "config": "WholeBodyQPConfig",
+      "field": "alpha_posture",
+      "canonical": 20.0,
+      "default": 100.0,
+      "differs": true,
+      "source": "crawlbot/solvers/wholebody_qp.py:98"
+    },
+    {
+      "config": "WholeBodyQPConfig",
+      "field": "alpha_wrench",
+      "canonical": 1.0,
+      "default": 10.0,
+      "differs": true,
+      "source": "crawlbot/solvers/wholebody_qp.py:99"
+    },
+    {
+      "config": "WholeBodyQPConfig",
+      "field": "alpha_torque",
+      "canonical": 5.0,
+      "default": 1.0,
+      "differs": true,
+      "source": "crawlbot/solvers/wholebody_qp.py:100"
+    },
+    {
+      "config": "WholeBodyQPConfig",
+      "field": "alpha_reg",
+      "canonical": 1.0,
+      "default": 0.01,
+      "differs": true,
+      "source": "crawlbot/solvers/wholebody_qp.py:101"
+    },
+    {
+      "config": "WholeBodyQPConfig",
+      "field": "alpha_lambda_int",
+      "canonical": 1.0,
+      "default": 0.0,
+      "differs": true,
+      "source": "crawlbot/solvers/wholebody_qp.py:102"
+    },
+    {
+      "config": "WholeBodyQPConfig",
+      "field": "ds_centroidal_mode",
+      "canonical": true,
+      "default": false,
+      "differs": true,
+      "source": "crawlbot/solvers/wholebody_qp.py:115"
+    },
+    {
+      "config": "WholeBodyQPConfig",
+      "field": "ss_two_task_mode",
+      "canonical": true,
+      "default": false,
+      "differs": true,
+      "source": "crawlbot/solvers/wholebody_qp.py:132"
+    },
+    {
+      "config": "WholeBodyQPConfig",
+      "field": "ss_alpha_mom",
+      "canonical": 400.0,
+      "default": 500.0,
+      "differs": true,
+      "source": "crawlbot/solvers/wholebody_qp.py:133"
+    },
+    {
+      "config": "WholeBodyQPConfig",
+      "field": "alpha_torso_pose",
+      "canonical": 2000.0,
+      "default": 1000.0,
+      "differs": true,
+      "source": "crawlbot/solvers/wholebody_qp.py:134"
+    },
+    {
+      "config": "WholeBodyQPConfig",
+      "field": "qp_envelope_exact",
+      "canonical": true,
+      "default": false,
+      "differs": true,
+      "source": "crawlbot/solvers/wholebody_qp.py:147"
+    },
+    {
+      "config": "WholeBodyQPConfig",
+      "field": "Kp_com",
+      "canonical": [
+        [
+          3.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          3.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          3.0
+        ]
+      ],
+      "default": [
+        100.0,
+        100.0,
+        100.0
+      ],
+      "differs": true,
+      "source": "crawlbot/solvers/wholebody_qp.py:162"
+    },
+    {
+      "config": "WholeBodyQPConfig",
+      "field": "Kd_com",
+      "canonical": [
+        [
+          3.0,
+          0.0,
+          0.0
+        ],
+        [
+          0.0,
+          3.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          3.0
+        ]
+      ],
+      "default": [
+        20.0,
+        20.0,
+        20.0
+      ],
+      "differs": true,
+      "source": "crawlbot/solvers/wholebody_qp.py:163"
+    },
+    {
+      "config": "WholeBodyQPConfig",
+      "field": "Kp_torso",
+      "canonical": [
+        3.0,
+        3.0,
+        3.0,
+        3.0,
+        3.0,
+        3.0
+      ],
+      "default": [
+        8.0,
+        8.0,
+        8.0,
+        5.0,
+        5.0,
+        5.0
+      ],
+      "differs": true,
+      "source": "crawlbot/solvers/wholebody_qp.py:166"
+    },
+    {
+      "config": "WholeBodyQPConfig",
+      "field": "Kd_torso",
+      "canonical": [
+        2.5,
+        2.5,
+        2.5,
+        2.5,
+        2.5,
+        2.5
+      ],
+      "default": [
+        6.0,
+        6.0,
+        6.0,
+        4.0,
+        4.0,
+        4.0
+      ],
+      "differs": true,
+      "source": "crawlbot/solvers/wholebody_qp.py:167"
+    },
+    {
+      "config": "WholeBodyQPConfig",
+      "field": "Kp_ee",
+      "canonical": [
+        10.0,
+        10.0,
+        10.0
+      ],
+      "default": [
+        80.0,
+        80.0,
+        80.0
+      ],
+      "differs": true,
+      "source": "crawlbot/solvers/wholebody_qp.py:170"
+    },
+    {
+      "config": "WholeBodyQPConfig",
+      "field": "Kd_ee",
+      "canonical": [
+        12.0,
+        12.0,
+        12.0
+      ],
+      "default": [
+        15.0,
+        15.0,
+        15.0
+      ],
+      "differs": true,
+      "source": "crawlbot/solvers/wholebody_qp.py:171"
+    },
+    {
+      "config": "WholeBodyQPConfig",
+      "field": "Kp_ee_ang",
+      "canonical": [
+        6.0,
+        6.0,
+        6.0
+      ],
+      "default": [
+        5.0,
+        5.0,
+        5.0
+      ],
+      "differs": true,
+      "source": "crawlbot/solvers/wholebody_qp.py:172"
+    },
+    {
+      "config": "WholeBodyQPConfig",
+      "field": "Kd_ee_ang",
+      "canonical": [
+        4.5,
+        4.5,
+        4.5
+      ],
+      "default": [
+        3.0,
+        3.0,
+        3.0
+      ],
+      "differs": true,
+      "source": "crawlbot/solvers/wholebody_qp.py:173"
+    },
+    {
+      "config": "WholeBodyQPConfig",
+      "field": "Kp_posture",
+      "canonical": 1.0,
+      "default": 25.0,
+      "differs": true,
+      "source": "crawlbot/solvers/wholebody_qp.py:176"
+    },
+    {
+      "config": "WholeBodyQPConfig",
+      "field": "Kd_posture",
+      "canonical": 1.5,
+      "default": 10.0,
+      "differs": true,
+      "source": "crawlbot/solvers/wholebody_qp.py:177"
+    },
+    {
+      "config": "WholeBodyQPConfig",
+      "field": "tau_max",
+      "canonical": [
+        20.0,
+        20.0,
+        20.0,
+        20.0,
+        20.0,
+        20.0,
+        20.0,
+        20.0,
+        20.0,
+        20.0,
+        20.0,
+        20.0,
+        20.0,
+        20.0
+      ],
+      "default": [
+        50.0,
+        50.0,
+        50.0,
+        50.0,
+        50.0,
+        50.0,
+        50.0,
+        50.0,
+        50.0,
+        50.0,
+        50.0,
+        50.0,
+        50.0,
+        50.0
+      ],
+      "differs": true,
+      "source": "crawlbot/solvers/wholebody_qp.py:184"
+    },
+    {
+      "config": "WholeBodyQPConfig",
+      "field": "dt_qp",
+      "canonical": 0.01,
+      "default": 0.008,
+      "differs": true,
+      "source": "crawlbot/solvers/wholebody_qp.py:190"
+    },
+    {
+      "config": "WholeBodyQPConfig",
+      "field": "L_max",
+      "canonical": 10.0,
+      "default": Infinity,
+      "differs": true,
+      "source": "crawlbot/solvers/wholebody_qp.py:197"
+    },
+    {
+      "config": "WholeBodyQPConfig",
+      "field": "tau_w_max",
+      "canonical": 2.5,
+      "default": Infinity,
+      "differs": true,
+      "source": "crawlbot/solvers/wholebody_qp.py:198"
+    },
+    {
+      "config": "CentroidalNMPCConfig",
+      "field": "robot_mass",
+      "canonical": 71.05599999999998,
+      "default": 90.0,
+      "differs": true,
+      "source": "crawlbot/solvers/centroidal_nmpc.py:81"
+    },
+    {
+      "config": "CentroidalNMPCConfig",
+      "field": "N",
+      "canonical": 8,
+      "default": 20,
+      "differs": true,
+      "source": "crawlbot/solvers/centroidal_nmpc.py:84"
+    },
+    {
+      "config": "CentroidalNMPCConfig",
+      "field": "dt",
+      "canonical": 0.1,
+      "default": 0.05,
+      "differs": true,
+      "source": "crawlbot/solvers/centroidal_nmpc.py:85"
+    },
+    {
+      "config": "CentroidalNMPCConfig",
+      "field": "f_max",
+      "canonical": 300.0,
+      "default": 3000.0,
+      "differs": true,
+      "source": "crawlbot/solvers/centroidal_nmpc.py:96"
+    },
+    {
+      "config": "CentroidalNMPCConfig",
+      "field": "tau_max",
+      "canonical": 8.0,
+      "default": 300.0,
+      "differs": true,
+      "source": "crawlbot/solvers/centroidal_nmpc.py:97"
+    },
+    {
+      "config": "CentroidalNMPCConfig",
+      "field": "L_max",
+      "canonical": 10.0,
+      "default": Infinity,
+      "differs": true,
+      "source": "crawlbot/solvers/centroidal_nmpc.py:100"
+    },
+    {
+      "config": "CentroidalNMPCConfig",
+      "field": "tau_w_max",
+      "canonical": 2.5,
+      "default": Infinity,
+      "differs": true,
+      "source": "crawlbot/solvers/centroidal_nmpc.py:101"
+    },
+    {
+      "config": "CentroidalNMPCConfig",
+      "field": "p_max",
+      "canonical": 50.0,
+      "default": Infinity,
+      "differs": true,
+      "source": "crawlbot/solvers/centroidal_nmpc.py:102"
+    },
+    {
+      "config": "CentroidalNMPCConfig",
+      "field": "enforce_hw_conservation",
+      "canonical": true,
+      "default": false,
+      "differs": true,
+      "source": "crawlbot/solvers/centroidal_nmpc.py:110"
+    },
+    {
+      "config": "CentroidalNMPCConfig",
+      "field": "solver_opts",
+      "canonical": "{}",
+      "default": {},
+      "differs": true,
+      "source": "crawlbot/solvers/centroidal_nmpc.py:119"
+    },
+    {
+      "config": "CoarsePrePlannerConfig",
+      "field": "robot_mass",
+      "canonical": 71.05599999999998,
+      "default": 71.0,
+      "differs": true,
+      "source": "crawlbot/planning/coarse_preplanner.py:68"
+    }
+  ]
+}

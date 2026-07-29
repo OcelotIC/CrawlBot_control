@@ -1,0 +1,32 @@
+{
+  "n_qp_solves": 8458,
+  "max_equality_residual": {
+    "available": true,
+    "n": 8458,
+    "median": 2.933275096341642e-16,
+    "p95": 1.2206923839797044e-15,
+    "max": 1.4546549566672582e-11
+  },
+  "max_inequality_violation": {
+    "available": true,
+    "n": 8458,
+    "median": 0.0,
+    "p95": 2.0328790734103208e-20,
+    "max": 1.3322676295501878e-15
+  },
+  "bound_violation": {
+    "available": true,
+    "n": 8458,
+    "median": 0.0,
+    "p95": 0.0,
+    "max": 0.0
+  },
+  "storage_hw_slack": {
+    "n_entries": 8458,
+    "n_nonzero": 389,
+    "max_s_up": 0.0,
+    "max_s_lo": 1.1118383484616776,
+    "max_norm": 1.1118383484616776,
+    "source": "WholeBodyQP.hw_slack_log (wholebody_qp.py:636-650)"
+  }
+}

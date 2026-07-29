@@ -1,0 +1,49 @@
+{
+  "definition": {
+    "c(k)": "h_w(k) + L_com(k) + r_com(k) x m v_com(k)",
+    "hhat(k+1|k)": "c(k) - L_com(k+1) - r_com(k+1) x m v_com(k+1)",
+    "e_h^(1)(k)": "h_w(k+1) - hhat(k+1|k)"
+  },
+  "horizon_error_e_h_N": {
+    "computed": false,
+    "reason": "the NMPC predicted trajectory is not persisted \u2014 sim_log carries no x_plan / predicted-state channel (only preplanner_T_steps and gait_plan), so hhat(k+N|k) cannot be evaluated along the solved trajectory from committed data. Per the brief, the one-step error is reported instead and no horizon export was added."
+  },
+  "h_max_Nms": 5.0,
+  "robot_mass_kg": 71.05599999999998,
+  "n_pairs_total": 2076,
+  "n_pairs_nmpc_active": 703,
+  "per_axis_abs": {
+    "x": {
+      "median": 0.009287763453332598,
+      "p95": 0.0313190317035477,
+      "max": 0.06447748950059373,
+      "max_frac_of_h_max": 0.012895497900118746,
+      "p95_frac_of_h_max": 0.006263806340709541,
+      "median_frac_of_h_max": 0.0018575526906665196
+    },
+    "y": {
+      "median": 0.018417726526928746,
+      "p95": 0.07938290497445935,
+      "max": 0.28632907129674845,
+      "max_frac_of_h_max": 0.05726581425934969,
+      "p95_frac_of_h_max": 0.01587658099489187,
+      "median_frac_of_h_max": 0.003683545305385749
+    },
+    "z": {
+      "median": 0.038018763114580245,
+      "p95": 0.12038146477907834,
+      "max": 0.16704915708311008,
+      "max_frac_of_h_max": 0.033409831416622016,
+      "p95_frac_of_h_max": 0.02407629295581567,
+      "median_frac_of_h_max": 0.007603752622916049
+    }
+  },
+  "inf_norm_abs": {
+    "median": 0.049242923748557876,
+    "p95": 0.12038146477907834,
+    "max": 0.28632907129674845,
+    "max_frac_of_h_max": 0.05726581425934969,
+    "p95_frac_of_h_max": 0.02407629295581567,
+    "median_frac_of_h_max": 0.009848584749711575
+  }
+}
