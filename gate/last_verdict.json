@@ -10,8 +10,8 @@
         "stdout_tail": [
           "",
           "Structure drift over run",
-          "  max ||struct_pos \u2212 struct_pos[0]||:  22.48 mm",
-          "  max ||omega_s||:                      1.97 mrad/s",
+          "  max ||struct_pos \u2212 struct_pos[0]||:  21.15 mm",
+          "  max ||omega_s||:                      1.62 mrad/s",
           "",
           "[replay] done -> results/gate_run_scratch/sim_log.json"
         ],
@@ -21,10 +21,10 @@
         "tag": "export",
         "returncode": 0,
         "stdout_tail": [
-          "  2   |   28.5s |  4.980 |      4.335  | +0.645 |    0.02 | 0.005773",
-          "  3   |  40.06s |  4.970 |      4.975  | -0.005 |    0.05 | 0.007167",
-          "  4   |  53.38s |  4.940 |      3.335  | +1.605 |    0.01 | 0.004984",
-          "  5   |  64.54s |  4.630 |      4.626  | +0.004 |    0.04 | 0.007016",
+          "  2   |  27.98s |  4.930 |      3.916  | +1.014 |    0.03 | 0.004860",
+          "  3   |   39.3s |  4.480 |      4.483  | -0.003 |    0.04 | 0.006058",
+          "  4   |  45.58s |  2.120 |      2.119  | +0.001 |    0.19 | 0.043886",
+          "  5   |  56.83s |  4.400 |      4.395  | +0.005 |    0.04 | 0.006788",
           "",
           "wrote gate/_run/c25_replay_fulldiag_meta.json"
         ],
@@ -33,11 +33,9 @@
     },
     "artifact_identity": {
       "status": "FAIL",
-      "reason": "field mismatch",
-      "row": 1,
-      "column": "hw_x_Nms",
-      "replay": "4.239594e-18",
-      "baseline": "-2.319809e-16"
+      "reason": "row count",
+      "replay_rows": 1982,
+      "baseline_rows": 2078
     },
     "two_model_consistency": {
       "status": "PASS",

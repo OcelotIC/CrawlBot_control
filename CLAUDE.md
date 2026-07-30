@@ -172,17 +172,17 @@ Update this line as work progresses:
 | tau_max | 20 | Nm | `config.py:32` |
 | dt_nmpc | 0.1 | s | `config.py:24` |
 | dt_qp | 0.01 | s | `config.py:25` |
-| NMPC horizon N | 8 | — | spec §5.1 |
+| NMPC horizon N | **15** (was 8; 1.5 s lookahead = 25 % of T_step. **Also moves 3 reference-sampling points** — see `config.py:243-254`) | — | `config.py:255`, spec §5.1 |
 | NMPC state dim | 9 | — | spec §5.1 (B2) |
 | NMPC control dim | 12 | — | spec §5.1 |
 | weight_ratio | 1.0 — **α magnitudes ARE the hierarchy** (two-task weighted stack, no null-space projection; priority integers inert) | — | `wholebody_qp.py:153` |
-| **α torso-pose** | **2000** | — | `config.py:303` (Add-5) |
-| **α swing-EE** | **1000** (dock lever; needs ≥ ~1000) | — | `config.py:282` (Add-5) |
-| **α momentum (T-MOM)** | **400** (near-inert on Ḣ_s — NMPC owns the envelope) | — | `config.py:290` (Add-5) |
+| **α torso-pose** | **2000** | — | `config.py:315` (Add-5) |
+| **α swing-EE** | **1000** (dock lever; needs ≥ ~1000) | — | `config.py:294` (Add-5) |
+| **α momentum (T-MOM)** | **400** (near-inert on Ḣ_s — NMPC owns the envelope) | — | `config.py:302` (Add-5) |
 | **w hw-slack** | **800** (slacks active only if the hw box is violated) | — | `wholebody_qp.py:218` (Add-5) |
-| **α posture** | **20** | — | `config.py:283` |
+| **α posture** | **20** | — | `config.py:295` |
 | **α torque-min** | **5** (must stay ≳ 5× accel-reg floor — Rule 14) | — | `sim_loop.py:951` (QP-construction literal) |
-| **α wrench-track** | **1.0** | — | `config.py:284` (Add-5; was 0.01 pre-freeze) |
+| **α wrench-track** | **1.0** | — | `config.py:296` (Add-5; was 0.01 pre-freeze) |
 | **α accel-reg** | **1.0** (regularizer floor) | — | `sim_loop.py:951` |
 | ε (Tikhonov) | 1e-6 (inert: λ_min(H_LS)=1 ≫ ε) | — | `hierarchical_qp.py:98` default |
 | **κ_SS(H)** | ≈ 7.5e3 (530× below the pre-freeze canonical 3.6e6) | — | `canonical2p5_result.json` |
@@ -215,6 +215,7 @@ The **5 mm dock gate is the docking-mechanism capture radius** — the 0.01 mm w
 ## Known Issues
 
 - **⚠ BRANCH `claude/com-gain-semantics-audit-j0u6yr` DIVERGES FROM THE FROZEN CANONICAL BY DESIGN.** COM-GAIN-AUDIT Phase 3 fixed a rank-one CoM feedback defect in the QP (`as_gain_matrix`, `wholebody_qp.py:70-126`), so **`gate/run_gate.py` FAILS artifact identity** (row 1, `hw_x_Nms`) on this branch. This is the intended A/B, not a regression. Docks stay **6/6** under 5 mm (worst margin 0.01 → **0.02 mm**, i.e. better); θ_s 0.540 → 0.539°; **e_com peak unchanged at 0.154 m**. `gate/run_suite.py` PASSES. **Whether to re-freeze the canonical artifacts at the corrected law is an open decision** — see `results/j2_adjconv/COM_GAIN_PHASE3_FIX.md` §6. Do not "fix" the gate by reverting the controller, and do not re-freeze without Idriss's call.
+- **⚠ NMPC horizon raised N=8 → 15** (`config.py:255`). Docks **6/6**, worst margin 0.02 → **0.07 mm**; h_w peak 4.244 → 4.172 Nms. But **θ_s 0.539 → 0.554°** and **e_com peak 0.154 → 0.190 m** are both WORSE, and NMPC solve time doubled (median 22 → 34 ms, max 61.9 → **117.9 ms**) so **1 solve in 634 now exceeds the 100 ms period** — a real-time violation for the sim-to-real track, harmless offline. **`nmpc_N` is two knobs**: it also moves three reference-sampling points (`sim_loop.py:2131/2148/2210`) from +0.8 s to +1.5 s lookahead, so this is NOT a clean horizon ablation. Report: `results/j2_adjconv/NMPC_HORIZON_N15.md`. **Do not propagate θ_s = 0.54° to the paper until the horizon is settled.**
 - **The QP CoM task differences the NMPC plan, not the tracking error** — `sim_loop.py:2549` feeds it `rp_interp` (NMPC plan, re-anchored to the measured CoM every 100 ms ⇒ `|e_r|` ≤ 1.147 mm, identically 0 on 508/5080 SS ticks), while the *logged* reference `cref_r` goes to the NMPC (`:2243`, exported `:2969`) and carries **61.5 mm median / 153.7 mm max** SS error. So no CoM gain change in the QP can improve `e_com`; **81 %** of that error is anisotropic (⊥[1,1,1]), x-dominated. Structural, not yet addressed.
 - **`gate/_run/cov_replay.sh` does not exist** although the Rule-15 routine below prescribes it — `gate/_run/` is gitignored in full (`.gitignore:109`). Without `gate/_run/cov/cov.json`, `sync_docs.py --check` false-positives on **all 25** modules and a blanket `sync_docs.py` **erases** the committed coverage annotations. Regenerate with `pip install coverage --break-system-packages` then `MUJOCO_GL=disabled PYTHONPATH=. python3 -m coverage run --source=crawlbot --data-file=gate/_run/cov/.coverage gate/replay_canonical.py && python3 -m coverage json --data-file=gate/_run/cov/.coverage -o gate/_run/cov/cov.json` (~5 min). `coverage` is **not** in `setup_env.sh`.
 - **Suite state: 205 passed, 0 failed, 0 errors, 0 skipped, 1 xfail — and GATED** (`gate/run_suite.py`; 206 tests incl. the 6 new `TestGainSemantics`). The "210 passed" figure previously recorded here was stale: the pre-Phase-3 tree had **200** tests (CLEANUP-29). The one xfail, `test_coarse_preplanner::test_far_infeasible_under_tight_rate`, is `strict=True` with its reasoning in the marker: the envelope-semantics question at cap 2.5 is open (see Remaining Work), and if the far case ever goes infeasible again the test **fails** rather than turning green. Getting from 12 problems to 0 retired nothing: 6 tests ported to the two-task API (`PHASE_CLEANUP_28`), 7 repaired (`PHASE_CLEANUP_29` §1), 2 genuinely-dead retired, 1 marked honestly.

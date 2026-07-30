@@ -240,7 +240,19 @@ class SimConfig:
     fsat_jitter_margin: float = 0.05         # [m/s] jitter slack on the torso-ref rate cap
 
     # ── NMPC solver ─────────────────────────────────────────────
-    nmpc_N: int = 8
+    # Prediction horizon. N·nmpc_dt is the lookahead: 15·0.1 = 1.5 s, i.e.
+    # 25 % of the nominal T_step = 6 s (was N=8 ⇒ 0.8 s, 13 %).
+    #
+    # ⚠ N is NOT a pure "more prediction steps" knob. Three reference-sampling
+    # points are keyed on it, because the NMPC holds a CONSTANT reference over
+    # the horizon and must therefore be handed the *future* value:
+    #   sim_loop.py:2131  t_horizon = t + N·dt   → CoM reference query
+    #   sim_loop.py:2148  tau_rel   = t_horizon − t0 → coarse-preplanner query
+    #   sim_loop.py:2210  t_mid     = t + N·dt/2 → L_com reference query
+    # Raising N therefore also moves the reference the NMPC chases further
+    # ahead in time. A longer horizon and a longer reference lead are changed
+    # together here; they are not separable through this field alone.
+    nmpc_N: int = 15
     nmpc_dt: float = 0.1
     nmpc_f_max: float = 300.0
     nmpc_tau_max: float = 8.0
