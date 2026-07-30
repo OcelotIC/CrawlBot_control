@@ -136,8 +136,8 @@ gap first.**
 
 ## 6. What this says about the audit findings
 
-- **F2** — machinery correct, feasible at 5.0, ~25 % solve cost, **does not
-  bound realized h_w**. Not enabled. New sub-question above.
+- **F2** — machinery correct, feasible at 5.0, **no measurable solve cost** (§3.1),
+  but **does not bound realized h_w**. Not enabled. New sub-question above.
 - **F7** (`L_com` bounded by a state box, not the wheel envelope) — F2 was the
   candidate remedy. It is not one until §5 is resolved, so F7 stands.
 - The wheel envelope therefore still reaches the NLP **only** through the
