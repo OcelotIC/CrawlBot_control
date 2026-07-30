@@ -67,6 +67,65 @@ from .hierarchical_qp import HierarchicalQP, QPSolveInfo
 from .contact_phase import ContactConfig, skew, compute_momentum_map
 
 
+def as_gain_matrix(g, n: int, name: str = 'gain') -> np.ndarray:
+    """Normalize a task PD gain to an ``(n, n)`` matrix.
+
+    Accepts the three forms the call sites actually use and rejects
+    everything else:
+
+    ==============  ======================================================
+    input shape     result
+    ==============  ======================================================
+    scalar          ``g · I_n``
+    ``(n,)``        ``diag(g)``  — per-axis gains given as a vector
+    ``(n, n)``      ``g`` unchanged — per-axis gains given as ``np.diag(v)``
+    ==============  ======================================================
+
+    Why this exists (COM-GAIN-AUDIT). ``Kp_com`` is declared as an ``(n,)``
+    default but every caller in the repository passes ``np.diag(...)`` — a
+    matrix (``sim_loop._build_qp``, and the ``Misc/`` baselines, two of them
+    anisotropic). The consumer used to be a bare ``np.diag(cfg.Kp_com)``,
+    which is *shape-polymorphic in the worst way*: on a vector it BUILDS a
+    matrix, but on a matrix it EXTRACTS the diagonal. The extracted diagonal
+    then contracted with the error as ``diag_vec @ e``, producing a SCALAR
+    that NumPy broadcast back over all n axes:
+
+        applied  =  (Σᵢ kᵢ·eᵢ) · [1, …, 1]          rank one
+        intended =  diag(k) · e                     rank n
+
+    Both are ``(n,)`` and finite, so nothing raised and no test caught it —
+    the canonical run executed the rank-one law on 8458/8458 solves. Axes are
+    coupled, per-axis anisotropy is destroyed, and any error component
+    orthogonal to ``[1, …, 1]`` is structurally invisible (81 % of the
+    canonical SS CoM error, median). Normalizing here makes the diagonal
+    contract explicit and the failure mode unrepresentable.
+
+    Raises
+    ------
+    ValueError
+        If the shape is not scalar, ``(n,)`` or ``(n, n)``, or if an
+        ``(n, n)`` input carries non-negligible off-diagonal terms (a full
+        matrix is not a supported gain form — flag it rather than silently
+        using or dropping the coupling).
+    """
+    a = np.asarray(g, dtype=float)
+    if a.ndim == 0:
+        return float(a) * np.eye(n)
+    if a.shape == (n,):
+        return np.diag(a)
+    if a.shape == (n, n):
+        off = a - np.diag(np.diag(a))
+        scale = max(float(np.abs(np.diag(a)).max()), 1.0)
+        if float(np.abs(off).max()) > 1e-12 * scale:
+            raise ValueError(
+                f"{name}: off-diagonal gain terms are not supported "
+                f"(max |off-diag| = {np.abs(off).max():.3e}); pass a scalar, "
+                f"an ({n},) vector, or a diagonal ({n},{n}) matrix")
+        return a
+    raise ValueError(
+        f"{name}: expected scalar, ({n},) or ({n},{n}); got shape {a.shape}")
+
+
 @dataclass
 class WholeBodyQPConfig:
     """Configuration for WholeBodyQP.
@@ -158,7 +217,12 @@ class WholeBodyQPConfig:
     # wrench available.
     w_hw_slack: float = 8e2       # Quadratic penalty on hw slack (CANONICAL-2p5 / Add-5 freeze; was 1e4)
 
-    # PD gains for CoM tracking (Eq. VI-F.4)
+    # PD gains for CoM tracking (Eq. VI-F.4).
+    # Contract (COM-GAIN-AUDIT): scalar, (3,) vector, or diagonal (3,3) matrix
+    # — all three are normalized by `as_gain_matrix` at the point of use, so
+    # `3.0`, `np.ones(3)*3` and `np.diag([3.,3.,3.])` are equivalent. Callers
+    # in this repository pass `np.diag(...)`; a full (non-diagonal) matrix is
+    # rejected rather than silently truncated.
     Kp_com: np.ndarray = field(default_factory=lambda: 100.0 * np.ones(3))
     Kd_com: np.ndarray = field(default_factory=lambda: 20.0 * np.ones(3))
 
@@ -425,7 +489,8 @@ class WholeBodyQP:
             qp.add_task(A_com, b_com, cfg.ss_alpha_mom, priority=2)
             # (2) 6-D torso-pose task on J_torso (position + orientation).
             if J_torso is not None and p_torso_ref is not None:
-                Kp_t = np.diag(cfg.Kp_torso); Kd_t = np.diag(cfg.Kd_torso)
+                Kp_t = as_gain_matrix(cfg.Kp_torso, 6, 'Kp_torso')
+                Kd_t = as_gain_matrix(cfg.Kd_torso, 6, 'Kd_torso')
                 v_t_act = J_torso @ dq_robot
                 p_t = p_torso if p_torso is not None else np.zeros(3)
                 R_t = R_torso if R_torso is not None else np.eye(3)
@@ -527,8 +592,8 @@ class WholeBodyQP:
                 v_ref_t = (v_torso_ref if v_torso_ref is not None
                            else np.zeros(6))
                 a_torso_ang_des = (
-                    np.diag(cfg.Kp_torso)[3:, 3:] @ e_ori
-                    + np.diag(cfg.Kd_torso)[3:, 3:] @ (
+                    as_gain_matrix(cfg.Kp_torso, 6, 'Kp_torso')[3:, 3:] @ e_ori
+                    + as_gain_matrix(cfg.Kd_torso, 6, 'Kd_torso')[3:, 3:] @ (
                         v_ref_t[3:] - v_torso_actual[3:]))
                 jdq = (Jdot_dq_torso[3:] if Jdot_dq_torso is not None
                        else np.zeros(3))
@@ -899,8 +964,12 @@ class WholeBodyQP:
 
         r_com_actual = r_com if r_com is not None else np.zeros(3)
         v_com_actual = J_com @ dq_robot
-        Kp_com_mat = np.diag(cfg.Kp_com)
-        Kd_com_mat = np.diag(cfg.Kd_com)
+        # COM-GAIN-AUDIT: `as_gain_matrix`, not `np.diag`. Every caller hands
+        # these over as `np.diag(...)` (a matrix), on which a bare `np.diag`
+        # EXTRACTS the diagonal instead of building it — collapsing the PD law
+        # to rank one. See `as_gain_matrix` for the full derivation.
+        Kp_com_mat = as_gain_matrix(cfg.Kp_com, 3, 'Kp_com')
+        Kd_com_mat = as_gain_matrix(cfg.Kd_com, 3, 'Kd_com')
         a_com_des = (a_com_ff
                      + Kp_com_mat @ (r_com_ref - r_com_actual)
                      + Kd_com_mat @ (v_com_ref - v_com_actual))

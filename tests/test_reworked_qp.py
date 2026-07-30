@@ -53,7 +53,8 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
 from crawlbot.core.robot_interface import RobotInterface
-from crawlbot.solvers.wholebody_qp import WholeBodyQP, WholeBodyQPConfig
+from crawlbot.solvers.wholebody_qp import (
+    WholeBodyQP, WholeBodyQPConfig, as_gain_matrix)
 from crawlbot.solvers.contact_phase import ContactConfig, ContactPhase
 
 
@@ -564,9 +565,14 @@ def _com_task_probe(qp, rs, qdd_t, qdd, r_com_ref, v_com_ref, a_com_ff):
     cfg = qp.config
     dq_robot = np.concatenate([rs.dq_torso, rs.dq_joints])
     v_com_actual = rs.J_com @ dq_robot
+    # COM-GAIN-AUDIT: must mirror `_com_task_rows` via the same normalizer.
+    # A bare `np.diag(cfg.Kp_com)` here reproduced the production rank-one bug
+    # in the expected value, so the probe agreed with the defect whenever the
+    # config carried a matrix — and this module's configs happen to leave the
+    # (3,) default in place, which is why it never surfaced.
     a_com_des = (a_com_ff
-                 + np.diag(cfg.Kp_com) @ (r_com_ref - rs.r_com)
-                 + np.diag(cfg.Kd_com) @ (v_com_ref - v_com_actual))
+                 + as_gain_matrix(cfg.Kp_com, 3) @ (r_com_ref - rs.r_com)
+                 + as_gain_matrix(cfg.Kd_com, 3) @ (v_com_ref - v_com_actual))
     a_com_realized = rs.J_com @ np.concatenate([qdd_t, qdd]) + rs.Jdot_dq_com
     return dict(
         a_com_des=a_com_des, a_com_realized=a_com_realized,
@@ -766,3 +772,90 @@ class TestMomentumTask:
         assert TOL_MASS_TOP_LO < ratios[-1] < TOL_MASS_TOP_HI, (
             f"mass-scalar: top-authority ratio {ratios[-1]:.3f} not converging "
             f"to unity [{TOL_MASS_TOP_LO},{TOL_MASS_TOP_HI}] (wrong mass form)")
+
+
+class TestGainSemantics:
+    """COM-GAIN-AUDIT: the PD gain handover contract.
+
+    The canonical run executed a rank-one CoM feedback law for its whole
+    history: every caller passes `np.diag(...)`, and the consumer was a bare
+    `np.diag(cfg.Kp_com)`, which EXTRACTS the diagonal from a matrix instead
+    of building one. The extracted vector then contracted with the error to a
+    scalar that NumPy broadcast over all three axes:
+
+        applied  = (Σᵢ kᵢ·eᵢ)·[1,1,1]        rank one, axes coupled
+        intended = diag(k)·e                  rank three, axes independent
+
+    Both are (3,) and finite, so nothing raised. These tests pin the three
+    accepted input forms to the SAME matrix, prove the law is full-rank, and
+    prove anisotropy survives — the three properties the defect violated.
+    """
+
+    def test_three_input_forms_agree(self):
+        """scalar, (3,) and diag((3,3)) must normalize to one matrix."""
+        want = 3.0 * np.eye(3)
+        for form, g in (('scalar', 3.0),
+                        ('vector', 3.0 * np.ones(3)),
+                        ('matrix', np.diag([3.0, 3.0, 3.0]))):
+            got = as_gain_matrix(g, 3, 'Kp_com')
+            assert got.shape == (3, 3), f"{form}: shape {got.shape}"
+            assert np.allclose(got, want), f"{form}:\n{got}"
+
+    def test_matrix_input_is_not_collapsed(self):
+        """The regression itself: diag input must not become rank one.
+
+        With the old `np.diag(cfg.Kp_com)` this returned a (3,) and the
+        product below was a scalar, so `rank` was 1 and the assertion on
+        per-axis independence failed.
+        """
+        K = as_gain_matrix(np.diag([3.0, 3.0, 5.0]), 3, 'Kp_com')
+        assert np.linalg.matrix_rank(K) == 3, f"gain collapsed:\n{K}"
+        e = np.array([0.01, -0.02, 0.03])
+        out = K @ e
+        assert out.shape == (3,), f"expected (3,), got {np.shape(out)}"
+        assert np.allclose(out, [0.03, -0.06, 0.15]), out
+        # The defect's signature: a sum broadcast over all axes.
+        broadcast = float(np.diag(K) @ e) * np.ones(3)
+        assert not np.allclose(out, broadcast), (
+            "per-axis law is indistinguishable from sum-and-broadcast")
+
+    def test_anisotropy_survives(self):
+        """Anisotropic gains must stay anisotropic (Misc baselines use [3,3,5])."""
+        K = as_gain_matrix(np.diag([50.0, 50.0, 100.0]), 3, 'Kp_com')
+        assert np.allclose(np.diag(K), [50.0, 50.0, 100.0])
+        # Pure-z error must produce a pure-z response at the z gain.
+        out = K @ np.array([0.0, 0.0, 1.0])
+        assert np.allclose(out, [0.0, 0.0, 100.0]), out
+
+    def test_error_orthogonal_to_ones_is_not_invisible(self):
+        """e ⟂ [1,1,1] produced EXACTLY zero feedback under the defect.
+
+        81 % of the canonical SS CoM error (median) lay in this subspace, so
+        this is the property that actually mattered in the closed loop.
+        """
+        K = as_gain_matrix(np.diag([3.0, 3.0, 3.0]), 3, 'Kp_com')
+        e = np.array([1.0, -1.0, 0.0])          # sums to zero
+        assert abs(float(np.sum(e))) < 1e-15
+        out = K @ e
+        assert np.linalg.norm(out) > 1e-9, (
+            f"error orthogonal to [1,1,1] produced no feedback: {out}")
+        assert np.allclose(out, [3.0, -3.0, 0.0]), out
+
+    def test_bad_shapes_rejected(self):
+        """Silence was the whole problem — wrong shapes must raise."""
+        with pytest.raises(ValueError):
+            as_gain_matrix(np.ones(4), 3, 'Kp_com')
+        with pytest.raises(ValueError):
+            as_gain_matrix(np.ones((2, 3)), 3, 'Kp_com')
+        # A full matrix is not a supported gain form: flag, do not truncate.
+        full = np.array([[3.0, 1.0, 0.0], [0.0, 3.0, 0.0], [0.0, 0.0, 3.0]])
+        with pytest.raises(ValueError):
+            as_gain_matrix(full, 3, 'Kp_com')
+
+    def test_torso_gain_handover_is_unchanged(self):
+        """sim_loop passes Kp_torso as (6,) — normalization must be inert."""
+        v = np.array([8., 8., 8., 5., 5., 5.])
+        assert np.allclose(as_gain_matrix(v, 6, 'Kp_torso'), np.diag(v))
+        # And the angular sub-block the QP slices must still be the tail.
+        assert np.allclose(
+            as_gain_matrix(v, 6, 'Kp_torso')[3:, 3:], np.diag(v[3:]))
