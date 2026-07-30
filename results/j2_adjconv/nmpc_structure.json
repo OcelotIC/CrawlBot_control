@@ -1,0 +1,49 @@
+{
+  "N": 20,
+  "dt": 0.05,
+  "lookahead_s": 1.0,
+  "dt_nmpc": 0.1,
+  "knot_spacing_equals_control_period": false,
+  "nx": 9,
+  "nu": 12,
+  "np": 18,
+  "n_decision_vars": 429,
+  "n_constraint_rows": 409,
+  "ng_path_per_stage": 11,
+  "ng_terminal": 0,
+  "blocks": {
+    "SOC ||f_j||^2, ||tau_j||^2": {
+      "rows": 4,
+      "active": true
+    },
+    "wheel-torque cap |Hdot_s,i|": {
+      "rows": 6,
+      "active": true
+    },
+    "linear momentum ||m v||^2": {
+      "rows": 1,
+      "active": true
+    },
+    "RWA conservation box h_w(k)": {
+      "rows": 0,
+      "active": false
+    }
+  },
+  "enforce_hw_conservation": false,
+  "solver_options": {
+    "ipopt.print_level": 0,
+    "print_time": 0,
+    "ipopt.max_iter": 200,
+    "ipopt.tol": 1e-06,
+    "ipopt.acceptable_tol": 0.0001,
+    "ipopt.acceptable_iter": 5,
+    "ipopt.warm_start_init_point": "yes",
+    "ipopt.linear_solver": "mumps"
+  },
+  "inert_fields": [
+    "c_simple (params p[12:15]) \u2014 computed every solve, read by nothing",
+    "h_max_tight \u2014 only used by the disabled box",
+    "kappa_terminal \u2014 only used by the disabled terminal constraint",
+    "compute_c_simple() \u2014 result unused downstream"
+  ]
+}

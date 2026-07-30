@@ -1,0 +1,20 @@
+[
+  {
+    "tag": "N20_dt05_p10",
+    "status": "OK",
+    "nmpc_N": 20,
+    "nmpc_dt": 0.05,
+    "dt_nmpc": 0.1,
+    "horizon_s": 1.0,
+    "replay_seconds": 210.2
+  },
+  {
+    "tag": "N20_dt05_p05",
+    "status": "OK",
+    "nmpc_N": 20,
+    "nmpc_dt": 0.05,
+    "dt_nmpc": 0.05,
+    "horizon_s": 1.0,
+    "replay_seconds": 205.1
+  }
+]

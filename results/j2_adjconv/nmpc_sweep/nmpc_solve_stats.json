@@ -1,0 +1,41 @@
+{
+  "N20_dt05_p10": {
+    "solves": 711,
+    "control_period_s": 0.1,
+    "budget_ms": 100.0,
+    "time_ms": {
+      "median": 34.44,
+      "p95": 44.88,
+      "max": 53.92
+    },
+    "iters": {
+      "median": 13,
+      "max": 19
+    },
+    "over_budget": 0,
+    "status": {
+      "Solve_Succeeded": 684,
+      "Solved_To_Acceptable_Level": 27
+    }
+  },
+  "N20_dt05_p05": {
+    "solves": 1274,
+    "control_period_s": 0.05,
+    "budget_ms": 50.0,
+    "time_ms": {
+      "median": 35.23,
+      "p95": 42.55,
+      "max": 58.13
+    },
+    "iters": {
+      "median": 13.0,
+      "max": 20
+    },
+    "over_budget": 8,
+    "status": {
+      "Solve_Succeeded": 1219,
+      "Solved_To_Acceptable_Level": 55
+    }
+  },
+  "_note": "nmpc_step_log.json is gitignored (.gitignore:30); these are its summary statistics, retained so the solve-time claims in NMPC_AUDIT.md remain checkable from the repo."
+}

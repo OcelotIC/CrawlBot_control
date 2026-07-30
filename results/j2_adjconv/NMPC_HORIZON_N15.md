@@ -77,7 +77,8 @@ against the horizon half — and it cannot be separated without the decoupling i
 | p95 [ms] | 31.3 | **60.5** |
 | **max [ms]** | 61.9 | **117.9** |
 | IPOPT iterations median / max | 11 / 18 | 11 / 19 |
-| non-success statuses | 4 | 2 |
+| solves that FAILED | **0 / 709** | **0 / 634** |
+| `Solved_To_Acceptable_Level` (still successes) | 4 | 2 |
 | **solves over the 100 ms budget** | **0 / 709** | **1 / 634** |
 
 ⚠ **One solve exceeds the NMPC period.** `dt_nmpc = 0.1 s`, so a 117.9 ms solve
