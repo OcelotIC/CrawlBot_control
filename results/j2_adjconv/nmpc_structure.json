@@ -8,9 +8,9 @@
   "nu": 12,
   "np": 18,
   "n_decision_vars": 429,
-  "n_constraint_rows": 409,
-  "ng_path_per_stage": 11,
-  "ng_terminal": 0,
+  "n_constraint_rows": 535,
+  "ng_path_per_stage": 17,
+  "ng_terminal": 6,
   "blocks": {
     "SOC ||f_j||^2, ||tau_j||^2": {
       "rows": 4,
@@ -25,11 +25,11 @@
       "active": true
     },
     "RWA conservation box h_w(k)": {
-      "rows": 0,
-      "active": false
+      "rows": 6,
+      "active": true
     }
   },
-  "enforce_hw_conservation": false,
+  "enforce_hw_conservation": true,
   "solver_options": {
     "ipopt.print_level": 0,
     "print_time": 0,
@@ -40,10 +40,5 @@
     "ipopt.warm_start_init_point": "yes",
     "ipopt.linear_solver": "mumps"
   },
-  "inert_fields": [
-    "c_simple (params p[12:15]) \u2014 computed every solve, read by nothing",
-    "h_max_tight \u2014 only used by the disabled box",
-    "kappa_terminal \u2014 only used by the disabled terminal constraint",
-    "compute_c_simple() \u2014 result unused downstream"
-  ]
+  "inert_fields": []
 }

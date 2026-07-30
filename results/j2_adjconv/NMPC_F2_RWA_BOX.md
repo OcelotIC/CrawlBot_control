@@ -1,163 +1,146 @@
-# F2 — reactivating the RWA conservation box
+# F2 — RETRACTED. The RWA conservation box was never off.
 
 **Branch** `claude/com-gain-semantics-audit-j0u6yr`
-**Outcome: the box is NOT enabled by default.** It is feasible and harmless, but
-a bite test shows it does not bound the quantity it appears to bound, and
-shipping a constraint that looks like a guarantee but is not one is worse than
-shipping no constraint. The machinery, the staging switch and the evidence are
-committed; the default stays `False` pending §5.
 
 ---
 
-## 1. What was done
+## 0. Retraction
 
-`enforce_hw_conservation` gated **both** the path box and the terminal
-constraint, so they could not be staged. Split:
+**NMPC_AUDIT finding F2 was wrong.** It claimed the RWA conservation box and its
+terminal set are disabled in the canonical run. They are not, and never were.
+
+Measured from the config the canonical actually uses
+(`scripts/audit_nmpc_structure.py`, now building from `_make_m7_config()`):
+
+```
+[ON] SOC ||f_j||^2, ||tau_j||^2          4 rows
+[ON] wheel-torque cap |Hdot_s,i|         6 rows   tau_w_max = 2.5
+[ON] linear momentum ||m v||^2           1 row    p_max = 50
+[ON] RWA conservation box h_w(k)         6 rows   h_max_tight = [5,5,5]
+[ON] terminal |h_w(N)| <= kappa*h_max    6 rows   kappa = 1.0
+ng_path = 17   ng_term = 6   rows = 535
+```
+
+### How the error happened
+
+`SimConfig.enforce_hw_conservation` defaults to `False`, and I built the
+structural audit from a bare `SimConfig()`. But `dca.main` does not use the
+defaults — it calls `run_m7_single_step._make_m7_config()`
+(`diag_cooperative_arms.py:268`), which constructs `SimConfig(...)` with
+**explicit kwargs**:
+
+```python
+enforce_hw_conservation=True,
+h_max_tight=np.full(3, 5.0),
+kappa_terminal=1.0,
+```
+
+So the audit measured a configuration nothing runs. This is precisely the trap
+`docs/crawlbot/solvers/centroidal_nmpc.md` §3 already documented — *a dataclass
+default is not the canonical value* — and I walked into it, then **overwrote
+that correct warning with a wrong "correction"**. Both are now restored, and
+`audit_nmpc_structure.py` builds from `_make_m7_config()` so it cannot recur.
+
+### What was consequently also wrong
+
+| earlier claim | truth |
+|---|---|
+| "12 documented constraint rows are never emitted" | all 12 are emitted |
+| "`c_simple` is computed every solve and read by nothing" | it is read by the box, every solve |
+| "`h_max_tight`, `kappa_terminal` are inert" | both live |
+| "F7: the envelope enters only through the disabled box and the rate cap" | the box is live, so accumulated `h_w` **is** bounded inside the horizon |
+| "`ng_path=11`, `ng_term=0`" | 17 and 6 |
+| the doc "asserted the OPPOSITE of the code" | the doc was right; my correction was the error |
+
+## 1. What the F2 experiment actually measured
+
+Four replays were run believing they varied the box. They did not: the sweep
+driver patches `SimConfig` **defaults**, which `_make_m7_config()` overrides for
+`enforce_hw_conservation` and `h_max_tight`. So every run had box ON at
+h_max = 5.0, and **the bite test never ran at 3.5** — its premise was void.
+
+One field *was* varied, because `_make_m7_config()` does not set it:
+`enforce_hw_terminal`.
+
+| run | box | h_max | terminal | what it really was |
+|---|---|---|---|---|
+| `F2off_ctl_N20` | ON | 5.0 | ON (`None` → follows box) | = canonical |
+| `F2box_N20` | ON | 5.0 | **OFF** | **the only real variation** |
+| `F2boxterm_N20` | ON | 5.0 | ON | = canonical |
+| `F2bite_h35_N20` | ON | 5.0 | ON | = canonical (not 3.5) |
+
+That explains every anomaly at once: three runs were byte-identical because they
+*were the same configuration*, and `F2box` was the sole outlier because removing
+the terminal set is the only thing that changed. The "bite test didn't bite"
+because the box was at 5.0 and the h_w peak is 3.815 — comfortably inside.
+
+**Salvageable result:** removing the terminal constraint (`F2box`) perturbs the
+run by 46 698 of 125 888 fields at ≤ 6e-4 relative — 9 µm of CoM, 1.3e-5° of
+θ_s — with docks, θ_s and h_w unchanged to printed precision and 639/639 solves
+succeeding either way. So the terminal set is **inactive at the current
+operating point**, consistent with the path box being slack.
+
+## 2. What is genuinely established
+
+- The box **is** live in the canonical, per-axis, at ±5 Nms on each component.
+- It is **slack**: realized per-axis peaks are x 0.583, y 2.339, **z 3.815** —
+  24 % headroom on the worst axis. Curves: `nmpc_f2_peraxis.png`.
+- `hw_current` handed to the NMPC matches the exported `hw_*_Nms` exactly
+  (per-axis peaks identical to 4 dp), so there is **no filtered/stale-telemetry
+  problem** — that hypothesis is refuted.
+- The constraint rejects violating states when they occur: the same NLP given
+  `hw_current` with an axis at 3.8146 against `h_max = 3.5` returns
+  `Infeasible_Problem_Detected` (and at 3.0 too).
+
+## 3. What is NOT established, and needs a real bite test
+
+Whether the box would bind under stress is **still untested**, because the test
+meant to show it never applied its tightened bound. A valid bite test must
+override `_make_m7_config()`'s explicit kwarg — patching the `SimConfig` default
+is not enough.
+
+⚠ The same applies to **every** field `_make_m7_config()` sets explicitly:
+`use_m2_stack`, `alpha_passivity`, `enforce_hw_conservation`, `h_max_tight`,
+`w_L_nmpc`, `kappa_terminal`, `aocs_mode`, `aocs_use_legacy_corrected`,
+`aocs_use_H_estimator`, and the `preplanner_*` group. All are **immune to
+default-patching**.
+
+Recommended: give the sweep driver a second patch target in
+`run_m7_single_step.py`, and **assert the value from inside the run** rather
+than inferring it from the file. The probe here only caught the problem because
+it recorded `h_max` per solve and the recorded value disagreed with the intent —
+that assertion is the durable fix.
+
+## 4. Standing changes from this work
+
+The `enforce_hw_terminal` split is kept — it is correct, and it is what allowed
+the terminal set to be isolated at all:
 
 | field | meaning |
 |---|---|
-| `enforce_hw_conservation` | the **path** box `h_w(k) ∈ [−h', h']`, k = 0..N−1 |
-| `enforce_hw_terminal` | the **terminal** set `\|h_w(N)\| ≤ κ·h'`. `None` = follow the path box (historical coupling), `True`/`False` overrides |
+| `enforce_hw_conservation` | the path box, k = 0..N−1 |
+| `enforce_hw_terminal` | the terminal set. `None` = follow the path box (historical coupling), `True`/`False` overrides |
 
-Verified against all four combinations:
+`SimConfig` defaults are unchanged, and since `_make_m7_config()` leaves
+`enforce_hw_terminal` at `None`, the canonical is unaffected: terminal follows
+the box, exactly as before.
 
-| box | terminal | `ng_path` | `ng_term` | |
-|---|---|---|---|---|
-| False | None | 11 | 0 | current default, unchanged |
-| True | None | 17 | 6 | legacy coupling, preserved exactly |
-| True | False | 17 | 0 | step A |
-| True | True | 17 | 6 | step B |
+## 5. Effect on the other findings
 
-`(True, None)` reproducing `17/6` is incidentally the configuration the stale
-`centroidal_nmpc.md` §3 was describing — it was a real configuration, just never
-the canonical one.
+- **F1, F3** — unaffected. `nmpc_N`, `nmpc_pred_dt`, `nmpc_period` and
+  `nmpc_per_stage_refs` are **not** set by `_make_m7_config()`, so the driver's
+  default-patching did reach them. Verified: the canonical config reports
+  `nmpc_N=20`, `nmpc_pred_dt=0.1`, `nmpc_per_stage_refs=True`.
+- **F4** — unaffected; the rate cap still binds ~58 % of SS ticks.
+- **F7** — **retracted in part.** The wheel envelope does reach the NLP as a
+  bound on accumulated `h_w`, not only through the rate cap. `L_com`'s state box
+  remains a separate, coarser bound.
+- **F5, F6** — unaffected.
 
-## 2. Step A — path box on, `h_max_tight = 5.0`
+## 6. Credit
 
-Full 6-step replay: docks **6/6** (4.19/4.70/4.95/4.69/2.62/4.55, worst margin
-0.05 mm), θ_s 0.455°, h_w 3.815/4.087, e_com 0.092, **639/639 `Solve_Succeeded`**.
-Every headline metric identical to F2-off.
-
-Cost: **none measurable.** See §3.1 — an earlier draft of this report claimed
-+25 %, comparing against a run from a different session. Corrected.
-
-## 3. Step B — terminal set on top
-
-Same metrics again, 639/639 success.
-
-### 3.1 Solve cost: correcting a cross-session comparison
-
-The `F2off_ctl_N20` control run exists precisely so the cost is measured in
-the SAME session as the treatments. All four:
-
-| run | median | p95 | max |
-|---|---|---|---|
-| **F2 off (control)** | **38.36** | 52.81 | 83.53 |
-| box | 37.57 | 50.55 | 67.08 |
-| box + terminal | 37.33 | 52.93 | 95.19 |
-| bite (h_max 3.5) | 37.98 | 51.83 | 78.73 |
-
-**Enabling the box costs nothing measurable** — box-on is marginally *faster*
-at the median than box-off, i.e. the spread is machine noise, not signal.
-0/639 over the 100 ms period in every case.
-
-⚠ An earlier draft reported "+25 %" by comparing against `F3_N20_dt10`
-(median 30.05 ms), which was recorded in an earlier session on a quieter
-machine. That is the same error as the retracted 117.9 ms real-time claim
-(`NMPC_HORIZON_N15` §3.2): **solve times are only comparable within one
-session.** The maxima here (67–95 ms) span 40 % for configurations whose
-medians differ by 1 ms, which is the size of the noise.
-
-## 4. Why "identical metrics" is the whole story
-
-Solver-level, one representative problem under all three configurations:
-
-```
-off       ng_path=11 ng_term=0 rows=409  cost=4.285326e+01 it=15
-box       ng_path=17 ng_term=0 rows=529  cost=4.285326e+01 it=15
-box+term  ng_path=17 ng_term=6 rows=535  cost=4.285326e+01 it=15
-   off vs box      max|Δr_plan| = 5.8e-11
-   box vs box+term max|Δr_plan| = 4.8e-12
-```
-
-**Same optimum, same iteration count.** The constraints are added and are
-**inactive**. Closed-loop, the 1e-11 perturbation amplifies chaotically: the
-box-only run differs from F2-off in 46 698 of 125 888 exported fields, yet the
-largest physical difference is 9 µm of CoM, 1.3e-5° of θ_s, 1.6e-4 Nms of h_w.
-Total IPOPT iterations: 6794 / 6798 / 6794.
-
-⚠ `box+term` came out **byte-identical** to `off` while `box` did not. That is a
-rounding coincidence in a chaotic loop, not evidence about the terminal set —
-recorded here so nobody later reads it as one.
-
-## 5. The bite test — and why the default stays OFF
-
-A constraint that never activates proves nothing. Tightened to
-`h_max_tight = 3.5`, **below** the realized h_w peak of 3.815:
-
-| | expected | observed |
-|---|---|---|
-| NMPC solves | some infeasible | **639/639 `Solve_Succeeded`** |
-| realized h_w peak | ≤ 3.5 | **3.8146** (+9.0 %, +0.315 Nms) |
-| SS ticks above the box | 0 | **9 / 438**, t = 44.92 … 45.62 s |
-| docks / θ_s / h_w | changed | **identical to h_max = 5.0** |
-
-**The tightened box did not bite.** But the machinery is provably correct — the
-same NLP, given `hw_current = 3.8146` with `h_max = 3.5` in isolation, returns
-`Infeasible_Problem_Detected`:
-
-```
-h_max=5.0  |h_w(0)|=3.8146 -> success=True   Solve_Succeeded
-h_max=3.5  |h_w(0)|=3.8146 -> success=False  Infeasible_Problem_Detected
-h_max=3.0  |h_w(0)|=3.8146 -> success=False  Infeasible_Problem_Detected
-```
-
-So the constraint works, and in the closed loop the NMPC never saw a violating
-state — while the plant reached one. `h_w(0) ≡ hw_current` identically (the
-`c_simple` terms cancel at k=0), and the fulldiag's SS rows *are* the NMPC solve
-instants (438 rows at exactly 0.100 s; 438 SS + 201 DS_terminal = 639 solves).
-So at t = 45.32 s the NMPC solved successfully at a tick whose logged h_w was
-3.8146 against its own 3.5 box.
-
-**That gap is unexplained and is the reason F2 stays off.** The candidate is
-that `hw_for_nmpc = rwa_I_w · qvel[6:9]` (read at `_step` entry,
-`sim_loop.py:2256`) is not the quantity exported as `hw_*_Nms`
-(`rwa_I_w · rw_vel_f`, a *filtered* wheel velocity captured later in the tick —
-`tick_logging.py:429`, and `diag_full_diag_export.py:102` exports
-`hw_physical`). Measured h_w drift is ~0.003 Nms per 10 ms tick in the quiet
-regions but up to 0.113 Nms, i.e. **up to ~1.13 Nms across one control period** —
-the same order as the 0.315 Nms discrepancy. That would mean the box is anchored
-to a stale or differently-filtered h_w, so it bounds neither the realized wheel
-momentum nor the value the diagnostics report.
-
-Until that is resolved, enabling the box would advertise an envelope guarantee
-the system does not have. **The correct action is to leave it off and close the
-gap first.**
-
-## 6. What this says about the audit findings
-
-- **F2** — machinery correct, feasible at 5.0, **no measurable solve cost** (§3.1),
-  but **does not bound realized h_w**. Not enabled. New sub-question above.
-- **F7** (`L_com` bounded by a state box, not the wheel envelope) — F2 was the
-  candidate remedy. It is not one until §5 is resolved, so F7 stands.
-- The wheel envelope therefore still reaches the NLP **only** through the
-  `|Ḣ_s| ≤ τ_w,max` rate cap (F4), which is a bound on the derivative. Nothing
-  bounds accumulated `h_w` inside the horizon.
-
-## 7. Next step
-
-Instrument one replay to log `hw_for_nmpc` alongside the exported `hw_physical`
-at every solve and difference them. If they diverge by the ~0.3 Nms seen here,
-the fix is to feed the NMPC the same filtered quantity the AOCS and the
-diagnostics use — after which the bite test should be re-run and must bite.
-
-## 8. Artifacts
-
-| path | what |
-|---|---|
-| `nmpc_sweep/F2off_ctl_N20/` | F2 off, current tree — control, confirms the baseline is still valid |
-| `nmpc_sweep/F2box_N20/` | step A, box only, h_max 5.0 |
-| `nmpc_sweep/F2boxterm_N20/` | step B, box + terminal |
-| `nmpc_sweep/F2bite_h35_N20/` | bite test, h_max 3.5 |
-
-No committed canonical artifact modified; `SimConfig` defaults unchanged.
+The thread that unravelled this was Idriss's question about `hw_current` being
+scalar. It is not — it is a proper 3-vector and the box is component-wise — but
+checking it forced a per-axis re-analysis, which forced instrumenting what the
+NMPC actually receives, which is what exposed that the audit had been reading
+the wrong config all along.

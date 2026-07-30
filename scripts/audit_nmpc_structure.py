@@ -21,8 +21,21 @@ CANONICAL_MASS = 71.056        # from the two-model consistency check
 
 
 def build_canonical():
-    """Mirror sim_loop.py:416-432 exactly."""
-    cfg = SimConfig()
+    """Mirror the CANONICAL config, not the SimConfig defaults.
+
+    ⚠ This used to do `cfg = SimConfig()`, which is NOT what the canonical run
+    uses and produced a materially wrong audit: it reported the RWA
+    conservation box and its terminal set as OFF (ng_path=11, ng_term=0) when
+    the canonical has always had both ON (17 / 6).
+
+    `dca.main` builds its config from `run_m7_single_step._make_m7_config()`,
+    which passes `enforce_hw_conservation=True`, `h_max_tight=5.0` and
+    `kappa_terminal=1.0` as EXPLICIT kwargs — overriding the dataclass
+    defaults. This is exactly the trap `centroidal_nmpc.md` §3 already warned
+    about: *a dataclass default is not the canonical value*.
+    """
+    import scripts.run_m7_single_step as _m7
+    cfg = _m7._make_m7_config()
     ncfg = CentroidalNMPCConfig(
         robot_mass=CANONICAL_MASS,
         N=cfg.nmpc_N, dt=cfg.nmpc_pred_dt,
@@ -36,9 +49,12 @@ def build_canonical():
         Qf_v=cfg.nmpc_Qf_v * np.ones(3),
         Qf_L=cfg.nmpc_Qf_L,
         enforce_hw_conservation=cfg.enforce_hw_conservation,
+        enforce_hw_terminal=cfg.enforce_hw_terminal,
         h_max_tight=cfg.h_max_tight,
         w_L=cfg.w_L_nmpc,
-        kappa_terminal=cfg.kappa_terminal)
+        kappa_terminal=cfg.kappa_terminal,
+        per_stage_refs=cfg.nmpc_per_stage_refs,
+        control_period=cfg.nmpc_period)
     return cfg, ncfg
 
 

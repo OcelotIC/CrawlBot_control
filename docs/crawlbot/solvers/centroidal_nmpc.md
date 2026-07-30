@@ -211,30 +211,22 @@ The table above shows `robot_mass=90.0`, `N=20`, `dt=0.05`. **None is used**:
 
 > A dataclass default is not the canonical value.
 
-⚠ **Correction (NMPC_AUDIT, 2026-07-30).** This section previously stated that
-"the canonical run sets `enforce_hw_conservation` `True`" with `ng_path=17`,
-`ng_term=6`. **That is false for the current tree, and it was asserted as a
-measurement.** Built from the canonical `SimConfig` and read back by
-`scripts/audit_nmpc_structure.py`:
+The costliest case is `enforce_hw_conservation`, whose dataclass default is
+`False` while **the canonical run sets it `True`** — `dca.main` builds its config
+from `run_m7_single_step._make_m7_config()`, which passes
+`enforce_hw_conservation=True`, `h_max_tight=5.0` and `kappa_terminal=1.0` as
+explicit kwargs. Measured on the real config by
+`scripts/audit_nmpc_structure.py`: `enforce_hw=True`, **`ng_path=17`,
+`ng_term=6`**, 535 constraint rows.
 
-```
-[OFF] RWA conservation box h_w(k)          0 rows
-[OFF] terminal |h_w(N)| <= kappa*h_max     0 rows
-ng_path = 11   (4 SOC + 6 wheel-torque + 1 linear momentum)
-ng_term = 0
-```
-
-`SimConfig.enforce_hw_conservation` is `False` (`config.py:193`) and **nothing
-overrides it** — not `sim_loop`, not `dca.main`, not the gate's `C_KWARGS`. The
-only `True` sites in the tree are `scripts/run_m7_single_step.py:44` and
-`tests/test_nmpc_conservation.py:64`, neither of which is the canonical run.
-
-So the `h_w` box and its terminal constraint are **not part of the canonical
-controller**, and `c_simple` — computed by `compute_c_simple()` on every solve —
-is read by nothing. Whether to enable it is an open decision (`NMPC_AUDIT` F2);
-it is recorded here so the document stops contradicting the code.
-
----
+> ⚠ **This section was briefly "corrected" to say the opposite, and that
+> correction was wrong.** The NMPC_AUDIT F2 finding claimed the box was OFF in
+> the canonical; it was built from a bare `SimConfig()` rather than from
+> `_make_m7_config()`. The original text here was right. Retraction and the
+> full consequence list: `results/j2_adjconv/NMPC_F2_RWA_BOX.md` §0.
+> The lesson is the one this section already stated — *a dataclass default is
+> not the canonical value* — and the audit tooling now builds from
+> `_make_m7_config()` so it cannot recur.
 
 ## 4. Two unexercised methods, opposite verdicts
 

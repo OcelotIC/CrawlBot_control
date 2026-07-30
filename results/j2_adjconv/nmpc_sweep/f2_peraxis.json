@@ -1,0 +1,11 @@
+{
+  "run": "F2bite_h35_N20",
+  "box": 3.5,
+  "per_axis_peak_abs": {
+    "x": 0.5827981,
+    "y": 2.338751,
+    "z": 3.81463
+  },
+  "ss_ticks_over_box": 9,
+  "ss_ticks_total": 438
+}

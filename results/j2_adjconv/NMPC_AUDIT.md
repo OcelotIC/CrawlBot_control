@@ -14,12 +14,12 @@ from the exported fulldiag CSV. Machine output: `results/j2_adjconv/nmpc_structu
 | # | finding | severity |
 |---|---|---|
 | **F1** | **The reference is a constant setpoint over the whole horizon, not a trajectory.** One parameter vector serves every stage; the pre-planner's momentum-feasible *trajectory* is sampled at a single instant per solve and held. | **structural** |
-| **F2** | **The RWA conservation box and its terminal constraint are OFF** (`enforce_hw_conservation=False`). 12 of the documented constraint rows are never emitted. `c_simple` is computed every solve and read by nothing. | **structural** |
+| ~~**F2**~~ | **RETRACTED — the box and its terminal set are ON in the canonical** (`ng_path=17`, `ng_term=6`). The finding was built from a bare `SimConfig()`; `dca` uses `_make_m7_config()`, which passes `enforce_hw_conservation=True`, `h_max_tight=5.0`, `kappa_terminal=1.0` as explicit kwargs. See `NMPC_F2_RWA_BOX.md` §0. | **withdrawn** |
 | **F3** | **Three code paths assume `nmpc_dt == dt_nmpc`** (plan interpolation, shifted fallback, warm-start shift). Nothing enforces it. Setting them unequal silently dilates the reference the QP tracks. | **latent bug** |
 | **F4** | The wheel-torque cap `\|Ḣ_s\|_∞ ≤ τ_w,max` is the **only constraint that binds** — 58.1 % of SS ticks at the cap. The SOC force/torque bounds and the linear-momentum bound are slack throughout. | informational |
 | **F5** | The infeasibility fallback (`get_shifted_fallback`) is **never executed** by the canonical run — 11/11 body statements uncovered. It is the designed recovery path and it is unverified by both gates. | coverage gap |
 | **F6** | `Solved_To_Acceptable_Level` counts as success. At `acceptable_tol=1e-4` vs `tol=1e-6` a solve can be accepted at 100× looser tolerance after 5 iterations. Frequency is configuration-dependent (2/634 at N=15, **27/711** at N=20/dt=0.05). | informational |
-| **F7** | `L_com` is bounded by a **state box** `\|L_i\| ≤ 10` Nms, not by the wheel envelope. The wheel envelope enters only through the (disabled) F2 box and through the rate cap. | informational |
+| **F7** | `L_com` is bounded by a **state box** `\|L_i\| ≤ 10` Nms, not by the wheel envelope. ⚠ Partly retracted with F2: the envelope DOES bound accumulated `h_w` inside the horizon, via the live box. | informational |
 
 ---
 
@@ -100,14 +100,20 @@ issues have the same root.
 ---
 
 ## 4. F2 — declared constraints that are not emitted
+> ⚠ **§4 below is superseded for the F2 rows.** It was measured from a bare
+> `SimConfig()`, which is not what the canonical runs. The box and terminal
+> set are ON (`ng_path=17`, `ng_term=6`) and `c_simple`, `h_max_tight`,
+> `kappa_terminal` are all live. Full retraction:
+> `results/j2_adjconv/NMPC_F2_RWA_BOX.md` §0.
+
 
 | block | rows | canonical | governing value |
 |---|---|---|---|
 | SOC `‖f_j‖² ≤ f_max²`, `‖τ_j‖² ≤ τ_max²` | 4 | **ON** | `f_max=300` N, `τ_max=8` N·m |
 | wheel-torque cap `\|Ḣ_s,i\| ≤ τ_w,max` | 6 | **ON** | `τ_w,max = 2.5` N·m |
 | linear momentum `‖m·v‖² ≤ p_max²` | 1 | **ON** | `p_max = 50` kg·m/s |
-| **RWA conservation box** `h_w(k) ∈ [−h', h']` | 6 | **OFF** | `enforce_hw_conservation=False` |
-| **terminal** `\|h_w(N)\| ≤ κ·h'` | 6 | **OFF** | gated on the same flag |
+| **RWA conservation box** `h_w(k) ∈ [−h', h']` | 6 | **ON** | `h_max_tight = 5.0` (per axis) |
+| **terminal** `\|h_w(N)\| ≤ κ·h'` | 6 | **ON** | `κ = 1.0` |
 
 `enforce_hw_conservation` defaults to `False` at `config.py:193` and **nothing
 overrides it** — not `sim_loop`, not `dca.main`, not the gate's `C_KWARGS`. So
