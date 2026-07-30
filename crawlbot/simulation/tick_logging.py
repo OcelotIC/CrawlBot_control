@@ -345,7 +345,7 @@ class TickLoggingMixin:
         rs_f = self.robot.update(
             *mujoco_to_pinocchio(self.mj_data.qpos, self.mj_data.qvel))
         # Recompute torso reference at the actual logged time (after QP steps)
-        t_log = t + cfg.dt_nmpc
+        t_log = t + cfg.nmpc_period
         tref_log = self.torso_planner.reference_at(t_log)
         # For the torso-position error metric use the reference the QP
         # actually tracked at the LAST sub-step — i.e. the output of
@@ -379,7 +379,7 @@ class TickLoggingMixin:
         d_swing = self._gripper_distance(swing_arm, ts.target_anchor)
         d_stance = self._gripper_distance(
             ts.stance_arm, ts.stance_a if ts.stance_arm == 'a' else ts.stance_b)
-        L_dot_est = (rs_f.L_com - ts.L_com_prev) / cfg.dt_nmpc
+        L_dot_est = (rs_f.L_com - ts.L_com_prev) / cfg.nmpc_period
         sq = self.mj_data.qpos[3:7].copy()
         euler = quat_wxyz_to_euler_deg(sq[0], sq[1], sq[2], sq[3])
 

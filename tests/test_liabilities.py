@@ -392,17 +392,17 @@ class TestL5StaleWarmStart:
 # ===================================================================== #
 
 class TestL6ConfigConsistency:
-    """SimConfig has dt_nmpc and dt_qp whose ratio must be integer for
+    """SimConfig has nmpc_period and dt_qp whose ratio must be integer for
     correct sub-stepping, and hw_min/hw_max should satisfy hw_min < hw_max.
     Currently there is NO validation on either."""
 
     def test_non_integer_dt_ratio_allowed(self):
-        """GAP: SimConfig(dt_nmpc=0.1, dt_qp=0.03) creates a non-integer
+        """GAP: SimConfig(nmpc_period=0.1, dt_qp=0.03) creates a non-integer
         ratio (10/3 = 3.333...).  This would cause incorrect sub-stepping
         in SimulationLoop but is silently accepted by the config."""
-        cfg = SimConfig(dt_nmpc=0.1, dt_qp=0.03)
-        ratio = cfg.dt_nmpc / cfg.dt_qp
-        assert cfg.dt_nmpc == 0.1
+        cfg = SimConfig(nmpc_period=0.1, dt_qp=0.03)
+        ratio = cfg.nmpc_period / cfg.dt_qp
+        assert cfg.nmpc_period == 0.1
         assert cfg.dt_qp == 0.03
         # Document the gap: ratio is not integer
         assert not float(ratio).is_integer(), (
@@ -426,9 +426,9 @@ class TestL6ConfigConsistency:
     def test_valid_config_sanity(self):
         """Baseline: default SimConfig should have sensible values."""
         cfg = SimConfig()
-        ratio = cfg.dt_nmpc / cfg.dt_qp
+        ratio = cfg.nmpc_period / cfg.dt_qp
         assert float(ratio).is_integer(), (
-            f"Default dt_nmpc/dt_qp ratio should be integer, got {ratio}"
+            f"Default nmpc_period/dt_qp ratio should be integer, got {ratio}"
         )
         np.testing.assert_array_less(
             cfg.hw_min, cfg.hw_max,

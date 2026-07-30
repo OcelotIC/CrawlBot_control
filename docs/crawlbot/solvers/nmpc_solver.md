@@ -120,7 +120,7 @@ solution slid forward, tail repeated. How far forward is `n_steps`
 `round(control_period / dt)`, not necessarily 1.
 
 The default of 1 is correct only for a caller that re-solves once per prediction
-step. That was always true here (`nmpc_dt == dt_nmpc == 0.1`), which is why the
+step. That was always true here (`nmpc_pred_dt == nmpc_period == 0.1`), which is why the
 hard-coded 1 never produced a wrong number and nothing caught it. A caller whose
 control period spans several knots and does not say so gets a warm start that
 lags reality by the difference (`NMPC_AUDIT` F3). `CentroidalNMPC` supplies the

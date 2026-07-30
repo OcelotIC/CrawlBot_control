@@ -25,7 +25,7 @@ def build_canonical():
     cfg = SimConfig()
     ncfg = CentroidalNMPCConfig(
         robot_mass=CANONICAL_MASS,
-        N=cfg.nmpc_N, dt=cfg.nmpc_dt,
+        N=cfg.nmpc_N, dt=cfg.nmpc_pred_dt,
         f_max=cfg.nmpc_f_max, tau_max=cfg.nmpc_tau_max,
         L_max=cfg.L_max, tau_w_max=cfg.tau_w_max,
         p_max=cfg.nmpc_p_max,
@@ -57,9 +57,9 @@ def main():
     print('=' * 68)
     print(f'horizon            N = {N},  dt = {ncfg.dt} s  -> lookahead '
           f'{N * ncfg.dt:.2f} s')
-    print(f'control period     dt_nmpc = {cfg.dt_nmpc} s  ({1/cfg.dt_nmpc:.0f} Hz)')
+    print(f'control period     nmpc_period = {cfg.nmpc_period} s  ({1/cfg.nmpc_period:.0f} Hz)')
     print(f'  knot spacing == control period? '
-          f'{"YES" if abs(ncfg.dt - cfg.dt_nmpc) < 1e-12 else "*** NO ***"}')
+          f'{"YES" if abs(ncfg.dt - cfg.nmpc_period) < 1e-12 else "*** NO ***"}')
     print(f'state / control    nx = {nx}, nu = {nu}, np = {nmpc.NP}')
     print(f'integrator         RK4, zero-order hold on u')
     print(f'transcription      multiple shooting')
@@ -139,9 +139,9 @@ def main():
 
     out = {
         'N': N, 'dt': ncfg.dt, 'lookahead_s': round(N * ncfg.dt, 4),
-        'dt_nmpc': cfg.dt_nmpc,
+        'nmpc_period': cfg.nmpc_period,
         'knot_spacing_equals_control_period':
-            abs(ncfg.dt - cfg.dt_nmpc) < 1e-12,
+            abs(ncfg.dt - cfg.nmpc_period) < 1e-12,
         'nx': nx, 'nu': nu, 'np': nmpc.NP,
         'n_decision_vars': n_w, 'n_constraint_rows': n_g,
         'ng_path_per_stage': ng_path, 'ng_terminal': ng_term,

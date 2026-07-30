@@ -101,19 +101,19 @@ class SimulationLoop(TickLoggingMixin):
         self.cfg = config or SimConfig()
         # QP sub-steps per CONTROL period (how many times the QP runs per NMPC
         # solve) and per PREDICTION knot (how many QP sub-steps one plan
-        # segment spans). These coincide only when dt_nmpc == nmpc_dt; keeping
+        # segment spans). These coincide only when nmpc_period == nmpc_pred_dt; keeping
         # them separate is what lets the two rates differ (NMPC_AUDIT F3).
-        self.n_qp_per_nmpc = int(round(self.cfg.dt_nmpc / self.cfg.dt_qp))
-        self._qp_per_knot = int(round(self.cfg.nmpc_dt / self.cfg.dt_qp))
+        self.n_qp_per_nmpc = int(round(self.cfg.nmpc_period / self.cfg.dt_qp))
+        self._qp_per_knot = int(round(self.cfg.nmpc_pred_dt / self.cfg.dt_qp))
         if self._qp_per_knot < 1:
             raise ValueError(
-                f'nmpc_dt ({self.cfg.nmpc_dt}) is shorter than dt_qp '
+                f'nmpc_pred_dt ({self.cfg.nmpc_pred_dt}) is shorter than dt_qp '
                 f'({self.cfg.dt_qp}): a prediction knot must span at least one '
                 f'QP sub-step for the plan interpolation to be defined')
-        _res = abs(self.cfg.nmpc_dt / self.cfg.dt_qp - self._qp_per_knot)
+        _res = abs(self.cfg.nmpc_pred_dt / self.cfg.dt_qp - self._qp_per_knot)
         if _res > 1e-9:
             raise ValueError(
-                f'nmpc_dt ({self.cfg.nmpc_dt}) is not an integer multiple of '
+                f'nmpc_pred_dt ({self.cfg.nmpc_pred_dt}) is not an integer multiple of '
                 f'dt_qp ({self.cfg.dt_qp}); the plan interpolation indexes '
                 f'knots in whole QP sub-steps and would drift')
 
@@ -431,7 +431,7 @@ class SimulationLoop(TickLoggingMixin):
         # c_simple = h_w_0 + L_com_0 + r_com_0 × m·v_com_0.
         self.nmpc = CentroidalNMPC(CentroidalNMPCConfig(
             robot_mass=rs0.total_mass,
-            N=cfg.nmpc_N, dt=cfg.nmpc_dt,
+            N=cfg.nmpc_N, dt=cfg.nmpc_pred_dt,
             f_max=cfg.nmpc_f_max, tau_max=cfg.nmpc_tau_max,
             L_max=cfg.L_max, tau_w_max=cfg.tau_w_max,
             p_max=cfg.nmpc_p_max,
@@ -446,10 +446,10 @@ class SimulationLoop(TickLoggingMixin):
             w_L=cfg.w_L_nmpc,
             kappa_terminal=cfg.kappa_terminal,
             per_stage_refs=cfg.nmpc_per_stage_refs,
-            # F3: the NMPC re-solves once per dt_nmpc, which need not equal the
-            # prediction step nmpc_dt. Telling it so keeps the warm-start shift
+            # F3: the NMPC re-solves once per nmpc_period, which need not equal the
+            # prediction step nmpc_pred_dt. Telling it so keeps the warm-start shift
             # and the infeasibility fallback aligned with elapsed time.
-            control_period=cfg.dt_nmpc))
+            control_period=cfg.nmpc_period))
         self.nmpc.build()
 
         # M6/M7: coarse pre-planner — mandatory. Built once; solved per step.
@@ -535,7 +535,7 @@ class SimulationLoop(TickLoggingMixin):
         print(f"  Robot mass:     {rs0.total_mass:.1f} kg")
         print(f"  RWA model:      {'YES (3 wheels)' if self.has_rwa else 'NO'}")
         print(f"  AOCS estimator: {'H_{r/O}' if cfg.aocs_use_H_estimator else 'L_dot (legacy)'}")
-        print(f"  NMPC:           {1/cfg.dt_nmpc:.0f} Hz, N={cfg.nmpc_N}")
+        print(f"  NMPC:           {1/cfg.nmpc_period:.0f} Hz, N={cfg.nmpc_N}")
         print(f"  QP:             {1/cfg.dt_qp:.0f} Hz, {self.n_qp_per_nmpc} per NMPC")
         print(f"  Gait:           {n_steps} step(s), "
               f"T_step from pre-planner (margin={cfg.t_ss_margin}s)")
@@ -1676,7 +1676,7 @@ class SimulationLoop(TickLoggingMixin):
                                 settle_mode=True,
                                 passivity_override=True,
                                 ds_centroidal_active=True)
-                            t += cfg.dt_nmpc
+                            t += cfg.nmpc_period
                         if verbose:
                             print(f"  DWELL end: t={t:.2f}s, "
                                   f"‖h_w‖={np.linalg.norm(hw):.3f} Nms")
@@ -1793,7 +1793,7 @@ class SimulationLoop(TickLoggingMixin):
                             cc_ss, target_idx, stance_a, stance_b,
                             hw, L_com_prev, log,
                             ss_end=t_ss_start + T_step)
-                        t += cfg.dt_nmpc
+                        t += cfg.nmpc_period
 
                         # Dock gate prerequisites (all must hold):
                         #   (1) dock_check_delay satisfied (avoid release noise)
@@ -1852,7 +1852,7 @@ class SimulationLoop(TickLoggingMixin):
                                 # escape — passivity OFF); the audit forces it
                                 # ON to test whether passivity limits the close.
                                 passivity_hold=cfg.dock_hold_passivity_on)
-                            t += cfg.dt_nmpc
+                            t += cfg.nmpc_period
 
                             mujoco.mj_forward(self.mj_model, self.mj_data)
                             docked, d, ori_err_deg, twist_norm = (
@@ -2083,7 +2083,7 @@ class SimulationLoop(TickLoggingMixin):
                             settle_mode=True,
                             passivity_override=_pass_override,
                             ds_centroidal_active=cfg.ds_centroidal_mode)
-                        t += cfg.dt_nmpc
+                        t += cfg.nmpc_period
 
                     i += 1
             else:
@@ -2189,9 +2189,9 @@ class SimulationLoop(TickLoggingMixin):
         # F1 (`nmpc_per_stage_refs=True`): one reference per knot, each at its
         # OWN time, so the NLP tracks the pre-planner's actual curve and the
         # horizon length no longer moves the reference.
-        t_horizon = t + cfg.nmpc_N * cfg.nmpc_dt
+        t_horizon = t + cfg.nmpc_N * cfg.nmpc_pred_dt
         if cfg.nmpc_per_stage_refs:
-            knot_times = [t + k * cfg.nmpc_dt for k in range(cfg.nmpc_N + 1)]
+            knot_times = [t + k * cfg.nmpc_pred_dt for k in range(cfg.nmpc_N + 1)]
         else:
             knot_times = [t_horizon]
 
@@ -2230,7 +2230,7 @@ class SimulationLoop(TickLoggingMixin):
 
         # Contact config from constant structure-frame anchors (no live reading)
         # ══════════════════════════════════════════════════════════════════
-        # STAGE 1 — centroidal NMPC  (dt_nmpc = 0.1 s, once per _step)
+        # STAGE 1 — centroidal NMPC  (nmpc_period = 0.1 s, once per _step)
         # Contact config, warm start, solve, and the shifted-fallback path when the
         # solve fails. Produces x_plan / u_plan; everything after consumes them.
         # The fallback branch is canonical-unreached BY DESIGN — the canonical run
@@ -2259,7 +2259,7 @@ class SimulationLoop(TickLoggingMixin):
         # compromise value chosen because one constant has to serve the whole
         # horizon. Under F1 each knot gets its own, so no compromise is needed
         # and `nmpc_N` stops moving this sample too.
-        t_mid = t + 0.5 * cfg.nmpc_N * cfg.nmpc_dt
+        t_mid = t + 0.5 * cfg.nmpc_N * cfg.nmpc_pred_dt
         if cfg.nmpc_per_stage_refs:
             L_com_ref_nmpc = np.asarray(
                 [self.torso_planner.l_com_reference_at(tq) for tq in knot_times],
@@ -2342,8 +2342,8 @@ class SimulationLoop(TickLoggingMixin):
         # Cache the WHOLE planned trajectory, not just its first two knots
         # (NMPC_AUDIT F3). The interpolation below is indexed by elapsed time
         # on the plan's own knot grid, so it stays correct when the prediction
-        # step `nmpc_dt` differs from the control period `dt_nmpc`. The control
-        # u_0 is piecewise constant over [t, t+dt_nmpc] and is NOT interpolated.
+        # step `nmpc_pred_dt` differs from the control period `nmpc_period`. The control
+        # u_0 is piecewise constant over [t, t+nmpc_period] and is NOT interpolated.
         if x_plan is not None:
             plan_r = np.asarray(x_plan[0:3, :], dtype=float).copy()   # (3, N+1)
             plan_v = np.asarray(x_plan[3:6, :], dtype=float).copy()
@@ -2373,7 +2373,7 @@ class SimulationLoop(TickLoggingMixin):
         t_qp_start = time.perf_counter()
 
         if ss_end is None:
-            ss_end = t + cfg.dt_nmpc  # fallback
+            ss_end = t + cfg.nmpc_period  # fallback
 
         _L_com_qp_prev = rs.L_com.copy()
         # M4: track v_com across QP sub-steps to estimate dv_com for the
@@ -2394,16 +2394,16 @@ class SimulationLoop(TickLoggingMixin):
             #   u = qs / qp_per_knot     position in plan-knot units
             #   k = floor(u), a = u − k  bracketing knots and the fraction
             #
-            # `qp_per_knot = round(nmpc_dt / dt_qp)` is an INTEGER, so `u` is
+            # `qp_per_knot = round(nmpc_pred_dt / dt_qp)` is an INTEGER, so `u` is
             # computed the same way the old code computed its alpha. Writing it
-            # as `(qs·dt_qp)/nmpc_dt` would be algebraically identical but off
+            # as `(qs·dt_qp)/nmpc_pred_dt` would be algebraically identical but off
             # by 1 ULP (0.01/0.1 != 0.1 in IEEE double), which is enough to
             # break bit-identity over a 2000-tick run.
             #
             # The previous form was `alpha = qs / n_qp_per_nmpc` between knots
             # 0 and 1 only, which walks one knot per CONTROL period and is
-            # therefore correct only when nmpc_dt == dt_nmpc. With
-            # nmpc_dt = 0.05 and dt_nmpc = 0.1 it stretched a 0.05 s plan
+            # therefore correct only when nmpc_pred_dt == nmpc_period. With
+            # nmpc_pred_dt = 0.05 and nmpc_period = 0.1 it stretched a 0.05 s plan
             # segment over 0.1 s of wall time — a 2x-slow reference. This form
             # reduces to the old one exactly when the two periods are equal
             # (u ∈ [0,1) ⇒ k = 0, a = qs/n_qp_per_nmpc), so the committed

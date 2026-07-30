@@ -540,7 +540,7 @@ class CentroidalNMPC:
         x_prev = self._last_x_opt
         u_prev = self._last_u_opt
         # NMPC_AUDIT F3: advance by however many PREDICTION knots one control
-        # period spans, not by a hard-coded one. With nmpc_dt == dt_nmpc this
+        # period spans, not by a hard-coded one. With nmpc_pred_dt == nmpc_period this
         # is 1 and the behaviour is unchanged; with a finer prediction step the
         # old form advanced the fallback by less time than actually elapsed.
         n = self.n_shift_per_control_period

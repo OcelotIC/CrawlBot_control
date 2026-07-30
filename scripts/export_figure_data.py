@@ -116,7 +116,7 @@ def main():
 
     t = np.asarray(sl['t'], float)
     n = len(t)
-    # The log is MIXED-cadence: SS/_step rows at dt_nmpc (~0.1 s), inter-step DS
+    # The log is MIXED-cadence: SS/_step rows at nmpc_period (~0.1 s), inter-step DS
     # rows at dt_qp (~0.01 s). The FD below must use the actual t coordinate
     # (np.gradient(·, t)), NOT a scalar dt, or the dense DS rows get a 10x-wrong
     # rate. Report both regimes in meta.
@@ -304,7 +304,7 @@ def main():
         'hw_max_Nms': 5.0,
         'dt_s_median': dt_median,
         'dt_s_min': dt_min,
-        'dt_note': ('mixed-cadence log: SS/_step rows ~0.1 s (dt_nmpc), inter-step DS rows ~0.01 s '
+        'dt_note': ('mixed-cadence log: SS/_step rows ~0.1 s (nmpc_period), inter-step DS rows ~0.01 s '
                     '(dt_qp). Use the t_s column for the time axis.'),
         'n_ticks': n,
         'n_steps': int(sidx.max()) + 1 if n else 0,

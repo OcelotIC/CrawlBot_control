@@ -327,13 +327,13 @@ class TestPerStageReferences:
 
 
 class TestControlPeriodVsPredictionStep:
-    """F3: `nmpc_dt` (prediction step) and `dt_nmpc` (control period) differ.
+    """F3: `nmpc_pred_dt` (prediction step) and `nmpc_period` (control period) differ.
 
     Standard MPC allows the two rates to differ, and this codebase declares them
     as independent `SimConfig` fields — but three paths advanced the plan by ONE
     prediction knot per CONTROL period, which is correct only when they are
     equal. They always were (both 0.1 s), so nothing caught it, and setting
-    `nmpc_dt = 0.05` silently dilated the QP's reference 2x.
+    `nmpc_pred_dt = 0.05` silently dilated the QP's reference 2x.
 
     These pin the shift arithmetic. The plan-interpolation half is proven
     separately by `scripts/audit_nmpc_f3_timing.py`, which shows the fixed form
@@ -375,3 +375,50 @@ class TestControlPeriodVsPredictionStep:
     def test_fallback_without_a_previous_solve(self):
         nm = self._nmpc(0.05, 0.1)
         assert nm.get_shifted_fallback() == (None, None)
+
+
+class TestTimescaleNaming:
+    """The two NMPC timescales must stay distinguishable by name.
+
+    They were `dt_nmpc` (control period) and `nmpc_dt` (prediction step) —
+    near-anagrams for different quantities. Three code paths conflated them and
+    nothing caught it, because the two values were always equal (NMPC_AUDIT F3).
+    Renamed to `nmpc_period` and `nmpc_pred_dt`; these tests fail if the old
+    names come back or if the fields stop being independent.
+    """
+
+    def test_old_ambiguous_names_are_gone(self):
+        from crawlbot.simulation.config import SimConfig
+        cfg = SimConfig()
+        for dead in ('dt_nmpc', 'nmpc_dt'):
+            assert not hasattr(cfg, dead), (
+                f'SimConfig.{dead} is back — it is a near-anagram of the other '
+                f'timescale and is exactly how F3 happened')
+
+    def test_both_timescales_exist_and_are_independent(self):
+        from crawlbot.simulation.config import SimConfig
+        cfg = SimConfig(nmpc_period=0.1, nmpc_pred_dt=0.05)
+        assert cfg.nmpc_period == 0.1, 'control period'
+        assert cfg.nmpc_pred_dt == 0.05, 'prediction step'
+
+    def test_prediction_step_must_divide_the_qp_tick(self):
+        """A non-integer ratio would make the plan interpolation drift.
+
+        The guard lives in __init__ and fires before any model is loaded, so
+        the paths below are never read.
+        """
+        from crawlbot.simulation.config import SimConfig
+        from crawlbot.simulation.sim_loop import SimulationLoop
+        with pytest.raises(ValueError, match='integer multiple'):
+            SimulationLoop('unused.xml', 'unused.urdf',
+                           config=SimConfig(nmpc_pred_dt=0.015, dt_qp=0.01))
+
+    def test_valid_ratio_is_accepted(self):
+        """The guard must not reject a legitimate finer prediction step."""
+        from crawlbot.simulation.config import SimConfig
+        from crawlbot.simulation.sim_loop import SimulationLoop
+        sim = SimulationLoop('unused.xml', 'unused.urdf',
+                             config=SimConfig(nmpc_pred_dt=0.05, dt_qp=0.01,
+                                              nmpc_period=0.1))
+        assert sim._qp_per_knot == 5, 'QP sub-steps per prediction knot'
+        assert sim.n_qp_per_nmpc == 10, 'QP sub-steps per control period' 

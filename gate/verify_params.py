@@ -32,7 +32,7 @@ NUM = re.compile(r'[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?')
 # table label -> the identifier actually declared in the code
 IDENT = {
     'tau_w_max': 'tau_w_max', 'tau_max': 'tau_max', 'hw_max': 'hw_max',
-    'dt_nmpc': 'dt_nmpc', 'dt_qp': 'dt_qp', 'weight_ratio': 'weight_ratio',
+    'nmpc_period': 'nmpc_period', 'dt_qp': 'dt_qp', 'weight_ratio': 'weight_ratio',
     'α torso-pose': 'alpha_torso_pose', 'α swing-EE': 'ss_alpha_ee',
     'α momentum (T-MOM)': 'ss_alpha_mom', 'w hw-slack': 'w_hw_slack',
     'α posture': 'ss_alpha_posture', 'α wrench-track': 'ss_alpha_wrench',

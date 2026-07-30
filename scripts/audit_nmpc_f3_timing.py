@@ -1,6 +1,6 @@
 """F3 proof: prediction step vs control period, decoupled.
 
-`nmpc_dt` is the NLP's prediction step; `dt_nmpc` is how often the controller
+`nmpc_pred_dt` is the NLP's prediction step; `nmpc_period` is how often the controller
 re-solves. They are different quantities (standard MPC lets them differ), but
 three code paths advanced the plan by ONE prediction knot per CONTROL period,
 which is correct only when the two are equal:
@@ -12,9 +12,9 @@ which is correct only when the two are equal:
 Checks:
 
   A. REDUCTION — the new time-indexed interpolation must equal the old
-     `alpha = qs / n_qp_per_nmpc` form EXACTLY when nmpc_dt == dt_nmpc, so the
+     `alpha = qs / n_qp_per_nmpc` form EXACTLY when nmpc_pred_dt == nmpc_period, so the
      committed configuration is bit-for-bit unchanged.
-  B. EFFECT — when nmpc_dt = dt_nmpc/2 the two forms must differ, and the new
+  B. EFFECT — when nmpc_pred_dt = nmpc_period/2 the two forms must differ, and the new
      one must track the plan at real speed while the old one lags 2x.
   C. SHIFT — n_shift_per_control_period must be 1 when equal and 2 when the
      prediction step is half the control period, and the shifted trajectory
@@ -36,23 +36,23 @@ def old_interp(plan, qs, n_qp_per_nmpc):
     return (1.0 - a) * plan[:, 0] + a * plan[:, 1]
 
 
-def new_interp(plan, qs, nmpc_dt):
+def new_interp(plan, qs, nmpc_pred_dt):
     """The fixed form: index the plan by elapsed time in INTEGER knot units.
 
     `qp_per_knot` is an int, so `u` is formed exactly as the old code formed
-    its alpha — algebraically equivalent forms like `(qs*dt_qp)/nmpc_dt` differ
+    its alpha — algebraically equivalent forms like `(qs*dt_qp)/nmpc_pred_dt` differ
     by 1 ULP and would break bit-identity.
     """
-    qp_per_knot = int(round(nmpc_dt / DT_QP))
+    qp_per_knot = int(round(nmpc_pred_dt / DT_QP))
     u = qs / qp_per_knot
     k = min(int(np.floor(u)), plan.shape[1] - 2)
     a = min(max(u - k, 0.0), 1.0)
     return (1.0 - a) * plan[:, k] + a * plan[:, k + 1]
 
 
-def make_plan(N, nmpc_dt, speed=1.0):
-    """A CoM plan moving at constant `speed` m/s along +x, knots at nmpc_dt."""
-    return np.stack([np.array([speed * k * nmpc_dt, 0.0, 0.0])
+def make_plan(N, nmpc_pred_dt, speed=1.0):
+    """A CoM plan moving at constant `speed` m/s along +x, knots at nmpc_pred_dt."""
+    return np.stack([np.array([speed * k * nmpc_pred_dt, 0.0, 0.0])
                      for k in range(N + 1)], axis=1)
 
 
@@ -63,24 +63,24 @@ def main():
     print('=' * 68)
     print('F3 TIMING PROOF')
     print('=' * 68)
-    dt_nmpc, nmpc_dt, N = 0.1, 0.1, 20
-    n_qp = int(round(dt_nmpc / DT_QP))
-    plan = make_plan(N, nmpc_dt)
+    nmpc_period, nmpc_pred_dt, N = 0.1, 0.1, 20
+    n_qp = int(round(nmpc_period / DT_QP))
+    plan = make_plan(N, nmpc_pred_dt)
     worst = 0.0
     for qs in range(n_qp):
         worst = max(worst, float(np.max(np.abs(
-            new_interp(plan, qs, nmpc_dt) - old_interp(plan, qs, n_qp)))))
-    print(f'\n[A] REDUCTION  nmpc_dt = dt_nmpc = {nmpc_dt}')
+            new_interp(plan, qs, nmpc_pred_dt) - old_interp(plan, qs, n_qp)))))
+    print(f'\n[A] REDUCTION  nmpc_pred_dt = nmpc_period = {nmpc_pred_dt}')
     print(f'  max |new - old| over the {n_qp} sub-steps = {worst:.3e} m')
     a_ok = worst == 0.0
     print(f'  -> {"PASS" if a_ok else "FAIL"} (must be EXACTLY 0 — bit-identity)')
     ok &= a_ok
 
     # ---- B. effect when the prediction step is finer -------------------
-    dt_nmpc, nmpc_dt = 0.1, 0.05
-    n_qp = int(round(dt_nmpc / DT_QP))
-    plan = make_plan(N, nmpc_dt, speed=1.0)     # 1 m/s
-    print(f'\n[B] EFFECT  nmpc_dt = {nmpc_dt}, dt_nmpc = {dt_nmpc} '
+    nmpc_period, nmpc_pred_dt = 0.1, 0.05
+    n_qp = int(round(nmpc_period / DT_QP))
+    plan = make_plan(N, nmpc_pred_dt, speed=1.0)     # 1 m/s
+    print(f'\n[B] EFFECT  nmpc_pred_dt = {nmpc_pred_dt}, nmpc_period = {nmpc_period} '
           f'(plan moves 1.0 m/s)')
     print(f'  {"qs":>3} {"t [s]":>7} {"truth":>9} {"new":>9} {"old":>9} '
           f'{"old err":>9}')
@@ -88,7 +88,7 @@ def main():
     for qs in range(0, n_qp, 2):
         t = qs * DT_QP
         truth = t                                # x = 1.0 * t
-        xn = float(new_interp(plan, qs, nmpc_dt)[0])
+        xn = float(new_interp(plan, qs, nmpc_pred_dt)[0])
         xo = float(old_interp(plan, qs, n_qp)[0])
         max_new_err = max(max_new_err, abs(xn - truth))
         max_old_err = max(max_old_err, abs(xo - truth))

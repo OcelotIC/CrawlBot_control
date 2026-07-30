@@ -21,7 +21,20 @@ class SimConfig:
     # swing duration, and no torso delay. DS exits on T < T_settle
     # (energy-based, spec §7.1.1). SS runs for T_step + t_ss_margin
     # where T_step is produced by the coarse pre-planner.
-    dt_nmpc: float = 0.1          # NMPC period [s] (10 Hz)
+    # ── The three timescales. Two of them used to be called `dt_nmpc` and
+    # `nmpc_dt` — near-anagrams for genuinely different quantities, which is
+    # how three code paths came to conflate them (NMPC_AUDIT F3). Renamed so
+    # that reading the wrong one is no longer possible:
+    #
+    #   dt_qp         0.01 s   inner loop — QP + MuJoCo tick          (100 Hz)
+    #   nmpc_period   0.10 s   outer loop — how often the NMPC RE-SOLVES (10 Hz)
+    #   nmpc_pred_dt  0.10 s   the NLP's PREDICTION step (knot spacing), below
+    #
+    # `nmpc_period` and `nmpc_pred_dt` are independent by design: predicting on
+    # a finer grid than you re-solve on is normal MPC. They may be set
+    # differently; everything that advances the plan between solves derives the
+    # ratio rather than assuming 1.
+    nmpc_period: float = 0.1      # NMPC control period [s] (10 Hz) — NOT the prediction step
     dt_qp: float = 0.01           # QP/MuJoCo period [s] (100 Hz)
     t_ss_margin: float = 1.0      # Extra SS time beyond T_step before timeout [s]
     t_hold_max: float = 3.0       # Convergence hold after timeout before aborting step [s]
@@ -240,7 +253,7 @@ class SimConfig:
     fsat_jitter_margin: float = 0.05         # [m/s] jitter slack on the torso-ref rate cap
 
     # ── NMPC solver ─────────────────────────────────────────────
-    # Prediction horizon. N·nmpc_dt is the lookahead: 20·0.1 = 2.0 s, i.e.
+    # Prediction horizon. N·nmpc_pred_dt is the lookahead: 20·0.1 = 2.0 s, i.e.
     # 33 % of the nominal T_step = 6 s (was N=8 ⇒ 0.8 s; then 15 ⇒ 1.5 s).
     #
     # N used to be TWO knobs: with a single shared reference block the NMPC had
@@ -250,7 +263,12 @@ class SimConfig:
     # coupling — each knot now carries its own reference at its own time, so N
     # changes the prediction length and nothing else.
     nmpc_N: int = 20
-    nmpc_dt: float = 0.1
+    # PREDICTION step — the NLP's RK4 step and horizon knot spacing.
+    # Distinct from `nmpc_period` (how often the NMPC re-solves); see the
+    # three-timescale block at the top of this dataclass. Must be an integer
+    # multiple of `dt_qp` — `SimulationLoop.__init__` rejects anything else,
+    # because the plan interpolation indexes knots in whole QP sub-steps.
+    nmpc_pred_dt: float = 0.1
     # ── F1 (NMPC_AUDIT): per-knot NMPC references ────────────────────────
     # False (legacy): the NLP carries ONE reference block for the whole
     # horizon, so r_ref/v_ref/L_ref are a constant SETPOINT. `sim_loop` then
@@ -292,7 +310,7 @@ class SimConfig:
     # settle target velocity with a value DERIVED from the dock tolerance
     # rather than the over-tight 1 mm/s on the softest mode. The exit fires at
     # T_kin < 0.5·ε_v²·λ_min, so a larger ε_v ⇒ much shorter settle. Derivation:
-    # per-tick (dt_nmpc) residual drift ε_v·dt_nmpc ≤ (1/10)·dock_gate(5 mm) ⇒
+    # per-tick (nmpc_period) residual drift ε_v·nmpc_period ≤ (1/10)·dock_gate(5 mm) ⇒
     # ε_v = 5 mm/s. 0.0 ⇒ off (use settle_inter_epsilon_v, byte-identical).
     # Inter-step settle only (the SS/_step DWELL stepper is untouched).
     interstep_settle_epsilon_v: float = 0.0

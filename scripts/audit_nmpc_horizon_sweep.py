@@ -1,21 +1,21 @@
 """NMPC horizon/discretization sweep driver.
 
-Runs the canonical 6-step traversal under several (nmpc_N, nmpc_dt, dt_nmpc)
+Runs the canonical 6-step traversal under several (nmpc_N, nmpc_pred_dt, nmpc_period)
 settings, saving each run's artifacts to its own directory so the variants can
 be compared and plotted.
 
-Why `dt_nmpc` is a swept variable and not a constant
+Why `nmpc_period` is a swept variable and not a constant
 ----------------------------------------------------
 `sim_loop.py:2342` interpolates the NMPC plan across the QP sub-loop as
 
-    alpha = qs / n_qp_per_nmpc,     n_qp_per_nmpc = dt_nmpc / dt_qp
+    alpha = qs / n_qp_per_nmpc,     n_qp_per_nmpc = nmpc_period / dt_qp
     r_ref = (1-alpha)*x_plan[:,0] + alpha*x_plan[:,1]
 
 i.e. it walks from plan knot 0 to plan knot 1 over one CONTROL period
-`dt_nmpc`. Those knots are `nmpc_dt` apart in PLAN time. The interpolation is
-therefore time-correct only when `nmpc_dt == dt_nmpc`; otherwise the reference
-the QP tracks is dilated by `dt_nmpc / nmpc_dt`. Setting `nmpc_dt = 0.05` while
-leaving `dt_nmpc = 0.1` gives a 2x-slow CoM reference. Both readings are run
+`nmpc_period`. Those knots are `nmpc_pred_dt` apart in PLAN time. The interpolation is
+therefore time-correct only when `nmpc_pred_dt == nmpc_period`; otherwise the reference
+the QP tracks is dilated by `nmpc_period / nmpc_pred_dt`. Setting `nmpc_pred_dt = 0.05` while
+leaving `nmpc_period = 0.1` gives a 2x-slow CoM reference. Both readings are run
 here so the effect is measured rather than assumed.
 
 Each variant edits the SimConfig defaults in place, runs the same
@@ -41,7 +41,7 @@ CONFIG = os.path.join(ROOT, 'crawlbot/simulation/config.py')
 SCRATCH = os.path.join(ROOT, 'results/gate_run_scratch')
 DEST = os.path.join(ROOT, 'results/j2_adjconv/nmpc_sweep')
 
-# tag -> (nmpc_N, nmpc_dt, dt_nmpc, nmpc_per_stage_refs)
+# tag -> (nmpc_N, nmpc_pred_dt, nmpc_period, nmpc_per_stage_refs)
 HORIZON_VARIANTS = [
     # The literal reading of "N=20, dt=0.05": prediction step only. Leaves the
     # control period at 0.1 s, so the plan-interpolation is dilated 2x.
@@ -63,7 +63,7 @@ F1_VARIANTS = [
 # F3: the prediction step / control period decoupling.
 #   - the first row is the COMMITTED config; its fulldiag must come out
 #     byte-identical to nmpc_sweep/F1on_N20 or the fix is not inert
-#   - the second differs only in nmpc_dt, which the pre-fix code could not
+#   - the second differs only in nmpc_pred_dt, which the pre-fix code could not
 #     run correctly (it dilated the QP's reference 2x)
 F3_VARIANTS = [
     ('F3_N20_dt10', 20, 0.10, 0.10, True),
@@ -75,15 +75,15 @@ VARIANT_SETS = {'horizon': HORIZON_VARIANTS, 'f1': F1_VARIANTS,
 
 FIELDS = {
     'nmpc_N':  (r'^(\s*nmpc_N: int = )(\d+)', '{}'),
-    'nmpc_dt': (r'^(\s*nmpc_dt: float = )([0-9.]+)', '{}'),
-    'dt_nmpc': (r'^(\s*dt_nmpc: float = )([0-9.]+)', '{}'),
+    'nmpc_pred_dt': (r'^(\s*nmpc_pred_dt: float = )([0-9.]+)', '{}'),
+    'nmpc_period': (r'^(\s*nmpc_period: float = )([0-9.]+)', '{}'),
     'nmpc_per_stage_refs': (r'^(\s*nmpc_per_stage_refs: bool = )(True|False)', '{}'),
 }
 
 
 def patch_config(text, n, ndt, pdt, per_stage):
     """Rewrite the four SimConfig defaults; assert each substitution landed."""
-    vals = {'nmpc_N': n, 'nmpc_dt': ndt, 'dt_nmpc': pdt,
+    vals = {'nmpc_N': n, 'nmpc_pred_dt': ndt, 'nmpc_period': pdt,
             'nmpc_per_stage_refs': per_stage}
     for name, (pat, fmt) in FIELDS.items():
         rx = re.compile(pat, re.M)
@@ -131,7 +131,7 @@ def main():
         for tag, n, ndt, pdt, per_stage in variants:
             if args.only and tag != args.only:
                 continue
-            print(f'\n=== {tag}: nmpc_N={n} nmpc_dt={ndt} dt_nmpc={pdt} '
+            print(f'\n=== {tag}: nmpc_N={n} nmpc_pred_dt={ndt} nmpc_period={pdt} '
                   f'per_stage_refs={per_stage} '
                   f'(horizon {n * ndt:.2f}s, {1 / pdt:.0f} Hz) ===', flush=True)
             open(CONFIG, 'w').write(
@@ -153,7 +153,7 @@ def main():
                 if os.path.isfile(src):
                     shutil.copy2(src, os.path.join(out, f))
             summary.append({'tag': tag, 'status': 'OK', 'nmpc_N': n,
-                            'nmpc_dt': ndt, 'dt_nmpc': pdt,
+                            'nmpc_pred_dt': ndt, 'nmpc_period': pdt,
                             'per_stage_refs': per_stage,
                             'horizon_s': round(n * ndt, 3),
                             'replay_seconds': round(secs, 1)})

@@ -76,36 +76,41 @@ Point 4 is a project rule in itself: *do not freeze references or add
 threshold-based switches to handle trajectory coordination failures — fix the
 synchronisation instead.* The shared horizon is that fix.
 
-### 2.1 Three timescales, and the two that are easy to confuse
+### 2.1 Three timescales
 
 | symbol | value | meaning |
 |---|---|---|
 | `dt_qp` | 0.01 s | QP / MuJoCo tick — the inner loop |
-| **`dt_nmpc`** | 0.1 s | **control period** — how often the NMPC re-solves and the plan is applied |
-| **`nmpc_dt`** | 0.1 s | **prediction step** — the RK4 step inside the NLP, i.e. horizon knot spacing |
+| **`nmpc_period`** | 0.1 s | **control period** — how often the NMPC re-solves and the plan is applied |
+| **`nmpc_pred_dt`** | 0.1 s | **prediction step** — the RK4 step inside the NLP, i.e. horizon knot spacing |
 
-The middle two are different quantities: a controller may legitimately re-solve
-at 10 Hz while predicting on a finer grid. They have simply always been equal in
-this repository, and their names are near-anagrams, so code that used the wrong
-one read perfectly and computed the right answer anyway (`NMPC_AUDIT` F3).
+The last two are different quantities: a controller may legitimately re-solve at
+10 Hz while predicting on a finer grid. They have simply always been equal here.
+
+⚠ **They used to be called `dt_nmpc` and `nmpc_dt`** — near-anagrams for
+different things. That is how three code paths came to conflate them
+(`NMPC_AUDIT` F3): code using the wrong one read perfectly *and* computed the
+right answer, because the two values were equal. The rename is the actual fix
+for the class of bug; the F3 arithmetic fix only repaired the instances.
+`tests/…::TestTimescaleNaming` fails if either old name returns.
 
 Two derived counts keep them apart:
 
 ```python
-n_qp_per_nmpc = round(dt_nmpc / dt_qp)   # QP ticks per CONTROL period
-_qp_per_knot  = round(nmpc_dt / dt_qp)   # QP ticks per PREDICTION knot
+n_qp_per_nmpc = round(nmpc_period / dt_qp)   # QP ticks per CONTROL period
+_qp_per_knot  = round(nmpc_pred_dt / dt_qp)   # QP ticks per PREDICTION knot
 ```
 
 `_step` interpolates the NMPC plan with `u = qs / _qp_per_knot`, taking
 `floor(u)` and `floor(u)+1` as the bracketing knots — so a sub-step at 0.06 s
 into the control period reads the plan at 0.06 s of plan time regardless of the
 knot spacing. The previous form walked knots 0 → 1 across the whole control
-period, which dilated the reference by `dt_nmpc / nmpc_dt` whenever the two
+period, which dilated the reference by `nmpc_period / nmpc_pred_dt` whenever the two
 differed.
 
-`_qp_per_knot` is an **integer** on purpose: `(qs·dt_qp)/nmpc_dt` is
+`_qp_per_knot` is an **integer** on purpose: `(qs·dt_qp)/nmpc_pred_dt` is
 algebraically the same and 1 ULP different, which is enough to break the
-canonical's bit-identity. `__init__` rejects an `nmpc_dt` that is not an integer
+canonical's bit-identity. `__init__` rejects an `nmpc_pred_dt` that is not an integer
 multiple of `dt_qp` rather than letting the indexing drift.
 
 The same ratio drives `CentroidalNMPCConfig.control_period`, which tells the
