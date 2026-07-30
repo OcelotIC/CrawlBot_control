@@ -107,7 +107,13 @@ class CentroidalNMPCConfig:
     # knot, where h_w^s(k) = c_simple - L_com(k) - r_com(k) × m·v_com(k)
     # and c_simple = h_w_0 + L_com_0 + r_com_0 × m·v_com_0 is measured
     # at the start of each NMPC call.
-    enforce_hw_conservation: bool = False    # Master switch for the box
+    enforce_hw_conservation: bool = False    # Master switch for the PATH box
+    # The TERMINAL constraint |h_w(N)| <= kappa·h_max' used to be gated by the
+    # same flag, so the two could not be staged independently. None keeps that
+    # coupling (terminal follows the path box, the historical behaviour);
+    # True/False overrides it. Separated so the path box can be validated on
+    # its own before the terminal set is added on top (NMPC_AUDIT F2).
+    enforce_hw_terminal: Optional[bool] = None
     h_max_tight: np.ndarray = field(         # Tightened wheel-momentum box
         default_factory=lambda: np.full(3, 5.0))  # [Nms] — spec §4.6 default
     w_L: float = 1.0                         # Weight on ||L_com - L_com_ref||²
@@ -297,6 +303,10 @@ class CentroidalNMPC:
         p_max_finite = bool(np.isfinite(cfg.p_max))
         p_max_sq = (cfg.p_max ** 2) if p_max_finite else None
         enforce_hw = bool(cfg.enforce_hw_conservation)
+        # Terminal set: independent switch, defaulting to the path box so the
+        # historical single-flag behaviour is preserved exactly.
+        enforce_hw_term = (enforce_hw if cfg.enforce_hw_terminal is None
+                           else bool(cfg.enforce_hw_terminal))
         h_max_tight = np.asarray(cfg.h_max_tight, dtype=float).reshape(3)
 
         def path_constraints(x, u, p):
@@ -365,7 +375,7 @@ class CentroidalNMPC:
         # terminal constraint the last state x_N could violate the hw
         # box. kappa = 1.0 uses the same box as the path constraint;
         # kappa < 1.0 tightens for a terminal margin.
-        if enforce_hw:
+        if enforce_hw_term:
             kappa = float(cfg.kappa_terminal)
             h_terminal = kappa * h_max_tight
 

@@ -203,7 +203,12 @@ class SimConfig:
     alpha_passivity: float = 1.0  # DS passivity decay rate [1/s]
 
     # ── M3: NMPC conservation-law box constraint ────────────────
-    enforce_hw_conservation: bool = False  # Enable B2 Option B hw box
+    enforce_hw_conservation: bool = False  # Enable B2 Option B hw PATH box
+    # Terminal set |h_w(N)| <= kappa·h_max'. None = follow the path box
+    # (historical coupling); True/False stages it independently, which is how
+    # NMPC_AUDIT F2 is being reactivated: path box first, terminal on top only
+    # once the box is shown to be feasible.
+    enforce_hw_terminal: Optional[bool] = None
     h_max_tight: np.ndarray = field(default_factory=lambda: np.full(3, 5.0))  # Tightened [Nms]
     w_L_nmpc: float = 1.0         # Cost weight on ||L_com - L_com_ref||²
     kappa_terminal: float = 1.0   # Terminal margin multiplier

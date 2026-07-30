@@ -1,0 +1,51 @@
+{
+  "F2off_ctl_N20": {
+    "solves": 639,
+    "time_ms": {
+      "median": 38.36,
+      "p95": 52.81,
+      "max": 83.53
+    },
+    "over_budget_100ms": 0,
+    "status": {
+      "Solve_Succeeded": 639
+    }
+  },
+  "F2box_N20": {
+    "solves": 639,
+    "time_ms": {
+      "median": 37.57,
+      "p95": 50.55,
+      "max": 67.08
+    },
+    "over_budget_100ms": 0,
+    "status": {
+      "Solve_Succeeded": 639
+    }
+  },
+  "F2boxterm_N20": {
+    "solves": 639,
+    "time_ms": {
+      "median": 37.33,
+      "p95": 52.93,
+      "max": 95.19
+    },
+    "over_budget_100ms": 0,
+    "status": {
+      "Solve_Succeeded": 639
+    }
+  },
+  "F2bite_h35_N20": {
+    "solves": 639,
+    "time_ms": {
+      "median": 37.98,
+      "p95": 51.83,
+      "max": 78.73
+    },
+    "over_budget_100ms": 0,
+    "status": {
+      "Solve_Succeeded": 639
+    }
+  },
+  "_note": "nmpc_step_log.json is gitignored (.gitignore:30); summary retained for NMPC_F2_RWA_BOX.md."
+}

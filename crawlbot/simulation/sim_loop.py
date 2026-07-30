@@ -442,6 +442,7 @@ class SimulationLoop(TickLoggingMixin):
             Qf_v=cfg.nmpc_Qf_v * np.ones(3),
             Qf_L=cfg.nmpc_Qf_L,
             enforce_hw_conservation=cfg.enforce_hw_conservation,
+            enforce_hw_terminal=cfg.enforce_hw_terminal,
             h_max_tight=cfg.h_max_tight,
             w_L=cfg.w_L_nmpc,
             kappa_terminal=cfg.kappa_terminal,

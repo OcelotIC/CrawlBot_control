@@ -1,0 +1,15 @@
+[
+  {
+    "tag": "F2bite_h35_N20",
+    "status": "OK",
+    "nmpc_N": 20,
+    "nmpc_pred_dt": 0.1,
+    "nmpc_period": 0.1,
+    "per_stage_refs": true,
+    "hw_box": true,
+    "hw_terminal": true,
+    "h_max_tight": 3.5,
+    "horizon_s": 2.0,
+    "replay_seconds": 272.7
+  }
+]

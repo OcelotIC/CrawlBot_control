@@ -129,7 +129,15 @@ If a removal or rename changed line numbers, step 1 fixes every `file:line`
 link automatically — that is why the links are generated rather than typed.
 
 **Coverage annotations** (`canonical? = yes / not exercised`) come from
-`gate/_run/cov/cov.json`. After changing which code paths execute, regenerate it
+`gate/_run/cov/cov.json`, which stores EXECUTED LINE NUMBERS. So it goes stale
+in two ways, and the second is worse: (a) changing which paths execute makes
+the column describe the previous architecture; (b) **changing line numbers at
+all — even a pure comment insertion — silently mis-attributes coverage to the
+wrong symbols.** Case (b) was observed on this branch: after a field was added
+to `centroidal_nmpc.py`, `sync_docs` annotated `get_shifted_fallback` and
+`get_full_trajectory` as **`yes`** when neither executes at all. `--check`
+does NOT catch this. Regenerate cov.json whenever a `crawlbot/` file's line
+numbering moves, not only when behaviour changes. Regenerate it
 with `bash gate/_run/cov_replay.sh` before step 1, otherwise the column reflects
 the previous architecture.
 
@@ -172,19 +180,19 @@ Update this line as work progresses:
 | tau_max | 20 | Nm | `config.py:45` |
 | nmpc_period | 0.1 | s | `config.py:37` |
 | dt_qp | 0.01 | s | `config.py:38` |
-| NMPC horizon N | **20** (8 → 15 → 20; 2.0 s lookahead). **Now a clean knob** — F1 decoupled the reference sampling from N. ⚠ T_step is solved per step (**2.775…7.900 s** measured, NOT the 6 s default), so the horizon is **72 % of the shortest step**, margin 0.775 s; it would exceed it at **N ≥ 28**, where the constant-contact assumption breaks | — | `config.py:280`, spec §5.1 |
+| NMPC horizon N | **20** (8 → 15 → 20; 2.0 s lookahead). **Now a clean knob** — F1 decoupled the reference sampling from N. ⚠ T_step is solved per step (**2.775…7.900 s** measured, NOT the 6 s default), so the horizon is **72 % of the shortest step**, margin 0.775 s; it would exceed it at **N ≥ 28**, where the constant-contact assumption breaks | — | `config.py:285`, spec §5.1 |
 | **nmpc_per_stage_refs** | **True** — NLP carries N+1 reference blocks ⇒ trajectory tracker, not setpoint regulator (NMPC_AUDIT F1) | — | `crawlbot/simulation/config.py` `nmpc_per_stage_refs` |
 | NMPC state dim | 9 | — | spec §5.1 (B2) |
 | NMPC control dim | 12 | — | spec §5.1 |
 | weight_ratio | 1.0 — **α magnitudes ARE the hierarchy** (two-task weighted stack, no null-space projection; priority integers inert) | — | `wholebody_qp.py:153` |
-| **α torso-pose** | **2000** | — | `config.py:357` (Add-5) |
-| **α swing-EE** | **1000** (dock lever; needs ≥ ~1000) | — | `config.py:336` (Add-5) |
-| **α momentum (T-MOM)** | **400** (near-inert on Ḣ_s — NMPC owns the envelope) | — | `config.py:344` (Add-5) |
+| **α torso-pose** | **2000** | — | `config.py:362` (Add-5) |
+| **α swing-EE** | **1000** (dock lever; needs ≥ ~1000) | — | `config.py:341` (Add-5) |
+| **α momentum (T-MOM)** | **400** (near-inert on Ḣ_s — NMPC owns the envelope) | — | `config.py:349` (Add-5) |
 | **w hw-slack** | **800** (slacks active only if the hw box is violated) | — | `wholebody_qp.py:218` (Add-5) |
-| **α posture** | **20** | — | `config.py:337` |
-| **α torque-min** | **5** (must stay ≳ 5× accel-reg floor — Rule 14) | — | `sim_loop.py:972` (QP-construction literal) |
-| **α wrench-track** | **1.0** | — | `config.py:338` (Add-5; was 0.01 pre-freeze) |
-| **α accel-reg** | **1.0** (regularizer floor) | — | `sim_loop.py:972` |
+| **α posture** | **20** | — | `config.py:342` |
+| **α torque-min** | **5** (must stay ≳ 5× accel-reg floor — Rule 14) | — | `sim_loop.py:973` (QP-construction literal) |
+| **α wrench-track** | **1.0** | — | `config.py:343` (Add-5; was 0.01 pre-freeze) |
+| **α accel-reg** | **1.0** (regularizer floor) | — | `sim_loop.py:973` |
 | ε (Tikhonov) | 1e-6 (inert: λ_min(H_LS)=1 ≫ ε) | — | `hierarchical_qp.py:98` default |
 | **κ_SS(H)** | ≈ 7.5e3 (530× below the pre-freeze canonical 3.6e6) | — | `canonical2p5_result.json` |
 | ~~α_com_soft~~ | **field REMOVED** (CLEANUP-6), not merely 0 | — | The soft-CoM residual task is gone; the QP has no direct CoM feedback path. Do not re-add a config field for it without re-adding the task |
@@ -220,7 +228,7 @@ The **5 mm dock gate is the docking-mechanism capture radius** — the 0.01 mm w
 - **NMPC F3 FIXED — `nmpc_pred_dt` (prediction step) and `nmpc_period` (control period) are now genuinely independent.** They are different quantities (standard MPC), but three paths advanced the plan by ONE prediction knot per CONTROL period: the QP plan interpolation (`sim_loop.py`), `get_shifted_fallback`, and `shift_warm_start`. Correct only while both were 0.1 — which they always had been, so nothing caught it; setting `nmpc_pred_dt=0.05` silently dilated the QP's CoM reference **2×**. Fixed: the interpolation indexes the plan by elapsed time in **integer** knot units (`u = qs / _qp_per_knot`; the algebraically-equal `(qs·dt_qp)/nmpc_pred_dt` is 1 ULP off and breaks bit-identity), and the two shifts advance `round(control_period/dt)` knots via the new `CentroidalNMPCConfig.control_period`. A non-integer `nmpc_pred_dt/dt_qp` is now **rejected** rather than allowed to drift. Proven inert: **0 differing fields across 125 888 physics fields** vs the pre-F3 run at the same config (only `qp_time_ms`/`nmpc_time_ms` differ — the two columns `run_gate.py:66` already excludes). Report: `results/j2_adjconv/NMPC_F3_TIMING.md`.
 - **⚠ Compare runs with the gate's exclusion list, not `cmp`.** `qp_time_ms` and `nmpc_time_ms` are wall-clock and nondeterministic; `gate/run_gate.py:66` excludes them. A plain byte-diff of two fulldiag CSVs reports ~1278 differing lines for a physically identical pair.
 - **With F3 fixed, `nmpc_pred_dt=0.05` at 10 Hz is WORSE, not better**: θ_s **0.494 → 0.774°** once the dilation is removed (docks still 6/6). The pre-fix result was flattering that configuration. Keep `nmpc_pred_dt=0.1`, `N=20`. (Not a single-variable isolation — the pre-fix run also predates F1.)
-- **NMPC F1 FIXED + horizon N=20** (`config.py:280`, `265`). The NLP used to carry ONE reference block shared by every stage, so the reference was a constant **setpoint** and `sim_loop` had to sample it in the future — which made `nmpc_N` two knobs. `nmpc_per_stage_refs=True` gives N+1 blocks, one per knot, so the NMPC **tracks the pre-planner's trajectory** and N is now a clean horizon knob. Refactor proven inert first (broadcast reference ⇒ Δcost = Δsolution = **0.000e+00**, `scripts/audit_nmpc_f1_equivalence.py`; `F1off_N15` reproduces the committed N=15 exactly). Rule-12 ladder: θ_s **0.554 → 0.511 → 0.455°** (vs frozen 0.540, **−16 %**), h_w peak norm 4.172 → 4.087 Nms, docks **6/6** (worst margin 0.05 mm), qp_fail 0, and at N=20 **639/639 solves fully converged** (zero acceptable-tol exits), max 57.1 ms against the 100 ms period. ⚠ `e_com` is **not comparable across the flag** — the exported `r_com_ref` is the horizon-end setpoint under F1-off and the current-time reference under F1-on. Report: `results/j2_adjconv/NMPC_F1_PER_STAGE_REFS.md`.
+- **NMPC F1 FIXED + horizon N=20** (`config.py:285`, `265`). The NLP used to carry ONE reference block shared by every stage, so the reference was a constant **setpoint** and `sim_loop` had to sample it in the future — which made `nmpc_N` two knobs. `nmpc_per_stage_refs=True` gives N+1 blocks, one per knot, so the NMPC **tracks the pre-planner's trajectory** and N is now a clean horizon knob. Refactor proven inert first (broadcast reference ⇒ Δcost = Δsolution = **0.000e+00**, `scripts/audit_nmpc_f1_equivalence.py`; `F1off_N15` reproduces the committed N=15 exactly). Rule-12 ladder: θ_s **0.554 → 0.511 → 0.455°** (vs frozen 0.540, **−16 %**), h_w peak norm 4.172 → 4.087 Nms, docks **6/6** (worst margin 0.05 mm), qp_fail 0, and at N=20 **639/639 solves fully converged** (zero acceptable-tol exits), max 57.1 ms against the 100 ms period. ⚠ `e_com` is **not comparable across the flag** — the exported `r_com_ref` is the horizon-end setpoint under F1-off and the current-time reference under F1-on. Report: `results/j2_adjconv/NMPC_F1_PER_STAGE_REFS.md`.
 - **RETRACTED: the N=15 "real-time violation" was machine contention.** `NMPC_HORIZON_N15.md` §3 recorded max 117.9 ms and 1 solve over the 100 ms period. Re-running that exact configuration gives **max 43.6 ms, 0 over budget** with byte-identical trajectory metrics. No configuration measured exceeds its control period on a quiet machine. Treat solve-time outliers on this container as noise; only medians and trends are evidence.
 - **⚠ `docs/crawlbot/solvers/centroidal_nmpc.md` §3 asserted the OPPOSITE of the code** — it claimed the canonical sets `enforce_hw_conservation=True` with `ng_path=17`/`ng_term=6`, presented as "measured on the real run". Measured now: **False**, `ng_path=11`, `ng_term=0`. Corrected in place. A stale doc that states a measurement is worse than one that states nothing.
 - **The QP CoM task differences the NMPC plan, not the tracking error** — `sim_loop.py:2549` feeds it `rp_interp` (NMPC plan, re-anchored to the measured CoM every 100 ms ⇒ `|e_r|` ≤ 1.147 mm, identically 0 on 508/5080 SS ticks), while the *logged* reference `cref_r` goes to the NMPC (`:2243`, exported `:2969`) and carries **61.5 mm median / 153.7 mm max** SS error. So no CoM gain change in the QP can improve `e_com`; **81 %** of that error is anisotropic (⊥[1,1,1]), x-dominated. Structural, not yet addressed.

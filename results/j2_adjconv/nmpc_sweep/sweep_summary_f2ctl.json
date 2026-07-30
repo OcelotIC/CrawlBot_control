@@ -1,0 +1,14 @@
+[
+  {
+    "tag": "F2off_ctl_N20",
+    "status": "OK",
+    "nmpc_N": 20,
+    "nmpc_pred_dt": 0.1,
+    "nmpc_period": 0.1,
+    "per_stage_refs": true,
+    "hw_box": false,
+    "hw_terminal": null,
+    "horizon_s": 2.0,
+    "replay_seconds": 276.4
+  }
+]
