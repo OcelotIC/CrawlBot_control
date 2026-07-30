@@ -78,12 +78,13 @@ because the box was at 5.0 and the h_w peak is 3.815 — comfortably inside.
 run by 46 698 of 125 888 fields at ≤ 6e-4 relative — 9 µm of CoM, 1.3e-5° of
 θ_s — with docks, θ_s and h_w unchanged to printed precision and 639/639 solves
 succeeding either way. So the terminal set is **inactive at the current
-operating point**, consistent with the path box being slack.
+operating point**, consistent with the path box being non-binding.
 
 ## 2. What is genuinely established
 
 - The box **is** live in the canonical, per-axis, at ±5 Nms on each component.
-- It is **slack**: realized per-axis peaks are x 0.583, y 2.339, **z 3.815** —
+- It is **non-binding** at the current operating point: realized per-axis peaks
+  are x 0.583, y 2.339, **z 3.815** —
   24 % headroom on the worst axis. Curves: `nmpc_f2_peraxis.png`.
 - `hw_current` handed to the NMPC matches the exported `hw_*_Nms` exactly
   (per-axis peaks identical to 4 dp), so there is **no filtered/stale-telemetry
@@ -91,6 +92,37 @@ operating point**, consistent with the path box being slack.
 - The constraint rejects violating states when they occur: the same NLP given
   `hw_current` with an axis at 3.8146 against `h_max = 3.5` returns
   `Infeasible_Problem_Detected` (and at 3.0 too).
+
+## 2.1 Hard in the NMPC, soft in the QP — and why that matters here
+
+⚠ **Terminology.** Earlier drafts of this report called the NMPC box "slack",
+meaning *non-binding* in the NLP sense. In this codebase that reads as
+"implemented with slack variables", which is the opposite of the truth. The two
+tiers are genuinely different:
+
+| tier | mechanism | site |
+|---|---|---|
+| **NMPC** | **hard** per-axis inequality — `lbg = −∞`, `ubg = 0`, no slack variables | `nmpc_solver.py:394-395` (path), `:421-422` (terminal) |
+| **QP** | **soft** — 6 slack variables `slack_hw_up/lo` added as a penalised task at `w_hw_slack = 800` | `wholebody_qp.py:680-687` |
+
+That split is deliberate and correct: the *plan* must be feasible against the
+wheel envelope (so the NMPC refuses to propose an inadmissible trajectory), while
+the *instantaneous tracker* must never itself become infeasible (so the QP is
+allowed to exceed the box at a price rather than fail).
+
+**The consequence for F2 is the important part.** Because the NMPC box is hard,
+it guarantees the **planned** `h_w` stays inside ±5 Nms at every knot. It does
+*not* guarantee the **realized** `h_w` does, because the plant does not follow
+the plan exactly — the QP only weakly tracks `lambda_ref` (`alpha_wrench = 1.0`,
+a regulariser), and the AOCS acts on top. So:
+
+- a hard NMPC box bounds the plan;
+- the realized `h_w` is bounded only softly, by the QP's penalised box;
+- the two can and do differ.
+
+That is why "does the box bind?" and "is realized `h_w` inside the envelope?" are
+separate questions, and why the bite test — had it actually applied 3.5 — would
+have answered only the first.
 
 ## 3. What is NOT established, and needs a real bite test
 

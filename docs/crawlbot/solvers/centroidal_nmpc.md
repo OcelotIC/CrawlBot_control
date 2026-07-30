@@ -146,6 +146,15 @@ and bound it:
 h_w(k) in [ -h_max' , +h_max' ]           (enforce_hw_conservation)
 ```
 
+**It is a HARD per-axis inequality** — `lbg = −∞`, `ubg = 0`, six rows per
+knot plus six terminal, with no slack variables (`nmpc_solver.py:394-395`,
+`:421-422`). Contrast the whole-body QP, whose momentum box IS soft: six slack
+variables penalised at `w_hw_slack = 800` (`wholebody_qp.md`). The split is
+deliberate — the *plan* must be envelope-feasible, the *instantaneous tracker*
+must never itself go infeasible. Consequence: the hard box bounds the PLANNED
+`h_w`; the realized `h_w` is bounded only softly, by the QP, because the plant
+does not follow the plan exactly.
+
 This is the "M3 Option B" formulation. It does not simulate the wheels: it
 *deduces* their state from a conservation law, which makes it exact and cheap —
 no extra states, no extra dynamics.
