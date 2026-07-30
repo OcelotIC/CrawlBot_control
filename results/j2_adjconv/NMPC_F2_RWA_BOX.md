@@ -38,15 +38,35 @@ Full 6-step replay: docks **6/6** (4.19/4.70/4.95/4.69/2.62/4.55, worst margin
 0.05 mm), θ_s 0.455°, h_w 3.815/4.087, e_com 0.092, **639/639 `Solve_Succeeded`**.
 Every headline metric identical to F2-off.
 
-Cost: solve median **30.0 → 37.6 ms** (+25 %), p95 40.0 → 50.5, max 52.4 → 67.1.
-Still 0/639 over the 100 ms period.
+Cost: **none measurable.** See §3.1 — an earlier draft of this report claimed
++25 %, comparing against a run from a different session. Corrected.
 
 ## 3. Step B — terminal set on top
 
-Same metrics again, 639/639 success. Median 37.3 ms (flat vs step A), p95 52.9,
-max 95.2 ms — the max is an outlier of the kind this container produces
-(cf. the retracted 117.9 ms); median and p95 are the reliable signals and they
-barely move.
+Same metrics again, 639/639 success.
+
+### 3.1 Solve cost: correcting a cross-session comparison
+
+The `F2off_ctl_N20` control run exists precisely so the cost is measured in
+the SAME session as the treatments. All four:
+
+| run | median | p95 | max |
+|---|---|---|---|
+| **F2 off (control)** | **38.36** | 52.81 | 83.53 |
+| box | 37.57 | 50.55 | 67.08 |
+| box + terminal | 37.33 | 52.93 | 95.19 |
+| bite (h_max 3.5) | 37.98 | 51.83 | 78.73 |
+
+**Enabling the box costs nothing measurable** — box-on is marginally *faster*
+at the median than box-off, i.e. the spread is machine noise, not signal.
+0/639 over the 100 ms period in every case.
+
+⚠ An earlier draft reported "+25 %" by comparing against `F3_N20_dt10`
+(median 30.05 ms), which was recorded in an earlier session on a quieter
+machine. That is the same error as the retracted 117.9 ms real-time claim
+(`NMPC_HORIZON_N15` §3.2): **solve times are only comparable within one
+session.** The maxima here (67–95 ms) span 40 % for configurations whose
+medians differ by 1 ms, which is the size of the noise.
 
 ## 4. Why "identical metrics" is the whole story
 
