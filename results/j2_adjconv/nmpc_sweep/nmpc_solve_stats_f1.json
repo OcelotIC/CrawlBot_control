@@ -1,0 +1,59 @@
+{
+  "F1off_N15": {
+    "solves": 634,
+    "control_period_s": 0.1,
+    "budget_ms": 100.0,
+    "time_ms": {
+      "median": 25.35,
+      "p95": 32.83,
+      "max": 43.58
+    },
+    "iters": {
+      "median": 11.0,
+      "max": 19
+    },
+    "over_budget": 0,
+    "status": {
+      "Solve_Succeeded": 632,
+      "Solved_To_Acceptable_Level": 2
+    }
+  },
+  "F1on_N15": {
+    "solves": 638,
+    "control_period_s": 0.1,
+    "budget_ms": 100.0,
+    "time_ms": {
+      "median": 24.12,
+      "p95": 32.01,
+      "max": 41.45
+    },
+    "iters": {
+      "median": 11.0,
+      "max": 19
+    },
+    "over_budget": 0,
+    "status": {
+      "Solve_Succeeded": 637,
+      "Solved_To_Acceptable_Level": 1
+    }
+  },
+  "F1on_N20": {
+    "solves": 639,
+    "control_period_s": 0.1,
+    "budget_ms": 100.0,
+    "time_ms": {
+      "median": 30.38,
+      "p95": 41.24,
+      "max": 57.07
+    },
+    "iters": {
+      "median": 11,
+      "max": 18
+    },
+    "over_budget": 0,
+    "status": {
+      "Solve_Succeeded": 639
+    }
+  },
+  "_note": "nmpc_step_log.json is gitignored (.gitignore:30); these are its summary statistics, retained so the solve-time claims in NMPC_F1_PER_STAGE_REFS.md remain checkable from the repo."
+}

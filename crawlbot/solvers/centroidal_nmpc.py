@@ -114,6 +114,17 @@ class CentroidalNMPCConfig:
     Qf_L: float = 10.0                       # Terminal weight on L_com tracking
     kappa_terminal: float = 1.0              # Terminal margin: |h_w(N)| <= κ·h_max'
 
+    # ── F1: per-stage reference parameters ────────────────────────────────
+    # False (legacy): ONE parameter block shared by every stage, so r_ref /
+    # v_ref / L_ref are constant across the horizon — the NLP regulates to a
+    # setpoint and `sim_loop` compensates by sampling that setpoint at the
+    # horizon END (which is what couples `nmpc_N` to the reference lead).
+    # True: N+1 blocks, one per knot, so the NLP tracks the pre-planner's
+    # actual trajectory and the horizon stops moving the reference.
+    # Feeding a single reference under True broadcasts it and reproduces the
+    # legacy problem exactly.
+    per_stage_refs: bool = False
+
     # Solver
     solver_name: str = 'ipopt'
     solver_opts: Dict[str, Any] = field(default_factory=dict)
@@ -162,7 +173,11 @@ class CentroidalNMPC:
         )
 
         # --- Parameters ---
-        nmpc.set_parameters(self.NP)
+        # per_stage_refs=True gives the NLP N+1 independent parameter blocks, so
+        # r_ref / v_ref / L_ref may VARY along the horizon and the problem is a
+        # trajectory tracker. With False there is one shared block and the
+        # reference is necessarily a constant setpoint (NMPC_AUDIT F1).
+        nmpc.set_parameters(self.NP, per_stage=bool(cfg.per_stage_refs))
 
         # --- Continuous dynamics (RK4 integration) ---
         # State: x = [r_com(3), v_com(3), L_com(3)]  — NX=9
@@ -650,15 +665,54 @@ class CentroidalNMPC:
         enforce_hw_conservation is True.
         """
         c_simple = self.compute_c_simple(r_com, v_com, L_com, hw_current)
-        L_ref = (np.asarray(L_com_ref, dtype=float).reshape(3)
-                 if L_com_ref is not None else np.zeros(3))
-        return np.concatenate([
-            r_com_ref, v_com_ref,
-            contact_config.r_contact_A,
-            contact_config.r_contact_B,
-            c_simple,
-            L_ref,
-        ])
+
+        def knots(a, default=None):
+            """Normalize a reference to (K, 3) where K is 1 or N+1.
+
+            Accepts (3,) — one setpoint — or (K, 3) — one row per knot. Any
+            other shape is an error rather than something reshaped silently.
+            """
+            if a is None:
+                a = np.zeros(3) if default is None else default
+            a = np.asarray(a, dtype=float)
+            if a.ndim == 1:
+                if a.size != 3:
+                    raise ValueError(f'reference must be (3,); got {a.shape}')
+                return a.reshape(1, 3)
+            if a.ndim == 2 and a.shape[1] == 3:
+                return a
+            raise ValueError(f'reference must be (3,) or (K, 3); got {a.shape}')
+
+        r_k = knots(r_com_ref)
+        v_k = knots(v_com_ref)
+        L_k = knots(L_com_ref)
+
+        n_blocks = (self.config.N + 1) if self.config.per_stage_refs else 1
+        K = max(r_k.shape[0], v_k.shape[0], L_k.shape[0])
+        if K not in (1, n_blocks):
+            raise ValueError(
+                f'per-knot reference has {K} rows; expected 1 or {n_blocks}')
+        if K > 1 and not self.config.per_stage_refs:
+            raise ValueError(
+                'a per-knot reference was supplied but per_stage_refs is False '
+                '— the extra knots would be silently dropped')
+
+        def row(a, k):
+            return a[k] if a.shape[0] > 1 else a[0]
+
+        blocks = [
+            np.concatenate([
+                row(r_k, k), row(v_k, k),
+                contact_config.r_contact_A,
+                contact_config.r_contact_B,
+                c_simple,
+                row(L_k, k),
+            ])
+            for k in range(K)
+        ]
+        # K == 1 returns a single (NP,) vector, which NMPCSolver.solve
+        # broadcasts — so the legacy path is byte-identical.
+        return np.concatenate(blocks) if K > 1 else blocks[0]
 
     def _apply_contact_bounds(self, contact_config: ContactConfig) -> None:
         """Update control bounds based on active contacts.

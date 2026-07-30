@@ -222,3 +222,105 @@ class TestFeedforwardAcceleration:
         af = centroidal_nmpc.compute_feedforward_acceleration(lambda_ref)
         expected = (lambda_ref[0:3] + lambda_ref[6:9]) / centroidal_nmpc.config.robot_mass
         npt.assert_allclose(af, expected, atol=1e-12)
+
+
+# ---------------------------------------------------------------------------
+# F1 (NMPC_AUDIT): per-knot reference parameters
+# ---------------------------------------------------------------------------
+
+class TestPerStageReferences:
+    """The NLP must be able to track a trajectory, not only a setpoint.
+
+    Before F1 the NLP carried ONE parameter block shared by every stage, so any
+    reference in `p` was necessarily constant over the horizon. `sim_loop`
+    compensated by sampling the reference at the horizon END, which is what tied
+    `nmpc_N` to the reference lead — changing the horizon changed the target, so
+    no clean horizon ablation was possible.
+
+    These tests pin the three properties the switch has to have: the block count
+    expands without changing the problem size, a broadcast reference reproduces
+    the legacy problem exactly (so the refactor is provably inert), and a
+    varying reference actually changes the solution (so the blocks are not
+    silently ignored).
+    """
+
+    @staticmethod
+    def _make(per_stage, N=6):
+        cfg = CentroidalNMPCConfig(
+            robot_mass=71.056, N=N, dt=0.1,
+            f_max=300.0, tau_max=8.0, L_max=10.0, tau_w_max=2.5, p_max=50.0,
+            per_stage_refs=per_stage)
+        nmpc = CentroidalNMPC(cfg)
+        nmpc.build()
+        return nmpc
+
+    def test_block_count_and_problem_size(self):
+        """N+1 parameter blocks; decision vars and constraints unchanged."""
+        N = 6
+        legacy, staged = self._make(False, N), self._make(True, N)
+        assert legacy._nmpc.n_param_blocks == 1
+        assert staged._nmpc.n_param_blocks == N + 1
+        NP = CentroidalNMPC.NP
+        assert legacy._nmpc._np_total == CentroidalNMPC.NX + NP
+        assert staged._nmpc._np_total == CentroidalNMPC.NX + (N + 1) * NP
+        # Only the parameterization changes — not the NLP's size.
+        assert len(legacy._nmpc._lbw) == len(staged._nmpc._lbw)
+        assert len(legacy._nmpc._lbg) == len(staged._nmpc._lbg)
+
+    def test_broadcast_reference_reproduces_legacy(
+            self, nominal_robot_state, single_contact_config):
+        """A single reference under per_stage must equal the legacy solution."""
+        r, v, L, r_ref, v_ref, cc = _nominal_solve_inputs(
+            nominal_robot_state, single_contact_config)
+        r_ref = r_ref + np.array([0.05, 0.0, 0.0])
+        kw = dict(r_com=r, v_com=v, L_com=L, r_com_ref=r_ref, v_com_ref=v_ref,
+                  contact_config=cc, warm_start=False)
+        a = self._make(False).solve(**kw)
+        b = self._make(True).solve(**kw)
+        assert a[4].success and b[4].success
+        npt.assert_allclose(b[0], a[0], atol=1e-9)   # r_com_plan
+        npt.assert_allclose(b[3], a[3], atol=1e-6)   # lambda_0
+        assert abs(a[4].cost - b[4].cost) <= 1e-7 * max(abs(a[4].cost), 1.0)
+
+    def test_varying_reference_changes_the_solution(
+            self, nominal_robot_state, single_contact_config):
+        """Otherwise the per-stage blocks would be decorative."""
+        N = 6
+        r, v, L, r_ref, v_ref, cc = _nominal_solve_inputs(
+            nominal_robot_state, single_contact_config)
+        nmpc = self._make(True, N)
+        kw = dict(r_com=r, v_com=v, L_com=L, contact_config=cc,
+                  warm_start=False)
+        flat = nmpc.solve(r_com_ref=r_ref, v_com_ref=v_ref, **kw)
+        ramp = np.stack([r_ref + np.array([0.03, 0.0, 0.0]) * k
+                         for k in range(N + 1)])
+        varied = nmpc.solve(r_com_ref=ramp,
+                            v_com_ref=np.tile(v_ref, (N + 1, 1)), **kw)
+        assert flat[4].success and varied[4].success
+        assert np.max(np.abs(varied[0] - flat[0])) > 1e-6, (
+            'a ramped reference produced the same plan as a constant one — '
+            'the per-stage parameter blocks are not reaching the NLP')
+
+    def test_per_knot_reference_rejected_by_legacy_nlp(
+            self, nominal_robot_state, single_contact_config):
+        """Silently dropping the extra knots would be the dangerous failure."""
+        N = 6
+        r, v, L, r_ref, v_ref, cc = _nominal_solve_inputs(
+            nominal_robot_state, single_contact_config)
+        with pytest.raises(ValueError):
+            self._make(False, N).solve(
+                r_com=r, v_com=v, L_com=L,
+                r_com_ref=np.tile(r_ref, (N + 1, 1)), v_com_ref=v_ref,
+                contact_config=cc, warm_start=False)
+
+    def test_wrong_knot_count_rejected(
+            self, nominal_robot_state, single_contact_config):
+        """N rows instead of N+1 must raise, not broadcast or truncate."""
+        N = 6
+        r, v, L, r_ref, v_ref, cc = _nominal_solve_inputs(
+            nominal_robot_state, single_contact_config)
+        with pytest.raises(ValueError):
+            self._make(True, N).solve(
+                r_com=r, v_com=v, L_com=L,
+                r_com_ref=np.tile(r_ref, (N, 1)), v_com_ref=v_ref,
+                contact_config=cc, warm_start=False)

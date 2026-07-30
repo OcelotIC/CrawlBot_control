@@ -1,6 +1,6 @@
 # `crawlbot.solvers.centroidal_nmpc`
 
-**File**: [`crawlbot/solvers/centroidal_nmpc.py`](../../../crawlbot/solvers/centroidal_nmpc.py) — **702 lines** — canonical coverage **88 %**
+**File**: [`crawlbot/solvers/centroidal_nmpc.py`](../../../crawlbot/solvers/centroidal_nmpc.py) — **756 lines** — canonical coverage **86 %**
 
 > Module docstring: *"CentroidalNMPC - Centroidal NMPC for momentum-feasible trajectory generation."*
 
@@ -40,19 +40,20 @@ optimisation time instead of discovering it mid-swing.
 |   `w_L` | `1.0` | _field_ | [L113](../../../crawlbot/solvers/centroidal_nmpc.py#L113) |
 |   `Qf_L` | `10.0` | _field_ | [L114](../../../crawlbot/solvers/centroidal_nmpc.py#L114) |
 |   `kappa_terminal` | `1.0` | _field_ | [L115](../../../crawlbot/solvers/centroidal_nmpc.py#L115) |
-|   `solver_name` | `'ipopt'` | _field_ | [L118](../../../crawlbot/solvers/centroidal_nmpc.py#L118) |
-|   `solver_opts` | `field(default_factory=dict)` | _field_ | [L119](../../../crawlbot/solvers/centroidal_nmpc.py#L119) |
-| **`CentroidalNMPC`** |  |  | [L122](../../../crawlbot/solvers/centroidal_nmpc.py#L122) |
-| `.build` | `(solver_opts=None)` | **yes** | [L149](../../../crawlbot/solvers/centroidal_nmpc.py#L149) |
-| `.solve` | `(r_com, v_com, L_com, r_com_ref, v_com_ref, contact_conf...)` | **yes** | [L379](../../../crawlbot/solvers/centroidal_nmpc.py#L379) |
-| `.get_last_trajectory` | `()` | **yes** | [L469](../../../crawlbot/solvers/centroidal_nmpc.py#L469) |
-| `.get_shifted_fallback` | `()` | not exercised | [L481](../../../crawlbot/solvers/centroidal_nmpc.py#L481) |
-| `.compute_c_simple` | `(r_com, v_com, L_com, hw_current=None)` | **yes** | [L514](../../../crawlbot/solvers/centroidal_nmpc.py#L514) |
-| `.reset_warm_start` | `()` | **yes** | [L549](../../../crawlbot/solvers/centroidal_nmpc.py#L549) |
-| `.get_full_trajectory` | `(r_com, v_com, L_com, r_com_ref, v_com_ref, contact_conf...)` | not exercised | [L565](../../../crawlbot/solvers/centroidal_nmpc.py#L565) |
-| `.compute_feedforward_acceleration` | `(lambda_ref)` | **yes** | [L601](../../../crawlbot/solvers/centroidal_nmpc.py#L601) |
-| `._assemble_params` | `(r_com, v_com, L_com, r_com_ref, v_com_ref, contact_conf...)` | **yes** | [L628](../../../crawlbot/solvers/centroidal_nmpc.py#L628) |
-| `._apply_contact_bounds` | `(contact_config)` | **yes** | [L663](../../../crawlbot/solvers/centroidal_nmpc.py#L663) |
+|   `per_stage_refs` | `False` | _field_ | [L126](../../../crawlbot/solvers/centroidal_nmpc.py#L126) |
+|   `solver_name` | `'ipopt'` | _field_ | [L129](../../../crawlbot/solvers/centroidal_nmpc.py#L129) |
+|   `solver_opts` | `field(default_factory=dict)` | _field_ | [L130](../../../crawlbot/solvers/centroidal_nmpc.py#L130) |
+| **`CentroidalNMPC`** |  |  | [L133](../../../crawlbot/solvers/centroidal_nmpc.py#L133) |
+| `.build` | `(solver_opts=None)` | **yes** | [L160](../../../crawlbot/solvers/centroidal_nmpc.py#L160) |
+| `.solve` | `(r_com, v_com, L_com, r_com_ref, v_com_ref, contact_conf...)` | **yes** | [L394](../../../crawlbot/solvers/centroidal_nmpc.py#L394) |
+| `.get_last_trajectory` | `()` | **yes** | [L484](../../../crawlbot/solvers/centroidal_nmpc.py#L484) |
+| `.get_shifted_fallback` | `()` | not exercised | [L496](../../../crawlbot/solvers/centroidal_nmpc.py#L496) |
+| `.compute_c_simple` | `(r_com, v_com, L_com, hw_current=None)` | **yes** | [L529](../../../crawlbot/solvers/centroidal_nmpc.py#L529) |
+| `.reset_warm_start` | `()` | **yes** | [L564](../../../crawlbot/solvers/centroidal_nmpc.py#L564) |
+| `.get_full_trajectory` | `(r_com, v_com, L_com, r_com_ref, v_com_ref, contact_conf...)` | not exercised | [L580](../../../crawlbot/solvers/centroidal_nmpc.py#L580) |
+| `.compute_feedforward_acceleration` | `(lambda_ref)` | **yes** | [L616](../../../crawlbot/solvers/centroidal_nmpc.py#L616) |
+| `._assemble_params` | `(r_com, v_com, L_com, r_com_ref, v_com_ref, contact_conf...)` | **yes** | [L643](../../../crawlbot/solvers/centroidal_nmpc.py#L643) |
+| `._apply_contact_bounds` | `(contact_config)` | **yes** | [L717](../../../crawlbot/solvers/centroidal_nmpc.py#L717) |
 
 ---
 
@@ -74,6 +75,22 @@ angular momentum *about its own CoM*.
 Note `h_w` (wheel momentum) is **not a state**: the AOCS manages the wheels
 independently. The coupling happens through a conservation law (1.3), not a
 shared variable. That is what keeps the two subsystems decentralised.
+
+**`p` is per-knot** when `per_stage_refs=True` (the canonical setting): the NLP
+carries N+1 parameter blocks and stage `k` reads `p_k`, so `r_ref`, `v_ref` and
+`L_ref` vary along the horizon and the problem is a **trajectory tracker**.
+
+With `per_stage_refs=False` there is one shared block, the reference is
+necessarily a constant **setpoint**, and `sim_loop` has to sample it in the
+future (horizon end for CoM, midpoint for `L_com`) to avoid systematic lag —
+which is what used to tie `nmpc_N` to the reference lead. See
+`nmpc_solver.md` §1.1 for the mechanism and the equivalence proof, and
+`results/j2_adjconv/NMPC_F1_PER_STAGE_REFS.md` for the measured effect
+(θ_s 0.554 → 0.455°, all six docks held).
+
+`_assemble_params` accepts a `(3,)` setpoint or a `(K, 3)` per-knot reference
+and raises when `K` matches neither 1 nor N+1 — silently dropping knots would be
+the dangerous failure, so it is made impossible rather than documented.
 
 ### 1.1 Centroidal dynamics
 
@@ -186,16 +203,33 @@ would cost a full CasADi code-generation pass every step.
 ## 3. The `CentroidalNMPCConfig` defaults are not the canonical values
 
 The table above shows `robot_mass=90.0`, `N=20`, `dt=0.05`. **None is used**:
-`sim_loop.py:383-398` overrides every field from `SimConfig` (about 71 kg,
-**N = 8**, **dt = 0.1 s** — a 0.8 s horizon at 10 Hz).
-
-The costliest case is `enforce_hw_conservation`, whose default is `False` while
-**the canonical run sets it `True`**. This is the error the chantier retracted
-(F1): the entire `h_w` path — the constraint of 1.3, the reason this module
-exists — had been declared dead from that default. Measured on the real run:
-`enforce_hw=True`, `ng_path=17`, `ng_term=6`.
+`sim_loop.py:416-433` overrides every field from `SimConfig` (about 71 kg,
+**N = 20**, **dt = 0.1 s** — a 2.0 s horizon at 10 Hz).
 
 > A dataclass default is not the canonical value.
+
+⚠ **Correction (NMPC_AUDIT, 2026-07-30).** This section previously stated that
+"the canonical run sets `enforce_hw_conservation` `True`" with `ng_path=17`,
+`ng_term=6`. **That is false for the current tree, and it was asserted as a
+measurement.** Built from the canonical `SimConfig` and read back by
+`scripts/audit_nmpc_structure.py`:
+
+```
+[OFF] RWA conservation box h_w(k)          0 rows
+[OFF] terminal |h_w(N)| <= kappa*h_max     0 rows
+ng_path = 11   (4 SOC + 6 wheel-torque + 1 linear momentum)
+ng_term = 0
+```
+
+`SimConfig.enforce_hw_conservation` is `False` (`config.py:193`) and **nothing
+overrides it** — not `sim_loop`, not `dca.main`, not the gate's `C_KWARGS`. The
+only `True` sites in the tree are `scripts/run_m7_single_step.py:44` and
+`tests/test_nmpc_conservation.py:64`, neither of which is the canonical run.
+
+So the `h_w` box and its terminal constraint are **not part of the canonical
+controller**, and `c_simple` — computed by `compute_c_simple()` on every solve —
+is read by nothing. Whether to enable it is an open decision (`NMPC_AUDIT` F2);
+it is recorded here so the document stops contradicting the code.
 
 ---
 
@@ -218,18 +252,18 @@ divergence.
 
 | unit | source |
 |---|---|
-| `class CentroidalNMPCConfig` | [L73-119](../../../crawlbot/solvers/centroidal_nmpc.py#L73-L119) |
-| `class CentroidalNMPC` | [L122-701](../../../crawlbot/solvers/centroidal_nmpc.py#L122-L701) |
-| `CentroidalNMPC.build` | [L149-377](../../../crawlbot/solvers/centroidal_nmpc.py#L149-L377) |
-| `CentroidalNMPC.solve` | [L379-467](../../../crawlbot/solvers/centroidal_nmpc.py#L379-L467) |
-| `CentroidalNMPC.get_last_trajectory` | [L469-479](../../../crawlbot/solvers/centroidal_nmpc.py#L469-L479) |
-| `CentroidalNMPC.get_shifted_fallback` | [L481-512](../../../crawlbot/solvers/centroidal_nmpc.py#L481-L512) |
-| `CentroidalNMPC.compute_c_simple` | [L514-547](../../../crawlbot/solvers/centroidal_nmpc.py#L514-L547) |
-| `CentroidalNMPC.reset_warm_start` | [L549-563](../../../crawlbot/solvers/centroidal_nmpc.py#L549-L563) |
-| `CentroidalNMPC.get_full_trajectory` | [L565-599](../../../crawlbot/solvers/centroidal_nmpc.py#L565-L599) |
-| `CentroidalNMPC.compute_feedforward_acceleration` | [L601-622](../../../crawlbot/solvers/centroidal_nmpc.py#L601-L622) |
-| `CentroidalNMPC._assemble_params` | [L628-661](../../../crawlbot/solvers/centroidal_nmpc.py#L628-L661) |
-| `CentroidalNMPC._apply_contact_bounds` | [L663-689](../../../crawlbot/solvers/centroidal_nmpc.py#L663-L689) |
+| `class CentroidalNMPCConfig` | [L73-130](../../../crawlbot/solvers/centroidal_nmpc.py#L73-L130) |
+| `class CentroidalNMPC` | [L133-755](../../../crawlbot/solvers/centroidal_nmpc.py#L133-L755) |
+| `CentroidalNMPC.build` | [L160-392](../../../crawlbot/solvers/centroidal_nmpc.py#L160-L392) |
+| `CentroidalNMPC.solve` | [L394-482](../../../crawlbot/solvers/centroidal_nmpc.py#L394-L482) |
+| `CentroidalNMPC.get_last_trajectory` | [L484-494](../../../crawlbot/solvers/centroidal_nmpc.py#L484-L494) |
+| `CentroidalNMPC.get_shifted_fallback` | [L496-527](../../../crawlbot/solvers/centroidal_nmpc.py#L496-L527) |
+| `CentroidalNMPC.compute_c_simple` | [L529-562](../../../crawlbot/solvers/centroidal_nmpc.py#L529-L562) |
+| `CentroidalNMPC.reset_warm_start` | [L564-578](../../../crawlbot/solvers/centroidal_nmpc.py#L564-L578) |
+| `CentroidalNMPC.get_full_trajectory` | [L580-614](../../../crawlbot/solvers/centroidal_nmpc.py#L580-L614) |
+| `CentroidalNMPC.compute_feedforward_acceleration` | [L616-637](../../../crawlbot/solvers/centroidal_nmpc.py#L616-L637) |
+| `CentroidalNMPC._assemble_params` | [L643-715](../../../crawlbot/solvers/centroidal_nmpc.py#L643-L715) |
+| `CentroidalNMPC._apply_contact_bounds` | [L717-743](../../../crawlbot/solvers/centroidal_nmpc.py#L717-L743) |
 
 ---
 

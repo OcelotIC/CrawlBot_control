@@ -94,6 +94,8 @@ class NMPCSolver:
         self.x_sym = ca.SX.sym('x', nx)
         self.u_sym = ca.SX.sym('u', nu)
         self.p_sym = ca.SX.sym('p', 0)  # empty by default
+        self._np_user: int = 0
+        self._per_stage_params: bool = False
 
         # System functions (set by user)
         self._f_dynamics: Optional[ca.SX] = None   # x_next = f(x, u, p)
@@ -243,7 +245,7 @@ class NMPCSolver:
             self._lbw[u_start: u_start + nu] = self.u_min
             self._ubw[u_start: u_start + nu] = self.u_max
 
-    def set_parameters(self, np_: int) -> None:
+    def set_parameters(self, np_: int, per_stage: bool = False) -> None:
         """Redefine the parameter vector dimension.
 
         Must be called BEFORE build() and BEFORE set_*_cost/dynamics
@@ -253,8 +255,32 @@ class NMPCSolver:
         ----------
         np_ : int
             Number of additional parameters (beyond initial state x0).
+        per_stage : bool
+            When False (default, legacy) ONE parameter block is shared by every
+            stage and by the terminal, so any reference carried in `p` is
+            necessarily CONSTANT over the horizon — the NLP is a regulator to a
+            fixed setpoint.
+
+            When True the NLP carries N+1 independent blocks, indexed
+            ``p_k`` for stage ``k = 0..N-1`` and ``p_N`` for the terminal
+            cost/constraint, so the reference can vary along the horizon and the
+            NLP becomes a trajectory tracker. The per-stage symbol handed to the
+            user callbacks has the same shape either way, so `set_stage_cost`,
+            `set_path_constraints` etc. are written identically.
+
+            Feeding a per_stage=True problem a single ``(np_,)`` vector
+            broadcasts it to all blocks and reproduces the legacy behaviour
+            exactly — that equivalence is what makes the switch auditable
+            (NMPC_AUDIT F1).
         """
         self.p_sym = ca.SX.sym('p', np_)
+        self._np_user = int(np_)
+        self._per_stage_params = bool(per_stage)
+
+    @property
+    def n_param_blocks(self) -> int:
+        """Number of parameter blocks the built NLP expects (1 or N+1)."""
+        return (self.N + 1) if self._per_stage_params else 1
 
     # ------------------------------------------------------------------ #
     #  Build the NLP                                                       #
@@ -310,12 +336,26 @@ class NMPCSolver:
 
         J = 0         # cost
 
-        # Parameter vector: [x0; p_user]
+        # Parameter vector.
+        #   legacy    : [x0; p]                     — one block, shared
+        #   per-stage : [x0; p_0; p_1; ...; p_N]    — N+1 blocks (NMPC_AUDIT F1)
         np_user = self.p_sym.shape[0]
-        self._np_total = self.nx + np_user
+        n_blocks = self.n_param_blocks if np_user > 0 else 1
+        self._np_total = self.nx + np_user * n_blocks
         P = ca.SX.sym('P', self._np_total)
         x0_param = P[:self.nx]
-        p_param = P[self.nx:] if np_user > 0 else self.p_sym  # keep empty sym if no params
+
+        def p_at(k: int):
+            """Parameter block for stage k (k = N selects the terminal block)."""
+            if np_user == 0:
+                return self.p_sym          # keep the empty symbol
+            if not self._per_stage_params:
+                return P[self.nx:]         # legacy: same block everywhere
+            lo = self.nx + k * np_user
+            return P[lo: lo + np_user]
+
+        # Legacy alias, still used where the block does not depend on k.
+        p_param = p_at(0)
 
         # Storage for symbolic variables (for structure inspection)
         X_sym = []
@@ -344,12 +384,12 @@ class NMPCSolver:
             ubw.append(self.u_max)
             w0.append(np.zeros(self.nu))
 
-            # Stage cost
-            J += L_eval(x=Xk, u=Uk, p=p_param)['cost']
+            # Stage cost — block k, so the reference may vary along the horizon
+            J += L_eval(x=Xk, u=Uk, p=p_at(k))['cost']
 
             # Path constraints at step k
             if self._ng_path > 0:
-                g_val = g_eval(x=Xk, u=Uk, p=p_param)['g']
+                g_val = g_eval(x=Xk, u=Uk, p=p_at(k))['g']
                 g_list.append(g_val)
                 lbg.append(np.full(self._ng_path, -np.inf))
                 ubg.append(np.zeros(self._ng_path))
@@ -363,7 +403,7 @@ class NMPCSolver:
             w0.append(np.zeros(self.nx))
 
             # Dynamics constraint: x_{k+1} = f(x_k, u_k, p)
-            x_pred = f_eval(x=Xk, u=Uk, p=p_param)['x_next']
+            x_pred = f_eval(x=Xk, u=Uk, p=p_at(k))['x_next']
             g_list.append(Xk_next - x_pred)
             lbg.append(np.zeros(self.nx))
             ubg.append(np.zeros(self.nx))
@@ -372,11 +412,11 @@ class NMPCSolver:
 
         # --- Terminal cost ---
         if Lf_eval is not None:
-            J += Lf_eval(x=Xk, p=p_param)['cost']
+            J += Lf_eval(x=Xk, p=p_at(self.N))['cost']
 
         # --- Terminal constraints ---
         if self._ng_terminal > 0:
-            gf_val = gf_eval(x=Xk, p=p_param)['g']
+            gf_val = gf_eval(x=Xk, p=p_at(self.N))['g']
             g_list.append(gf_val)
             lbg.append(np.full(self._ng_terminal, -np.inf))
             ubg.append(np.zeros(self._ng_terminal))
@@ -443,9 +483,27 @@ class NMPCSolver:
         if params is None:
             params = np.array([])
         else:
-            params = np.asarray(params).ravel()
+            params = np.asarray(params, dtype=float)
+            nb, npu = self.n_param_blocks, self._np_user
+            if npu > 0:
+                # Accept (np_,) [broadcast to every block], (nb, np_), or a
+                # flat (nb*np_,). Broadcasting a single block reproduces the
+                # legacy shared-parameter NLP exactly — the inertness proof
+                # for the F1 switch depends on that.
+                if params.size == npu and nb > 1:
+                    params = np.tile(params.ravel(), nb)
+                elif params.size != npu * nb:
+                    raise ValueError(
+                        f'params has {params.size} entries; expected {npu} '
+                        f'(broadcast) or {npu * nb} ({nb} blocks x {npu})')
+            params = params.ravel()
 
         P = np.concatenate([x0, params])
+        if P.size != self._np_total:
+            raise ValueError(
+                f'parameter vector length {P.size} != NLP expectation '
+                f'{self._np_total} (nx={self.nx}, blocks={self.n_param_blocks}, '
+                f'np_user={self._np_user})')
 
         # --- Initial guess ---
         w0 = self._build_initial_guess(x0, warm_start)

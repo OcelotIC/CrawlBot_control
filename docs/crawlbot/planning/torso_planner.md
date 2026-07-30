@@ -1,6 +1,6 @@
 # `crawlbot.planning.torso_planner`
 
-**File**: [`crawlbot/planning/torso_planner.py`](../../../crawlbot/planning/torso_planner.py) — **481 lines** — canonical coverage **81 %**
+**File**: [`crawlbot/planning/torso_planner.py`](../../../crawlbot/planning/torso_planner.py) — **481 lines** — canonical coverage **70 %**
 
 > Module docstring: *"TorsoPlanner — Generates 6D torso + CoM reference trajectories."*
 
@@ -35,7 +35,7 @@ step. Also supplies the CoM and `L_com` references consumed by stage 1.
 | `._profile_params` | `(t, phase)` | **yes** | [L411](../../../crawlbot/planning/torso_planner.py#L411) |
 | `._quintic_params` | `(t, phase)` | **yes** | [L423](../../../crawlbot/planning/torso_planner.py#L423) |
 | `._interpolate_phase` | `(t, phase)` | **yes** | [L436](../../../crawlbot/planning/torso_planner.py#L436) |
-| `._interpolate_com` | `(t, phase)` | **yes** | [L458](../../../crawlbot/planning/torso_planner.py#L458) |
+| `._interpolate_com` | `(t, phase)` | not exercised | [L458](../../../crawlbot/planning/torso_planner.py#L458) |
 
 ---
 

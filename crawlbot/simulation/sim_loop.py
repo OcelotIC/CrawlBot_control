@@ -428,7 +428,8 @@ class SimulationLoop(TickLoggingMixin):
             enforce_hw_conservation=cfg.enforce_hw_conservation,
             h_max_tight=cfg.h_max_tight,
             w_L=cfg.w_L_nmpc,
-            kappa_terminal=cfg.kappa_terminal))
+            kappa_terminal=cfg.kappa_terminal,
+            per_stage_refs=cfg.nmpc_per_stage_refs))
         self.nmpc.build()
 
         # M6/M7: coarse pre-planner — mandatory. Built once; solved per step.
@@ -2094,6 +2095,37 @@ class SimulationLoop(TickLoggingMixin):
             tq = min(tq, (ss_end - self._t_plan_offset) - 0.01)
         return tq
 
+    def _com_ref_at(self, t_query: float, settle_mode: bool):
+        """CoM (position, velocity) reference at one absolute time.
+
+        Extracted verbatim from the inline block that used to run once per
+        `_step` at the horizon end, so that F1 (per-knot references) can call
+        it once per horizon knot without duplicating the coarse-pre-planner
+        override or its compressed-time mapping.
+
+        The pre-planner trajectory takes precedence when it exists and we are
+        not settling; otherwise the TorsoPlanner's own CoM reference is used.
+        """
+        cfg = self.cfg
+        if (self._coarse_plan is not None) and (not settle_mode):
+            tau_rel = t_query - self._coarse_plan_t0
+            ff = float(getattr(cfg, 'torso_early_finish_fraction', 1.0))
+            T_plan = float(self._coarse_plan.T_step)
+            if 0.0 < ff < 1.0:
+                # Compressed time: the profile covers [0, ff·T_plan] in
+                # real-time, then holds. Positions accelerate; velocity scales
+                # by 1/ff during the active window and goes to 0 afterwards
+                # (the pre-planner's v_com[-1] ≈ 0 anyway, so clamping is safe).
+                if tau_rel <= ff * T_plan:
+                    tau_comp = tau_rel / ff
+                    return (self._coarse_plan.r_com_at(tau_comp),
+                            self._coarse_plan.v_com_at(tau_comp) / ff)
+                return self._coarse_plan.r_com_at(T_plan), np.zeros(3)
+            return (self._coarse_plan.r_com_at(tau_rel),
+                    self._coarse_plan.v_com_at(tau_rel))
+        c = self.torso_planner.com_reference_at(t_query)
+        return c.r_com, c.v_com
+
     def _step(self, t, phase, step_idx, swing_arm, stance_arm,
               cc_ss, target_anchor, stance_a, stance_b,
               hw, L_com_prev, log, ss_end=None, settle_mode=False,
@@ -2125,11 +2157,23 @@ class SimulationLoop(TickLoggingMixin):
 
         # Torso/CoM references (structure frame — no struct pose needed)
         tref = self.torso_planner.reference_at(t)
-        # Query CoM reference at horizon end, not current time.
-        # The NMPC uses a constant reference across all N horizon steps,
-        # so passing the current-time reference causes systematic lag.
+
+        # ── NMPC reference sampling (NMPC_AUDIT F1) ───────────────────────
+        # Legacy (`nmpc_per_stage_refs=False`): the NLP carries ONE reference
+        # block shared by every stage, so the reference is a constant setpoint
+        # and must be sampled in the FUTURE or tracking lags systematically —
+        # hence the horizon-end query. That is precisely what ties `nmpc_N` to
+        # the reference lead (NMPC_HORIZON_N15 §1): change the horizon and you
+        # change the target.
+        #
+        # F1 (`nmpc_per_stage_refs=True`): one reference per knot, each at its
+        # OWN time, so the NLP tracks the pre-planner's actual curve and the
+        # horizon length no longer moves the reference.
         t_horizon = t + cfg.nmpc_N * cfg.nmpc_dt
-        cref = self.torso_planner.com_reference_at(t_horizon)
+        if cfg.nmpc_per_stage_refs:
+            knot_times = [t + k * cfg.nmpc_dt for k in range(cfg.nmpc_N + 1)]
+        else:
+            knot_times = [t_horizon]
 
         # M6: override the NMPC CoM reference with the coarse pre-planner
         # trajectory when it is available. Replaces the geometric CoM
@@ -2144,31 +2188,17 @@ class SimulationLoop(TickLoggingMixin):
         # the M5 mapping below) sees a static r_com_goal during the
         # last (1 - ff)·T_step. The swing planner is queried
         # independently on the full T_step — unchanged.
-        if (self._coarse_plan is not None) and (not settle_mode):
-            tau_rel = t_horizon - self._coarse_plan_t0
-            ff = float(getattr(cfg, 'torso_early_finish_fraction', 1.0))
-            T_plan = float(self._coarse_plan.T_step)
-            if 0.0 < ff < 1.0:
-                # Compressed time: profile covers [0, ff·T_plan] in
-                # real-time, then holds. Positions accelerate; velocity
-                # scales by 1/ff during the active window, goes to 0
-                # afterwards (the pre-planner's v_com[-1] ≈ 0 anyway,
-                # so clamping is safe).
-                if tau_rel <= ff * T_plan:
-                    tau_comp = tau_rel / ff
-                    rp_coarse = self._coarse_plan.r_com_at(tau_comp)
-                    vp_coarse = self._coarse_plan.v_com_at(tau_comp) / ff
-                else:
-                    rp_coarse = self._coarse_plan.r_com_at(T_plan)
-                    vp_coarse = np.zeros(3)
-            else:
-                rp_coarse = self._coarse_plan.r_com_at(tau_rel)
-                vp_coarse = self._coarse_plan.v_com_at(tau_rel)
-            cref_r = rp_coarse
-            cref_v = vp_coarse
-        else:
-            cref_r = cref.r_com
-            cref_v = cref.v_com
+        _refs = [self._com_ref_at(tq, settle_mode) for tq in knot_times]
+        cref_r_knots = np.asarray([a for a, _ in _refs], dtype=float)
+        cref_v_knots = np.asarray([b for _, b in _refs], dtype=float)
+        # Representative reference — used for the infeasibility fallback and for
+        # the exported `r_com_ref` channel. Knot 0 in both modes, which is the
+        # horizon-end setpoint in legacy and the reference AT THE CURRENT TIME
+        # under F1. ⚠ That makes the exported `e_com` a different quantity in
+        # the two modes: error against a future setpoint vs against the present
+        # one. Compare e_com across modes only with that in mind.
+        cref_r = cref_r_knots[0]
+        cref_v = cref_v_knots[0]
 
         # Robot state in structure frame.
         # Extract structure angular velocity for non-inertial corrections.
@@ -2205,12 +2235,19 @@ class SimulationLoop(TickLoggingMixin):
             hw_for_nmpc = (cfg.rwa_I_w * self.mj_data.qvel[6:9]).copy()
         else:
             hw_for_nmpc = hw.copy()
-        # Query L_com_ref at the horizon midpoint to track the
-        # planner's rotation phase reasonably.
+        # L_com reference. Legacy samples the horizon MIDPOINT — a single
+        # compromise value chosen because one constant has to serve the whole
+        # horizon. Under F1 each knot gets its own, so no compromise is needed
+        # and `nmpc_N` stops moving this sample too.
         t_mid = t + 0.5 * cfg.nmpc_N * cfg.nmpc_dt
-        L_com_ref_nmpc = self.torso_planner.l_com_reference_at(t_mid)
+        if cfg.nmpc_per_stage_refs:
+            L_com_ref_nmpc = np.asarray(
+                [self.torso_planner.l_com_reference_at(tq) for tq in knot_times],
+                dtype=float)
+        else:
+            L_com_ref_nmpc = self.torso_planner.l_com_reference_at(t_mid)
         if self._diag_pure_pd:
-            L_com_ref_nmpc = np.zeros(3)
+            L_com_ref_nmpc = np.zeros_like(L_com_ref_nmpc)
         # M7 debug: capture L_com_ref trace for the first N SS calls so
         # we can verify the TorsoPlanner momentum feedforward is wired
         # (expected nonzero during the 45.7° reorientation). Opt-in via
@@ -2240,7 +2277,7 @@ class SimulationLoop(TickLoggingMixin):
         try:
             rp, vp, _, lr, info_n = self.nmpc.solve(
                 r_com=rs.r_com, v_com=rs.v_com, L_com=rs.L_com,
-                r_com_ref=cref_r, v_com_ref=cref_v,
+                r_com_ref=cref_r_knots, v_com_ref=cref_v_knots,
                 contact_config=cc_nmpc, warm_start=True,
                 hw_current=hw_for_nmpc,
                 L_com_ref=L_com_ref_nmpc)

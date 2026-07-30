@@ -1,6 +1,6 @@
 # `crawlbot.planning.coarse_preplanner`
 
-**File**: [`crawlbot/planning/coarse_preplanner.py`](../../../crawlbot/planning/coarse_preplanner.py) — **540 lines** — canonical coverage **81 %**
+**File**: [`crawlbot/planning/coarse_preplanner.py`](../../../crawlbot/planning/coarse_preplanner.py) — **540 lines** — canonical coverage **82 %**
 
 > Module docstring: *"CoarsePrePlanner — momentum-feasible CoM trajectory optimization (M6)."*
 

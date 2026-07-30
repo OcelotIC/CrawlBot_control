@@ -240,20 +240,29 @@ class SimConfig:
     fsat_jitter_margin: float = 0.05         # [m/s] jitter slack on the torso-ref rate cap
 
     # ── NMPC solver ─────────────────────────────────────────────
-    # Prediction horizon. N·nmpc_dt is the lookahead: 15·0.1 = 1.5 s, i.e.
-    # 25 % of the nominal T_step = 6 s (was N=8 ⇒ 0.8 s, 13 %).
+    # Prediction horizon. N·nmpc_dt is the lookahead: 20·0.1 = 2.0 s, i.e.
+    # 33 % of the nominal T_step = 6 s (was N=8 ⇒ 0.8 s; then 15 ⇒ 1.5 s).
     #
-    # ⚠ N is NOT a pure "more prediction steps" knob. Three reference-sampling
-    # points are keyed on it, because the NMPC holds a CONSTANT reference over
-    # the horizon and must therefore be handed the *future* value:
-    #   sim_loop.py:2131  t_horizon = t + N·dt   → CoM reference query
-    #   sim_loop.py:2148  tau_rel   = t_horizon − t0 → coarse-preplanner query
-    #   sim_loop.py:2210  t_mid     = t + N·dt/2 → L_com reference query
-    # Raising N therefore also moves the reference the NMPC chases further
-    # ahead in time. A longer horizon and a longer reference lead are changed
-    # together here; they are not separable through this field alone.
-    nmpc_N: int = 15
+    # N used to be TWO knobs: with a single shared reference block the NMPC had
+    # to be handed a FUTURE reference (horizon end for CoM, midpoint for L_com),
+    # so raising N also pushed the target further ahead and no clean horizon
+    # ablation was possible. `nmpc_per_stage_refs=True` (below) removes that
+    # coupling — each knot now carries its own reference at its own time, so N
+    # changes the prediction length and nothing else.
+    nmpc_N: int = 20
     nmpc_dt: float = 0.1
+    # ── F1 (NMPC_AUDIT): per-knot NMPC references ────────────────────────
+    # False (legacy): the NLP carries ONE reference block for the whole
+    # horizon, so r_ref/v_ref/L_ref are a constant SETPOINT. `sim_loop` then
+    # has to sample it in the future (horizon end for CoM, midpoint for L) or
+    # tracking lags — which is exactly what makes `nmpc_N` move the reference.
+    # True: one reference per knot at its own time. The NLP becomes a
+    # trajectory tracker over the coarse pre-planner's actual curve, and the
+    # three reference-sampling points above stop depending on N.
+    # ⚠ Also changes what the exported `r_com_ref` channel means: knot 0 is the
+    # reference AT THE CURRENT TIME under True, and the horizon-end setpoint
+    # under False. `e_com` is therefore not comparable across this flag.
+    nmpc_per_stage_refs: bool = True
     nmpc_f_max: float = 300.0
     nmpc_tau_max: float = 8.0
     nmpc_Wv: float = 10.0

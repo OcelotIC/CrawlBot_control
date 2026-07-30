@@ -1,6 +1,6 @@
 # `crawlbot.simulation.config`
 
-**File**: [`crawlbot/simulation/config.py`](../../../crawlbot/simulation/config.py) — **519 lines** — canonical coverage **100 %**
+**File**: [`crawlbot/simulation/config.py`](../../../crawlbot/simulation/config.py) — **528 lines** — canonical coverage **100 %**
 
 > Module docstring: *"Simulation configuration dataclass."*
 
@@ -78,72 +78,73 @@ controller lives here, with its unit and justification. **100 % coverage.**
 |   `preplanner_tstep_scale_step` | `-1` | _field_ | [L229](../../../crawlbot/simulation/config.py#L229) |
 |   `preplanner_tstep_scale_factor` | `1.0` | _field_ | [L230](../../../crawlbot/simulation/config.py#L230) |
 |   `fsat_jitter_margin` | `0.05` | _field_ | [L240](../../../crawlbot/simulation/config.py#L240) |
-|   `nmpc_N` | `15` | _field_ | [L255](../../../crawlbot/simulation/config.py#L255) |
-|   `nmpc_dt` | `0.1` | _field_ | [L256](../../../crawlbot/simulation/config.py#L256) |
-|   `nmpc_f_max` | `300.0` | _field_ | [L257](../../../crawlbot/simulation/config.py#L257) |
-|   `nmpc_tau_max` | `8.0` | _field_ | [L258](../../../crawlbot/simulation/config.py#L258) |
-|   `nmpc_Wv` | `10.0` | _field_ | [L259](../../../crawlbot/simulation/config.py#L259) |
-|   `nmpc_p_max` | `50.0` | _field_ | [L260](../../../crawlbot/simulation/config.py#L260) |
-|   `nmpc_Wr` | `100.0` | _field_ | [L266](../../../crawlbot/simulation/config.py#L266) |
-|   `nmpc_Wu_f` | `0.01` | _field_ | [L267](../../../crawlbot/simulation/config.py#L267) |
-|   `nmpc_Wu_tau` | `0.001` | _field_ | [L268](../../../crawlbot/simulation/config.py#L268) |
-|   `nmpc_Qf_r` | `1000.0` | _field_ | [L269](../../../crawlbot/simulation/config.py#L269) |
-|   `nmpc_Qf_v` | `100.0` | _field_ | [L270](../../../crawlbot/simulation/config.py#L270) |
-|   `nmpc_Qf_L` | `10.0` | _field_ | [L271](../../../crawlbot/simulation/config.py#L271) |
-|   `t_settle_final` | `20.0` | _field_ | [L272](../../../crawlbot/simulation/config.py#L272) |
-|   `t_settle_inter` | `0.0` | _field_ | [L279](../../../crawlbot/simulation/config.py#L279) |
-|   `use_energy_settle_inter` | `True` | _field_ | [L280](../../../crawlbot/simulation/config.py#L280) |
-|   `settle_inter_epsilon_v` | `0.001` | _field_ | [L281](../../../crawlbot/simulation/config.py#L281) |
-|   `interstep_settle_epsilon_v` | `0.0` | _field_ | [L289](../../../crawlbot/simulation/config.py#L289) |
-|   `n_settle_inter_max_steps` | `500` | _field_ | [L290](../../../crawlbot/simulation/config.py#L290) |
-|   `t_settle_inter_min` | `0.1` | _field_ | [L291](../../../crawlbot/simulation/config.py#L291) |
-|   `ss_alpha_ee` | `1000.0` | _field_ | [L294](../../../crawlbot/simulation/config.py#L294) |
-|   `ss_alpha_posture` | `20.0` | _field_ | [L295](../../../crawlbot/simulation/config.py#L295) |
-|   `ss_alpha_wrench` | `1.0` | _field_ | [L296](../../../crawlbot/simulation/config.py#L296) |
-|   `ss_alpha_lambda_int` | `0.0` | _field_ | [L297](../../../crawlbot/simulation/config.py#L297) |
-|   `ss_alpha_mom` | `400.0` | _field_ | [L302](../../../crawlbot/simulation/config.py#L302) |
-|   `log_hifreq_ss` | `False` | _field_ | [L306](../../../crawlbot/simulation/config.py#L306) |
-|   `ss_two_task_mode` | `False` | _field_ | [L314](../../../crawlbot/simulation/config.py#L314) |
-|   `alpha_torso_pose` | `2000.0` | _field_ | [L315](../../../crawlbot/simulation/config.py#L315) |
-|   `dt_ds` | `0.5` | _field_ | [L324](../../../crawlbot/simulation/config.py#L324) |
-|   `dock_hold_passivity_on` | `False` | _field_ | [L338](../../../crawlbot/simulation/config.py#L338) |
-|   `passivity_W_budget` | `0.0` | _field_ | [L339](../../../crawlbot/simulation/config.py#L339) |
-|   `log_dock_work` | `False` | _field_ | [L340](../../../crawlbot/simulation/config.py#L340) |
-|   `qp_envelope_exact` | `False` | _field_ | [L350](../../../crawlbot/simulation/config.py#L350) |
-|   `ds_centroidal_mode` | `False` | _field_ | [L355](../../../crawlbot/simulation/config.py#L355) |
-|   `ds_alpha_com` | `100.0` | _field_ | [L356](../../../crawlbot/simulation/config.py#L356) |
-|   `ds_alpha_torso_ori` | `200.0` | _field_ | [L357](../../../crawlbot/simulation/config.py#L357) |
-|   `ds_alpha_posture` | `50.0` | _field_ | [L358](../../../crawlbot/simulation/config.py#L358) |
-|   `ss_Kp_com` | `3.0` | _field_ | [L361](../../../crawlbot/simulation/config.py#L361) |
-|   `ss_Kd_com` | `3.0` | _field_ | [L362](../../../crawlbot/simulation/config.py#L362) |
-|   `ss_Kp_torso` | `6.0` | _field_ | [L363](../../../crawlbot/simulation/config.py#L363) |
-|   `ss_Kd_torso` | `5.0` | _field_ | [L364](../../../crawlbot/simulation/config.py#L364) |
-|   `ss_Kp_ee` | `10.0` | _field_ | [L365](../../../crawlbot/simulation/config.py#L365) |
-|   `ss_Kd_ee` | `12.0` | _field_ | [L366](../../../crawlbot/simulation/config.py#L366) |
-|   `ss_Kp_ee_ang` | `6.0` | _field_ | [L367](../../../crawlbot/simulation/config.py#L367) |
-|   `ss_Kd_ee_ang` | `4.5` | _field_ | [L368](../../../crawlbot/simulation/config.py#L368) |
-|   `swing_clearance` | `0.03` | _field_ | [L371](../../../crawlbot/simulation/config.py#L371) |
-|   `swing_bump_peak_tau` | `0.5` | _field_ | [L377](../../../crawlbot/simulation/config.py#L377) |
-|   `ik_fixed_rotation` | `True` | _field_ | [L388](../../../crawlbot/simulation/config.py#L388) |
-|   `ik_fixed_rotation_w_min` | `0.0001` | _field_ | [L389](../../../crawlbot/simulation/config.py#L389) |
-|   `ik_level_axis` | `None` | _field_ | [L404](../../../crawlbot/simulation/config.py#L404) |
-|   `ik_q_nominal` | `None` | _field_ | [L405](../../../crawlbot/simulation/config.py#L405) |
-|   `ik_w_posture` | `0.0` | _field_ | [L406](../../../crawlbot/simulation/config.py#L406) |
-|   `use_com_z_standoff` | `False` | _field_ | [L419](../../../crawlbot/simulation/config.py#L419) |
-|   `com_z_standoff` | `-0.35` | _field_ | [L420](../../../crawlbot/simulation/config.py#L420) |
-|   `torso_early_finish_fraction` | `1.0` | _field_ | [L445](../../../crawlbot/simulation/config.py#L445) |
-|   `swing_early_finish_fraction` | `1.0` | _field_ | [L454](../../../crawlbot/simulation/config.py#L454) |
-|   `n_settle_steps` | `500` | _field_ | [L457](../../../crawlbot/simulation/config.py#L457) |
-|   `Kd_settle_damping` | `20.0` | _field_ | [L468](../../../crawlbot/simulation/config.py#L468) |
-|   `n_settle_max_steps` | `1000` | _field_ | [L469](../../../crawlbot/simulation/config.py#L469) |
-|   `settle_epsilon_v` | `0.001` | _field_ | [L470](../../../crawlbot/simulation/config.py#L470) |
-|   `settle_plateau_ratio` | `0.999` | _field_ | [L471](../../../crawlbot/simulation/config.py#L471) |
-|   `diag_freeze_torso_ref_on_abort` | `False` | _field_ | [L478](../../../crawlbot/simulation/config.py#L478) |
-|   `diag_force_single_contact_on_abort` | `False` | _field_ | [L484](../../../crawlbot/simulation/config.py#L484) |
-|   `diag_disable_passivity_on_abort` | `False` | _field_ | [L490](../../../crawlbot/simulation/config.py#L490) |
-|   `mapping_bypass_in_ss` | `False` | _field_ | [L496](../../../crawlbot/simulation/config.py#L496) |
-|   `ds_ramp_duration_s` | `2.0` | _field_ | [L506](../../../crawlbot/simulation/config.py#L506) |
-|   `gait_anchor_dx` | `0.8` | _field_ | [L518](../../../crawlbot/simulation/config.py#L518) |
+|   `nmpc_N` | `20` | _field_ | [L252](../../../crawlbot/simulation/config.py#L252) |
+|   `nmpc_dt` | `0.1` | _field_ | [L253](../../../crawlbot/simulation/config.py#L253) |
+|   `nmpc_per_stage_refs` | `True` | _field_ | [L265](../../../crawlbot/simulation/config.py#L265) |
+|   `nmpc_f_max` | `300.0` | _field_ | [L266](../../../crawlbot/simulation/config.py#L266) |
+|   `nmpc_tau_max` | `8.0` | _field_ | [L267](../../../crawlbot/simulation/config.py#L267) |
+|   `nmpc_Wv` | `10.0` | _field_ | [L268](../../../crawlbot/simulation/config.py#L268) |
+|   `nmpc_p_max` | `50.0` | _field_ | [L269](../../../crawlbot/simulation/config.py#L269) |
+|   `nmpc_Wr` | `100.0` | _field_ | [L275](../../../crawlbot/simulation/config.py#L275) |
+|   `nmpc_Wu_f` | `0.01` | _field_ | [L276](../../../crawlbot/simulation/config.py#L276) |
+|   `nmpc_Wu_tau` | `0.001` | _field_ | [L277](../../../crawlbot/simulation/config.py#L277) |
+|   `nmpc_Qf_r` | `1000.0` | _field_ | [L278](../../../crawlbot/simulation/config.py#L278) |
+|   `nmpc_Qf_v` | `100.0` | _field_ | [L279](../../../crawlbot/simulation/config.py#L279) |
+|   `nmpc_Qf_L` | `10.0` | _field_ | [L280](../../../crawlbot/simulation/config.py#L280) |
+|   `t_settle_final` | `20.0` | _field_ | [L281](../../../crawlbot/simulation/config.py#L281) |
+|   `t_settle_inter` | `0.0` | _field_ | [L288](../../../crawlbot/simulation/config.py#L288) |
+|   `use_energy_settle_inter` | `True` | _field_ | [L289](../../../crawlbot/simulation/config.py#L289) |
+|   `settle_inter_epsilon_v` | `0.001` | _field_ | [L290](../../../crawlbot/simulation/config.py#L290) |
+|   `interstep_settle_epsilon_v` | `0.0` | _field_ | [L298](../../../crawlbot/simulation/config.py#L298) |
+|   `n_settle_inter_max_steps` | `500` | _field_ | [L299](../../../crawlbot/simulation/config.py#L299) |
+|   `t_settle_inter_min` | `0.1` | _field_ | [L300](../../../crawlbot/simulation/config.py#L300) |
+|   `ss_alpha_ee` | `1000.0` | _field_ | [L303](../../../crawlbot/simulation/config.py#L303) |
+|   `ss_alpha_posture` | `20.0` | _field_ | [L304](../../../crawlbot/simulation/config.py#L304) |
+|   `ss_alpha_wrench` | `1.0` | _field_ | [L305](../../../crawlbot/simulation/config.py#L305) |
+|   `ss_alpha_lambda_int` | `0.0` | _field_ | [L306](../../../crawlbot/simulation/config.py#L306) |
+|   `ss_alpha_mom` | `400.0` | _field_ | [L311](../../../crawlbot/simulation/config.py#L311) |
+|   `log_hifreq_ss` | `False` | _field_ | [L315](../../../crawlbot/simulation/config.py#L315) |
+|   `ss_two_task_mode` | `False` | _field_ | [L323](../../../crawlbot/simulation/config.py#L323) |
+|   `alpha_torso_pose` | `2000.0` | _field_ | [L324](../../../crawlbot/simulation/config.py#L324) |
+|   `dt_ds` | `0.5` | _field_ | [L333](../../../crawlbot/simulation/config.py#L333) |
+|   `dock_hold_passivity_on` | `False` | _field_ | [L347](../../../crawlbot/simulation/config.py#L347) |
+|   `passivity_W_budget` | `0.0` | _field_ | [L348](../../../crawlbot/simulation/config.py#L348) |
+|   `log_dock_work` | `False` | _field_ | [L349](../../../crawlbot/simulation/config.py#L349) |
+|   `qp_envelope_exact` | `False` | _field_ | [L359](../../../crawlbot/simulation/config.py#L359) |
+|   `ds_centroidal_mode` | `False` | _field_ | [L364](../../../crawlbot/simulation/config.py#L364) |
+|   `ds_alpha_com` | `100.0` | _field_ | [L365](../../../crawlbot/simulation/config.py#L365) |
+|   `ds_alpha_torso_ori` | `200.0` | _field_ | [L366](../../../crawlbot/simulation/config.py#L366) |
+|   `ds_alpha_posture` | `50.0` | _field_ | [L367](../../../crawlbot/simulation/config.py#L367) |
+|   `ss_Kp_com` | `3.0` | _field_ | [L370](../../../crawlbot/simulation/config.py#L370) |
+|   `ss_Kd_com` | `3.0` | _field_ | [L371](../../../crawlbot/simulation/config.py#L371) |
+|   `ss_Kp_torso` | `6.0` | _field_ | [L372](../../../crawlbot/simulation/config.py#L372) |
+|   `ss_Kd_torso` | `5.0` | _field_ | [L373](../../../crawlbot/simulation/config.py#L373) |
+|   `ss_Kp_ee` | `10.0` | _field_ | [L374](../../../crawlbot/simulation/config.py#L374) |
+|   `ss_Kd_ee` | `12.0` | _field_ | [L375](../../../crawlbot/simulation/config.py#L375) |
+|   `ss_Kp_ee_ang` | `6.0` | _field_ | [L376](../../../crawlbot/simulation/config.py#L376) |
+|   `ss_Kd_ee_ang` | `4.5` | _field_ | [L377](../../../crawlbot/simulation/config.py#L377) |
+|   `swing_clearance` | `0.03` | _field_ | [L380](../../../crawlbot/simulation/config.py#L380) |
+|   `swing_bump_peak_tau` | `0.5` | _field_ | [L386](../../../crawlbot/simulation/config.py#L386) |
+|   `ik_fixed_rotation` | `True` | _field_ | [L397](../../../crawlbot/simulation/config.py#L397) |
+|   `ik_fixed_rotation_w_min` | `0.0001` | _field_ | [L398](../../../crawlbot/simulation/config.py#L398) |
+|   `ik_level_axis` | `None` | _field_ | [L413](../../../crawlbot/simulation/config.py#L413) |
+|   `ik_q_nominal` | `None` | _field_ | [L414](../../../crawlbot/simulation/config.py#L414) |
+|   `ik_w_posture` | `0.0` | _field_ | [L415](../../../crawlbot/simulation/config.py#L415) |
+|   `use_com_z_standoff` | `False` | _field_ | [L428](../../../crawlbot/simulation/config.py#L428) |
+|   `com_z_standoff` | `-0.35` | _field_ | [L429](../../../crawlbot/simulation/config.py#L429) |
+|   `torso_early_finish_fraction` | `1.0` | _field_ | [L454](../../../crawlbot/simulation/config.py#L454) |
+|   `swing_early_finish_fraction` | `1.0` | _field_ | [L463](../../../crawlbot/simulation/config.py#L463) |
+|   `n_settle_steps` | `500` | _field_ | [L466](../../../crawlbot/simulation/config.py#L466) |
+|   `Kd_settle_damping` | `20.0` | _field_ | [L477](../../../crawlbot/simulation/config.py#L477) |
+|   `n_settle_max_steps` | `1000` | _field_ | [L478](../../../crawlbot/simulation/config.py#L478) |
+|   `settle_epsilon_v` | `0.001` | _field_ | [L479](../../../crawlbot/simulation/config.py#L479) |
+|   `settle_plateau_ratio` | `0.999` | _field_ | [L480](../../../crawlbot/simulation/config.py#L480) |
+|   `diag_freeze_torso_ref_on_abort` | `False` | _field_ | [L487](../../../crawlbot/simulation/config.py#L487) |
+|   `diag_force_single_contact_on_abort` | `False` | _field_ | [L493](../../../crawlbot/simulation/config.py#L493) |
+|   `diag_disable_passivity_on_abort` | `False` | _field_ | [L499](../../../crawlbot/simulation/config.py#L499) |
+|   `mapping_bypass_in_ss` | `False` | _field_ | [L505](../../../crawlbot/simulation/config.py#L505) |
+|   `ds_ramp_duration_s` | `2.0` | _field_ | [L515](../../../crawlbot/simulation/config.py#L515) |
+|   `gait_anchor_dx` | `0.8` | _field_ | [L527](../../../crawlbot/simulation/config.py#L527) |
 
 ---
 
@@ -229,7 +230,7 @@ concern for deployment even though the offline sim is unaffected.
 
 | unit | source |
 |---|---|
-| `class SimConfig` | [L12-518](../../../crawlbot/simulation/config.py#L12-L518) |
+| `class SimConfig` | [L12-527](../../../crawlbot/simulation/config.py#L12-L527) |
 
 ---
 

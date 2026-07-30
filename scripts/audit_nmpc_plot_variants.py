@@ -27,6 +27,14 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SWEEP = os.path.join(ROOT, 'results/j2_adjconv/nmpc_sweep')
 BASE = os.path.join(ROOT, 'results/j2_adjconv/c25_fulldiag.csv')
 OUT = os.path.join(ROOT, 'results/j2_adjconv/nmpc_sweep/nmpc_variants.png')
+OUT_F1 = os.path.join(ROOT, 'results/j2_adjconv/nmpc_sweep/nmpc_f1.png')
+
+# F1 set: the Rule-12 ladder. Each entry differs from the previous in ONE field.
+F1_SET = [
+    ('F1off_N15', 'F1 OFF, N=15  (setpoint; = committed baseline)', 0.10, '#888888'),
+    ('F1on_N15',  'F1 ON,  N=15  (per-knot refs)',                  0.10, '#2ca02c'),
+    ('F1on_N20',  'F1 ON,  N=20  (per-knot refs, 2.0 s horizon)',   0.10, '#d62728'),
+]
 
 # label -> (fulldiag csv, nmpc step log or None, control period, colour)
 def variant_paths():
@@ -60,11 +68,31 @@ def col(rows, name):
     return np.asarray(out)
 
 
+def f1_paths():
+    out = []
+    for tag, nice, period, colour in F1_SET:
+        d = os.path.join(SWEEP, tag)
+        csv_p = os.path.join(d, 'fulldiag_fulldiag.csv')
+        if not os.path.exists(csv_p):
+            print(f'  (skipping {tag}: no fulldiag)')
+            continue
+        out.append((nice, csv_p, os.path.join(d, 'nmpc_step_log.json'),
+                    period, colour))
+    return out
+
+
 def main():
-    variants = variant_paths()
+    render(variant_paths(),
+           'NMPC horizon / discretization variants — 6-step managed traversal',
+           OUT)
+    render(f1_paths(),
+           'F1: constant setpoint vs per-knot references (Rule-12 ladder)',
+           OUT_F1)
+
+
+def render(variants, title, out_path):
     fig, axes = plt.subplots(3, 2, figsize=(15, 12))
-    fig.suptitle('NMPC horizon / discretization variants — 6-step managed traversal',
-                 fontsize=14, fontweight='bold')
+    fig.suptitle(title, fontsize=14, fontweight='bold')
 
     summary = []
     for label, csv_p, log_p, period, colour in variants:
@@ -139,8 +167,9 @@ def main():
         a.legend(fontsize=7, loc='best')
 
     fig.tight_layout()
-    fig.savefig(OUT, dpi=130, bbox_inches='tight')
-    print(f'wrote {OUT}')
+    fig.savefig(out_path, dpi=130, bbox_inches='tight')
+    plt.close(fig)
+    print(f'wrote {out_path}')
     for s in summary:
         print('  ', s)
 

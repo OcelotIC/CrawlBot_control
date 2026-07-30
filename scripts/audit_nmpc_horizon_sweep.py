@@ -41,26 +41,39 @@ CONFIG = os.path.join(ROOT, 'crawlbot/simulation/config.py')
 SCRATCH = os.path.join(ROOT, 'results/gate_run_scratch')
 DEST = os.path.join(ROOT, 'results/j2_adjconv/nmpc_sweep')
 
-# tag -> (nmpc_N, nmpc_dt, dt_nmpc)
-VARIANTS = [
+# tag -> (nmpc_N, nmpc_dt, dt_nmpc, nmpc_per_stage_refs)
+HORIZON_VARIANTS = [
     # The literal reading of "N=20, dt=0.05": prediction step only. Leaves the
     # control period at 0.1 s, so the plan-interpolation is dilated 2x.
-    ('N20_dt05_p10', 20, 0.05, 0.10),
+    ('N20_dt05_p10', 20, 0.05, 0.10, False),
     # The consistent reading: control period follows the prediction step, so
     # the interpolation invariant holds and the NMPC runs at 20 Hz.
-    ('N20_dt05_p05', 20, 0.05, 0.05),
+    ('N20_dt05_p05', 20, 0.05, 0.05, False),
 ]
+
+# F1 (NMPC_AUDIT): per-knot references. Rule 12 -- one variable per run, so the
+# refactor is proven inert BEFORE the flag flips, and the flag flips BEFORE N
+# moves. Each row differs from the one above it in exactly one field.
+F1_VARIANTS = [
+    ('F1off_N15', 15, 0.10, 0.10, False),   # must reproduce the committed N=15
+    ('F1on_N15',  15, 0.10, 0.10, True),    # F1 effect, isolated
+    ('F1on_N20',  20, 0.10, 0.10, True),    # then N: 15 -> 20 at 10 Hz
+]
+
+VARIANT_SETS = {'horizon': HORIZON_VARIANTS, 'f1': F1_VARIANTS}
 
 FIELDS = {
     'nmpc_N':  (r'^(\s*nmpc_N: int = )(\d+)', '{}'),
     'nmpc_dt': (r'^(\s*nmpc_dt: float = )([0-9.]+)', '{}'),
     'dt_nmpc': (r'^(\s*dt_nmpc: float = )([0-9.]+)', '{}'),
+    'nmpc_per_stage_refs': (r'^(\s*nmpc_per_stage_refs: bool = )(True|False)', '{}'),
 }
 
 
-def patch_config(text, n, ndt, pdt):
-    """Rewrite the three SimConfig defaults; assert each substitution landed."""
-    vals = {'nmpc_N': n, 'nmpc_dt': ndt, 'dt_nmpc': pdt}
+def patch_config(text, n, ndt, pdt, per_stage):
+    """Rewrite the four SimConfig defaults; assert each substitution landed."""
+    vals = {'nmpc_N': n, 'nmpc_dt': ndt, 'dt_nmpc': pdt,
+            'nmpc_per_stage_refs': per_stage}
     for name, (pat, fmt) in FIELDS.items():
         rx = re.compile(pat, re.M)
         if not rx.search(text):
@@ -71,7 +84,9 @@ def patch_config(text, n, ndt, pdt):
         m = re.search(pat, text, re.M)
         got = m.group(2)
         want = str(vals[name])
-        if float(got) != float(want):
+        same = (got == want) if got in ('True', 'False') else (
+            float(got) == float(want))
+        if not same:
             raise RuntimeError(f'{name}: wrote {want}, read back {got}')
     return text
 
@@ -92,19 +107,24 @@ def run(argv, tag, timeout):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--only', default=None, help='run a single variant tag')
+    ap.add_argument('--set', default='horizon', choices=sorted(VARIANT_SETS),
+                    help='which variant list to run')
     args = ap.parse_args()
+    variants = VARIANT_SETS[args.set]
 
     original = open(CONFIG).read()
     os.makedirs(DEST, exist_ok=True)
     summary = []
 
     try:
-        for tag, n, ndt, pdt in VARIANTS:
+        for tag, n, ndt, pdt, per_stage in variants:
             if args.only and tag != args.only:
                 continue
             print(f'\n=== {tag}: nmpc_N={n} nmpc_dt={ndt} dt_nmpc={pdt} '
+                  f'per_stage_refs={per_stage} '
                   f'(horizon {n * ndt:.2f}s, {1 / pdt:.0f} Hz) ===', flush=True)
-            open(CONFIG, 'w').write(patch_config(original, n, ndt, pdt))
+            open(CONFIG, 'w').write(
+                patch_config(original, n, ndt, pdt, per_stage))
 
             rc, secs = run(['gate/replay_canonical.py'], 'replay', 3600)
             if rc != 0:
@@ -123,6 +143,7 @@ def main():
                     shutil.copy2(src, os.path.join(out, f))
             summary.append({'tag': tag, 'status': 'OK', 'nmpc_N': n,
                             'nmpc_dt': ndt, 'dt_nmpc': pdt,
+                            'per_stage_refs': per_stage,
                             'horizon_s': round(n * ndt, 3),
                             'replay_seconds': round(secs, 1)})
             print(f'    saved -> {out}', flush=True)
@@ -130,7 +151,7 @@ def main():
         open(CONFIG, 'w').write(original)
         print(f'\nrestored {CONFIG}', flush=True)
 
-    with open(os.path.join(DEST, 'sweep_summary.json'), 'w') as fh:
+    with open(os.path.join(DEST, f'sweep_summary_{args.set}.json'), 'w') as fh:
         json.dump(summary, fh, indent=2)
     print(json.dumps(summary, indent=2))
 

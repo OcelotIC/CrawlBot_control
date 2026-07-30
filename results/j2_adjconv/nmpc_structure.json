@@ -1,9 +1,9 @@
 {
   "N": 20,
-  "dt": 0.05,
-  "lookahead_s": 1.0,
+  "dt": 0.1,
+  "lookahead_s": 2.0,
   "dt_nmpc": 0.1,
-  "knot_spacing_equals_control_period": false,
+  "knot_spacing_equals_control_period": true,
   "nx": 9,
   "nu": 12,
   "np": 18,

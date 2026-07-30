@@ -1,0 +1,32 @@
+[
+  {
+    "tag": "F1off_N15",
+    "status": "OK",
+    "nmpc_N": 15,
+    "nmpc_dt": 0.1,
+    "dt_nmpc": 0.1,
+    "per_stage_refs": false,
+    "horizon_s": 1.5,
+    "replay_seconds": 179.8
+  },
+  {
+    "tag": "F1on_N15",
+    "status": "OK",
+    "nmpc_N": 15,
+    "nmpc_dt": 0.1,
+    "dt_nmpc": 0.1,
+    "per_stage_refs": true,
+    "horizon_s": 1.5,
+    "replay_seconds": 178.9
+  },
+  {
+    "tag": "F1on_N20",
+    "status": "OK",
+    "nmpc_N": 20,
+    "nmpc_dt": 0.1,
+    "dt_nmpc": 0.1,
+    "per_stage_refs": true,
+    "horizon_s": 2.0,
+    "replay_seconds": 180.5
+  }
+]
