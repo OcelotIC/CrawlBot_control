@@ -125,6 +125,15 @@ class CentroidalNMPCConfig:
     # legacy problem exactly.
     per_stage_refs: bool = False
 
+    # ── F3: the control period, so the two rates can differ safely ────────
+    # `dt` is the PREDICTION step (the RK4 step inside the NLP). The caller
+    # re-solves every `control_period` seconds, which is NOT the same quantity
+    # — standard MPC allows them to differ. Everything that advances the plan
+    # between solves (warm-start shift, infeasibility fallback) must move by
+    # `round(control_period / dt)` knots, not by one.
+    # None means "same as dt", i.e. re-solve once per prediction step.
+    control_period: Optional[float] = None
+
     # Solver
     solver_name: str = 'ipopt'
     solver_opts: Dict[str, Any] = field(default_factory=dict)
@@ -156,6 +165,18 @@ class CentroidalNMPC:
         self._last_x_opt: Optional[np.ndarray] = None   # (NX, N+1)
         self._last_u_opt: Optional[np.ndarray] = None   # (NU, N)
         self._last_success: bool = False
+
+    @property
+    def n_shift_per_control_period(self) -> int:
+        """How many prediction knots one control period spans (F3).
+
+        `round(control_period / dt)`, floored at 1. Equals 1 in the canonical
+        configuration (both 0.1 s), which is why the historical hard-coded 1
+        was never wrong in practice — and why nothing caught it.
+        """
+        cfg = self.config
+        period = cfg.control_period if cfg.control_period is not None else cfg.dt
+        return max(1, int(round(float(period) / float(cfg.dt))))
 
     def build(self, solver_opts: Optional[Dict[str, Any]] = None) -> None:
         """Build the NMPC solver.
@@ -469,7 +490,7 @@ class CentroidalNMPC:
             self._last_x_opt = np.array(x_opt, dtype=float, copy=True)
             self._last_u_opt = np.array(u_opt, dtype=float, copy=True)
             self._last_success = True
-            self._nmpc.shift_warm_start()
+            self._nmpc.shift_warm_start(self.n_shift_per_control_period)
         else:
             self._last_success = False
 
@@ -518,12 +539,13 @@ class CentroidalNMPC:
             return None, None
         x_prev = self._last_x_opt
         u_prev = self._last_u_opt
-        x_shift = np.zeros_like(x_prev)
-        u_shift = np.zeros_like(u_prev)
-        x_shift[:, :-1] = x_prev[:, 1:]
-        x_shift[:, -1] = x_prev[:, -1]   # repeat terminal state
-        u_shift[:, :-1] = u_prev[:, 1:]
-        u_shift[:, -1] = u_prev[:, -1]   # repeat last control
+        # NMPC_AUDIT F3: advance by however many PREDICTION knots one control
+        # period spans, not by a hard-coded one. With nmpc_dt == dt_nmpc this
+        # is 1 and the behaviour is unchanged; with a finer prediction step the
+        # old form advanced the fallback by less time than actually elapsed.
+        n = self.n_shift_per_control_period
+        x_shift = np.hstack([x_prev[:, n:], np.repeat(x_prev[:, -1:], n, axis=1)])
+        u_shift = np.hstack([u_prev[:, n:], np.repeat(u_prev[:, -1:], n, axis=1)])
         return x_shift, u_shift
 
     def compute_c_simple(

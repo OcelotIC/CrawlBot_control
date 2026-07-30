@@ -583,22 +583,34 @@ class NMPCSolver:
 
         return x_opt, u_opt, info
 
-    def shift_warm_start(self) -> None:
-        """Shift the stored warm-start by one time step.
+    def shift_warm_start(self, n_steps: int = 1) -> None:
+        """Shift the stored warm-start forward by `n_steps` knots.
 
-        Call this after applying u_0* and before the next solve() to
-        provide a good initial guess via temporal shifting:
-            x_guess[k] <- x_prev[k+1],  u_guess[k] <- u_prev[k+1]
-        with the last element repeated.
+        Call this after applying u_0* and before the next solve() to provide a
+        good initial guess via temporal shifting:
+            x_guess[k] <- x_prev[k+n],  u_guess[k] <- u_prev[k+n]
+        with the last element repeated to refill the tail.
+
+        Parameters
+        ----------
+        n_steps : int
+            How many PREDICTION knots one control period covers, i.e.
+            ``round(control_period / dt)``. The default of 1 is correct only
+            when the caller re-solves once per prediction step; a caller whose
+            control period spans several knots must say so, or the warm start
+            lags reality by the difference (NMPC_AUDIT F3).
         """
         if self._w0_prev is None:
             return
 
         x_prev, u_prev = self._parse_solution(self._w0_prev)
+        n = max(1, min(int(n_steps), self.N))
 
-        # Shift: drop first, repeat last
-        x_shifted = np.hstack([x_prev[:, 1:], x_prev[:, -1:]])
-        u_shifted = np.hstack([u_prev[:, 1:], u_prev[:, -1:]])
+        # Shift by n: drop the first n, repeat the last to refill.
+        x_shifted = np.hstack([x_prev[:, n:],
+                               np.repeat(x_prev[:, -1:], n, axis=1)])
+        u_shifted = np.hstack([u_prev[:, n:],
+                               np.repeat(u_prev[:, -1:], n, axis=1)])
 
         self._w0_prev = self._build_w0_from_trajectories(x_shifted, u_shifted)
 

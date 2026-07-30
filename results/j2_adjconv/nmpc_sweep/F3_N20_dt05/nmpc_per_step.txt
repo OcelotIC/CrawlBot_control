@@ -1,0 +1,9 @@
+Step Phase    N iter_min iter_max iter_p95   t_max  t_mean fail  status_dist
+----------------------------------------------------------------------------
+   0    SS   30       12       19       17    52.1    40.1    0  Solve_Succeeded:27, Solved_To_Acceptable_Level:3
+   1    SS   91        8       16       16    54.3    35.3    0  Solve_Succeeded:83, Solved_To_Acceptable_Level:8
+   2    SS  105       10       19       17    48.0    39.1    0  Solve_Succeeded:91, Solved_To_Acceptable_Level:14
+   3    SS   93        8       15       15    48.0    32.3    0  Solve_Succeeded:90, Solved_To_Acceptable_Level:3
+   4    SS   37       12       19       18    49.4    41.7    0  Solve_Succeeded:35, Solved_To_Acceptable_Level:2
+   5    DS  201        7       13       10    40.0    25.6    0  Solve_Succeeded:201
+   5    SS   85        9       15       15    49.5    36.7    0  Solve_Succeeded:81, Solved_To_Acceptable_Level:4

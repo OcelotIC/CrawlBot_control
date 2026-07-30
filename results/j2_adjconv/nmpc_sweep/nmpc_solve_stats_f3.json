@@ -1,0 +1,32 @@
+{
+  "F3_N20_dt10": {
+    "solves": 639,
+    "control_period_s": 0.1,
+    "budget_ms": 100.0,
+    "time_ms": {
+      "median": 30.05,
+      "p95": 39.99,
+      "max": 52.4
+    },
+    "over_budget": 0,
+    "status": {
+      "Solve_Succeeded": 639
+    }
+  },
+  "F3_N20_dt05": {
+    "solves": 642,
+    "control_period_s": 0.1,
+    "budget_ms": 100.0,
+    "time_ms": {
+      "median": 34.92,
+      "p95": 43.28,
+      "max": 54.3
+    },
+    "over_budget": 0,
+    "status": {
+      "Solve_Succeeded": 608,
+      "Solved_To_Acceptable_Level": 34
+    }
+  },
+  "_note": "nmpc_step_log.json is gitignored (.gitignore:30); summary retained for NMPC_F3_TIMING.md."
+}

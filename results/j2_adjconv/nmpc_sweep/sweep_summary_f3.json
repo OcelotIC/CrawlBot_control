@@ -1,0 +1,22 @@
+[
+  {
+    "tag": "F3_N20_dt10",
+    "status": "OK",
+    "nmpc_N": 20,
+    "nmpc_dt": 0.1,
+    "dt_nmpc": 0.1,
+    "per_stage_refs": true,
+    "horizon_s": 2.0,
+    "replay_seconds": 180.2
+  },
+  {
+    "tag": "F3_N20_dt05",
+    "status": "OK",
+    "nmpc_N": 20,
+    "nmpc_dt": 0.05,
+    "dt_nmpc": 0.1,
+    "per_stage_refs": true,
+    "horizon_s": 1.0,
+    "replay_seconds": 179.4
+  }
+]

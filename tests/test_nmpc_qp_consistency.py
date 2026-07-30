@@ -324,3 +324,54 @@ class TestPerStageReferences:
                 r_com=r, v_com=v, L_com=L,
                 r_com_ref=np.tile(r_ref, (N, 1)), v_com_ref=v_ref,
                 contact_config=cc, warm_start=False)
+
+
+class TestControlPeriodVsPredictionStep:
+    """F3: `nmpc_dt` (prediction step) and `dt_nmpc` (control period) differ.
+
+    Standard MPC allows the two rates to differ, and this codebase declares them
+    as independent `SimConfig` fields — but three paths advanced the plan by ONE
+    prediction knot per CONTROL period, which is correct only when they are
+    equal. They always were (both 0.1 s), so nothing caught it, and setting
+    `nmpc_dt = 0.05` silently dilated the QP's reference 2x.
+
+    These pin the shift arithmetic. The plan-interpolation half is proven
+    separately by `scripts/audit_nmpc_f3_timing.py`, which shows the fixed form
+    reduces to the old one with EXACTLY zero difference when the rates match.
+    """
+
+    @staticmethod
+    def _nmpc(dt, control_period=None, N=8):
+        return CentroidalNMPC(CentroidalNMPCConfig(
+            N=N, dt=dt, control_period=control_period))
+
+    def test_shift_count_tracks_the_ratio(self):
+        assert self._nmpc(0.1, 0.1).n_shift_per_control_period == 1
+        assert self._nmpc(0.05, 0.1).n_shift_per_control_period == 2
+        assert self._nmpc(0.025, 0.1).n_shift_per_control_period == 4
+
+    def test_default_control_period_is_legacy_behaviour(self):
+        """control_period=None must mean 'one knot', as before F3."""
+        assert self._nmpc(0.1).n_shift_per_control_period == 1
+        assert self._nmpc(0.05).n_shift_per_control_period == 1
+
+    def test_shift_count_never_below_one(self):
+        """A control period finer than the prediction step still advances."""
+        assert self._nmpc(0.1, 0.01).n_shift_per_control_period == 1
+
+    def test_fallback_advances_by_the_shift_count(self):
+        """The regression: the fallback used to advance one knot regardless."""
+        for dt, want in ((0.1, 1), (0.05, 2), (0.025, 4)):
+            nm = self._nmpc(dt, 0.1)
+            x = np.stack([np.arange(9, dtype=float) + 100 * i for i in range(9)])
+            nm._last_x_opt = x.copy()
+            nm._last_u_opt = np.zeros((12, 8))
+            xs, us = nm.get_shifted_fallback()
+            npt.assert_allclose(xs[:, 0], x[:, want], atol=0, rtol=0)
+            assert xs.shape == x.shape, 'shift must preserve the horizon length'
+            npt.assert_allclose(xs[:, -1], x[:, -1], atol=0, rtol=0), (
+                'the terminal knot must be repeated to refill the tail')
+
+    def test_fallback_without_a_previous_solve(self):
+        nm = self._nmpc(0.05, 0.1)
+        assert nm.get_shifted_fallback() == (None, None)

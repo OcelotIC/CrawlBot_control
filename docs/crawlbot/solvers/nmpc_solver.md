@@ -1,6 +1,6 @@
 # `crawlbot.solvers.nmpc_solver`
 
-**File**: [`crawlbot/solvers/nmpc_solver.py`](../../../crawlbot/solvers/nmpc_solver.py) — **708 lines** — canonical coverage **94 %**
+**File**: [`crawlbot/solvers/nmpc_solver.py`](../../../crawlbot/solvers/nmpc_solver.py) — **720 lines** — canonical coverage **94 %**
 
 > Module docstring: *"NMPCSolver - Generic Nonlinear Model Predictive Control solver with CasADi."*
 
@@ -38,12 +38,12 @@ transcription.
 | `.n_param_blocks` | `()` | **yes** | [L281](../../../crawlbot/solvers/nmpc_solver.py#L281) |
 | `.build` | `(solver_opts=None)` | **yes** | [L289](../../../crawlbot/solvers/nmpc_solver.py#L289) |
 | `.solve` | `(x0, params=None, warm_start=True)` | **yes** | [L451](../../../crawlbot/solvers/nmpc_solver.py#L451) |
-| `.shift_warm_start` | `()` | **yes** | [L586](../../../crawlbot/solvers/nmpc_solver.py#L586) |
-| `.reset_warm_start` | `()` | **yes** | [L605](../../../crawlbot/solvers/nmpc_solver.py#L605) |
-| `._build_initial_guess` | `(x0, warm_start)` | **yes** | [L621](../../../crawlbot/solvers/nmpc_solver.py#L621) |
-| `._build_w0_from_trajectories` | `(x_traj, u_traj)` | **yes** | [L637](../../../crawlbot/solvers/nmpc_solver.py#L637) |
-| `._parse_solution` | `(w)` | **yes** | [L651](../../../crawlbot/solvers/nmpc_solver.py#L651) |
-| `._get_default_solver_options` | `()` | **yes** | [L666](../../../crawlbot/solvers/nmpc_solver.py#L666) |
+| `.shift_warm_start` | `(n_steps=1)` | **yes** | [L586](../../../crawlbot/solvers/nmpc_solver.py#L586) |
+| `.reset_warm_start` | `()` | **yes** | [L617](../../../crawlbot/solvers/nmpc_solver.py#L617) |
+| `._build_initial_guess` | `(x0, warm_start)` | **yes** | [L633](../../../crawlbot/solvers/nmpc_solver.py#L633) |
+| `._build_w0_from_trajectories` | `(x_traj, u_traj)` | **yes** | [L649](../../../crawlbot/solvers/nmpc_solver.py#L649) |
+| `._parse_solution` | `(w)` | **yes** | [L663](../../../crawlbot/solvers/nmpc_solver.py#L663) |
+| `._get_default_solver_options` | `()` | **yes** | [L678](../../../crawlbot/solvers/nmpc_solver.py#L678) |
 
 ---
 
@@ -112,6 +112,20 @@ calls only update the parameter vector `p` and the bounds, then re-run IPOPT.
 This is why the problem dimensions are fixed at build time and inactive contacts
 are zeroed *by bounds* rather than removed (see `centroidal_nmpc.md`).
 
+### 2.1 `shift_warm_start(n_steps)` — one control period is not one knot
+
+The warm start is advanced between solves by *temporal shifting*: the previous
+solution slid forward, tail repeated. How far forward is `n_steps`
+**prediction knots**, and the caller must supply the right count — it is
+`round(control_period / dt)`, not necessarily 1.
+
+The default of 1 is correct only for a caller that re-solves once per prediction
+step. That was always true here (`nmpc_dt == dt_nmpc == 0.1`), which is why the
+hard-coded 1 never produced a wrong number and nothing caught it. A caller whose
+control period spans several knots and does not say so gets a warm start that
+lags reality by the difference (`NMPC_AUDIT` F3). `CentroidalNMPC` supplies the
+count from its `control_period` field.
+
 ## 3. Two contributions from the chantier
 
 **`apply_control_bounds_all_stages`** (CLEANUP-1/3) applies control bounds
@@ -134,7 +148,7 @@ remainder is failure handling, dead because no solve fails.
 | unit | source |
 |---|---|
 | `class NMPCSolveInfo` | [L52-59](../../../crawlbot/solvers/nmpc_solver.py#L52-L59) |
-| `class NMPCSolver` | [L62-692](../../../crawlbot/solvers/nmpc_solver.py#L62-L692) |
+| `class NMPCSolver` | [L62-704](../../../crawlbot/solvers/nmpc_solver.py#L62-L704) |
 | `NMPCSolver.set_continuous_dynamics` | [L140-158](../../../crawlbot/solvers/nmpc_solver.py#L140-L158) |
 | `NMPCSolver.set_stage_cost` | [L160-168](../../../crawlbot/solvers/nmpc_solver.py#L160-L168) |
 | `NMPCSolver.set_terminal_cost` | [L170-178](../../../crawlbot/solvers/nmpc_solver.py#L170-L178) |
@@ -147,12 +161,12 @@ remainder is failure handling, dead because no solve fails.
 | `NMPCSolver.n_param_blocks` | [L281-283](../../../crawlbot/solvers/nmpc_solver.py#L281-L283) |
 | `NMPCSolver.build` | [L289-445](../../../crawlbot/solvers/nmpc_solver.py#L289-L445) |
 | `NMPCSolver.solve` | [L451-584](../../../crawlbot/solvers/nmpc_solver.py#L451-L584) |
-| `NMPCSolver.shift_warm_start` | [L586-603](../../../crawlbot/solvers/nmpc_solver.py#L586-L603) |
-| `NMPCSolver.reset_warm_start` | [L605-615](../../../crawlbot/solvers/nmpc_solver.py#L605-L615) |
-| `NMPCSolver._build_initial_guess` | [L621-635](../../../crawlbot/solvers/nmpc_solver.py#L621-L635) |
-| `NMPCSolver._build_w0_from_trajectories` | [L637-649](../../../crawlbot/solvers/nmpc_solver.py#L637-L649) |
-| `NMPCSolver._parse_solution` | [L651-664](../../../crawlbot/solvers/nmpc_solver.py#L651-L664) |
-| `NMPCSolver._get_default_solver_options` | [L666-681](../../../crawlbot/solvers/nmpc_solver.py#L666-L681) |
+| `NMPCSolver.shift_warm_start` | [L586-615](../../../crawlbot/solvers/nmpc_solver.py#L586-L615) |
+| `NMPCSolver.reset_warm_start` | [L617-627](../../../crawlbot/solvers/nmpc_solver.py#L617-L627) |
+| `NMPCSolver._build_initial_guess` | [L633-647](../../../crawlbot/solvers/nmpc_solver.py#L633-L647) |
+| `NMPCSolver._build_w0_from_trajectories` | [L649-661](../../../crawlbot/solvers/nmpc_solver.py#L649-L661) |
+| `NMPCSolver._parse_solution` | [L663-676](../../../crawlbot/solvers/nmpc_solver.py#L663-L676) |
+| `NMPCSolver._get_default_solver_options` | [L678-693](../../../crawlbot/solvers/nmpc_solver.py#L678-L693) |
 
 ---
 

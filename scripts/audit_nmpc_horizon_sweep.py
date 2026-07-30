@@ -60,7 +60,18 @@ F1_VARIANTS = [
     ('F1on_N20',  20, 0.10, 0.10, True),    # then N: 15 -> 20 at 10 Hz
 ]
 
-VARIANT_SETS = {'horizon': HORIZON_VARIANTS, 'f1': F1_VARIANTS}
+# F3: the prediction step / control period decoupling.
+#   - the first row is the COMMITTED config; its fulldiag must come out
+#     byte-identical to nmpc_sweep/F1on_N20 or the fix is not inert
+#   - the second differs only in nmpc_dt, which the pre-fix code could not
+#     run correctly (it dilated the QP's reference 2x)
+F3_VARIANTS = [
+    ('F3_N20_dt10', 20, 0.10, 0.10, True),
+    ('F3_N20_dt05', 20, 0.05, 0.10, True),
+]
+
+VARIANT_SETS = {'horizon': HORIZON_VARIANTS, 'f1': F1_VARIANTS,
+                'f3': F3_VARIANTS}
 
 FIELDS = {
     'nmpc_N':  (r'^(\s*nmpc_N: int = )(\d+)', '{}'),

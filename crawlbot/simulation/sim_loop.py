@@ -99,7 +99,23 @@ class SimulationLoop(TickLoggingMixin):
         self.mjcf_path = mjcf_path
         self.urdf_path = urdf_path
         self.cfg = config or SimConfig()
+        # QP sub-steps per CONTROL period (how many times the QP runs per NMPC
+        # solve) and per PREDICTION knot (how many QP sub-steps one plan
+        # segment spans). These coincide only when dt_nmpc == nmpc_dt; keeping
+        # them separate is what lets the two rates differ (NMPC_AUDIT F3).
         self.n_qp_per_nmpc = int(round(self.cfg.dt_nmpc / self.cfg.dt_qp))
+        self._qp_per_knot = int(round(self.cfg.nmpc_dt / self.cfg.dt_qp))
+        if self._qp_per_knot < 1:
+            raise ValueError(
+                f'nmpc_dt ({self.cfg.nmpc_dt}) is shorter than dt_qp '
+                f'({self.cfg.dt_qp}): a prediction knot must span at least one '
+                f'QP sub-step for the plan interpolation to be defined')
+        _res = abs(self.cfg.nmpc_dt / self.cfg.dt_qp - self._qp_per_knot)
+        if _res > 1e-9:
+            raise ValueError(
+                f'nmpc_dt ({self.cfg.nmpc_dt}) is not an integer multiple of '
+                f'dt_qp ({self.cfg.dt_qp}); the plan interpolation indexes '
+                f'knots in whole QP sub-steps and would drift')
 
         self.mj_model = None
         self.mj_data = None
@@ -429,7 +445,11 @@ class SimulationLoop(TickLoggingMixin):
             h_max_tight=cfg.h_max_tight,
             w_L=cfg.w_L_nmpc,
             kappa_terminal=cfg.kappa_terminal,
-            per_stage_refs=cfg.nmpc_per_stage_refs))
+            per_stage_refs=cfg.nmpc_per_stage_refs,
+            # F3: the NMPC re-solves once per dt_nmpc, which need not equal the
+            # prediction step nmpc_dt. Telling it so keeps the warm-start shift
+            # and the infeasibility fallback aligned with elapsed time.
+            control_period=cfg.dt_nmpc))
         self.nmpc.build()
 
         # M6/M7: coarse pre-planner — mandatory. Built once; solved per step.
@@ -2319,19 +2339,19 @@ class SimulationLoop(TickLoggingMixin):
                 af = np.zeros(3)
 
         # ── M5 Fix 1b: interpolate across QP sub-steps ─────────────────
-        # Cache the full trajectory's first two knots for linear
-        # interpolation inside the inner QP loop. The control u_0 is
-        # piecewise constant over [t, t+dt_nmpc] and is NOT interpolated.
+        # Cache the WHOLE planned trajectory, not just its first two knots
+        # (NMPC_AUDIT F3). The interpolation below is indexed by elapsed time
+        # on the plan's own knot grid, so it stays correct when the prediction
+        # step `nmpc_dt` differs from the control period `dt_nmpc`. The control
+        # u_0 is piecewise constant over [t, t+dt_nmpc] and is NOT interpolated.
         if x_plan is not None:
-            rp_k0 = x_plan[0:3, 0].copy()
-            rp_k1 = x_plan[0:3, 1].copy()
-            vp_k0 = x_plan[3:6, 0].copy()
-            vp_k1 = x_plan[3:6, 1].copy()
+            plan_r = np.asarray(x_plan[0:3, :], dtype=float).copy()   # (3, N+1)
+            plan_v = np.asarray(x_plan[3:6, :], dtype=float).copy()
         else:
-            rp_k0 = rp.copy()
-            rp_k1 = rp.copy()
-            vp_k0 = vp.copy()
-            vp_k1 = vp.copy()
+            # No plan: hold the fallback reference. Two identical knots keep the
+            # interpolation branch uniform.
+            plan_r = np.repeat(np.asarray(rp, dtype=float).reshape(3, 1), 2, axis=1)
+            plan_v = np.repeat(np.asarray(vp, dtype=float).reshape(3, 1), 2, axis=1)
 
         # M7: single QP variant throughout DS and SS. Synchronized
         # trajectories eliminate the need for gain scheduling.
@@ -2368,17 +2388,33 @@ class SimulationLoop(TickLoggingMixin):
             Jc, Jdc = self.robot.get_contact_jacobians(
                 cc_ss.active_contacts[0], cc_ss.active_contacts[1])
 
-            # M5 Fix 1b: linear interpolation along the NMPC trajectory
-            # knot 0 -> knot 1 across the 10 QP sub-steps. alpha goes
-            # 0, 0.1, 0.2, ..., 0.9 — at qs=0 we target the current
-            # state (knot 0, matches rs), at qs=9 we target 90 % of the
-            # way to knot 1. This matches the time parameterisation
-            # tq = t + qs*dt_qp for the NMPC reference at that time,
-            # avoiding the staircase reference that otherwise creates
-            # impulsive torques through the mapping.
-            alpha_interp = qs / self.n_qp_per_nmpc
-            rp_interp = (1.0 - alpha_interp) * rp_k0 + alpha_interp * rp_k1
-            vp_interp = (1.0 - alpha_interp) * vp_k0 + alpha_interp * vp_k1
+            # M5 Fix 1b / NMPC_AUDIT F3: sample the planned trajectory at the
+            # sub-step's ACTUAL time, on the plan's own knot grid.
+            #
+            #   u = qs / qp_per_knot     position in plan-knot units
+            #   k = floor(u), a = u − k  bracketing knots and the fraction
+            #
+            # `qp_per_knot = round(nmpc_dt / dt_qp)` is an INTEGER, so `u` is
+            # computed the same way the old code computed its alpha. Writing it
+            # as `(qs·dt_qp)/nmpc_dt` would be algebraically identical but off
+            # by 1 ULP (0.01/0.1 != 0.1 in IEEE double), which is enough to
+            # break bit-identity over a 2000-tick run.
+            #
+            # The previous form was `alpha = qs / n_qp_per_nmpc` between knots
+            # 0 and 1 only, which walks one knot per CONTROL period and is
+            # therefore correct only when nmpc_dt == dt_nmpc. With
+            # nmpc_dt = 0.05 and dt_nmpc = 0.1 it stretched a 0.05 s plan
+            # segment over 0.1 s of wall time — a 2x-slow reference. This form
+            # reduces to the old one exactly when the two periods are equal
+            # (u ∈ [0,1) ⇒ k = 0, a = qs/n_qp_per_nmpc), so the committed
+            # configuration is bit-for-bit unchanged.
+            _u = qs / self._qp_per_knot
+            _k = min(int(np.floor(_u)), plan_r.shape[1] - 2)
+            # Clamp the fraction so a plan shorter than the control period
+            # holds its terminal knot instead of extrapolating off the end.
+            _a = min(max(_u - _k, 0.0), 1.0)
+            rp_interp = (1.0 - _a) * plan_r[:, _k] + _a * plan_r[:, _k + 1]
+            vp_interp = (1.0 - _a) * plan_v[:, _k] + _a * plan_v[:, _k + 1]
 
             # Torso reference (structure frame — no struct pose needed at QP rate).
             #
