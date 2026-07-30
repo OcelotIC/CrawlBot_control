@@ -30,6 +30,12 @@ Lookahead is 1.5 s against a nominal `T_step = 6 s`
 (`coarse_preplanner.py:92`), i.e. 25 % of the step — still inside it, so the
 reference query does not saturate against the terminal hold.
 
+> ⚠ **Correction (later measurement).** `T_step_default = 6.0` is a bootstrap
+> for the NLP time grid, not the running value: the pre-planner solves T_step
+> per step and it measured **2.775 … 7.900 s** on the canonical traversal. So
+> the 1.5 s lookahead is up to **54 %** of the shortest step, not 25 %. The
+> conclusion (still inside the step) holds; the margin was overstated ~2x.
+
 ---
 
 ## 2. Result

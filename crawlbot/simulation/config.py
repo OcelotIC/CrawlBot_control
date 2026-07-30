@@ -253,8 +253,23 @@ class SimConfig:
     fsat_jitter_margin: float = 0.05         # [m/s] jitter slack on the torso-ref rate cap
 
     # ── NMPC solver ─────────────────────────────────────────────
-    # Prediction horizon. N·nmpc_pred_dt is the lookahead: 20·0.1 = 2.0 s, i.e.
-    # 33 % of the nominal T_step = 6 s (was N=8 ⇒ 0.8 s; then 15 ⇒ 1.5 s).
+    # Prediction horizon. N·nmpc_pred_dt is the lookahead: 20·0.1 = 2.0 s
+    # (was N=8 ⇒ 0.8 s; then 15 ⇒ 1.5 s).
+    #
+    # ⚠ T_step is NOT 6 s. `CoarsePrePlannerConfig.T_step_default = 6.0` is a
+    # bootstrap for the NLP time grid only — the real duration is solved per
+    # step and measured 2.775 … 7.900 s on the canonical traversal. Against
+    # the SHORTEST step the 2.0 s horizon is 72 % of the step, margin 0.775 s.
+    #
+    # That margin is load-bearing: the contact positions r_C1/r_C2 in the NMPC
+    # parameter block are CONSTANT over the horizon, which is correct only
+    # while the horizon stays inside one single-support phase. Predicting
+    # across a contact switch would make the mode sequence a decision variable
+    # (contact-implicit / MIP territory) and is explicitly out of scope.
+    # The horizon would exceed the shortest observed step at N >= 28.
+    # Beyond the step the reference clamps to the terminal CoM rather than
+    # extrapolating (`_com_ref_at`), so the failure is stale contacts, not a
+    # divergent reference — quiet rather than loud, hence this note.
     #
     # N used to be TWO knobs: with a single shared reference block the NMPC had
     # to be handed a FUTURE reference (horizon end for CoM, midpoint for L_com),
