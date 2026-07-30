@@ -124,6 +124,67 @@ That is why "does the box bind?" and "is realized `h_w` inside the envelope?" ar
 separate questions, and why the bite test — had it actually applied 3.5 — would
 have answered only the first.
 
+## 2.2 The box is NOT redundant — and "24 % headroom" was the wrong unit
+
+Measured by `scripts/audit_nmpc_momentum_budget.py`.
+
+The two momentum constraints bound the same physical quantity at different
+orders: `|Ḣ_s,i| ≤ τ_w,max` is the moment the wheels must absorb *now*;
+`|h_w,i| ≤ h'` is what they have *accumulated*, and h_w is the integral of that
+moment. So the level bound is implied by the rate bound whenever
+`T·τ_w,max ≤ h'`. Here:
+
+```
+T·τ_w,max = 2.0 × 2.5 = 5.0 Nms     h_max_tight = 5.0 Nms     ->  CRITICALLY BALANCED
+```
+
+From `h_w(0) = 0` the rate cap alone already implies the box. **The box
+therefore adds information only through the initial condition** — which is
+exactly why it reads as non-binding, and exactly why that reading is
+misleading.
+
+Expressed in the units that matter — how long `τ_w` could stay saturated in one
+direction before the box is reached:
+
+| axis | \|τ_w\| peak | ticks at cap | \|h_w\| peak | headroom | **= saturated seconds** |
+|---|---|---|---|---|---|
+| x | 2.5000 | 6 / 1967 | 0.583 | 4.417 | 1.77 s |
+| y | 2.5000 | 52 / 1967 | 2.339 | 2.661 | 1.06 s |
+| **z** | 2.5000 | **274 / 1967** | **3.815** | 1.185 | **0.47 s** |
+
+All three are **reachable inside the 2.0 s horizon**, and z — the axis that is
+at the torque cap 14 % of the time — has under half a second of margin. So the
+box is genuinely load-bearing; it simply was not exercised on this trajectory.
+Reporting it as "24 % headroom" understated it badly: 24 % of the box is 0.47 s
+of saturated authority.
+
+## 2.3 The term the reconstruction does not carry
+
+`c_simple = h_w0 + L_com0 + r_com0 × m·v_com0` attributes all momentum change to
+the wheels. The structure itself also carries angular momentum, `I_s·ω_s`, and
+it is not small:
+
+| axis | \|ω_s\| peak [rad/s] | \|I_s·ω_s\| peak [Nms] |
+|---|---|---|
+| x | 6.82e-4 | **1.212** |
+| y | 9.09e-4 | **1.357** |
+| z | 1.34e-3 | 0.800 |
+
+(structure inertia diag `[1777, 1493, 597]` kg·m², mass 7110 kg.)
+
+**Peak structure momentum 1.357 Nms vs the tightest box headroom 1.185 Nms —
+the same order.** So the inferred `h_w` and the physical wheel momentum can
+differ by about as much as the margin the box exists to protect.
+
+⚠ Whether this is an omission or is accounted for elsewhere is **not settled
+here**. `compute_c_simple`'s docstring states that drag terms
+(`I_robot·ω_s`, `m·r_com×v_s`) "cancel algebraically when forming c_simple from
+the full c" — it does not mention `I_s·ω_s`, and the authority is spec §4.5-4.6,
+which has not been re-derived against the code in this pass. That check is the
+natural next step, and it matters more than re-running the bite test: if the
+inference carries a ~1 Nms error, the hard box is bounding a quantity that is
+offset from the wheels' true state by a third of its own margin.
+
 ## 3. What is NOT established, and needs a real bite test
 
 Whether the box would bind under stress is **still untested**, because the test
