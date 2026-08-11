@@ -1,0 +1,36 @@
+{
+  "h_max_tight": [
+    5.0,
+    5.0,
+    5.0
+  ],
+  "hw_max": [
+    5.0,
+    5.0,
+    5.0
+  ],
+  "tightening_applied": [
+    0.0,
+    0.0,
+    0.0
+  ],
+  "eps_drag_bound_Nms": 0.0047256006203212275,
+  "dr_com_max_m": 0.24426446735866028,
+  "frozen_platform": {
+    "x": {
+      "I_s_dw_s_Nms": 1.4445799863,
+      "box_margin_Nms": 4.4172019,
+      "pct_of_margin": 32.70350821636656
+    },
+    "y": {
+      "I_s_dw_s_Nms": 1.9037056375,
+      "box_margin_Nms": 2.661249,
+      "pct_of_margin": 71.53429226276835
+    },
+    "z": {
+      "I_s_dw_s_Nms": 1.2662814765000001,
+      "box_margin_Nms": 1.1853699999999998,
+      "pct_of_margin": 106.82584142504031
+    }
+  }
+}
