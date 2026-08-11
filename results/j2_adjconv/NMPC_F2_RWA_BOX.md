@@ -259,6 +259,78 @@ residual `ĥ_w − h_w` and `v_s` must be export channels (§7 of the drag repor
 otherwise the result is uninterpretable: a box that appears to bind may be
 binding on estimator drift.
 
+## 2.5 Correction to §2.4 — the crawl DOES carry; the terminal settle hides it
+
+Measured by `scripts/audit_nmpc_hw_per_step.py`; curves
+`nmpc_sweep/nmpc_hw_per_step.png`.
+
+§2.4's "net drift ≈ 0, therefore no accumulation" is **contaminated by the
+trailing settle** and must not be used to predict a longer traversal. The run's
+phase structure is:
+
+```
+step 0..5 = SS (2.8 .. 10.1 s) + DS_interstep (2.0 .. 3.2 s)     <- the crawl
+step 5 ends in DS_terminal, 20.0 s                               <- the settle
+```
+
+That 20 s settle is long enough to hand the wheel momentum back; the 2–3 s
+`DS_interstep` between crawl steps is not. Measuring the carry as `h_w` at
+successive **SS entries**, with the terminal settle excluded:
+
+| axis | carry / crawl step [Nms] | \|mean\|/std | verdict | settle returns |
+|---|---|---|---|---|
+| x | −0.020 | 0.36 | zero-mean | +0.013 (14 %) |
+| y | +0.150 | 0.87 | zero-mean | −0.430 (57 %) |
+| **z** | **−0.314** | **1.18** | **SYSTEMATIC** | **+0.999 (64 %)** |
+
+z's per-step carries are −0.092, −0.688, +0.030, −0.291, −0.527 — four of five
+negative, mean −0.314 ± 0.119 (standard error, n = 5), ≈ 2.6σ from zero.
+**Suggestive, not conclusive at n = 5**, and the whole point of a longer run
+would be to settle it.
+
+The mechanism is a DS-duration effect: `DS_interstep` is too short to dump what
+the SS took on, so each crawl step hands the next a more negative starting
+point. The SS-entry sequence walks down monotonically: −0.029, −0.122, −0.809,
+−0.780, −1.071, −1.598.
+
+### Extrapolation — a 20 m path is ~8× more than needed
+
+Modelling `peak(N) ≈ |carry|·N + excursion`, with the worst observed
+within-step excursion recurring on top of an accumulated entry:
+
+| axis | carry/step | worst excursion | peak now | N to 3.1 | N to 5.0 | ≈ metres |
+|---|---|---|---|---|---|---|
+| x | −0.020 | 0.625 | 0.583 | 126 | 222 | 82 m |
+| y | +0.150 | 1.764 | 2.339 | 9 | 22 | 8 m |
+| **z** | **−0.314** | **2.744** | **3.815** | **already** | **~7** | **2.6 m** |
+
+CoM travel is 0.143 / 0.546 / 0.251 / 0.563 / 0.172 / 0.529 m per step, mean
+**0.367 m**, so a 20 m path is ≈ **54 steps** — z would reach the full ±5 box
+around step **7**, roughly 2.6 m, if the terminal settle is removed.
+
+⚠ The excursion varies 0.14 … 2.74 Nms step to step, so "7" is an
+order-of-magnitude estimate, not a prediction. What it does establish is that
+the required scale is **single-digit steps**, not tens of metres.
+
+### The estimator does NOT degrade with path length
+
+`compute_c_simple` is called from `_assemble_params`
+(`centroidal_nmpc.py:699`), i.e. **every solve**, from the live `hw_current`.
+So the conservation constant is re-anchored every 100 ms and the
+frozen-platform residual `I_s·Δω_s` accrues over **one horizon**, not over the
+traversal. A longer path therefore grows the signal without growing the
+reconstruction error proportionally.
+
+This is the key asymmetry between the two routes to making the box bind:
+
+| route | grows `h_w` by | grows `I_s·Δω_s`? |
+|---|---|---|
+| longer lever / further from structure CoM | longer saturation duration | **yes** — same driver (§2.4) |
+| **more crawl steps, no settle** | **systematic carry** | **no** — c re-anchored per solve |
+
+**More steps is the cleaner demonstration.** It is the one route that does not
+degrade the estimate the box is enforced on.
+
 ## 3. What is NOT established, and needs a real bite test
 
 Whether the box would bind under stress is **still untested**, because the test
