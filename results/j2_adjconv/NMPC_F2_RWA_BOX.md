@@ -185,6 +185,80 @@ natural next step, and it matters more than re-running the bite test: if the
 inference carries a ~1 Nms error, the hard box is bounding a quantity that is
 offset from the wheels' true state by a third of its own margin.
 
+## 2.4 The box defends a within-step EXCURSION, not a traversal-scale wind-up
+
+Measured by `scripts/audit_nmpc_momentum_budget.py`; curves
+`nmpc_sweep/nmpc_momentum_budget.png`.
+
+§2.2 established the box is load-bearing. It does **not** follow that `h_w`
+creeps upward over the traversal — and the distinction changes what the box is
+*for*. Start, peak and end of `h_w` over the full 6-step run:
+
+| axis | start | peak | end | **net drift** | peak / drift |
+|---|---|---|---|---|---|
+| x | +0.000 | −0.583 | +0.001 | **+0.001** | 489× |
+| y | +0.000 | +2.339 | +0.098 | **+0.098** | 24× |
+| **z** | +0.000 | **−3.815** | −0.239 | **−0.239** | **16×** |
+
+**The wheels come back to ~0 after six steps.** Even on z the residue is 0.24
+N·m·s against a 3.82 N·m·s excursion. So the momentum taken on to reject a
+contact wrench during a step is handed back when the step reverses — the
+traversal is momentum-neutral to 6 % per step, and there is no secular
+accumulation for the box to catch.
+
+That means the box's job is **one long push inside a single step**, not slow
+wind-up across many. It is a *transient* bound. Which is consistent with §2.2:
+`T·τ_w,max = h_max` exactly, so the box and the rate cap describe the same
+2.0 s window — there is no longer timescale on which the level bound could
+speak.
+
+### Would pushing the robot further from the structure CoM make it bind?
+
+The intuition is right in its first step and wrong in its second. A longer
+lever arm does raise `Ḣ_s`, because the contact **force** acts about the
+structure CoM — that is a moment `r × f`, and `r` is what grows. (Contact
+*torques* get no such amplification; only the force term has a lever.)
+
+But the *delivered* rate is capped, and on z it is already at the cap:
+
+| axis | median \|Ḣ_s\| | p95 | max | ticks at cap (of 1967) |
+|---|---|---|---|---|
+| x | 0.075 | 0.799 | 2.500 | 9 |
+| y | 0.159 | 1.569 | 2.500 | 64 |
+| **z** | 0.276 | **2.500** | 2.500 | **302 (15 %)** |
+
+z's *95th percentile* is the cap. So a longer lever raises the **demand**, not
+the delivered `τ_w` — the wheels cannot absorb faster than 2.5 N·m regardless
+of how big the moment gets. `h_w` therefore does not fill faster.
+
+What grows instead is the **duration** of saturation, and `h_w` integrates
+duration:
+
+```
+|h_w,z| peak 3.815 Nms = 1.53 s of saturated tau_w
+reaching h_max = 5.0  = 2.00 s continuous   (+31 % longer saturation window)
+```
+
+So the answer is yes — but through the time axis, not the amplitude axis, and
+the required change is modest: 31 % more continuous saturation on z, well
+inside a step.
+
+### The catch that makes such a demonstration hard to read
+
+Every second of saturation is a second in which the wheels **cannot fully
+reject the applied moment**. The unrejected excess goes into the structure:
+`ω_s` grows, and with it `I_s·Δω_s` — which is exactly the frozen-platform
+reconstruction error quantified in `NMPC_CONSERVATION_DRAG.md` §3, already at
+**107 % of the z margin** today.
+
+**Binding the box and degrading the estimate it is enforced on are driven by
+the same quantity.** A "push it further out until the box bites" experiment
+would therefore be measuring a hard constraint on a number whose error is
+growing at least as fast as the signal. Before running one, the reconstruction
+residual `ĥ_w − h_w` and `v_s` must be export channels (§7 of the drag report),
+otherwise the result is uninterpretable: a box that appears to bind may be
+binding on estimator drift.
+
 ## 3. What is NOT established, and needs a real bite test
 
 Whether the box would bind under stress is **still untested**, because the test

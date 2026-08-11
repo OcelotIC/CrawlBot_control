@@ -110,6 +110,33 @@ comparable to — on z, larger than — the margin it defends. Quoting it as an
 envelope *guarantee* over-claims. It is better described as a hard constraint on
 a good-but-not-tight estimate.
 
+**Does not mean the error accumulates over the traversal.** `h_w` is a
+within-step *excursion*, not a wind-up: net drift after six steps is x +0.001,
+y +0.098, z −0.239 N·m·s against a z peak of −3.815 (`NMPC_F2_RWA_BOX.md` §2.4).
+The residual `I_s·Δω_s` is likewise measured over **one horizon**, so it is a
+transient error on a transient quantity — the estimate does not walk away over
+the run. What is at stake is the accuracy of the box inside one long push, which
+is the only regime the box governs.
+
+## 5.1 The error and the binding are driven by the same quantity
+
+This is the part that constrains how the box can be demonstrated. `Ḣ_s` on z is
+**already clipped** — its 95th percentile *is* the 2.5 N·m cap, 302 of 1967
+ticks at it. So making the box bind cannot work through amplitude; it works
+through the **duration** of saturation, which `h_w` integrates (z would need
+2.00 s continuous against today's 1.53 s, +31 %).
+
+But every second of saturation is a second the wheels do **not** fully reject
+the applied moment, so the excess spins the structure: `ω_s` grows, and with it
+`I_s·Δω_s` — this section's error term. Pushing the robot further from the
+structure CoM to force the box to bite would raise the reconstruction error on
+the same axis, by the same mechanism, at the same time.
+
+**Consequence:** the export gaps in §7 are not a nicety, they are a
+precondition. Without `ĥ_w − h_w` logged per tick, a run in which the box
+appears to bind cannot be distinguished from one in which the estimator has
+drifted into the constraint.
+
 ## 6. Options, in increasing cost
 
 1. **Pay the allowance the spec already asks for, sized correctly.** Set

@@ -10,7 +10,9 @@
       "hw_peak": 0.5827981,
       "headroom_Nms": 4.4172019,
       "headroom_saturated_seconds": 1.76688076,
-      "I_s_omega_s_peak_Nms": 1.2117000492
+      "I_s_omega_s_peak_Nms": 1.2117000492,
+      "net_drift_Nms": 0.0011920799999999958,
+      "peak_Nms": -0.5827981
     },
     "y": {
       "tau_w_peak": 2.5,
@@ -18,7 +20,9 @@
       "hw_peak": 2.338751,
       "headroom_Nms": 2.661249,
       "headroom_saturated_seconds": 1.0644996,
-      "I_s_omega_s_peak_Nms": 1.3569599302
+      "I_s_omega_s_peak_Nms": 1.3569599302,
+      "net_drift_Nms": 0.09752964,
+      "peak_Nms": 2.338751
     },
     "z": {
       "tau_w_peak": 2.5,
@@ -26,7 +30,9 @@
       "hw_peak": 3.81463,
       "headroom_Nms": 1.1853699999999998,
       "headroom_saturated_seconds": 0.4741479999999999,
-      "I_s_omega_s_peak_Nms": 0.7996229939999999
+      "I_s_omega_s_peak_Nms": 0.7996229939999999,
+      "net_drift_Nms": -0.2386966,
+      "peak_Nms": -3.81463
     }
   }
 }
