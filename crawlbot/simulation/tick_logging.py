@@ -120,7 +120,7 @@ class TickLoggingMixin:
                      tau_w_applied=None):
         """Append one per-tick DS log row (logging-only; no control change).
 
-        Called from ``_run_ds_passivity_loop`` AFTER ``mj_step``. The row
+        Called from ``SimulationLoop._ds_tick`` AFTER ``plant.step()``. The row
         has the SAME field set as the SS row written by ``_step`` so the
         SimLog stays schema-consistent (every list grows by 1 per tick,
         all lengths equal). NaN sentinels are used for NMPC-side fields

@@ -15,7 +15,7 @@
 | write | method | was in `sim_loop.py` |
 |---|---|---|
 | model load, `opt.timestep`, RWA detection | `__init__` | `setup()` head |
-| `mj_step` + diagnostic arm-joint lock | `step(lock_arm_joints)` | `_step` QP sub-loop, `_run_ds_passivity_loop` |
+| `mj_step` + diagnostic arm-joint lock | `step(lock_arm_joints)` | `_step` QP sub-loop, `_run_ds_passivity_loop` (now `_qp_substep`, `_ds_tick`) |
 | `mj_forward` | `forward()` | ~8 call sites |
 | initial `qpos` / `qvel` | `set_state` | `setup()` |
 | actuator `ctrl` | `apply_joint_torques`, `apply_wheel_torques`, `zero_ctrl` | `_step`, DS loop, `_settle_setup` |

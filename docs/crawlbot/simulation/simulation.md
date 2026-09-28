@@ -4,7 +4,7 @@
 
 | file | lines | canonical coverage | document |
 |---|---:|---:|---|
-| `sim_loop.py` | 3387 | 83 % | [sim_loop.md](sim_loop.md) |
+| `sim_loop.py` | 2431 | — | [sim_loop.md](sim_loop.md) |
 | `plant.py` | 199 | — | [plant.md](plant.md) |
 | `sensors.py` | 128 | — | [sensors.md](sensors.md) |
 | `config.py` | 507 | **100 %** | [config.md](config.md) |
@@ -13,9 +13,10 @@
 
 ## Role
 
-`sim_loop` is where the architecture actually happens: the DS/SS state machine,
-the per-step sequence (docking IK -> pre-planner -> planners -> swing -> settle),
-weld activation under the 5 mm / 5 deg gate, the AOCS command, and the log.
+`sim_loop` is the orchestrator: the gait sequencer (DS/SS, docking IK ->
+pre-planner -> planners -> swing -> settle), weld activation under the 5 mm /
+5 deg gate, the single simulation loop `_drive`, and the log. The control law
+itself is in [`control/`](../control/control.md).
 
 `plant.py` is the MuJoCo side of the loop — the only writer of simulator state
 (step, welds, dock impact, actuators). `sensors.py` is its read side — one
@@ -35,6 +36,7 @@ produces the `sim_log.json` that every downstream analysis reads.
 
 ## Main debt
 
-`_step()` is 1013 lines and `WholeBodyQP.solve()` takes 40 parameters. Both
-decompositions are identified, scoped in `CLEANUP_CARRYOVER` section A, and
-deliberately not done yet — each needs its own coupling measurement first.
+The `refactor/sim-loop-split` chantier cut `sim_loop.py` into plant / sensors /
+controller / orchestrator and made `_drive` the single simulation loop (see
+[sim_loop.md](sim_loop.md) §1). `WholeBodyQP.solve()` still takes 40 parameters,
+but only `control/controller.py` calls it now (`CLEANUP_CARRYOVER` A1).

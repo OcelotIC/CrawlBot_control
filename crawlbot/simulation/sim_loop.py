@@ -1,17 +1,28 @@
 """
-SimulationLoop — Closed-loop MuJoCo simulation with two-stage controller.
+SimulationLoop — the orchestrator of the closed-loop MuJoCo simulation.
 
-Orchestrates the full locomotion pipeline for the VISPA crawling robot:
-    TorsoPlanner -> CoM ref -> CentroidalNMPC -> WholeBodyQP -> MuJoCo
+Since the refactor/sim-loop-split chantier the loop is four explicit parts:
 
-Per NMPC step (10 Hz):
-    1. Read MuJoCo state -> Pinocchio (structure frame)
-    2. TorsoPlanner.reference_at(t) -> 6D torso ref
-    3. CentroidalNMPC.solve(...) -> lambda_ref, a_ff, hw_dot_plan
-    4. Inner loop (100 Hz QP):
-        a. WholeBodyQP.solve(...) -> tau_q
-        b. AOCS wheel torque -> ctrl[12:15]
-        c. mj_step
+    MujocoPlant   (plant.py)               the only writer of MuJoCo state
+    SensorSuite   (sensors.py)             the only reader, on the command path
+    WholeBodyController (control/controller.py, control/attitude.py)
+                  NMPC 10 Hz + whole-body QP 100 Hz + AOCS; measurements in,
+                  commands out; references queried BY TIME (PlannerReferences)
+    SimulationLoop (this file)             orchestration: planners, the gait
+                                           sequence, docking, telemetry
+
+The single simulation loop is ``_drive``: every iteration advances the active
+request by one control period dt_qp (measure -> control -> plant I/O ->
+plant.step), or completes it. Two request kinds:
+
+    _DSSettle   energy-based DS settle (spec §7.1.1), NMPC bypassed
+    _NMPCTick   one NMPC period: controller.plan, then n_qp_per_nmpc QP
+                sub-steps (controller.track -> plant -> controller.after_step),
+                then the hand-off to telemetry
+
+The gait sequencer ``_gait_program`` is a coroutine that yields those requests
+and decides the next one (DS -> [DWELL] -> planning handoff -> SS -> [HOLD] ->
+dock -> ... -> trailing DS). It never steps the plant.
 
 Phase machine per step (M7, two-phase):
     DS (double support, energy-based exit) ->
@@ -20,35 +31,22 @@ Phase machine per step (M7, two-phase):
 
 Reading this file
 -----------------
-It is ~2950 lines and four methods are most of it. Where to start depends on
-the question:
-
-    "how is a step orchestrated?"      run()        — one 546-line `while`,
-                                                      the traversal loop
-    "what happens in one tick?"        _step()      — 878 lines in four phases,
-                                                      each behind a ══ banner:
-                                                      read state -> NMPC ->
-                                                      QP sub-loop -> hand off
+    "how is a step sequenced?"         _gait_program()   (the former run() body)
+    "what advances time?"              _drive()          — the only loop
+    "what happens in one NMPC period?" _nmpc_begin / _qp_substep / _nmpc_handoff
+    "how does DS settle?"              _ds_begin / _ds_tick / _ds_end
     "how is a step prepared?"          _setup_torso_for_step(), _run_preplanner()
-    "how does DS settle?"              _run_ds_passivity_loop()
+    "where is the control law?"        NOT HERE — crawlbot/control/
     "where is X logged?"               NOT HERE — tick_logging.py
 
-Per-tick telemetry lives in `tick_logging.py` (`_log_ds_tick`, `_log_ss_tick`,
-`TickState`), split out in CLEANUP-32 because control and telemetry fail
-differently. `logging.py` is a third thing again: the `SimLog` container.
-
-Two structural debts, both measured and both deliberate (see
-docs/crawlbot/simulation/sim_loop.md):
-  - `_step`'s QP sub-loop keeps ~25 live locals throughout, so no single cut
-    extracts it; it needs a threaded state object, not a helper.
-  - `run()`'s problem is nesting depth rather than sequence — its 546-line
-    `while` has no cheap top-level seam.
+``_step`` and ``_run_ds_passivity_loop`` remain as compatibility entry points
+that run one request through ``_drive``.
 """
 
 import numpy as np
 import time
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import dataclass, field
+from typing import Any, Optional
 
 try:
     import mujoco
@@ -93,6 +91,129 @@ from crawlbot.control.controller import (
 # TickState and the two per-tick recorders (_log_ds_tick / _log_ss_tick) live in
 # tick_logging.py — telemetry, separated from control. See that module's
 # docstring for why, and for the three loop-owned geometry queries it calls back.
+
+def _kinetic_energy(v_full, H_robot):
+    return 0.5 * float(v_full @ H_robot @ v_full)
+
+
+def _once(req):
+    """A one-request sequencer: yields ``req``, returns its result."""
+    return (yield req)
+
+
+@dataclass
+class _DSSettle:
+    """Request: an energy-based DS settle (spec §7.1.1), NMPC bypassed.
+
+    The shared dissipation engine of BOTH the setup-phase stage-2 settling
+    and the inter-step DS settling. Runs the M2 QP in settle_mode +
+    passivity_active, one tick per ``_drive`` iteration, until:
+        1. Target met: T_kin < T_settle = 0.5·epsilon_v²·lambda_min(H)
+        2. Plateau: T(k) > plateau_ratio · T(k - plateau_window)
+        3. max_steps iterations.
+    ``min_steps`` forces at least that many iterations before exits 1/2 —
+    the inter-step call uses it to absorb the post-dock impact.
+    Assumes DS (both tools welded).
+
+    ``t_log`` / ``T_log`` (optional) receive plot samples every 5 steps at
+    t = (t_log_step_offset + k)·dt_qp. The ``log_*`` fields are logging
+    only: with ``log_obj`` set, each tick emits a row schema-identical to
+    the SS log (``_log_ds_tick``).
+
+    Result (sent back to the sequencer): dict with ``n_steps``, ``T_start``,
+    ``T_end``, ``T_settle``, ``lambda_min``, ``exit_reason``
+    ('target_met' | 'plateau' | 'max_steps').
+    """
+    contact_config: Any
+    max_steps: int
+    epsilon_v: float
+    plateau_window: int = 50
+    plateau_ratio: float = 0.999
+    min_steps: int = 0
+    fallback_Kd: float = 20.0
+    t_log: Optional[list] = None
+    T_log: Optional[list] = None
+    t_log_step_offset: int = 0
+    log_obj: Any = None
+    log_step_idx: int = -1
+    log_just_landed_arm: str = ''
+    log_anchor_a_idx: int = -1
+    log_anchor_b_idx: int = -1
+    log_t_abs: float = 0.0
+
+
+@dataclass
+class _DSRun:
+    """Progress of an active ``_DSSettle`` (next iteration index ``k``)."""
+    req: _DSSettle
+    lambda_min: float
+    T_settle: float
+    T_start: float
+    hw_current: Any
+    omega_s_prev: Any
+    T_history: list = field(default_factory=list)
+    exit_reason: str = 'max_steps'
+    k: int = 0
+
+
+@dataclass
+class _NMPCTick:
+    """Request: one NMPC period — plan, then n_qp_per_nmpc QP sub-steps.
+
+    All quantities in structure frame. ``cc_ss`` is the tick's contact
+    configuration; ``hw`` / ``L_com_prev`` the loop's carries (returned
+    updated, as ``(hw, L_com_prev)``). ``passivity_hold`` activates the QP
+    passivity inequality in SS (convergence hold); ``passivity_override``
+    (diagnostic H_DS3), when not None, overrides the phase-based passivity
+    gate.
+    """
+    t: float
+    phase: str
+    step_idx: int
+    swing_arm: str
+    stance_arm: str
+    cc_ss: Any
+    target_anchor: int
+    stance_a: int
+    stance_b: int
+    hw: Any
+    L_com_prev: Any
+    log: Any
+    ss_end: Optional[float] = None
+    settle_mode: bool = False
+    passivity_hold: bool = False
+    passivity_override: Optional[bool] = None
+    ds_centroidal_active: bool = False
+
+
+@dataclass
+class _NMPCRun:
+    """Progress of an active ``_NMPCTick`` (next QP sub-step ``qs``)."""
+    t: float
+    phase: str
+    step_idx: int
+    swing_arm: str
+    stance_arm: str
+    stance_a: int
+    stance_b: int
+    target_anchor: int
+    log: Any
+    ss_end: Any
+    settle_mode: bool
+    L_com_prev: Any
+    intent: Any
+    plan: Any
+    carry: Any
+    vp: Any
+    cref_r: Any
+    nmpc_ok: bool
+    nmpc_status_code: int
+    nmpc_cost_val: float
+    info_n: Any
+    t_nmpc_ms: float
+    t_qp_start: float
+    qs: int = 0
+
 
 class PlannerReferences:
     """The ``ReferenceSource`` the controller queries, over today's planners.
@@ -755,161 +876,106 @@ class SimulationLoop(TickLoggingMixin):
         log['T_log'].append(log['T_end'])
         return log
 
-    def _run_ds_passivity_loop(
-        self,
-        *,
-        contact_config,
-        max_steps: int,
-        epsilon_v: float,
-        plateau_window: int = 50,
-        plateau_ratio: float = 0.999,
-        min_steps: int = 0,
-        fallback_Kd: float = 20.0,
-        t_log: Optional[list] = None,
-        T_log: Optional[list] = None,
-        t_log_step_offset: int = 0,
-        # Phase-B logging hooks (no control effect; logging-only).
-        # When `log_obj` is None, no per-tick log rows are written —
-        # the setup-Stage-2 settle call site keeps that behaviour.
-        # The inter-step DS call site passes log_obj=log + context so
-        # the loop emits per-tick rows schema-identical to the SS log.
-        log_obj=None,
-        log_step_idx: int = -1,
-        log_just_landed_arm: str = '',
-        log_anchor_a_idx: int = -1,
-        log_anchor_b_idx: int = -1,
-        log_t_abs: float = 0.0,
-    ) -> dict:
-        """Run the M2 QP in settle_mode + passivity_active until T<T_settle.
+    def _run_ds_passivity_loop(self, **kw) -> dict:
+        """One energy-based DS settle, run through the single loop.
 
-        This is the shared dissipation engine used by BOTH the setup-phase
-        stage-2 settling and the inter-step DS settling (spec §7.1.1).
-
-        Assumptions on entry
-        --------------------
-        - The robot is in DS (both tools welded to their anchors).
-        - `self.qp_ss` is built with `use_m2_stack=True`.
-        - `self.plant` holds the current MuJoCo state (read via `self.sensors`).
-
-        The loop runs at dt_qp (100 Hz) and calls `self.qp_ss.solve(...)`
-        directly — NMPC is bypassed. Exit conditions (in priority order):
-            1. Target met: T_kin < T_settle = 0.5·epsilon_v²·lambda_min(H)
-            2. Plateau: no progress over `plateau_window` steps
-            3. Max steps reached
-        `min_steps` forces at least that many iterations before exits 1/2
-        fire — useful for the inter-step call, which should run for at
-        least a few dt_qp steps to absorb the post-dock impact.
-
-        Parameters
-        ----------
-        max_steps : int
-            Safety cap on the number of dt_qp iterations.
-        epsilon_v : float
-            Target ‖dq_full‖ bound [m/s]; defines T_settle via H's
-            smallest eigenvalue.
-        plateau_window : int
-            Window for plateau detection (steps).
-        plateau_ratio : float
-            Plateau fires when T(k) > plateau_ratio · T(k - plateau_window).
-        min_steps : int
-            Minimum iterations before target/plateau exits can fire.
-        fallback_Kd : float
-            Joint-damping gain used when the QP raises an exception.
-        t_log, T_log : list or None
-            Optional destinations for plot samples (appended every 5 steps).
-        t_log_step_offset : int
-            Absolute step offset used to compute the plot time stamps
-            (t = (t_log_step_offset + k) · dt_qp).
-
-        Returns
-        -------
-        dict with keys
-            n_steps       : int     actual iterations run
-            T_start       : float   kinetic energy at entry [J]
-            T_end         : float   kinetic energy at exit [J]
-            T_settle      : float   target threshold [J]
-            lambda_min    : float   min eigenvalue of H at entry [kg·m²]
-            exit_reason   : str     'target_met' | 'plateau' | 'max_steps'
+        Compatibility entry point (``_settle_setup`` uses it): builds a
+        ``_DSSettle`` request from the keyword arguments and drives it with
+        ``_drive``. Returns the result dict — see ``_DSSettle``.
         """
-        cfg = self.cfg
-        dt = cfg.dt_qp
+        return self._drive(_once(_DSSettle(**kw)))
 
-        def _kinetic_energy(v_full, H_robot):
-            return 0.5 * float(v_full @ H_robot @ v_full)
-
+    def _ds_begin(self, r):
+        """Entry of a DS settle: threshold from H, h_w snapshot, ω_s history."""
         # Threshold from H at entry (stable over the small displacement
         # we expect during settling).
         pq0, pv0 = self.sensors.joint_state()
         rs0 = self.robot.update(pq0, pv0)
         eig_H = np.linalg.eigvalsh(rs0.H)
         lambda_min = float(np.min(np.abs(eig_H)))
-        T_settle = 0.5 * (epsilon_v ** 2) * lambda_min
+        T_settle = 0.5 * (r.epsilon_v ** 2) * lambda_min
         T_start = _kinetic_energy(rs0.v, rs0.H)
 
         # DS contact config (both anchors active). Caller must pass a
         # ContactConfig whose r_contact_A/B hold the CURRENT structure-
         # frame anchor positions — these are used by compute_momentum_map
         # to build the lever arms for the hw safety constraint.
-        cc_ds = contact_config
-
         hw_current = np.zeros(3) if not self.has_rwa else (
             self.sensors.wheel_momentum())
 
         # Loop-local ω_s history for the inter-step AOCS K_d·ω̇_s term.
-        # The _step regulator's `_omega_s_last` is local to _step and
-        # invisible here, so the loop tracks its own (init from the entry
-        # ω_s ⇒ ω̇_s = 0 on the first tick; updated each iteration before
-        # mj_step). Only this history is new — the DS wrench feedforward
-        # needs no L_com/v_com history (AOCS-FF audit).
+        # The NMPC tick's AOCS carry is invisible here, so the settle
+        # tracks its own (init from the entry ω_s ⇒ ω̇_s = 0 on the first
+        # tick; updated each iteration before the plant step). Only this
+        # history is new — the DS wrench feedforward needs no L_com/v_com
+        # history (AOCS-FF audit).
         _omega_s_prev = (self.sensors.omega_struct()
                          if self.has_rwa else np.zeros(3))
 
-        T_history = []
-        exit_reason = 'max_steps'
-        T = T_start
-        for k in range(max_steps):
-            pq, pv = self.sensors.joint_state()
-            rs = self.robot.update(pq, pv)
-            T = _kinetic_energy(rs.v, rs.H)
-            T_history.append(T)
+        return _DSRun(req=r, lambda_min=lambda_min, T_settle=T_settle,
+                      T_start=T_start, hw_current=hw_current,
+                      omega_s_prev=_omega_s_prev)
 
-            if (t_log is not None) and (T_log is not None) and (k % 5 == 0):
-                t_log.append((t_log_step_offset + k) * dt)
-                T_log.append(T)
+    def _ds_tick(self, st):
+        """One DS-settle iteration k: exit checks, then one control period.
 
-            # Exits (only after min_steps)
-            if k >= min_steps:
-                if T < T_settle:
-                    exit_reason = 'target_met'
-                    break
-                if k >= plateau_window:
-                    T_old = T_history[k - plateau_window]
-                    if T > plateau_ratio * T_old:
-                        exit_reason = 'plateau'
-                        break
+        An iteration that fires an exit returns without applying control —
+        and, as the original ``for k`` loop did, counts toward ``n_steps``
+        (``n = min(k + 1, max_steps)``).
+        """
+        r = st.req
+        cfg = self.cfg
+        dt = cfg.dt_qp
+        k = st.k
+        if k >= r.max_steps:
+            return True, self._ds_end(st, k - 1)
+        pq, pv = self.sensors.joint_state()
+        rs = self.robot.update(pq, pv)
+        T = _kinetic_energy(rs.v, rs.H)
+        st.T_history.append(T)
 
-            # Settle QP + inter-step AOCS — WholeBodyController.settle.
-            tau, lambda_qp_sol, tau_w_applied, wheel_cmd, _omega_s_prev = (
-                self.controller.settle(rs, cc_ds, hw_current, fallback_Kd,
-                                       _omega_s_prev))
-            self.plant.apply_joint_torques(tau)
-            if wheel_cmd is not None:
-                self.plant.apply_wheel_torques(wheel_cmd)
-            # NB: no diagnostic arm lock here — this loop never applied it.
-            self.plant.step()
+        if (r.t_log is not None) and (r.T_log is not None) and (k % 5 == 0):
+            r.t_log.append((r.t_log_step_offset + k) * dt)
+            r.T_log.append(T)
 
-            # ── Phase-B per-tick logging (logging-only; no control change) ──
-            # Emit a row schema-identical to the SS log block. NaN sentinels
-            # for NMPC-side quantities (NMPC is bypassed in this loop).
-            if log_obj is not None:
-                t_abs_tick = log_t_abs + (k + 1) * dt
-                self._log_ds_tick(
-                    log_obj, t_abs_tick,
-                    log_step_idx, log_just_landed_arm,
-                    log_anchor_a_idx, log_anchor_b_idx,
-                    tau, lambda_qp_sol, tau_w_applied)
+        # Exits (only after min_steps)
+        if k >= r.min_steps:
+            if T < st.T_settle:
+                st.exit_reason = 'target_met'
+                return True, self._ds_end(st, k)
+            if k >= r.plateau_window:
+                T_old = st.T_history[k - r.plateau_window]
+                if T > r.plateau_ratio * T_old:
+                    st.exit_reason = 'plateau'
+                    return True, self._ds_end(st, k)
 
-        n_steps_run = min(k + 1, max_steps) if max_steps > 0 else 0
+        # Settle QP + inter-step AOCS — WholeBodyController.settle.
+        tau, lambda_qp_sol, tau_w_applied, wheel_cmd, st.omega_s_prev = (
+            self.controller.settle(rs, r.contact_config, st.hw_current,
+                                   r.fallback_Kd, st.omega_s_prev))
+        self.plant.apply_joint_torques(tau)
+        if wheel_cmd is not None:
+            self.plant.apply_wheel_torques(wheel_cmd)
+        # NB: no diagnostic arm lock here — this loop never applied it.
+        self.plant.step()
+
+        # ── Phase-B per-tick logging (logging-only; no control change) ──
+        # Emit a row schema-identical to the SS log block. NaN sentinels
+        # for NMPC-side quantities (NMPC is bypassed in this settle).
+        if r.log_obj is not None:
+            t_abs_tick = r.log_t_abs + (k + 1) * dt
+            self._log_ds_tick(
+                r.log_obj, t_abs_tick,
+                r.log_step_idx, r.log_just_landed_arm,
+                r.log_anchor_a_idx, r.log_anchor_b_idx,
+                tau, lambda_qp_sol, tau_w_applied)
+        st.k = k + 1
+        return False, None
+
+    def _ds_end(self, st, k_last):
+        """Exit of a DS settle: final energy and the result dict."""
+        r = st.req
+        n_steps_run = min(k_last + 1, r.max_steps) if r.max_steps > 0 else 0
         # Record final energy (no ctrl reset — caller manages the handoff)
         pq_end, pv_end = self.sensors.joint_state()
         rs_end = self.robot.update(pq_end, pv_end)
@@ -917,11 +983,11 @@ class SimulationLoop(TickLoggingMixin):
 
         return {
             'n_steps': n_steps_run,
-            'T_start': T_start,
+            'T_start': st.T_start,
             'T_end': T_end,
-            'T_settle': T_settle,
-            'lambda_min': lambda_min,
-            'exit_reason': exit_reason,
+            'T_settle': st.T_settle,
+            'lambda_min': st.lambda_min,
+            'exit_reason': st.exit_reason,
         }
 
     def _build_qp(self, ae, ap, aw,
@@ -1379,7 +1445,63 @@ class SimulationLoop(TickLoggingMixin):
         log.snapshots.append((round(t, 3), qpos, qvel, label))
 
     def run(self, verbose=True):
-        """Run full multi-step locomotion simulation."""
+        """Run full multi-step locomotion simulation.
+
+        The gait sequencer (``_gait_program``) driven by the single simulation
+        loop (``_drive``). Returns the ``SimLog``.
+        """
+        return self._drive(self._gait_program(verbose))
+
+    # ── The simulation loop ──────────────────────────────────────────────
+
+    def _drive(self, program):
+        """THE simulation loop — the only place the plant is stepped.
+
+        ``program`` is a sequencer coroutine that yields work requests:
+        ``_DSSettle`` (energy-based passivity settle, NMPC bypassed) or
+        ``_NMPCTick`` (one NMPC period: plan, then n_qp_per_nmpc QP
+        sub-steps). Each iteration advances the active request by ONE
+        control period dt_qp — measure, control, plant I/O, ``plant.step()``
+        — or completes it (a DS exit check, the NMPC hand-off to telemetry);
+        the result is sent back into the sequencer, which picks the next
+        request. That is the shape of a ROS 2 timer callback.
+
+        Returns the sequencer's return value.
+        """
+        try:
+            req = next(program)
+        except StopIteration as stop:
+            return stop.value
+        tick = self._begin(req)
+        while True:
+            done, result = tick()
+            if not done:
+                continue
+            try:
+                req = program.send(result)
+            except StopIteration as stop:
+                return stop.value
+            tick = self._begin(req)
+
+    def _begin(self, req):
+        """Start a request; return its tick function (-> (done, result))."""
+        if isinstance(req, _DSSettle):
+            st = self._ds_begin(req)
+            return lambda: self._ds_tick(st)
+        st = self._nmpc_begin(req)
+        return lambda: self._nmpc_tick(st)
+
+    def _gait_program(self, verbose=True):
+        """The gait SEQUENCER, as a coroutine driven by ``_drive``.
+
+        This is the former body of ``run()``, verbatim, except that it no
+        longer advances the physics itself: where it used to call
+        ``_run_ds_passivity_loop(...)`` it now yields a ``_DSSettle`` request,
+        and where it called ``_step(...)`` it yields an ``_NMPCTick``. The
+        request's result comes back as the value of the ``yield``. It decides
+        WHAT runs next (DS settle, DWELL, planning handoff, SS, HOLD, dock,
+        trailing DS); ``_drive`` decides nothing and just ticks.
+        """
         cfg = self.cfg
         log = SimLog()
         # Fingerprint the execution environment once at simulation start.
@@ -1452,7 +1574,7 @@ class SimulationLoop(TickLoggingMixin):
                         self._capture_snapshot(log, t, 'initial')
 
                     # ── 1. DS — energy-based exit (spec §7.1.1) ──────────
-                    # Uses _run_ds_passivity_loop which drives T_kin <
+                    # A _DSSettle request (ticked by _drive) drives T_kin <
                     # T_settle via the passivity-constrained QP. NMPC is
                     # bypassed during DS (no reference motion to track).
                     # n_ds_max_steps is the safety cap only — there is no
@@ -1478,7 +1600,7 @@ class SimulationLoop(TickLoggingMixin):
                     # the inter-step DOUBLE phase, line ~1555).
                     _ds_anchor_a = phases[i].anchor_a_idx
                     _ds_anchor_b = phases[i].anchor_b_idx
-                    ds_result = self._run_ds_passivity_loop(
+                    ds_result = yield _DSSettle(
                         contact_config=cc_ds,
                         max_steps=cfg.n_ds_max_steps,
                         # Settle-exit fix (POINT A): dock-tolerance-derived ε_v
@@ -1550,7 +1672,7 @@ class SimulationLoop(TickLoggingMixin):
                         last_sa_d = stance_a
                         last_sb_d = stance_b
                         while t < t_dwell_end:
-                            hw, L_com_prev = self._step(
+                            hw, L_com_prev = yield _NMPCTick(
                                 t, 'DS', step_idx - 1,
                                 swing_arm, stance_arm,
                                 cc_ds, 0, last_sa_d, last_sb_d,
@@ -1669,7 +1791,7 @@ class SimulationLoop(TickLoggingMixin):
                             self._capture_snapshot(log, t, label)
                             self._frame_capture_times.pop(0)
                             self._frame_capture_kidx += 1
-                        hw, L_com_prev = self._step(
+                        hw, L_com_prev = yield _NMPCTick(
                             t, 'SS', step_idx, swing_arm, stance_arm,
                             cc_ss, target_idx, stance_a, stance_b,
                             hw, L_com_prev, log,
@@ -1724,7 +1846,7 @@ class SimulationLoop(TickLoggingMixin):
                             print(f"  HOLD (tracking): {t:.2f} → "
                                   f"{t_hold_deadline:.2f}s")
                         while t < t_hold_deadline and not docked:
-                            hw, L_com_prev = self._step(
+                            hw, L_com_prev = yield _NMPCTick(
                                 t, 'SS', step_idx, swing_arm, stance_arm,
                                 cc_ss, target_idx, stance_a, stance_b,
                                 hw, L_com_prev, log,
@@ -1793,7 +1915,7 @@ class SimulationLoop(TickLoggingMixin):
 
                     # Post-dock energy-based settling is now handled by
                     # the *next* step's DS block (above). One shared
-                    # implementation via _run_ds_passivity_loop.
+                    # implementation: the _DSSettle request.
 
                     step_idx += 1
                     i += 2  # skip SS phase (already processed)
@@ -1894,7 +2016,7 @@ class SimulationLoop(TickLoggingMixin):
                         )
 
                     while t < t_ds_settle:
-                        hw, L_com_prev = self._step(
+                        hw, L_com_prev = yield _NMPCTick(
                             t, 'DS', step_idx - 1, last_swing, last_stance,
                             cc_ds, 0, last_sa, last_sb,
                             hw, L_com_prev, log, ss_end=t,
@@ -1939,21 +2061,28 @@ class SimulationLoop(TickLoggingMixin):
               passivity_hold: bool = False,
               passivity_override=None,
               ds_centroidal_active: bool = False):
-        """Single NMPC+QP step.  All quantities are in structure frame.
+        """One NMPC period (plan + QP sub-steps), run through the single loop.
 
-        Parameters
-        ----------
-        passivity_hold : bool
-            M7: when True, activate the QP's passivity inequality even in
-            SS. Used during the convergence-hold window (after the
-            trajectory has ended and the EE is still converging on the
-            dock) so the system dissipates residual kinetic energy.
-        passivity_override : Optional[bool]
-            Diagnostic (H_DS3). When not None, overrides the phase-based
-            passivity gate below. Wired only by the trailing-DS branch
-            when `cfg.diag_disable_passivity_on_abort` is set and the
-            preceding SS aborted on dock_timeout.
+        Compatibility entry point: builds an ``_NMPCTick`` request and drives
+        it with ``_drive``. Returns ``(hw, L_com_prev)``. Parameters: see
+        ``_NMPCTick``.
         """
+        return self._drive(_once(_NMPCTick(
+            t, phase, step_idx, swing_arm, stance_arm, cc_ss, target_anchor,
+            stance_a, stance_b, hw, L_com_prev, log, ss_end=ss_end,
+            settle_mode=settle_mode, passivity_hold=passivity_hold,
+            passivity_override=passivity_override,
+            ds_centroidal_active=ds_centroidal_active)))
+
+    def _nmpc_begin(self, r):
+        """Start of an NMPC period: intent, stage 1 (NMPC), QP carry."""
+        (t, phase, step_idx, swing_arm, stance_arm, cc_ss, target_anchor,
+         stance_a, stance_b, hw, L_com_prev, log, ss_end, settle_mode,
+         passivity_hold, passivity_override, ds_centroidal_active) = (
+            r.t, r.phase, r.step_idx, r.swing_arm, r.stance_arm, r.cc_ss,
+            r.target_anchor, r.stance_a, r.stance_b, r.hw, r.L_com_prev,
+            r.log, r.ss_end, r.settle_mode, r.passivity_hold,
+            r.passivity_override, r.ds_centroidal_active)
         # ══════════════════════════════════════════════════════════════════
         # PHASE 0 — the tick's intent
         # Contact geometry and the mode flags, handed to the controller as one
@@ -2018,171 +2147,204 @@ class SimulationLoop(TickLoggingMixin):
         t_qp_start = time.perf_counter()
         carry = self.controller.begin_tracking(plan, hw)
 
-        for qs in range(self.n_qp_per_nmpc):
-            tq = t + qs * cfg.dt_qp
-            # Stage 2 — WholeBodyController.track: measure, torso / swing
-            # references, whole-body QP, clip, AOCS (control/controller.py).
-            out = self.controller.track(carry, qs, tq, intent, self.refs, plan)
-            # Local names for the diagnostic traces below (pure reads; kept
-            # BEFORE plant.step because rs may view Pinocchio data).
-            qp = self.qp_ss
-            rs, tau = out.rs, out.tau_raw
-            passivity_active, qp_ok = out.passivity_active, out.qp_ok
-            qdd_t_qp, lambda_qp_sol = out.qdd_t, out.lambda_qp
-            rp_interp, p_torso_ref_used = out.rp_interp, out.p_torso_ref_used
 
-            # α (J2 #2): CoM-mobile DS conflict trace (gated; DWELL ticks).
-            # Disentangles which constraint binds during the moving-CoM DS:
-            #   pass_resid = dqⱼᵀτ_q + 2α·T_kin  (≈0 ⇒ passivity binding),
-            #   Hdot_inf   = ‖Σ r_Cj×f_j + τ_j‖∞ from the QP wrench
-            #               (→ τ_w_max ⇒ envelope binding),
-            #   com_err    = ‖r_com − cref_r‖  (tracking),
-            #   qp_ok / nmpc_status  (feasibility).
+        return _NMPCRun(**{k: v for k, v in locals().items()
+                           if k in _NMPCRun.__dataclass_fields__})
 
-            # Dock-floor audit: per-SS-tick joint mechanical power + dock
-            # distance, to confirm whether the arm does positive work
-            # (dqⱼᵀτ_q > 0) while closing, and under which passivity setting.
-            if cfg.log_dock_work and phase == 'SS':
-                log.dock_work_trace.append({
-                    't': round(float(t), 3), 'step': int(step_idx),
-                    'd_mm': round(self._gripper_distance(
-                        swing_arm, target_anchor) * 1000, 3),
-                    'dq_tau': float(rs.dq_joints @ tau),
-                    'pass_active': bool(passivity_active)})
+    def _nmpc_tick(self, st):
+        """One QP sub-step of the NMPC period; the last one hands off."""
+        if st.qs < self.n_qp_per_nmpc:
+            self._qp_substep(st)
+            st.qs += 1
+        if st.qs >= self.n_qp_per_nmpc:
+            return True, self._nmpc_handoff(st)
+        return False, None
 
-            # ── Diagnostic B + C: per-cycle log of (c_ref, r_b_ref,
-            # p_torso_actual, a_torso_des, a_torso_qp, δ(q_planned),
-            # δ(q_current)) during step 0 OR step 2 SS. Gated on a
-            # runtime attribute. Reads qp.last_torso_debug populated by
-            # WholeBodyQP.solve(); also captures both δ-variants for
-            # the planned-vs-current mass-distribution diagnostic.
-            if getattr(self, '_step2_diag_enabled', False) \
-                    and phase == 'SS':
-                td = getattr(qp, 'last_torso_debug', None)
+    def _qp_substep(self, st):
+        """Stage 2, one dt_qp: controller.track -> diagnostic traces ->
+        plant I/O -> plant.step -> controller.after_step."""
+        cfg = self.cfg
+        qs = st.qs
+        (t, phase, step_idx, swing_arm, stance_arm, target_anchor, log,
+         intent, plan, carry) = (
+            st.t, st.phase, st.step_idx, st.swing_arm, st.stance_arm,
+            st.target_anchor, st.log, st.intent, st.plan, st.carry)
+        tq = t + qs * cfg.dt_qp
+        # Stage 2 — WholeBodyController.track: measure, torso / swing
+        # references, whole-body QP, clip, AOCS (control/controller.py).
+        out = self.controller.track(carry, qs, tq, intent, self.refs, plan)
+        # Local names for the diagnostic traces below (pure reads; kept
+        # BEFORE plant.step because rs may view Pinocchio data).
+        qp = self.qp_ss
+        rs, tau = out.rs, out.tau_raw
+        passivity_active, qp_ok = out.passivity_active, out.qp_ok
+        qdd_t_qp, lambda_qp_sol = out.qdd_t, out.lambda_qp
+        rp_interp, p_torso_ref_used = out.rp_interp, out.p_torso_ref_used
+
+        # α (J2 #2): CoM-mobile DS conflict trace (gated; DWELL ticks).
+        # Disentangles which constraint binds during the moving-CoM DS:
+        #   pass_resid = dqⱼᵀτ_q + 2α·T_kin  (≈0 ⇒ passivity binding),
+        #   Hdot_inf   = ‖Σ r_Cj×f_j + τ_j‖∞ from the QP wrench
+        #               (→ τ_w_max ⇒ envelope binding),
+        #   com_err    = ‖r_com − cref_r‖  (tracking),
+        #   qp_ok / nmpc_status  (feasibility).
+
+        # Dock-floor audit: per-SS-tick joint mechanical power + dock
+        # distance, to confirm whether the arm does positive work
+        # (dqⱼᵀτ_q > 0) while closing, and under which passivity setting.
+        if cfg.log_dock_work and phase == 'SS':
+            log.dock_work_trace.append({
+                't': round(float(t), 3), 'step': int(step_idx),
+                'd_mm': round(self._gripper_distance(
+                    swing_arm, target_anchor) * 1000, 3),
+                'dq_tau': float(rs.dq_joints @ tau),
+                'pass_active': bool(passivity_active)})
+
+        # ── Diagnostic B + C: per-cycle log of (c_ref, r_b_ref,
+        # p_torso_actual, a_torso_des, a_torso_qp, δ(q_planned),
+        # δ(q_current)) during step 0 OR step 2 SS. Gated on a
+        # runtime attribute. Reads qp.last_torso_debug populated by
+        # WholeBodyQP.solve(); also captures both δ-variants for
+        # the planned-vs-current mass-distribution diagnostic.
+        if getattr(self, '_step2_diag_enabled', False) \
+                and phase == 'SS':
+            td = getattr(qp, 'last_torso_debug', None)
+            entry = {
+                't': float(tq), 'qs': int(qs),
+                'c_ref': np.asarray(rp_interp, dtype=float).tolist(),
+                'r_b_ref': np.asarray(p_torso_ref_used,
+                                      dtype=float).tolist(),
+                'p_torso': np.asarray(
+                    rs.oMf_torso.translation, dtype=float).tolist(),
+            }
+            if td is not None:
+                entry['a_torso_des'] = (
+                    np.asarray(td['a_torso_des_pre'],
+                               dtype=float).tolist())
+                entry['a_torso_qp'] = (
+                    np.asarray(td['x_dd_torso_post'],
+                               dtype=float).tolist())
+            else:
+                entry['a_torso_des'] = None
+                entry['a_torso_qp'] = None
+            if self.controller._last_mapping_delta is not None:
+                entry['delta_q'] = self.controller._last_mapping_delta.tolist()
+            else:
+                entry['delta_q'] = None
+            if self.controller._last_mapping_delta_current is not None:
+                entry['delta_q_current'] = (
+                    self.controller._last_mapping_delta_current.tolist())
+            else:
+                entry['delta_q_current'] = None
+            entry['step_idx'] = int(step_idx)
+            self._step2_diag_log.append(entry)
+
+        # M7 physics-trace capture (SS only, first-QP-substep, 1 Hz).
+        # No control change — reads QP outputs + kinematic conditioning
+        # to diagnose where the 67° torso disturbance is coming from.
+        if (phase == 'SS' and qs == 0 and qp_ok
+                and getattr(self, '_debug_physics_trace_limit', 0) > 0):
+            self._debug_physics_count = getattr(
+                self, '_debug_physics_count', 0) + 1
+            sample_every = int(getattr(
+                self, '_debug_physics_sample_every', 10))
+            sample_idx = self._debug_physics_count - 1
+            trace = getattr(self, '_debug_physics_trace', None)
+            if trace is None:
+                self._debug_physics_trace = []
+                trace = self._debug_physics_trace
+            if (sample_idx % sample_every == 0
+                    and len(trace) < self._debug_physics_trace_limit):
+                # Stance EE Jacobian and null-space projection.
+                try:
+                    J_ee_stance, _, _ = self._get_ee_data(rs, stance_arm)
+                except Exception:
+                    J_ee_stance = None
+                J_t = rs.J_torso
+                sig_t = np.linalg.svd(J_t, compute_uv=False)
+                cond_t = (float(sig_t[0] / sig_t[-1])
+                          if sig_t[-1] > 1e-12 else float('inf'))
+                cond_NJe = float('nan')
+                sig_NJe_min = float('nan')
+                if J_ee_stance is not None:
+                    # Damped pseudo-inverse of J_torso
+                    lam = 1e-6
+                    JJt = J_t @ J_t.T + lam * np.eye(J_t.shape[0])
+                    J_t_pinv = J_t.T @ np.linalg.inv(JJt)
+                    N_t = (np.eye(J_t.shape[1])
+                           - J_t_pinv @ J_t)
+                    NJe = J_ee_stance @ N_t
+                    sig_n = np.linalg.svd(NJe, compute_uv=False)
+                    sig_NJe_min = float(sig_n[-1])
+                    cond_NJe = (float(sig_n[0] / sig_n[-1])
+                                if sig_n[-1] > 1e-12 else float('inf'))
+                # Split lambda into per-contact 6D (force, torque).
+                lam_v = np.asarray(lambda_qp_sol, dtype=float).ravel()
+                per_contact = []
+                for ci in range(len(lam_v) // 6):
+                    f = lam_v[6*ci:6*ci+3]
+                    tq_c = lam_v[6*ci+3:6*ci+6]
+                    per_contact.append(
+                        (float(np.linalg.norm(f)),
+                         float(np.linalg.norm(tq_c))))
+                tau_arr = np.asarray(tau, dtype=float).ravel()
+                sat_mask = np.abs(tau_arr) >= 0.99 * cfg.tau_max
+                # Also capture q so we can reproduce κ offline.
+                q_snap = np.asarray(rs.q, dtype=float).copy()
+                # M7 torso PD diagnosis: capture pre-solve desired
+                # torso accel vs post-solve achieved torso accel.
+                torso_dbg = getattr(qp, 'last_torso_debug', None)
                 entry = {
-                    't': float(tq), 'qs': int(qs),
-                    'c_ref': np.asarray(rp_interp, dtype=float).tolist(),
-                    'r_b_ref': np.asarray(p_torso_ref_used,
-                                          dtype=float).tolist(),
-                    'p_torso': np.asarray(
-                        rs.oMf_torso.translation, dtype=float).tolist(),
+                    't': float(t),
+                    'phase': str(phase),
+                    'qdd_t': np.asarray(qdd_t_qp, dtype=float).copy(),
+                    'tau_q': tau_arr.copy(),
+                    'tau_abs_max': float(np.max(np.abs(tau_arr))),
+                    'tau_l2':      float(np.linalg.norm(tau_arr)),
+                    'tau_sat_idx': [int(i) for i, s in
+                                    enumerate(sat_mask) if s],
+                    'lambda':      lam_v.copy(),
+                    'contact_fL':  per_contact,
+                    'cond_J_t':    cond_t,
+                    'sig_min_J_t': float(sig_t[-1]),
+                    'cond_NJe':    cond_NJe,
+                    'sig_min_NJe': sig_NJe_min,
+                    'q':           q_snap,
                 }
-                if td is not None:
-                    entry['a_torso_des'] = (
-                        np.asarray(td['a_torso_des_pre'],
-                                   dtype=float).tolist())
-                    entry['a_torso_qp'] = (
-                        np.asarray(td['x_dd_torso_post'],
-                                   dtype=float).tolist())
-                else:
-                    entry['a_torso_des'] = None
-                    entry['a_torso_qp'] = None
-                if self.controller._last_mapping_delta is not None:
-                    entry['delta_q'] = self.controller._last_mapping_delta.tolist()
-                else:
-                    entry['delta_q'] = None
-                if self.controller._last_mapping_delta_current is not None:
-                    entry['delta_q_current'] = (
-                        self.controller._last_mapping_delta_current.tolist())
-                else:
-                    entry['delta_q_current'] = None
-                entry['step_idx'] = int(step_idx)
-                self._step2_diag_log.append(entry)
+                if torso_dbg is not None:
+                    entry['torso_debug'] = {
+                        k: (v.copy() if hasattr(v, 'copy') else v)
+                        for k, v in torso_dbg.items()}
+                trace.append(entry)
 
-            # M7 physics-trace capture (SS only, first-QP-substep, 1 Hz).
-            # No control change — reads QP outputs + kinematic conditioning
-            # to diagnose where the 67° torso disturbance is coming from.
-            if (phase == 'SS' and qs == 0 and qp_ok
-                    and getattr(self, '_debug_physics_trace_limit', 0) > 0):
-                self._debug_physics_count = getattr(
-                    self, '_debug_physics_count', 0) + 1
-                sample_every = int(getattr(
-                    self, '_debug_physics_sample_every', 10))
-                sample_idx = self._debug_physics_count - 1
-                trace = getattr(self, '_debug_physics_trace', None)
-                if trace is None:
-                    self._debug_physics_trace = []
-                    trace = self._debug_physics_trace
-                if (sample_idx % sample_every == 0
-                        and len(trace) < self._debug_physics_trace_limit):
-                    # Stance EE Jacobian and null-space projection.
-                    try:
-                        J_ee_stance, _, _ = self._get_ee_data(rs, stance_arm)
-                    except Exception:
-                        J_ee_stance = None
-                    J_t = rs.J_torso
-                    sig_t = np.linalg.svd(J_t, compute_uv=False)
-                    cond_t = (float(sig_t[0] / sig_t[-1])
-                              if sig_t[-1] > 1e-12 else float('inf'))
-                    cond_NJe = float('nan')
-                    sig_NJe_min = float('nan')
-                    if J_ee_stance is not None:
-                        # Damped pseudo-inverse of J_torso
-                        lam = 1e-6
-                        JJt = J_t @ J_t.T + lam * np.eye(J_t.shape[0])
-                        J_t_pinv = J_t.T @ np.linalg.inv(JJt)
-                        N_t = (np.eye(J_t.shape[1])
-                               - J_t_pinv @ J_t)
-                        NJe = J_ee_stance @ N_t
-                        sig_n = np.linalg.svd(NJe, compute_uv=False)
-                        sig_NJe_min = float(sig_n[-1])
-                        cond_NJe = (float(sig_n[0] / sig_n[-1])
-                                    if sig_n[-1] > 1e-12 else float('inf'))
-                    # Split lambda into per-contact 6D (force, torque).
-                    lam_v = np.asarray(lambda_qp_sol, dtype=float).ravel()
-                    per_contact = []
-                    for ci in range(len(lam_v) // 6):
-                        f = lam_v[6*ci:6*ci+3]
-                        tq_c = lam_v[6*ci+3:6*ci+6]
-                        per_contact.append(
-                            (float(np.linalg.norm(f)),
-                             float(np.linalg.norm(tq_c))))
-                    tau_arr = np.asarray(tau, dtype=float).ravel()
-                    sat_mask = np.abs(tau_arr) >= 0.99 * cfg.tau_max
-                    # Also capture q so we can reproduce κ offline.
-                    q_snap = np.asarray(rs.q, dtype=float).copy()
-                    # M7 torso PD diagnosis: capture pre-solve desired
-                    # torso accel vs post-solve achieved torso accel.
-                    torso_dbg = getattr(qp, 'last_torso_debug', None)
-                    entry = {
-                        't': float(t),
-                        'phase': str(phase),
-                        'qdd_t': np.asarray(qdd_t_qp, dtype=float).copy(),
-                        'tau_q': tau_arr.copy(),
-                        'tau_abs_max': float(np.max(np.abs(tau_arr))),
-                        'tau_l2':      float(np.linalg.norm(tau_arr)),
-                        'tau_sat_idx': [int(i) for i, s in
-                                        enumerate(sat_mask) if s],
-                        'lambda':      lam_v.copy(),
-                        'contact_fL':  per_contact,
-                        'cond_J_t':    cond_t,
-                        'sig_min_J_t': float(sig_t[-1]),
-                        'cond_NJe':    cond_NJe,
-                        'sig_min_NJe': sig_NJe_min,
-                        'q':           q_snap,
-                    }
-                    if torso_dbg is not None:
-                        entry['torso_debug'] = {
-                            k: (v.copy() if hasattr(v, 'copy') else v)
-                            for k, v in torso_dbg.items()}
-                    trace.append(entry)
+        self.plant.apply_joint_torques(out.tau)
+        if out.tau_w is not None:
+            self.plant.apply_wheel_torques(out.tau_w)
+        self.plant.step(lock_arm_joints=self._diag_lock_arm_joints)
+        self.controller.after_step(carry, out.tau)
 
-            self.plant.apply_joint_torques(out.tau)
-            if out.tau_w is not None:
-                self.plant.apply_wheel_torques(out.tau_w)
-            self.plant.step(lock_arm_joints=self._diag_lock_arm_joints)
-            self.controller.after_step(carry, out.tau)
+        # Phase-2.1: optional 100 Hz (QP-rate) SS logging of reaction-wheel
+        # torque + stored momentum. Gated (default OFF) ⇒ no behavioural
+        # change; tau_w_last (init 2495, updated this tick at the AOCS block
+        # when has_rwa), hw, tq, phase are all in scope.
+        if cfg.log_hifreq_ss and phase == 'SS':
+            log.t_ss_hifreq.append(float(tq))
+            log.tau_w_ss_hifreq.append(
+                np.asarray(carry.tau_w_last, dtype=float).copy())
+            log.hw_ss_hifreq.append(np.asarray(carry.hw, dtype=float).copy())
 
-            # Phase-2.1: optional 100 Hz (QP-rate) SS logging of reaction-wheel
-            # torque + stored momentum. Gated (default OFF) ⇒ no behavioural
-            # change; tau_w_last (init 2495, updated this tick at the AOCS block
-            # when has_rwa), hw, tq, phase are all in scope.
-            if cfg.log_hifreq_ss and phase == 'SS':
-                log.t_ss_hifreq.append(float(tq))
-                log.tau_w_ss_hifreq.append(
-                    np.asarray(carry.tau_w_last, dtype=float).copy())
-                log.hw_ss_hifreq.append(np.asarray(carry.hw, dtype=float).copy())
 
+    def _nmpc_handoff(self, st):
+        """End of the NMPC period: hand the tick to telemetry."""
+        (t, phase, step_idx, swing_arm, stance_arm, stance_a, stance_b,
+         target_anchor, log, ss_end, settle_mode, L_com_prev, carry, vp,
+         cref_r, nmpc_ok, nmpc_status_code, nmpc_cost_val, info_n, t_nmpc_ms,
+         t_qp_start) = (
+            st.t, st.phase, st.step_idx, st.swing_arm, st.stance_arm,
+            st.stance_a, st.stance_b, st.target_anchor, st.log, st.ss_end,
+            st.settle_mode, st.L_com_prev, st.carry, st.vp, st.cref_r,
+            st.nmpc_ok, st.nmpc_status_code, st.nmpc_cost_val, st.info_n,
+            st.t_nmpc_ms, st.t_qp_start)
         hw, lr, qp_ok = carry.hw, carry.lr, carry.qp_ok
         lambda_qp_sol = carry.lambda_qp_sol
         tau_last, tau_w_last = carry.tau_last, carry.tau_w_last
@@ -2218,7 +2380,6 @@ class SimulationLoop(TickLoggingMixin):
             transport_term_mag=transport_mag_last,
             p_torso_ref_used=_p_torso_ref_used,
         ))
-
 
     def _get_ee_data(self, rs, arm):
         """Return (J_ee, Jdq_ee, oMf_ee) for the given arm (tick_logging.py
