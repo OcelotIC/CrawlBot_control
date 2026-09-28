@@ -88,10 +88,10 @@ wall-clock numbers masked.
 | group | scenarios | forces |
 |---|---|---|
 | gait sequencer | `timeout`, `abortdiag`, `stop`, `skip`, `skipstop`, `dwell` | dock TIMEOUT (continue / stop), the three `diag_*_on_abort` overrides, pre-planner SKIP (continue / stop), DWELL |
-| AOCS | `aocs_legacy`, `aocs_legacy_corrected`, `aocs_pd_numerical`, `aocs_pd_model`, `aocs_pid_model`, `aocs_H_est`, `aocs_off_in_ds` | every `aocs_mode` branch of `AttitudeController.command`, and the DS zero-torque switch |
+| AOCS | `aocs_legacy`, `aocs_legacy_corrected`, `aocs_pd_numerical`, `aocs_pd_model`, `aocs_pid_model`, `aocs_H_est`, `aocs_off_in_ds`, `aocs_off_interstep` | every `aocs_mode` branch of `AttitudeController.command`, the DS zero-torque switch, and the inter-step settle with the AOCS off |
 | torso reference | `bypass`, `legacy_stack`, `ff_compress` | `mapping_bypass_in_ss`; the non-two-task SS stack (δ-mapping + F-SAT in SS); CoM-reference time compression (`torso_early_finish_fraction` 0.7) |
 | diagnostic hooks | `diag_pure_pd`, `diag_freeze_ref`, `diag_disable_aocs`, `diag_lock_arm_joints` | the four `DiagHooks` switches |
-| solver failures | `nmpc_fail`, `qp_fail`, `qp_fail_track` | NMPC call raising (no-previous-solve and shifted fallbacks); QP call raising in the settle (`qp_fail`, joint-damping fallback) and in tracking (`qp_fail_track`, zero-torque QP-FAIL) |
+| solver failures | `nmpc_fail`, `nmpc_unsuccessful`, `qp_fail`, `qp_fail_track` | NMPC call raising (no-previous-solve and shifted fallbacks); NMPC returning success=False without raising (status 2 infeasible, 1 max-iter); QP call raising in the settle (`qp_fail`, joint-damping fallback) and in tracking (`qp_fail_track`, zero-torque QP-FAIL) |
 
 Failures are injected by the harness (the Nth `solve` call raises), never by
 changing the code under test.

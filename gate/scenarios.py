@@ -42,7 +42,8 @@ BASE = os.path.join(REPO, 'gate/_run/local_ref')
 # name -> (dca.main kwargs overrides, SimConfig overrides[, extras])
 # extras: {'attrs': {sim attribute: value}  — set after __init__ (diag hooks),
 #          'nmpc_fail': {call indices}, 'qp_fail': {call indices},
-#          'qp_fail_track': {indices among settle_mode=False QP calls}} — the
+#          'qp_fail_track': {indices among settle_mode=False QP calls},
+#          'nmpc_unsuccessful': {call index: status}} — the
 #          CentroidalNMPC.solve / WholeBodyQP.solve call with that 0-based
 #          index raises RuntimeError (forced-failure fallbacks).
 _AOCS = {'n_steps': 1, 'settle_seconds': 1.0}
@@ -103,6 +104,11 @@ SCENARIOS = {
     # Indices counted over tracking solves only (settle_mode=False, i.e. SS
     # sub-steps): the zero-torque QP-FAIL path of WholeBodyController.track.
     'qp_fail_track': (_SHORT, {}, {'qp_fail_track': {30, 31, 32}}),
+    # NMPC returns success=False WITHOUT raising (status codes 2 and 1).
+    'nmpc_unsuccessful': (_SHORT, {}, {'nmpc_unsuccessful': {
+        3: 'Infeasible_Problem_Detected', 5: 'Maximum_Iterations_Exceeded'}}),
+    # ── L8: inter-step settle with the AOCS off (wheels commanded to 0) ──
+    'aocs_off_interstep': (_SHORT, {'aocs_active_in_interstep': False}),
 }
 
 C_KWARGS = dict(
@@ -172,6 +178,24 @@ def child(name, out_rel):
     if extras.get('qp_fail'):
         import crawlbot.solvers.wholebody_qp as wq
         _failing(wq.WholeBodyQP, 'solve', extras['qp_fail'], 'QP')
+    if extras.get('nmpc_unsuccessful'):
+        import crawlbot.solvers.centroidal_nmpc as cn
+        orig_solve = cn.CentroidalNMPC.solve
+        unsucc = extras['nmpc_unsuccessful']
+        cnt = [0]
+
+        def solve_unsucc(self, *a, **k):
+            out = orig_solve(self, *a, **k)
+            i = cnt[0]
+            cnt[0] += 1
+            if i in unsucc:
+                info = out[-1]
+                info.success = False
+                info.status = unsucc[i]
+                print(f'[scenario] forced NMPC status {unsucc[i]}, call {i}',
+                      flush=True)
+            return out
+        cn.CentroidalNMPC.solve = solve_unsucc
     if extras.get('qp_fail_track'):
         import crawlbot.solvers.wholebody_qp as wq
         _failing(wq.WholeBodyQP, 'solve', extras['qp_fail_track'], 'QP-track',
@@ -309,9 +333,12 @@ def coverage(names, side='old'):
             continue
         man = json.load(open(os.path.join(BASE, f'scn_{name}_{side}',
                                           '_manifest.json')))
-        if man['commit'] != head:
-            print(f'!! {name}: coverage from {man["commit"][:8]}, HEAD is '
-                  f'{head[:8]} — line numbers may not match', file=sys.stderr)
+        same = subprocess.run(['git', 'diff', '--quiet', man['commit'], head,
+                               '--', 'crawlbot/'], cwd=REPO).returncode == 0
+        if not same:
+            print(f'!! {name}: coverage from {man["commit"][:8]}; crawlbot/ '
+                  f'differs at HEAD {head[:8]} — line numbers may not match',
+                  file=sys.stderr)
         files = json.load(open(cp))['files']
         cells = []
         for f in sorted(files):
