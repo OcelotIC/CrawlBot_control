@@ -78,28 +78,42 @@ host that produced it, and its `_manifest.json` records the commit.
 
 ## Non-canonical branches — `gate/scenarios.py`
 
-The canonical replay never takes DWELL, SKIP (pre-planner infeasible), dock
-TIMEOUT, `stop_on_failed_step` or the `diag_*_on_abort` overrides, so neither
-`run_gate.py` nor `local_ref.py` can say a change left them alone. This harness
-forces each one in a shortened traversal (six scenarios, ~1–2 min each) and
-runs it twice — on a git worktree of the pre-change commit and on the working
-tree — then compares every output file bit-for-bit (`local_ref.py`'s
-comparator) and stdout line for line with wall-clock numbers masked. It also
-prints which branch markers fired, because a scenario that silently stopped
-taking its branch would otherwise pass vacuously.
+The canonical replay takes only one path through most branches, so neither
+`run_gate.py` nor `local_ref.py` can say a change left the others alone. This
+harness forces each one in a shortened traversal and replays it on a FROZEN
+baseline tree and on the working tree, then compares every output file
+bit-for-bit (`local_ref.py`'s comparator) and stdout line for line with
+wall-clock numbers masked.
+
+| group | scenarios | forces |
+|---|---|---|
+| gait sequencer | `timeout`, `abortdiag`, `stop`, `skip`, `skipstop`, `dwell` | dock TIMEOUT (continue / stop), the three `diag_*_on_abort` overrides, pre-planner SKIP (continue / stop), DWELL |
+| AOCS | `aocs_legacy`, `aocs_legacy_corrected`, `aocs_pd_numerical`, `aocs_pd_model`, `aocs_pid_model`, `aocs_H_est`, `aocs_off_in_ds` | every `aocs_mode` branch of `AttitudeController.command`, and the DS zero-torque switch |
+| torso reference | `bypass`, `legacy_stack`, `ff_compress` | `mapping_bypass_in_ss`; the non-two-task SS stack (δ-mapping + F-SAT in SS); CoM-reference time compression (`torso_early_finish_fraction` 0.7) |
+| diagnostic hooks | `diag_pure_pd`, `diag_freeze_ref`, `diag_disable_aocs`, `diag_lock_arm_joints` | the four `DiagHooks` switches |
+| solver failures | `nmpc_fail`, `qp_fail`, `qp_fail_track` | NMPC call raising (no-previous-solve and shifted fallbacks); QP call raising in the settle (`qp_fail`, joint-damping fallback) and in tracking (`qp_fail_track`, zero-torque QP-FAIL) |
+
+Failures are injected by the harness (the Nth `solve` call raises), never by
+changing the code under test.
 
 ```bash
-git worktree add /tmp/old_tree <pre-change commit>
-PYTHONPATH=. python3 gate/scenarios.py run /tmp/old_tree old
-PYTHONPATH=. python3 gate/scenarios.py run . new
+git worktree add /tmp/old_tree <baseline commit>
+PYTHONPATH=. python3 gate/scenarios.py run /tmp/old_tree old --cov   # once
+PYTHONPATH=. python3 gate/scenarios.py run . new                     # every commit
 PYTHONPATH=. python3 gate/scenarios.py diff        # exit 0 iff all identical
-git worktree remove --force /tmp/old_tree
+PYTHONPATH=. python3 gate/scenarios.py coverage    # what each scenario covers
 ```
 
-It seeds `sim._step_q_start` / `_step_q_end` so the canonical driver survives
-a step-0 pre-planner failure (a driver defect, see CLAUDE.md Known Issues); the
-seed is identical on both sides and reaches no control path. First used on
-`refactor/sim-loop-split` extraction 4: all six scenarios identical.
+The "old" outputs carry a `_manifest.json` with their commit and remain the
+reference for every later commit that is bit-identical to it: after each
+commit only the "new" side is re-run. `--cov` records coverage;
+`coverage` then lists, per scenario, the lines it executes that the canonical
+replay does not (`gate/_run/cov/cov.json`, same commit), grouped by function —
+so a scenario that silently stopped taking its branch shows up as "none".
+
+The harness seeds `sim._step_q_start` / `_step_q_end` so the canonical driver
+survives a step-0 pre-planner failure (a driver defect, see CLAUDE.md Known
+Issues); the seed is identical on both sides and reaches no control path.
 
 ## Provenance
 

@@ -10,10 +10,21 @@ gate/local_ref.py's comparator, and stdout is compared with wall-clock numbers
 masked.
 
     git worktree add /tmp/old_tree <pre-change commit>
-    python3 gate/scenarios.py run  /tmp/old_tree old   [names...]
+    python3 gate/scenarios.py run  /tmp/old_tree old   [--cov] [names...]
     python3 gate/scenarios.py run  .             new   [names...]
     python3 gate/scenarios.py diff [names...]          # exit 0 iff identical
+    python3 gate/scenarios.py coverage [names...]      # paths beyond canonical
     git worktree remove --force /tmp/old_tree
+
+The "old" outputs are a FROZEN baseline: each carries a _manifest.json with the
+commit it was produced from, and stays valid for every later commit that is
+bit-identical to it — re-run only the "new" side after each commit.
+
+--cov runs the scenario under coverage.py (source=crawlbot) and writes
+gate/_run/local_ref/cov_<name>_<side>.json; ``coverage`` then lists, per
+scenario, the lines it executes that the canonical replay does not
+(gate/_run/cov/cov.json, which must come from the same commit), grouped by
+enclosing function — i.e. what the scenario actually covers, measured.
 
 Outputs land in gate/_run/local_ref/scn_<name>_<side>/ (git-ignored). The
 scenario is run by THIS file's copy of the harness against either tree, so the
@@ -28,7 +39,14 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 BASE = os.path.join(REPO, 'gate/_run/local_ref')
 
-# name -> (dca.main kwargs overrides, SimConfig overrides)
+# name -> (dca.main kwargs overrides, SimConfig overrides[, extras])
+# extras: {'attrs': {sim attribute: value}  — set after __init__ (diag hooks),
+#          'nmpc_fail': {call indices}, 'qp_fail': {call indices},
+#          'qp_fail_track': {indices among settle_mode=False QP calls}} — the
+#          CentroidalNMPC.solve / WholeBodyQP.solve call with that 0-based
+#          index raises RuntimeError (forced-failure fallbacks).
+_AOCS = {'n_steps': 1, 'settle_seconds': 1.0}
+_SHORT = {'n_steps': 1, 'settle_seconds': 1.0}
 SCENARIOS = {
     'timeout': ({'n_steps': 2, 'settle_seconds': 1.0},
                 {'weld_radius': 0.0005, 't_hold_max': 0.5, 't_ss_margin': 0.3,
@@ -49,6 +67,42 @@ SCENARIOS = {
     'skipstop': ({'n_steps': 2, 'settle_seconds': 1.0},
                  {'preplanner_max_iter': 1, 'stop_on_failed_step': True}),
     'dwell': ({'n_steps': 2, 'settle_seconds': 1.0, 'dt_ds': 3.0}, {}),
+    # ── L8: every aocs_mode branch of AttitudeController.command ─────────
+    'aocs_legacy': (_AOCS, {'aocs_mode': 'legacy',
+                            'aocs_use_legacy_corrected': False,
+                            'aocs_use_H_estimator': False}),
+    'aocs_legacy_corrected': (_AOCS, {'aocs_mode': 'legacy',
+                                      'aocs_use_legacy_corrected': True,
+                                      'aocs_use_H_estimator': False}),
+    'aocs_pd_numerical': (_AOCS, {'aocs_mode': 'legacy_pd_numerical'}),
+    'aocs_pd_model': (_AOCS, {'aocs_mode': 'legacy_pd_model'}),
+    'aocs_pid_model': (_AOCS, {'aocs_mode': 'legacy_pid_model'}),
+    'aocs_H_est': (_AOCS, {'aocs_mode': 'H_est',
+                           'aocs_use_H_estimator': True}),
+    'aocs_off_in_ds': (_AOCS, {'aocs_off_in_ds': True}),
+    # ── L8: torso-reference mapping bypass in SS ─────────────────────────
+    'bypass': (_SHORT, {'mapping_bypass_in_ss': True}),
+    # ── L8: reference paths the canonical never takes ───────────────────
+    # Legacy (non-two-task) SS stack: the delta-mapping runs in SS, so the
+    # F-SAT jitter guard is exercised.
+    'legacy_stack': (dict(_SHORT, ss_two_task=False), {}),
+    # Torso CoM reference time compression (0 < ff < 1) in PlannerReferences.
+    'ff_compress': (_SHORT, {'torso_early_finish_fraction': 0.7}),
+    # ── L8: runtime diagnostic hooks (DiagHooks via sim._diag_*) ────────
+    'diag_pure_pd': (_SHORT, {}, {'attrs': {'_diag_pure_pd': True}}),
+    'diag_freeze_ref': (_SHORT, {}, {'attrs': {'_diag_freeze_ref': True}}),
+    'diag_disable_aocs': (_SHORT, {}, {'attrs': {'_diag_disable_aocs': True}}),
+    'diag_lock_arm_joints': (_SHORT, {},
+                             {'attrs': {'_diag_lock_arm_joints': True}}),
+    # ── L8: forced solver failures ───────────────────────────────────────
+    # NMPC call 0 fails (no previous solve -> reference-level fallback),
+    # calls 3-4 fail (receding-horizon shifted fallback).
+    'nmpc_fail': (_SHORT, {}, {'nmpc_fail': {0, 3, 4}}),
+    # QP call 2 lands in the setup settle (joint-damping fallback).
+    'qp_fail': (_SHORT, {}, {'qp_fail': {2}}),
+    # Indices counted over tracking solves only (settle_mode=False, i.e. SS
+    # sub-steps): the zero-torque QP-FAIL path of WholeBodyController.track.
+    'qp_fail_track': (_SHORT, {}, {'qp_fail_track': {30, 31, 32}}),
 }
 
 C_KWARGS = dict(
@@ -76,7 +130,9 @@ def child(name, out_rel):
     hq.HierarchicalQP._solve_weighted = _pw
 
     import crawlbot.simulation.sim_loop as sl
-    kw_over, cfg_over = SCENARIOS[name]
+    spec = SCENARIOS[name]
+    kw_over, cfg_over = spec[0], spec[1]
+    extras = spec[2] if len(spec) > 2 else {}
     _init = sl.SimulationLoop.__init__
 
     def _init_over(self, *a, **k):
@@ -84,6 +140,9 @@ def child(name, out_rel):
         for key, val in cfg_over.items():
             assert hasattr(self.cfg, key), key
             setattr(self.cfg, key, val)
+        for key, val in extras.get('attrs', {}).items():
+            assert hasattr(self, key), key
+            setattr(self, key, val)
         # dca's per-step q-log calls sim._step_q_start.tolist() even when the
         # pre-planner failed on the FIRST step (still None) and crashes —
         # a driver defect. Seed placeholders so SKIP scenarios run through.
@@ -91,6 +150,32 @@ def child(name, out_rel):
         self._step_q_start = _np.zeros(1)
         self._step_q_end = _np.zeros(1)
     sl.SimulationLoop.__init__ = _init_over
+
+    def _failing(cls, meth, fail_at, label, only=None):
+        orig = getattr(cls, meth)
+        n = [0]
+
+        def wrapped(self, *a, **k):
+            if only is not None and not only(k):
+                return orig(self, *a, **k)
+            i = n[0]
+            n[0] += 1
+            if i in fail_at:
+                print(f'[scenario] forced {label} failure, call {i}', flush=True)
+                raise RuntimeError(f'forced {label} failure (scenario)')
+            return orig(self, *a, **k)
+        setattr(cls, meth, wrapped)
+
+    if extras.get('nmpc_fail'):
+        import crawlbot.solvers.centroidal_nmpc as cn
+        _failing(cn.CentroidalNMPC, 'solve', extras['nmpc_fail'], 'NMPC')
+    if extras.get('qp_fail'):
+        import crawlbot.solvers.wholebody_qp as wq
+        _failing(wq.WholeBodyQP, 'solve', extras['qp_fail'], 'QP')
+    if extras.get('qp_fail_track'):
+        import crawlbot.solvers.wholebody_qp as wq
+        _failing(wq.WholeBodyQP, 'solve', extras['qp_fail_track'], 'QP-track',
+                 only=lambda k: not k.get('settle_mode', False))
 
     import scripts.diag_cooperative_arms as dca
     from scripts.diag_cooperative_arms import _mutate_mjcf, _mjcf_md5, MJCF
@@ -110,7 +195,12 @@ def child(name, out_rel):
         assert _mjcf_md5(MJCF) == pre
 
 
-def run(tree, side, names):
+def run(tree, side, names, cov=False):
+    import json
+    commit = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=tree,
+                            capture_output=True, text=True).stdout.strip()
+    dirty = subprocess.run(['git', 'status', '--porcelain', 'crawlbot/'],
+                           cwd=tree, capture_output=True, text=True).stdout.strip()
     for name in names:
         tag = f'scn_{name}_{side}'
         out_abs = os.path.join(BASE, tag)
@@ -119,9 +209,17 @@ def run(tree, side, names):
         # dca writes to results/<out_dir_override> inside the tree under test
         out_rel = f'_scn_{name}_{side}'
         env = dict(os.environ, MUJOCO_GL='disabled', PYTHONPATH=tree)
-        p = subprocess.run([sys.executable, os.path.abspath(__file__), '_child',
-                            name, out_rel], cwd=tree, env=env,
+        cov_data = os.path.join(BASE, f'cov_{name}_{side}.data')
+        pre = ([sys.executable, '-m', 'coverage', 'run', f'--data-file={cov_data}',
+                '--source=crawlbot'] if cov else [sys.executable])
+        p = subprocess.run(pre + [os.path.abspath(__file__), '_child',
+                                  name, out_rel], cwd=tree, env=env,
                            capture_output=True, text=True, timeout=3600)
+        if cov:
+            subprocess.run([sys.executable, '-m', 'coverage', 'json',
+                            f'--data-file={cov_data}', '-o',
+                            os.path.join(BASE, f'cov_{name}_{side}.json')],
+                           cwd=tree, capture_output=True)
         src = os.path.join(tree, 'results', out_rel)
         if os.path.isdir(src):
             for fn in os.listdir(src):
@@ -131,6 +229,9 @@ def run(tree, side, names):
             f.write(p.stdout)
         with open(os.path.join(out_abs, '_stderr.txt'), 'w') as f:
             f.write(p.stderr)
+        with open(os.path.join(out_abs, '_manifest.json'), 'w') as f:
+            json.dump({'commit': commit, 'crawlbot_dirty': bool(dirty),
+                       'tree': tree, 'coverage': cov}, f, indent=1)
         print(f'[{side}] {name}: rc={p.returncode}, '
               f'{len(os.listdir(out_abs))} files', flush=True)
 
@@ -177,11 +278,68 @@ def diff(names):
     return bad
 
 
+def _functions(path):
+    """line -> 'Class.method' / 'function' for every line of a module."""
+    import ast
+    tree = ast.parse(open(path).read())
+    owner = {}
+
+    def visit(node, prefix):
+        for ch in ast.iter_child_nodes(node):
+            if isinstance(ch, (ast.FunctionDef, ast.ClassDef)):
+                q = f'{prefix}{ch.name}'
+                for ln in range(ch.lineno, (ch.end_lineno or ch.lineno) + 1):
+                    owner[ln] = q
+                visit(ch, q + '.')
+    visit(tree, '')
+    return owner
+
+
+def coverage(names, side='old'):
+    """Lines each scenario executes that the canonical replay does not."""
+    import json
+    canon = json.load(open(os.path.join(REPO, 'gate/_run/cov/cov.json')))['files']
+    head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=REPO,
+                          capture_output=True, text=True).stdout.strip()
+    out = ['| scenario | beyond-canonical lines, by function |', '|---|---|']
+    for name in names:
+        cp = os.path.join(BASE, f'cov_{name}_{side}.json')
+        if not os.path.exists(cp):
+            out.append(f'| `{name}` | (no coverage run) |')
+            continue
+        man = json.load(open(os.path.join(BASE, f'scn_{name}_{side}',
+                                          '_manifest.json')))
+        if man['commit'] != head:
+            print(f'!! {name}: coverage from {man["commit"][:8]}, HEAD is '
+                  f'{head[:8]} — line numbers may not match', file=sys.stderr)
+        files = json.load(open(cp))['files']
+        cells = []
+        for f in sorted(files):
+            extra = (set(files[f]['executed_lines'])
+                     - set(canon.get(f, {}).get('executed_lines', [])))
+            if not extra:
+                continue
+            own = _functions(os.path.join(REPO, f))
+            by = {}
+            for ln in extra:
+                by.setdefault(own.get(ln, '<module>'), []).append(ln)
+            short = f.replace('crawlbot/', '')
+            for fn, lns in sorted(by.items()):
+                cells.append(f'{short}:{fn} ({len(lns)}: L{min(lns)}–{max(lns)})')
+        out.append(f'| `{name}` | ' + ('<br>'.join(cells) or '— none —') + ' |')
+    text = '\n'.join(out)
+    open(os.path.join(BASE, 'scenario_coverage.md'), 'w').write(text + '\n')
+    print(text)
+
+
 if __name__ == '__main__':
-    if sys.argv[1] == '_child':
-        child(sys.argv[2], sys.argv[3])
-    elif sys.argv[1] == 'run':
-        run(os.path.abspath(sys.argv[2]), sys.argv[3],
-            sys.argv[4:] or list(SCENARIOS))
-    elif sys.argv[1] == 'diff':
-        sys.exit(diff(sys.argv[2:] or list(SCENARIOS)))
+    args = [a for a in sys.argv[1:] if a != '--cov']
+    if args[0] == '_child':
+        child(args[1], args[2])
+    elif args[0] == 'run':
+        run(os.path.abspath(args[1]), args[2], args[3:] or list(SCENARIOS),
+            cov='--cov' in sys.argv)
+    elif args[0] == 'diff':
+        sys.exit(diff(args[1:] or list(SCENARIOS)))
+    elif args[0] == 'coverage':
+        coverage(args[1:] or list(SCENARIOS))
