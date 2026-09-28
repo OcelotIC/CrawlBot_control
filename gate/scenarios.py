@@ -13,6 +13,7 @@ masked.
     python3 gate/scenarios.py run  /tmp/old_tree old   [--cov] [names...]
     python3 gate/scenarios.py run  .             new   [names...]
     python3 gate/scenarios.py diff [--new-side S] [names...]  # exit 0 iff identical
+    python3 gate/scenarios.py canonical-cov /tmp/old_tree old  # once, same commit
     python3 gate/scenarios.py coverage [names...]      # paths beyond canonical
     git worktree remove --force /tmp/old_tree
 
@@ -109,6 +110,8 @@ SCENARIOS = {
         3: 'Infeasible_Problem_Detected', 5: 'Maximum_Iterations_Exceeded'}}),
     # ── L8: inter-step settle with the AOCS off (wheels commanded to 0) ──
     'aocs_off_interstep': (_SHORT, {'aocs_active_in_interstep': False}),
+    # Inter-step settle QP fed the entry-frozen h_w (no per-tick refresh).
+    'hw_refresh_off': (_SHORT, {'interstep_hw_refresh': False}),
 }
 
 C_KWARGS = dict(
@@ -302,10 +305,16 @@ def diff(names, new='new'):
     return bad
 
 
-def _functions(path):
-    """line -> 'Class.method' / 'function' for every line of a module."""
+def _functions(path, commit=None):
+    """line -> 'Class.method' / 'function' for every line of a module, read
+    at ``commit`` (the coverage's own commit) when given."""
     import ast
-    tree = ast.parse(open(path).read())
+    if commit:
+        src = subprocess.run(['git', 'show', f'{commit}:{path}'], cwd=REPO,
+                             capture_output=True, text=True).stdout
+    else:
+        src = open(os.path.join(REPO, path)).read()
+    tree = ast.parse(src)
     owner = {}
 
     def visit(node, prefix):
@@ -319,10 +328,29 @@ def _functions(path):
     return owner
 
 
+def canonical_cov(tree, side):
+    """Canonical replay under coverage in ``tree`` -> cov_canonical_<side>.json."""
+    data = os.path.join(BASE, f'cov_canonical_{side}.data')
+    env = dict(os.environ, MUJOCO_GL='disabled', PYTHONPATH=tree)
+    subprocess.run([sys.executable, '-m', 'coverage', 'run', f'--data-file={data}',
+                    '--source=crawlbot', 'gate/replay_canonical.py'],
+                   cwd=tree, env=env, capture_output=True, timeout=3600)
+    subprocess.run([sys.executable, '-m', 'coverage', 'json', f'--data-file={data}',
+                    '-o', os.path.join(BASE, f'cov_canonical_{side}.json')],
+                   cwd=tree, capture_output=True)
+    print(f'[{side}] canonical coverage -> cov_canonical_{side}.json')
+
+
 def coverage(names, side='old'):
     """Lines each scenario executes that the canonical replay does not."""
     import json
-    canon = json.load(open(os.path.join(REPO, 'gate/_run/cov/cov.json')))['files']
+    # The canonical coverage must come from the SAME commit as the scenario
+    # coverage, or line numbers do not line up: prefer the one recorded next
+    # to the baseline (`canonical-cov`), else the routine's gate/_run/cov.
+    cc = os.path.join(BASE, f'cov_canonical_{side}.json')
+    if not os.path.exists(cc):
+        cc = os.path.join(REPO, 'gate/_run/cov/cov.json')
+    canon = json.load(open(cc))['files']
     head = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=REPO,
                           capture_output=True, text=True).stdout.strip()
     out = ['| scenario | beyond-canonical lines, by function |', '|---|---|']
@@ -335,7 +363,7 @@ def coverage(names, side='old'):
                                           '_manifest.json')))
         same = subprocess.run(['git', 'diff', '--quiet', man['commit'], head,
                                '--', 'crawlbot/'], cwd=REPO).returncode == 0
-        if not same:
+        if not same and not cc.endswith(f'cov_canonical_{side}.json'):
             print(f'!! {name}: coverage from {man["commit"][:8]}; crawlbot/ '
                   f'differs at HEAD {head[:8]} — line numbers may not match',
                   file=sys.stderr)
@@ -346,7 +374,7 @@ def coverage(names, side='old'):
                      - set(canon.get(f, {}).get('executed_lines', [])))
             if not extra:
                 continue
-            own = _functions(os.path.join(REPO, f))
+            own = _functions(f, man['commit'])
             by = {}
             for ln in extra:
                 by.setdefault(own.get(ln, '<module>'), []).append(ln)
@@ -373,5 +401,7 @@ if __name__ == '__main__':
             cov='--cov' in sys.argv)
     elif args[0] == 'diff':
         sys.exit(diff(args[1:] or list(SCENARIOS), new=new_side))
+    elif args[0] == 'canonical-cov':
+        canonical_cov(os.path.abspath(args[1]), args[2])
     elif args[0] == 'coverage':
         coverage(args[1:] or list(SCENARIOS))
