@@ -9,6 +9,7 @@ in [`aocs/`](../aocs/aocs.md); this package holds the blocks that *drive* them.
 
 | file | document |
 |---|---|
+| `controller.py` | [controller.md](controller.md) |
 | `attitude.py` | [attitude.md](attitude.md) |
 
 ## Role

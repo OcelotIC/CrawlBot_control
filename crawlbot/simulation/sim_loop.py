@@ -87,10 +87,91 @@ from .plotting import plot_simulation
 from .plant import MujocoPlant
 from .sensors import SensorSuite
 from crawlbot.control.attitude import AttitudeController
+from crawlbot.control.controller import DiagHooks, WholeBodyController
 # ── Simulation loop ──────────────────────────────────────────────────────────
 # TickState and the two per-tick recorders (_log_ds_tick / _log_ss_tick) live in
 # tick_logging.py — telemetry, separated from control. See that module's
 # docstring for why, and for the three loop-owned geometry queries it calls back.
+
+class PlannerReferences:
+    """The ``ReferenceSource`` the controller queries, over today's planners.
+
+    The controller asks for references BY TIME only — the shape of
+    ``GaitTrajectory.at(t)`` in docs/architecture/unified_planner_architecture.md
+    §3.2 — and never sees TorsoPlanner / the coarse pre-planner / SwingPlanner
+    or the plan-time offset. When the unified planner lands it replaces this
+    adapter; the controller does not change.
+
+    Reads the planner state of ``sim`` live (the coarse plan and its t0 are
+    re-installed every step), so it holds the loop, not a snapshot.
+    """
+
+    def __init__(self, sim):
+        self._sim = sim
+
+    def com_at(self, t, settle_mode):
+        """NMPC CoM reference ``(r_com_ref, v_com_ref)`` for the tick at ``t``.
+
+        Queried at the horizon end ``t + N·dt_nmpc``; the coarse pre-planner's
+        momentum-feasible trajectory overrides the TorsoPlanner CoM outside
+        settle mode.
+        """
+        sim = self._sim
+        cfg = sim.cfg
+
+        # Torso/CoM references (structure frame — no struct pose needed)
+        tref = sim.torso_planner.reference_at(t)
+        # Query CoM reference at horizon end, not current time.
+        # The NMPC uses a constant reference across all N horizon steps,
+        # so passing the current-time reference causes systematic lag.
+        t_horizon = t + cfg.nmpc_N * cfg.nmpc_dt
+        cref = sim.torso_planner.com_reference_at(t_horizon)
+
+        # M6: override the NMPC CoM reference with the coarse pre-planner
+        # trajectory when it is available. Replaces the geometric CoM
+        # path with a momentum-feasible one, so the NMPC tracks something
+        # it can actually realize within the hw box.
+        #
+        # M7 change (B): the *torso* CoM reference is compressed into
+        # the first `torso_early_finish_fraction` of T_step and holds
+        # thereafter. The pre-planner's CoM trajectory runs over the
+        # FULL T_step (matching the swing), so to stagger we rescale
+        # the query time here. The torso position reference (through
+        # the M5 mapping below) sees a static r_com_goal during the
+        # last (1 - ff)·T_step. The swing planner is queried
+        # independently on the full T_step — unchanged.
+        if (sim._coarse_plan is not None) and (not settle_mode):
+            tau_rel = t_horizon - sim._coarse_plan_t0
+            ff = float(getattr(cfg, 'torso_early_finish_fraction', 1.0))
+            T_plan = float(sim._coarse_plan.T_step)
+            if 0.0 < ff < 1.0:
+                # Compressed time: profile covers [0, ff·T_plan] in
+                # real-time, then holds. Positions accelerate; velocity
+                # scales by 1/ff during the active window, goes to 0
+                # afterwards (the pre-planner's v_com[-1] ≈ 0 anyway,
+                # so clamping is safe).
+                if tau_rel <= ff * T_plan:
+                    tau_comp = tau_rel / ff
+                    rp_coarse = sim._coarse_plan.r_com_at(tau_comp)
+                    vp_coarse = sim._coarse_plan.v_com_at(tau_comp) / ff
+                else:
+                    rp_coarse = sim._coarse_plan.r_com_at(T_plan)
+                    vp_coarse = np.zeros(3)
+            else:
+                rp_coarse = sim._coarse_plan.r_com_at(tau_rel)
+                vp_coarse = sim._coarse_plan.v_com_at(tau_rel)
+            cref_r = rp_coarse
+            cref_v = vp_coarse
+        else:
+            cref_r = cref.r_com
+            cref_v = cref.v_com
+
+        return cref_r, cref_v
+
+    def L_com_at(self, t_mid):
+        """Centroidal angular-momentum reference (TorsoPlanner feedforward)."""
+        return self._sim.torso_planner.l_com_reference_at(t_mid)
+
 
 class SimulationLoop(TickLoggingMixin):
     """Closed-loop MuJoCo simulation with hierarchical NMPC+QP controller."""
@@ -165,6 +246,9 @@ class SimulationLoop(TickLoggingMixin):
         # Per-step telemetry (infeasibilities, solve times, etc.)
         self._preplanner_stats = []
         # ── Diagnostic hooks (runtime-only, not config fields) ────────
+        # Shared with the controller: control/controller.py DiagHooks.
+        # The _diag_* names below are properties onto it.
+        self.diag = DiagHooks()
         # _diag_disable_aocs: if True, force tau_w_cmd = 0 every QP sub-
         #   step (used to measure the raw robot-disturbance-induced
         #   platform drift without AOCS compensation).
@@ -172,20 +256,16 @@ class SimulationLoop(TickLoggingMixin):
         #   every mj_step and clear arm joint actuation (used to
         #   measure the contact/weld/MJ baseline drift with the robot
         #   "frozen").
-        self._diag_disable_aocs: bool = False
-        self._diag_lock_arm_joints: bool = False
         # _diag_pure_pd: strips ALL feedforward terms entering the QP
         #   (a_com_ff → 0, a_torso_ff → 0, λ_ref → 0) and the NMPC's
         #   L_com_ref → 0, leaving only PD feedback on r_b_ref from
         #   the mapping layer. Used to localize feedforward-injected
         #   instabilities vs. PD-loop instabilities.
-        self._diag_pure_pd: bool = False
         # Per-step trace of the pure-PD diagnostic (filled in _step).
         self._diag_pure_pd_trace: list = []
         # _diag_freeze_ref: keep r_b_ref / v_b_ref held at the first-
         # sample value during the run. Used to probe the PD loop's
         # stability around a FIXED torso target (no reference motion).
-        self._diag_freeze_ref: bool = False
         self._diag_frozen_r_b_ref: Optional[np.ndarray] = None
         self._diag_frozen_R_b_ref: Optional[np.ndarray] = None
         # Cumulative plan-time offset from inter-step settling. The sim
@@ -236,6 +316,39 @@ class SimulationLoop(TickLoggingMixin):
     @property
     def mj_data(self):
         return self.plant.data if self.plant is not None else None
+
+    # ── Diagnostic hooks: properties onto the shared DiagHooks record ─────
+    @property
+    def _diag_pure_pd(self):
+        return self.diag.pure_pd
+
+    @_diag_pure_pd.setter
+    def _diag_pure_pd(self, v):
+        self.diag.pure_pd = v
+
+    @property
+    def _diag_freeze_ref(self):
+        return self.diag.freeze_ref
+
+    @_diag_freeze_ref.setter
+    def _diag_freeze_ref(self, v):
+        self.diag.freeze_ref = v
+
+    @property
+    def _diag_disable_aocs(self):
+        return self.diag.disable_aocs
+
+    @_diag_disable_aocs.setter
+    def _diag_disable_aocs(self, v):
+        self.diag.disable_aocs = v
+
+    @property
+    def _diag_lock_arm_joints(self):
+        return self.diag.lock_arm_joints
+
+    @_diag_lock_arm_joints.setter
+    def _diag_lock_arm_joints(self, v):
+        self.diag.lock_arm_joints = v
 
     # ── Setup ────────────────────────────────────────────────────────────
 
@@ -500,6 +613,12 @@ class SimulationLoop(TickLoggingMixin):
         self.aocs = AttitudeController(
             cfg, self.robot, self.sensors, self.H_estimator,
             self._struct_quat_init, self._struct_I)
+
+        # Controller block (NMPC stage; QP stage follows) and the reference
+        # source it queries by time — control/controller.py.
+        self.refs = PlannerReferences(self)
+        self.controller = WholeBodyController(
+            cfg, self.robot, self.sensors, self.nmpc, self.has_rwa, self.diag)
 
         # GMO contact estimator
         from crawlbot.estimation.contact_estimator import (
@@ -1912,94 +2031,24 @@ class SimulationLoop(TickLoggingMixin):
         # ══════════════════════════════════════════════════════════════════
         cfg = self.cfg
 
-        # Torso/CoM references (structure frame — no struct pose needed)
-        tref = self.torso_planner.reference_at(t)
-        # Query CoM reference at horizon end, not current time.
-        # The NMPC uses a constant reference across all N horizon steps,
-        # so passing the current-time reference causes systematic lag.
-        t_horizon = t + cfg.nmpc_N * cfg.nmpc_dt
-        cref = self.torso_planner.com_reference_at(t_horizon)
-
-        # M6: override the NMPC CoM reference with the coarse pre-planner
-        # trajectory when it is available. Replaces the geometric CoM
-        # path with a momentum-feasible one, so the NMPC tracks something
-        # it can actually realize within the hw box.
-        #
-        # M7 change (B): the *torso* CoM reference is compressed into
-        # the first `torso_early_finish_fraction` of T_step and holds
-        # thereafter. The pre-planner's CoM trajectory runs over the
-        # FULL T_step (matching the swing), so to stagger we rescale
-        # the query time here. The torso position reference (through
-        # the M5 mapping below) sees a static r_com_goal during the
-        # last (1 - ff)·T_step. The swing planner is queried
-        # independently on the full T_step — unchanged.
-        if (self._coarse_plan is not None) and (not settle_mode):
-            tau_rel = t_horizon - self._coarse_plan_t0
-            ff = float(getattr(cfg, 'torso_early_finish_fraction', 1.0))
-            T_plan = float(self._coarse_plan.T_step)
-            if 0.0 < ff < 1.0:
-                # Compressed time: profile covers [0, ff·T_plan] in
-                # real-time, then holds. Positions accelerate; velocity
-                # scales by 1/ff during the active window, goes to 0
-                # afterwards (the pre-planner's v_com[-1] ≈ 0 anyway,
-                # so clamping is safe).
-                if tau_rel <= ff * T_plan:
-                    tau_comp = tau_rel / ff
-                    rp_coarse = self._coarse_plan.r_com_at(tau_comp)
-                    vp_coarse = self._coarse_plan.v_com_at(tau_comp) / ff
-                else:
-                    rp_coarse = self._coarse_plan.r_com_at(T_plan)
-                    vp_coarse = np.zeros(3)
-            else:
-                rp_coarse = self._coarse_plan.r_com_at(tau_rel)
-                vp_coarse = self._coarse_plan.v_com_at(tau_rel)
-            cref_r = rp_coarse
-            cref_v = vp_coarse
-        else:
-            cref_r = cref.r_com
-            cref_v = cref.v_com
-
-        # Robot state in structure frame.
-        # Extract structure angular velocity for non-inertial corrections.
-        omega_s = self.sensors.omega_struct()
-        pq, pv = self.sensors.joint_state()
-        rs = self.robot.update(pq, pv, omega_struct=omega_s)
-        if L_com_prev is None:
-            L_com_prev = rs.L_com.copy()
-
-        # Contact config from constant structure-frame anchors (no live reading)
-        # ══════════════════════════════════════════════════════════════════
-        # STAGE 1 — centroidal NMPC  (dt_nmpc = 0.1 s, once per _step)
-        # Contact config, warm start, solve, and the shifted-fallback path when the
-        # solve fails. Produces x_plan / u_plan; everything after consumes them.
-        # The fallback branch is canonical-unreached BY DESIGN — the canonical run
-        # never has nmpc_ok False.
-        # ══════════════════════════════════════════════════════════════════
         cc_nmpc = ContactConfig.from_phase(
             cc_ss.phase,
             self.sched.anchors_a[stance_a].copy(),
             self.sched.anchors_b[stance_b].copy())
 
-        # NMPC — plans robot motion only; AOCS manages wheels independently.
-        nmpc_ok = True
-        nmpc_status_code = 0  # 0=ok, 1=max_iter, 2=infeasible
-        nmpc_cost_val = np.inf
-        t_nmpc_start = time.perf_counter()
-        # M3: pass current hw (wheel momentum) so NMPC can compute c_simple
-        # for the conservation-law box.
-        # M5: pass L_com_ref from the TorsoPlanner — nonzero during SS
-        # when the torso is rotating. Prevents the NMPC from treating
-        # intentional rotation as a disturbance to be cancelled.
-        if self.has_rwa:
-            hw_for_nmpc = self.sensors.wheel_momentum()
-        else:
-            hw_for_nmpc = hw.copy()
-        # Query L_com_ref at the horizon midpoint to track the
-        # planner's rotation phase reasonably.
-        t_mid = t + 0.5 * cfg.nmpc_N * cfg.nmpc_dt
-        L_com_ref_nmpc = self.torso_planner.l_com_reference_at(t_mid)
-        if self._diag_pure_pd:
-            L_com_ref_nmpc = np.zeros(3)
+        # Stage 1 — WholeBodyController.plan: CoM reference query, state,
+        # NMPC solve, shifted fallback, QP-rate knots (control/controller.py).
+        plan = self.controller.plan(
+            t, phase=phase, step_idx=step_idx, cc_nmpc=cc_nmpc,
+            settle_mode=settle_mode, refs=self.refs, hw=hw)
+        rs = plan.rs
+        if L_com_prev is None:
+            L_com_prev = plan.L_com_now
+        cref_r = plan.cref_r
+        vp, lr, af = plan.vp, plan.lr, plan.af
+        rp_k0, rp_k1, vp_k0, vp_k1 = plan.rp_k0, plan.rp_k1, plan.vp_k0, plan.vp_k1
+        nmpc_ok, nmpc_status_code = plan.ok, plan.status_code
+        nmpc_cost_val, info_n, t_nmpc_ms = plan.cost, plan.info, plan.t_ms
         # M7 debug: capture L_com_ref trace for the first N SS calls so
         # we can verify the TorsoPlanner momentum feedforward is wired
         # (expected nonzero during the 45.7° reorientation). Opt-in via
@@ -2013,77 +2062,10 @@ class SimulationLoop(TickLoggingMixin):
             if len(trace) < self._debug_l_com_ref_trace_limit:
                 trace.append({
                     't': float(t),
-                    't_mid': float(t_mid),
-                    'L_com_ref': L_com_ref_nmpc.copy(),
-                    'norm': float(np.linalg.norm(L_com_ref_nmpc)),
+                    't_mid': float(plan.t_mid),
+                    'L_com_ref': plan.L_com_ref.copy(),
+                    'norm': float(np.linalg.norm(plan.L_com_ref)),
                 })
-        info_n = None
-        # NMPC warm-start diagnosis: tag each solve with locomotion-step
-        # index and phase. Read by NMPCSolver.solve when populating
-        # step_log. Does not affect control logic.
-        try:
-            self.nmpc._nmpc.diag_label = (
-                f"step{int(step_idx):02d}/{phase}/t={float(t):.2f}")
-        except Exception:
-            pass
-        try:
-            rp, vp, _, lr, info_n = self.nmpc.solve(
-                r_com=rs.r_com, v_com=rs.v_com, L_com=rs.L_com,
-                r_com_ref=cref_r, v_com_ref=cref_v,
-                contact_config=cc_nmpc, warm_start=True,
-                hw_current=hw_for_nmpc,
-                L_com_ref=L_com_ref_nmpc)
-            af = self.nmpc.compute_feedforward_acceleration(lr)
-            nmpc_ok = info_n.success
-            nmpc_cost_val = float(info_n.cost) if np.isfinite(info_n.cost) else np.inf
-            if not info_n.success:
-                nmpc_status_code = 2 if 'infeasib' in info_n.status.lower() else 1
-        except Exception:
-            nmpc_ok = False
-            nmpc_status_code = 2
-            af = np.zeros(3)
-        t_nmpc_ms = (time.perf_counter() - t_nmpc_start) * 1000
-
-        # ── M5 Fix 2: infeasibility fallback via receding-horizon shift ─
-        # On NMPC failure, do NOT jump to cref.r_com (creates a reference
-        # discontinuity that saturates actuators). Instead, warm-shift
-        # the previous feasible trajectory by one NMPC step. We do NOT
-        # update _last_x_opt in place — repeated failures re-shift the
-        # same last-successful trajectory, so the fallback never drifts
-        # more than ~1 NMPC step from a real plan.
-        x_plan, u_plan, _ = self.nmpc.get_last_trajectory()
-        if not nmpc_ok:
-            x_shift, u_shift = self.nmpc.get_shifted_fallback()
-            if x_shift is not None and u_shift is not None:
-                x_plan = x_shift
-                u_plan = u_shift
-                rp = x_plan[0:3, 1]
-                vp = x_plan[3:6, 1]
-                lr = u_plan[:, 0]
-                af = self.nmpc.compute_feedforward_acceleration(lr)
-            else:
-                # No previous solve — only possible on the very first
-                # NMPC call. Use the reference-level CoM as a last resort
-                # (pre-planner if active, else the TorsoPlanner cref).
-                rp = np.asarray(cref_r, dtype=float).copy()
-                vp = np.asarray(cref_v, dtype=float).copy()
-                lr = np.zeros(12)
-                af = np.zeros(3)
-
-        # ── M5 Fix 1b: interpolate across QP sub-steps ─────────────────
-        # Cache the full trajectory's first two knots for linear
-        # interpolation inside the inner QP loop. The control u_0 is
-        # piecewise constant over [t, t+dt_nmpc] and is NOT interpolated.
-        if x_plan is not None:
-            rp_k0 = x_plan[0:3, 0].copy()
-            rp_k1 = x_plan[0:3, 1].copy()
-            vp_k0 = x_plan[3:6, 0].copy()
-            vp_k1 = x_plan[3:6, 1].copy()
-        else:
-            rp_k0 = rp.copy()
-            rp_k1 = rp.copy()
-            vp_k0 = vp.copy()
-            vp_k1 = vp.copy()
 
         # M7: single QP variant throughout DS and SS. Synchronized
         # trajectories eliminate the need for gain scheduling.
