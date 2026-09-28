@@ -1,6 +1,6 @@
 # `crawlbot.simulation.plant`
 
-**File**: [`crawlbot/simulation/plant.py`](../../../crawlbot/simulation/plant.py) — **200 lines** — canonical coverage **93 %**
+**File**: [`crawlbot/simulation/plant.py`](../../../crawlbot/simulation/plant.py) — **202 lines** — canonical coverage **93 %**
 
 **The simulated robot + platform, and nothing else.** Extraction 1 of the
 `sim_loop.py` split (branch `refactor/sim-loop-split`), preparing the ROS 2 seam.
@@ -14,7 +14,7 @@
 
 | write | method | was in `sim_loop.py` |
 |---|---|---|
-| model load, `opt.timestep`, RWA detection | `__init__` | `setup()` head |
+| model load, `opt.timestep`, RWA check (raises if the MJCF has no wheels) | `__init__` | `setup()` head |
 | `mj_step` + diagnostic arm-joint lock | `step(lock_arm_joints)` | `_step` QP sub-loop, `_run_ds_passivity_loop` (now `_qp_substep`, `_ds_tick`) |
 | `mj_forward` | `forward()` | ~8 call sites |
 | initial `qpos` / `qvel` | `set_state` | `setup()` |
@@ -69,36 +69,36 @@ O(gap·f) residual. The robot-only Pinocchio projection it replaced injected
 | symbol | signature | canonical? | code |
 |---|---|---|---|
 | **`MujocoPlant`** |  |  | [L27](../../../crawlbot/simulation/plant.py#L27) |
-| `.forward` | `()` | **yes** | [L47](../../../crawlbot/simulation/plant.py#L47) |
-| `.step` | `(lock_arm_joints=False)` | **yes** | [L50](../../../crawlbot/simulation/plant.py#L50) |
-| `.set_state` | `(qpos, qvel)` | **yes** | [L69](../../../crawlbot/simulation/plant.py#L69) |
-| `.apply_joint_torques` | `(tau)` | **yes** | [L75](../../../crawlbot/simulation/plant.py#L75) |
-| `.apply_wheel_torques` | `(tau_w)` | **yes** | [L78](../../../crawlbot/simulation/plant.py#L78) |
-| `.zero_ctrl` | `()` | **yes** | [L81](../../../crawlbot/simulation/plant.py#L81) |
-| `.build_weld_map` | `()` | **yes** | [L86](../../../crawlbot/simulation/plant.py#L86) |
-| `.deactivate_all_welds` | `()` | **yes** | [L97](../../../crawlbot/simulation/plant.py#L97) |
-| `.activate_weld` | `(arm, anchor_idx)` | **yes** | [L101](../../../crawlbot/simulation/plant.py#L101) |
-| `.deactivate_weld` | `(arm, anchor_idx)` | **yes** | [L106](../../../crawlbot/simulation/plant.py#L106) |
-| `.cache_site_ids` | `()` | **yes** | [L111](../../../crawlbot/simulation/plant.py#L111) |
-| `.apply_dock_impact` | `(verbose)` | **yes** | [L134](../../../crawlbot/simulation/plant.py#L134) |
+| `.forward` | `()` | **yes** | [L50](../../../crawlbot/simulation/plant.py#L50) |
+| `.step` | `(lock_arm_joints=False)` | **yes** | [L53](../../../crawlbot/simulation/plant.py#L53) |
+| `.set_state` | `(qpos, qvel)` | **yes** | [L71](../../../crawlbot/simulation/plant.py#L71) |
+| `.apply_joint_torques` | `(tau)` | **yes** | [L77](../../../crawlbot/simulation/plant.py#L77) |
+| `.apply_wheel_torques` | `(tau_w)` | **yes** | [L80](../../../crawlbot/simulation/plant.py#L80) |
+| `.zero_ctrl` | `()` | **yes** | [L83](../../../crawlbot/simulation/plant.py#L83) |
+| `.build_weld_map` | `()` | **yes** | [L88](../../../crawlbot/simulation/plant.py#L88) |
+| `.deactivate_all_welds` | `()` | **yes** | [L99](../../../crawlbot/simulation/plant.py#L99) |
+| `.activate_weld` | `(arm, anchor_idx)` | **yes** | [L103](../../../crawlbot/simulation/plant.py#L103) |
+| `.deactivate_weld` | `(arm, anchor_idx)` | **yes** | [L108](../../../crawlbot/simulation/plant.py#L108) |
+| `.cache_site_ids` | `()` | **yes** | [L113](../../../crawlbot/simulation/plant.py#L113) |
+| `.apply_dock_impact` | `(verbose)` | **yes** | [L136](../../../crawlbot/simulation/plant.py#L136) |
 
 ## Code map
 
 | unit | source |
 |---|---|
-| `class MujocoPlant` | [L27-199](../../../crawlbot/simulation/plant.py#L27-L199) |
-| `MujocoPlant.forward` | [L47-48](../../../crawlbot/simulation/plant.py#L47-L48) |
-| `MujocoPlant.step` | [L50-67](../../../crawlbot/simulation/plant.py#L50-L67) |
-| `MujocoPlant.set_state` | [L69-71](../../../crawlbot/simulation/plant.py#L69-L71) |
-| `MujocoPlant.apply_joint_torques` | [L75-76](../../../crawlbot/simulation/plant.py#L75-L76) |
-| `MujocoPlant.apply_wheel_torques` | [L78-79](../../../crawlbot/simulation/plant.py#L78-L79) |
-| `MujocoPlant.zero_ctrl` | [L81-82](../../../crawlbot/simulation/plant.py#L81-L82) |
-| `MujocoPlant.build_weld_map` | [L86-95](../../../crawlbot/simulation/plant.py#L86-L95) |
-| `MujocoPlant.deactivate_all_welds` | [L97-99](../../../crawlbot/simulation/plant.py#L97-L99) |
-| `MujocoPlant.activate_weld` | [L101-104](../../../crawlbot/simulation/plant.py#L101-L104) |
-| `MujocoPlant.deactivate_weld` | [L106-109](../../../crawlbot/simulation/plant.py#L106-L109) |
-| `MujocoPlant.cache_site_ids` | [L111-130](../../../crawlbot/simulation/plant.py#L111-L130) |
-| `MujocoPlant.apply_dock_impact` | [L134-199](../../../crawlbot/simulation/plant.py#L134-L199) |
+| `class MujocoPlant` | [L27-201](../../../crawlbot/simulation/plant.py#L27-L201) |
+| `MujocoPlant.forward` | [L50-51](../../../crawlbot/simulation/plant.py#L50-L51) |
+| `MujocoPlant.step` | [L53-69](../../../crawlbot/simulation/plant.py#L53-L69) |
+| `MujocoPlant.set_state` | [L71-73](../../../crawlbot/simulation/plant.py#L71-L73) |
+| `MujocoPlant.apply_joint_torques` | [L77-78](../../../crawlbot/simulation/plant.py#L77-L78) |
+| `MujocoPlant.apply_wheel_torques` | [L80-81](../../../crawlbot/simulation/plant.py#L80-L81) |
+| `MujocoPlant.zero_ctrl` | [L83-84](../../../crawlbot/simulation/plant.py#L83-L84) |
+| `MujocoPlant.build_weld_map` | [L88-97](../../../crawlbot/simulation/plant.py#L88-L97) |
+| `MujocoPlant.deactivate_all_welds` | [L99-101](../../../crawlbot/simulation/plant.py#L99-L101) |
+| `MujocoPlant.activate_weld` | [L103-106](../../../crawlbot/simulation/plant.py#L103-L106) |
+| `MujocoPlant.deactivate_weld` | [L108-111](../../../crawlbot/simulation/plant.py#L108-L111) |
+| `MujocoPlant.cache_site_ids` | [L113-132](../../../crawlbot/simulation/plant.py#L113-L132) |
+| `MujocoPlant.apply_dock_impact` | [L136-201](../../../crawlbot/simulation/plant.py#L136-L201) |
 
 ---
 

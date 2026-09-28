@@ -126,7 +126,6 @@ class QPCarry:
     hw: np.ndarray
     lr: np.ndarray
     af: np.ndarray
-    rs: Any = None
     lambda_qp_sol: Any = None
     p_torso_ref_used: Any = None
 
@@ -136,7 +135,7 @@ class TrackOut:
     """One QP sub-step: the command, and what telemetry reads.
 
     ``tau`` joint torques to apply (clipped, lock-zeroed); ``tau_w`` wheel
-    torques, or None when the model has no reaction wheels. The rest is for
+    torques (the RWA is always present). The rest is for
     the loop's diagnostic traces: ``tau_raw`` is the QP torque BEFORE the
     clip (the dock-work and physics traces read that one).
     """
@@ -156,7 +155,7 @@ class WholeBodyController:
     """NMPC + whole-body QP + AOCS; measurements in, commands out."""
 
     def __init__(self, cfg, robot, sensors, nmpc, qp, mapping, aocs, gmo,
-                 has_rwa, diag, n_qp_per_nmpc):
+                 diag, n_qp_per_nmpc):
         self._cfg = cfg
         self._robot = robot
         self._sensors = sensors
@@ -165,7 +164,6 @@ class WholeBodyController:
         self._mapping = mapping
         self._aocs = aocs
         self._gmo = gmo
-        self._has_rwa = has_rwa
         self._diag = diag
         self._n_qp_per_nmpc = n_qp_per_nmpc
         # ── Mapping-layer state (was on SimulationLoop) ────────────────
@@ -207,11 +205,10 @@ class WholeBodyController:
         self._sat_clipped_calls: int = 0
         self._sat_max_clip_mm: float = 0.0
 
-    def plan(self, intent, refs, hw):
+    def plan(self, intent, refs):
         """Stage 1 — one centroidal NMPC solve (dt_nmpc = 0.1 s).
 
         ``refs`` is the ReferenceSource (``com_at``, ``L_com_at``);
-        ``hw`` the loop's h_w carry (used only without reaction wheels).
         Returns the ``NMPCPlan`` the QP stage consumes.
         """
         cfg = self._cfg
@@ -245,10 +242,7 @@ class WholeBodyController:
         # M5: pass L_com_ref from the TorsoPlanner — nonzero during SS
         # when the torso is rotating. Prevents the NMPC from treating
         # intentional rotation as a disturbance to be cancelled.
-        if self._has_rwa:
-            hw_for_nmpc = self._sensors.wheel_momentum()
-        else:
-            hw_for_nmpc = hw.copy()
+        hw_for_nmpc = self._sensors.wheel_momentum()
         # Query L_com_ref at the horizon midpoint to track the
         # planner's rotation phase reasonably.
         t_mid = t + 0.5 * cfg.nmpc_N * cfg.nmpc_dt
@@ -626,19 +620,17 @@ class WholeBodyController:
             tau_last = tau.copy()
 
         # AOCS: reaction wheel torque command.
-        tau_w_cmd = None
-        if self._has_rwa:
-            tau_w_cmd, omega_s, transport_mag_last = self._aocs.command(
-                phase=phase, rs=rs, lambda_qp_sol=lambda_qp_sol,
-                cc_nmpc=cc_nmpc,
-                stance_anchors=intent.stance_anchors,
-                L_com_prev=_L_com_qp_prev, v_com_prev=_v_com_qp_prev,
-                omega_s_prev=_omega_s_last, tau_w_prev=tau_w_last)
+        tau_w_cmd, omega_s, transport_mag_last = self._aocs.command(
+            phase=phase, rs=rs, lambda_qp_sol=lambda_qp_sol,
+            cc_nmpc=cc_nmpc,
+            stance_anchors=intent.stance_anchors,
+            L_com_prev=_L_com_qp_prev, v_com_prev=_v_com_qp_prev,
+            omega_s_prev=_omega_s_last, tau_w_prev=tau_w_last)
 
-            if self._diag.disable_aocs:
-                tau_w_cmd = np.zeros(3)
-            tau_w_last = tau_w_cmd.copy()
-            _omega_s_last = omega_s.copy()
+        if self._diag.disable_aocs:
+            tau_w_cmd = np.zeros(3)
+        tau_w_last = tau_w_cmd.copy()
+        _omega_s_last = omega_s.copy()
 
         _L_com_qp_prev = rs.L_com.copy()
         _v_com_qp_prev = rs.v_com.copy()
@@ -649,7 +641,6 @@ class WholeBodyController:
         carry.omega_s_last = _omega_s_last
         carry.transport_mag_last = transport_mag_last
         carry.L_com_qp_prev, carry.v_com_qp_prev = _L_com_qp_prev, _v_com_qp_prev
-        carry.rs = rs
         carry.lambda_qp_sol = lambda_qp_sol
         carry.p_torso_ref_used = p_torso_ref_used
         return TrackOut(
@@ -660,10 +651,6 @@ class WholeBodyController:
 
     def after_step(self, carry, tau):
         """Post-physics-step estimation: GMO update and the h_w carry."""
-        cfg = self._cfg
-        rs = carry.rs
-        hw = carry.hw
-
         omega_s_post = self._sensors.omega_struct()
         rs2 = self._robot.update(
             *self._sensors.joint_state(),
@@ -674,10 +661,7 @@ class WholeBodyController:
         tau_applied[6:6 + self._robot.n_joints] = tau
         self._gmo.update(rs2.H, rs2.v, rs2.C_matrix, tau_applied)
 
-        if self._has_rwa:
-            hw = self._sensors.wheel_momentum()
-        else:
-            hw -= (rs2.L_com - rs.L_com) / cfg.dt_qp * cfg.dt_qp
+        hw = self._sensors.wheel_momentum()
         # Do NOT clip hw here. The QP's hw safety constraint is
         # soft (slack variables with heavy quadratic penalty), so
         # the QP stays feasible even when physical hw is beyond
@@ -713,7 +697,7 @@ class WholeBodyController:
 
         Returns ``(tau, lambda_qp_sol, tau_w_applied, wheel_cmd,
         omega_s_prev)``: ``wheel_cmd`` is what to write to the wheel
-        actuators — None (no RWA: leave them), 0.0 (AOCS off in DS), or
+        actuators — 0.0 (AOCS off in the inter-step settle) or
         ``tau_w_applied``; ``omega_s_prev`` the updated ω_s history.
         """
         cfg = self._cfg
@@ -730,7 +714,7 @@ class WholeBodyController:
         # {qdd_t, qdd, λ, τ_q, slack} is unchanged). Flag OFF ⇒ the
         # entry-frozen value (byte-identical). At k=0 qvel is unchanged
         # since entry ⇒ the first solve is identical either way.
-        if self._has_rwa and cfg.interstep_hw_refresh:
+        if cfg.interstep_hw_refresh:
             hw_for_qp = self._sensors.wheel_momentum()
         else:
             hw_for_qp = hw_current
@@ -777,15 +761,13 @@ class WholeBodyController:
         # settle-QP wrench (lambda_qp_sol). Flag OFF: the legacy
         # hardcoded-zero path, byte-identical to the pre-fix loop.
         tau_w_applied = np.zeros(3)
-        wheel_cmd = None
-        if self._has_rwa:
-            if cfg.aocs_active_in_interstep:
-                tau_w_applied = self._aocs.command_interstep(
-                    rs, cc_ds, lambda_qp_sol, _omega_s_prev)
-                wheel_cmd = tau_w_applied
-                # Update the ω_s history BEFORE mj_step (current ω_s
-                # is this tick's pre-step value, the next tick's prev).
-                _omega_s_prev = self._sensors.omega_struct()
-            else:
-                wheel_cmd = 0.0
+        if cfg.aocs_active_in_interstep:
+            tau_w_applied = self._aocs.command_interstep(
+                rs, cc_ds, lambda_qp_sol, _omega_s_prev)
+            wheel_cmd = tau_w_applied
+            # Update the ω_s history BEFORE mj_step (current ω_s
+            # is this tick's pre-step value, the next tick's prev).
+            _omega_s_prev = self._sensors.omega_struct()
+        else:
+            wheel_cmd = 0.0
         return tau, lambda_qp_sol, tau_w_applied, wheel_cmd, _omega_s_prev

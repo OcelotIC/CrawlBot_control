@@ -1,6 +1,6 @@
 # `crawlbot.control.controller`
 
-**File**: [`crawlbot/control/controller.py`](../../../crawlbot/control/controller.py) — **792 lines** — canonical coverage **80 %**
+**File**: [`crawlbot/control/controller.py`](../../../crawlbot/control/controller.py) — **774 lines** — canonical coverage **80 %**
 
 **The two-stage controller driven as one block.** Built by extractions 3b–3c of
 the `sim_loop.py` split (branch `refactor/sim-loop-split`).
@@ -62,7 +62,13 @@ finite differences, `qp_ok`, the h_w carry, λ_ref and a_ff). Then per sub-step:
 
 `settle()` is the DS passivity-loop tick (settle-mode QP with the passivity
 inequality, fallback joint damping, inter-step AOCS), returning the wheel command
-explicitly (None / 0.0 / τ_w) so each caller writes exactly what it wrote before.
+explicitly (0.0 when the inter-step AOCS is off, else τ_w).
+
+**No wheel-less variant.** The reaction wheels are part of the plant
+(`MujocoPlant` raises if the MJCF has none). The `has_rwa == False` branches —
+h_w integrated from L̇_com (`hw -= …`), the NMPC h_w from the loop carry, the
+un-commanded wheels — were never executed on the canonical or any scenario and
+were removed (decision: Idriss, 2026-09-28).
 
 **Events.** The mapping layer's reference-shaping state (SS-entry torso position,
 post-dock DS blend, F-SAT and δ caches) lives here; the loop signals the two
@@ -139,28 +145,27 @@ commit with `gate/local_ref.py check` + `gate/dock_check.py`.
 |   `hw` | `` | _field_ | [L126](../../../crawlbot/control/controller.py#L126) |
 |   `lr` | `` | _field_ | [L127](../../../crawlbot/control/controller.py#L127) |
 |   `af` | `` | _field_ | [L128](../../../crawlbot/control/controller.py#L128) |
-|   `rs` | `None` | _field_ | [L129](../../../crawlbot/control/controller.py#L129) |
-|   `lambda_qp_sol` | `None` | _field_ | [L130](../../../crawlbot/control/controller.py#L130) |
-|   `p_torso_ref_used` | `None` | _field_ | [L131](../../../crawlbot/control/controller.py#L131) |
-| **`TrackOut`** *(dataclass)* |  |  | [L135](../../../crawlbot/control/controller.py#L135) |
-|   `tau` | `` | _field_ | [L143](../../../crawlbot/control/controller.py#L143) |
-|   `tau_w` | `` | _field_ | [L144](../../../crawlbot/control/controller.py#L144) |
-|   `tau_raw` | `` | _field_ | [L145](../../../crawlbot/control/controller.py#L145) |
-|   `rs` | `` | _field_ | [L146](../../../crawlbot/control/controller.py#L146) |
-|   `qdd_t` | `` | _field_ | [L147](../../../crawlbot/control/controller.py#L147) |
-|   `lambda_qp` | `` | _field_ | [L148](../../../crawlbot/control/controller.py#L148) |
-|   `qp_ok` | `` | _field_ | [L149](../../../crawlbot/control/controller.py#L149) |
-|   `passivity_active` | `` | _field_ | [L150](../../../crawlbot/control/controller.py#L150) |
-|   `rp_interp` | `` | _field_ | [L151](../../../crawlbot/control/controller.py#L151) |
-|   `p_torso_ref_used` | `` | _field_ | [L152](../../../crawlbot/control/controller.py#L152) |
-| **`WholeBodyController`** |  |  | [L155](../../../crawlbot/control/controller.py#L155) |
-| `.plan` | `(intent, refs, hw)` | **yes** | [L210](../../../crawlbot/control/controller.py#L210) |
-| `.begin_tracking` | `(plan, hw)` | **yes** | [L338](../../../crawlbot/control/controller.py#L338) |
-| `.track` | `(carry, qs, tq, intent, refs, plan)` | **yes** | [L353](../../../crawlbot/control/controller.py#L353) |
-| `.after_step` | `(carry, tau)` | **yes** | [L661](../../../crawlbot/control/controller.py#L661) |
-| `.on_ss_entry` | `(p_torso_entry)` | **yes** | [L691](../../../crawlbot/control/controller.py#L691) |
-| `.on_dock` | `(t)` | **yes** | [L699](../../../crawlbot/control/controller.py#L699) |
-| `.settle` | `(rs, cc_ds, hw_current, fallback_Kd, _omega_s_prev)` | **yes** | [L711](../../../crawlbot/control/controller.py#L711) |
+|   `lambda_qp_sol` | `None` | _field_ | [L129](../../../crawlbot/control/controller.py#L129) |
+|   `p_torso_ref_used` | `None` | _field_ | [L130](../../../crawlbot/control/controller.py#L130) |
+| **`TrackOut`** *(dataclass)* |  |  | [L134](../../../crawlbot/control/controller.py#L134) |
+|   `tau` | `` | _field_ | [L142](../../../crawlbot/control/controller.py#L142) |
+|   `tau_w` | `` | _field_ | [L143](../../../crawlbot/control/controller.py#L143) |
+|   `tau_raw` | `` | _field_ | [L144](../../../crawlbot/control/controller.py#L144) |
+|   `rs` | `` | _field_ | [L145](../../../crawlbot/control/controller.py#L145) |
+|   `qdd_t` | `` | _field_ | [L146](../../../crawlbot/control/controller.py#L146) |
+|   `lambda_qp` | `` | _field_ | [L147](../../../crawlbot/control/controller.py#L147) |
+|   `qp_ok` | `` | _field_ | [L148](../../../crawlbot/control/controller.py#L148) |
+|   `passivity_active` | `` | _field_ | [L149](../../../crawlbot/control/controller.py#L149) |
+|   `rp_interp` | `` | _field_ | [L150](../../../crawlbot/control/controller.py#L150) |
+|   `p_torso_ref_used` | `` | _field_ | [L151](../../../crawlbot/control/controller.py#L151) |
+| **`WholeBodyController`** |  |  | [L154](../../../crawlbot/control/controller.py#L154) |
+| `.plan` | `(intent, refs)` | **yes** | [L208](../../../crawlbot/control/controller.py#L208) |
+| `.begin_tracking` | `(plan, hw)` | **yes** | [L332](../../../crawlbot/control/controller.py#L332) |
+| `.track` | `(carry, qs, tq, intent, refs, plan)` | **yes** | [L347](../../../crawlbot/control/controller.py#L347) |
+| `.after_step` | `(carry, tau)` | **yes** | [L652](../../../crawlbot/control/controller.py#L652) |
+| `.on_ss_entry` | `(p_torso_entry)` | **yes** | [L675](../../../crawlbot/control/controller.py#L675) |
+| `.on_dock` | `(t)` | **yes** | [L683](../../../crawlbot/control/controller.py#L683) |
+| `.settle` | `(rs, cc_ds, hw_current, fallback_Kd, _omega_s_prev)` | **yes** | [L695](../../../crawlbot/control/controller.py#L695) |
 
 ## Code map
 
@@ -170,16 +175,16 @@ commit with `gate/local_ref.py check` + `gate/dock_check.py`.
 | `ee_data()` | [L41-46](../../../crawlbot/control/controller.py#L41-L46) |
 | `class ControlIntent` | [L50-73](../../../crawlbot/control/controller.py#L50-L73) |
 | `class NMPCPlan` | [L77-107](../../../crawlbot/control/controller.py#L77-L107) |
-| `class QPCarry` | [L111-131](../../../crawlbot/control/controller.py#L111-L131) |
-| `class TrackOut` | [L135-152](../../../crawlbot/control/controller.py#L135-L152) |
-| `class WholeBodyController` | [L155-791](../../../crawlbot/control/controller.py#L155-L791) |
-| `WholeBodyController.plan` | [L210-334](../../../crawlbot/control/controller.py#L210-L334) |
-| `WholeBodyController.begin_tracking` | [L338-351](../../../crawlbot/control/controller.py#L338-L351) |
-| `WholeBodyController.track` | [L353-659](../../../crawlbot/control/controller.py#L353-L659) |
-| `WholeBodyController.after_step` | [L661-687](../../../crawlbot/control/controller.py#L661-L687) |
-| `WholeBodyController.on_ss_entry` | [L691-697](../../../crawlbot/control/controller.py#L691-L697) |
-| `WholeBodyController.on_dock` | [L699-707](../../../crawlbot/control/controller.py#L699-L707) |
-| `WholeBodyController.settle` | [L711-791](../../../crawlbot/control/controller.py#L711-L791) |
+| `class QPCarry` | [L111-130](../../../crawlbot/control/controller.py#L111-L130) |
+| `class TrackOut` | [L134-151](../../../crawlbot/control/controller.py#L134-L151) |
+| `class WholeBodyController` | [L154-773](../../../crawlbot/control/controller.py#L154-L773) |
+| `WholeBodyController.plan` | [L208-328](../../../crawlbot/control/controller.py#L208-L328) |
+| `WholeBodyController.begin_tracking` | [L332-345](../../../crawlbot/control/controller.py#L332-L345) |
+| `WholeBodyController.track` | [L347-650](../../../crawlbot/control/controller.py#L347-L650) |
+| `WholeBodyController.after_step` | [L652-671](../../../crawlbot/control/controller.py#L652-L671) |
+| `WholeBodyController.on_ss_entry` | [L675-681](../../../crawlbot/control/controller.py#L675-L681) |
+| `WholeBodyController.on_dock` | [L683-691](../../../crawlbot/control/controller.py#L683-L691) |
+| `WholeBodyController.settle` | [L695-773](../../../crawlbot/control/controller.py#L695-L773) |
 
 ---
 

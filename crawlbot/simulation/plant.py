@@ -31,9 +31,12 @@ class MujocoPlant:
         self.model = mujoco.MjModel.from_xml_path(mjcf_path)
         self.data = mujoco.MjData(self.model)
         self.model.opt.timestep = dt
-        # Detect RWA model (3 reaction wheels)
+        # The 3 reaction wheels are part of the plant (qpos/qvel blocks
+        # [7:10] / [6:9]); there is no wheel-less variant.
         rw_jid = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_JOINT, 'rw_x')
-        self.has_rwa = rw_jid >= 0
+        if rw_jid < 0:
+            raise ValueError(f'{mjcf_path}: no reaction wheels (joint rw_x); '
+                             'the RWA is required')
         # Number of arm joints driven through ctrl[:n_joints]; set by the
         # owner once the Pinocchio model is loaded (the MJCF carries the
         # wheel actuators too, so nu alone does not give it).
@@ -60,9 +63,8 @@ class MujocoPlant:
         if lock_arm_joints:
             # Re-freeze arm joints after the physics step. The arm
             # joints live in the tail of qvel immediately after the
-            # structure(6) + RWA(3 if present) + torso(6) block.
-            off_rw = 3 if self.has_rwa else 0
-            arm_v_start = 6 + off_rw + 6
+            # structure(6) + RWA(3) + torso(6) block.
+            arm_v_start = 6 + 3 + 6
             arm_v_end = arm_v_start + self.n_joints
             self.data.qvel[arm_v_start:arm_v_end] = 0.0
 

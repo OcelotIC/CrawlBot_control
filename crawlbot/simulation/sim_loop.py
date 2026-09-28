@@ -348,7 +348,6 @@ class SimulationLoop(TickLoggingMixin):
         self.nmpc = None
         self.qp_ss = None
         self.plan = None
-        self.has_rwa = False  # Set True if model has reaction wheels
         # M6/M7: coarse pre-planner — mandatory, built in setup().
         self.preplanner: Optional[CoarsePrePlanner] = None
         # Most recent pre-planner result for the active step; None in DS.
@@ -486,7 +485,6 @@ class SimulationLoop(TickLoggingMixin):
 
         # MuJoCo plant (loads the MJCF, sets dt, detects the RWA)
         self.plant = MujocoPlant(self.mjcf_path, cfg.dt_qp)
-        self.has_rwa = self.plant.has_rwa
         self.sensors = SensorSuite(self.plant, cfg.rwa_I_w)
 
         # Verify torso mass
@@ -635,7 +633,7 @@ class SimulationLoop(TickLoggingMixin):
         sq = self.sensors.struct_quat()
         mj_qpos, _ = pinocchio_to_mujoco(
             self.q_dock_init, np.zeros(self.robot.model.nv), struct_pos=sp, struct_quat=sq,
-            rwa=self.has_rwa)
+            rwa=True)
         self.plant.set_state(mj_qpos, 0.0)
 
         # Welds
@@ -755,7 +753,7 @@ class SimulationLoop(TickLoggingMixin):
         self.refs = PlannerReferences(self)
         self.controller = WholeBodyController(
             cfg, self.robot, self.sensors, self.nmpc, self.qp_ss, self.mapping,
-            self.aocs, self.gmo, self.has_rwa, self.diag, self.n_qp_per_nmpc)
+            self.aocs, self.gmo, self.diag, self.n_qp_per_nmpc)
 
         # ── Two-stage setup settling ──────────────────────────────────
         # Stage 1 (open-loop damping) removed - see _settle_setup.
@@ -769,7 +767,7 @@ class SimulationLoop(TickLoggingMixin):
 
         print(f"[SimulationLoop] Initialized:")
         print(f"  Robot mass:     {rs0.total_mass:.1f} kg")
-        print(f"  RWA model:      {'YES (3 wheels)' if self.has_rwa else 'NO'}")
+        print("  RWA model:      YES (3 wheels)")
         print(f"  AOCS estimator: {'H_{r/O}' if cfg.aocs_use_H_estimator else 'L_dot (legacy)'}")
         print(f"  NMPC:           {1/cfg.dt_nmpc:.0f} Hz, N={cfg.nmpc_N}")
         print(f"  QP:             {1/cfg.dt_qp:.0f} Hz, {self.n_qp_per_nmpc} per NMPC")
@@ -900,8 +898,7 @@ class SimulationLoop(TickLoggingMixin):
         # ContactConfig whose r_contact_A/B hold the CURRENT structure-
         # frame anchor positions — these are used by compute_momentum_map
         # to build the lever arms for the hw safety constraint.
-        hw_current = np.zeros(3) if not self.has_rwa else (
-            self.sensors.wheel_momentum())
+        hw_current = self.sensors.wheel_momentum()
 
         # Loop-local ω_s history for the inter-step AOCS K_d·ω̇_s term.
         # The NMPC tick's AOCS carry is invisible here, so the settle
@@ -909,8 +906,7 @@ class SimulationLoop(TickLoggingMixin):
         # tick; updated each iteration before the plant step). Only this
         # history is new — the DS wrench feedforward needs no L_com/v_com
         # history (AOCS-FF audit).
-        _omega_s_prev = (self.sensors.omega_struct()
-                         if self.has_rwa else np.zeros(3))
+        _omega_s_prev = self.sensors.omega_struct()
 
         return _DSRun(req=r, lambda_min=lambda_min, T_settle=T_settle,
                       T_start=T_start, hw_current=hw_current,
@@ -954,8 +950,7 @@ class SimulationLoop(TickLoggingMixin):
             self.controller.settle(rs, r.contact_config, st.hw_current,
                                    r.fallback_Kd, st.omega_s_prev))
         self.plant.apply_joint_torques(tau)
-        if wheel_cmd is not None:
-            self.plant.apply_wheel_torques(wheel_cmd)
+        self.plant.apply_wheel_torques(wheel_cmd)
         # NB: no diagnostic arm lock here — this loop never applied it.
         self.plant.step()
 
@@ -1365,10 +1360,7 @@ class SimulationLoop(TickLoggingMixin):
         v_com_0 = rs_live.v_com.copy()
         L_com_0 = rs_live.L_com.copy()
         # Conservation constant c = hw_0 + L_com_0 + r_com_0 × m·v_com_0
-        if self.has_rwa:
-            hw_0 = self.sensors.wheel_momentum()
-        else:
-            hw_0 = np.zeros(3)
+        hw_0 = self.sensors.wheel_momentum()
         m = float(rs_live.total_mass)
         c_const = hw_0 + L_com_0 + np.cross(r_com_0, m * v_com_0)
 
@@ -2110,7 +2102,7 @@ class SimulationLoop(TickLoggingMixin):
 
         # Stage 1 — WholeBodyController.plan: CoM reference query, state,
         # NMPC solve, shifted fallback, QP-rate knots (control/controller.py).
-        plan = self.controller.plan(intent, self.refs, hw)
+        plan = self.controller.plan(intent, self.refs)
         rs = plan.rs
         if L_com_prev is None:
             L_com_prev = plan.L_com_now
@@ -2318,15 +2310,14 @@ class SimulationLoop(TickLoggingMixin):
                 trace.append(entry)
 
         self.plant.apply_joint_torques(out.tau)
-        if out.tau_w is not None:
-            self.plant.apply_wheel_torques(out.tau_w)
+        self.plant.apply_wheel_torques(out.tau_w)
         self.plant.step(lock_arm_joints=self._diag_lock_arm_joints)
         self.controller.after_step(carry, out.tau)
 
         # Phase-2.1: optional 100 Hz (QP-rate) SS logging of reaction-wheel
         # torque + stored momentum. Gated (default OFF) ⇒ no behavioural
         # change; tau_w_last (init 2495, updated this tick at the AOCS block
-        # when has_rwa), hw, tq, phase are all in scope.
+        # every sub-step), hw, tq, phase are all in scope.
         if cfg.log_hifreq_ss and phase == 'SS':
             log.t_ss_hifreq.append(float(tq))
             log.tau_w_ss_hifreq.append(

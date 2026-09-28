@@ -186,12 +186,8 @@ class TickLoggingMixin:
             d_stance = float('nan')
 
         # Wheel momentum from MJ wheel state.
-        if self.has_rwa:
-            rw_vel = self.mj_data.qvel[6:9].copy()
-            hw = (cfg.rwa_I_w * rw_vel).copy()
-        else:
-            rw_vel = np.zeros(3)
-            hw = np.zeros(3)
+        rw_vel = self.mj_data.qvel[6:9].copy()
+        hw = (cfg.rwa_I_w * rw_vel).copy()
 
         # SS convention: tau_max_joint is the SCALAR max|tau| at this tick.
 
@@ -254,7 +250,7 @@ class TickLoggingMixin:
 
         # RWA physical. With the inter-step AOCS re-activated (flag on),
         # tau_w_applied is the ACTUAL wheel torque commanded this tick;
-        # when the AOCS is off (flag off / no RWA) it is zeros — the
+        # when the AOCS is off (flag off) it is zeros — the
         # legacy commanded value. None defaults to zeros for any caller
         # that does not pass it (schema-safe).
         log.hw_physical.append(hw.copy())
@@ -424,17 +420,11 @@ class TickLoggingMixin:
         log.L_dot.append(L_dot_est.copy())
         log.L_dot_norm.append(float(np.linalg.norm(L_dot_est)))
         log.hw.append(hw.copy())
-        if self.has_rwa:
-            rw_vel_f = self.mj_data.qvel[6:9].copy()
-            log.hw_physical.append((cfg.rwa_I_w * rw_vel_f).copy())
-            log.tau_w.append(ts.tau_wheels.copy())
-            log.rw_speed.append(rw_vel_f.copy())
-            log.transport_term_mag.append(ts.transport_term_mag)
-        else:
-            log.hw_physical.append(hw.copy())
-            log.tau_w.append(np.zeros(3))
-            log.rw_speed.append(np.zeros(3))
-            log.transport_term_mag.append(0.0)
+        rw_vel_f = self.mj_data.qvel[6:9].copy()
+        log.hw_physical.append((cfg.rwa_I_w * rw_vel_f).copy())
+        log.tau_w.append(ts.tau_wheels.copy())
+        log.rw_speed.append(rw_vel_f.copy())
+        log.transport_term_mag.append(ts.transport_term_mag)
 
         # H_{r/O} estimator diagnostics — the estimator branch was removed in
         # CLEANUP-13 (aocs_use_H_estimator is False on the canonical, so only

@@ -1,6 +1,6 @@
 # `crawlbot.simulation.sim_loop`
 
-**File**: [`crawlbot/simulation/sim_loop.py`](../../../crawlbot/simulation/sim_loop.py) — **2432 lines** — canonical coverage **88 %**
+**File**: [`crawlbot/simulation/sim_loop.py`](../../../crawlbot/simulation/sim_loop.py) — **2423 lines** — canonical coverage **88 %**
 
 > Module docstring: *"SimulationLoop — Closed-loop MuJoCo simulation with two-stage controller."*
 
@@ -94,46 +94,46 @@ the one carrying the most architectural history.
 | `.torso_at` | `(tq, phase, ss_end)` | **yes** | [L297](../../../crawlbot/simulation/sim_loop.py#L297) |
 | `.swing_at` | `(tq, phase, ss_end)` | **yes** | [L312](../../../crawlbot/simulation/sim_loop.py#L312) |
 | **`SimulationLoop`** |  |  | [L320](../../../crawlbot/simulation/sim_loop.py#L320) |
-| `.mj_model` | `()` | **yes** | [L421](../../../crawlbot/simulation/sim_loop.py#L421) |
-| `.mj_data` | `()` | **yes** | [L425](../../../crawlbot/simulation/sim_loop.py#L425) |
-| `._sat_total_calls` | `()` | **yes** | [L431](../../../crawlbot/simulation/sim_loop.py#L431) |
-| `._sat_clipped_calls` | `()` | **yes** | [L435](../../../crawlbot/simulation/sim_loop.py#L435) |
-| `._sat_max_clip_mm` | `()` | **yes** | [L439](../../../crawlbot/simulation/sim_loop.py#L439) |
-| `._diag_pure_pd` | `()` | not exercised | [L444](../../../crawlbot/simulation/sim_loop.py#L444) |
-| `._diag_pure_pd` | `(v)` | not exercised | [L448](../../../crawlbot/simulation/sim_loop.py#L448) |
-| `._diag_freeze_ref` | `()` | not exercised | [L452](../../../crawlbot/simulation/sim_loop.py#L452) |
-| `._diag_freeze_ref` | `(v)` | not exercised | [L456](../../../crawlbot/simulation/sim_loop.py#L456) |
-| `._diag_disable_aocs` | `()` | not exercised | [L460](../../../crawlbot/simulation/sim_loop.py#L460) |
-| `._diag_disable_aocs` | `(v)` | not exercised | [L464](../../../crawlbot/simulation/sim_loop.py#L464) |
-| `._diag_lock_arm_joints` | `()` | **yes** | [L468](../../../crawlbot/simulation/sim_loop.py#L468) |
-| `._diag_lock_arm_joints` | `(v)` | not exercised | [L472](../../../crawlbot/simulation/sim_loop.py#L472) |
-| `.setup` | `(n_steps=3, start_a=2, start_b=2, sequence_path=None)` | **yes** | [L477](../../../crawlbot/simulation/sim_loop.py#L477) |
-| `._settle_setup` | `(start_a, start_b)` | **yes** | [L794](../../../crawlbot/simulation/sim_loop.py#L794) |
-| `._run_ds_passivity_loop` | `(**kw)` | **yes** | [L879](../../../crawlbot/simulation/sim_loop.py#L879) |
-| `._ds_begin` | `(r)` | **yes** | [L888](../../../crawlbot/simulation/sim_loop.py#L888) |
-| `._ds_tick` | `(st)` | **yes** | [L919](../../../crawlbot/simulation/sim_loop.py#L919) |
-| `._ds_end` | `(st, k_last)` | **yes** | [L975](../../../crawlbot/simulation/sim_loop.py#L975) |
-| `._build_qp` | `(ae, ap, aw, kpc, kdc, kpt, kdt, kpe, kde, kpe_ang=5.0, ...)` | **yes** | [L993](../../../crawlbot/simulation/sim_loop.py#L993) |
-| `._gripper_distance` | `(arm, anchor_idx)` | **yes** | [L1048](../../../crawlbot/simulation/sim_loop.py#L1048) |
-| `._gripper_speed` | `(arm)` | not exercised | [L1052](../../../crawlbot/simulation/sim_loop.py#L1052) |
-| `._gripper_ori_err_deg` | `(arm, anchor_idx)` | **yes** | [L1067](../../../crawlbot/simulation/sim_loop.py#L1067) |
-| `._dock_gate` | `(swing_arm, target_idx, log, t, step_idx)` | **yes** | [L1082](../../../crawlbot/simulation/sim_loop.py#L1082) |
-| `._setup_torso_for_step` | `(t_ss_start, swing_arm, stance_a, stance_b, target_arm, ...)` | **yes** | [L1119](../../../crawlbot/simulation/sim_loop.py#L1119) |
-| `._run_preplanner` | `(t_plan_start, stance_arm, stance_a, stance_b, r_com_0, ...)` | **yes** | [L1334](../../../crawlbot/simulation/sim_loop.py#L1334) |
-| `._capture_snapshot` | `(log, t, label)` | **yes** | [L1442](../../../crawlbot/simulation/sim_loop.py#L1442) |
-| `.run` | `(verbose=True)` | **yes** | [L1447](../../../crawlbot/simulation/sim_loop.py#L1447) |
-| `._drive` | `(program)` | **yes** | [L1457](../../../crawlbot/simulation/sim_loop.py#L1457) |
-| `._begin` | `(req)` | **yes** | [L1486](../../../crawlbot/simulation/sim_loop.py#L1486) |
-| `._gait_program` | `(verbose=True)` | **yes** | [L1494](../../../crawlbot/simulation/sim_loop.py#L1494) |
-| `._swing_query_time` | `(t_raw, phase, ss_end)` | **yes** | [L2040](../../../crawlbot/simulation/sim_loop.py#L2040) |
-| `._step` | `(t, phase, step_idx, swing_arm, stance_arm, cc_ss, targe...)` | not exercised | [L2058](../../../crawlbot/simulation/sim_loop.py#L2058) |
-| `._nmpc_begin` | `(r)` | **yes** | [L2077](../../../crawlbot/simulation/sim_loop.py#L2077) |
-| `._nmpc_tick` | `(st)` | **yes** | [L2154](../../../crawlbot/simulation/sim_loop.py#L2154) |
-| `._qp_substep` | `(st)` | **yes** | [L2163](../../../crawlbot/simulation/sim_loop.py#L2163) |
-| `._nmpc_handoff` | `(st)` | **yes** | [L2337](../../../crawlbot/simulation/sim_loop.py#L2337) |
-| `._get_ee_data` | `(rs, arm)` | **yes** | [L2384](../../../crawlbot/simulation/sim_loop.py#L2384) |
-| `._print_summary` | `(log)` | **yes** | [L2391](../../../crawlbot/simulation/sim_loop.py#L2391) |
-| `.plot` | `(log, save_path=None, cfg=None)` | not exercised | [L2430](../../../crawlbot/simulation/sim_loop.py#L2430) |
+| `.mj_model` | `()` | **yes** | [L420](../../../crawlbot/simulation/sim_loop.py#L420) |
+| `.mj_data` | `()` | **yes** | [L424](../../../crawlbot/simulation/sim_loop.py#L424) |
+| `._sat_total_calls` | `()` | **yes** | [L430](../../../crawlbot/simulation/sim_loop.py#L430) |
+| `._sat_clipped_calls` | `()` | **yes** | [L434](../../../crawlbot/simulation/sim_loop.py#L434) |
+| `._sat_max_clip_mm` | `()` | **yes** | [L438](../../../crawlbot/simulation/sim_loop.py#L438) |
+| `._diag_pure_pd` | `()` | not exercised | [L443](../../../crawlbot/simulation/sim_loop.py#L443) |
+| `._diag_pure_pd` | `(v)` | not exercised | [L447](../../../crawlbot/simulation/sim_loop.py#L447) |
+| `._diag_freeze_ref` | `()` | not exercised | [L451](../../../crawlbot/simulation/sim_loop.py#L451) |
+| `._diag_freeze_ref` | `(v)` | not exercised | [L455](../../../crawlbot/simulation/sim_loop.py#L455) |
+| `._diag_disable_aocs` | `()` | not exercised | [L459](../../../crawlbot/simulation/sim_loop.py#L459) |
+| `._diag_disable_aocs` | `(v)` | not exercised | [L463](../../../crawlbot/simulation/sim_loop.py#L463) |
+| `._diag_lock_arm_joints` | `()` | **yes** | [L467](../../../crawlbot/simulation/sim_loop.py#L467) |
+| `._diag_lock_arm_joints` | `(v)` | not exercised | [L471](../../../crawlbot/simulation/sim_loop.py#L471) |
+| `.setup` | `(n_steps=3, start_a=2, start_b=2, sequence_path=None)` | **yes** | [L476](../../../crawlbot/simulation/sim_loop.py#L476) |
+| `._settle_setup` | `(start_a, start_b)` | **yes** | [L792](../../../crawlbot/simulation/sim_loop.py#L792) |
+| `._run_ds_passivity_loop` | `(**kw)` | **yes** | [L877](../../../crawlbot/simulation/sim_loop.py#L877) |
+| `._ds_begin` | `(r)` | **yes** | [L886](../../../crawlbot/simulation/sim_loop.py#L886) |
+| `._ds_tick` | `(st)` | **yes** | [L915](../../../crawlbot/simulation/sim_loop.py#L915) |
+| `._ds_end` | `(st, k_last)` | **yes** | [L970](../../../crawlbot/simulation/sim_loop.py#L970) |
+| `._build_qp` | `(ae, ap, aw, kpc, kdc, kpt, kdt, kpe, kde, kpe_ang=5.0, ...)` | **yes** | [L988](../../../crawlbot/simulation/sim_loop.py#L988) |
+| `._gripper_distance` | `(arm, anchor_idx)` | **yes** | [L1043](../../../crawlbot/simulation/sim_loop.py#L1043) |
+| `._gripper_speed` | `(arm)` | not exercised | [L1047](../../../crawlbot/simulation/sim_loop.py#L1047) |
+| `._gripper_ori_err_deg` | `(arm, anchor_idx)` | **yes** | [L1062](../../../crawlbot/simulation/sim_loop.py#L1062) |
+| `._dock_gate` | `(swing_arm, target_idx, log, t, step_idx)` | **yes** | [L1077](../../../crawlbot/simulation/sim_loop.py#L1077) |
+| `._setup_torso_for_step` | `(t_ss_start, swing_arm, stance_a, stance_b, target_arm, ...)` | **yes** | [L1114](../../../crawlbot/simulation/sim_loop.py#L1114) |
+| `._run_preplanner` | `(t_plan_start, stance_arm, stance_a, stance_b, r_com_0, ...)` | **yes** | [L1329](../../../crawlbot/simulation/sim_loop.py#L1329) |
+| `._capture_snapshot` | `(log, t, label)` | **yes** | [L1434](../../../crawlbot/simulation/sim_loop.py#L1434) |
+| `.run` | `(verbose=True)` | **yes** | [L1439](../../../crawlbot/simulation/sim_loop.py#L1439) |
+| `._drive` | `(program)` | **yes** | [L1449](../../../crawlbot/simulation/sim_loop.py#L1449) |
+| `._begin` | `(req)` | **yes** | [L1478](../../../crawlbot/simulation/sim_loop.py#L1478) |
+| `._gait_program` | `(verbose=True)` | **yes** | [L1486](../../../crawlbot/simulation/sim_loop.py#L1486) |
+| `._swing_query_time` | `(t_raw, phase, ss_end)` | **yes** | [L2032](../../../crawlbot/simulation/sim_loop.py#L2032) |
+| `._step` | `(t, phase, step_idx, swing_arm, stance_arm, cc_ss, targe...)` | not exercised | [L2050](../../../crawlbot/simulation/sim_loop.py#L2050) |
+| `._nmpc_begin` | `(r)` | **yes** | [L2069](../../../crawlbot/simulation/sim_loop.py#L2069) |
+| `._nmpc_tick` | `(st)` | **yes** | [L2146](../../../crawlbot/simulation/sim_loop.py#L2146) |
+| `._qp_substep` | `(st)` | **yes** | [L2155](../../../crawlbot/simulation/sim_loop.py#L2155) |
+| `._nmpc_handoff` | `(st)` | **yes** | [L2328](../../../crawlbot/simulation/sim_loop.py#L2328) |
+| `._get_ee_data` | `(rs, arm)` | **yes** | [L2375](../../../crawlbot/simulation/sim_loop.py#L2375) |
+| `._print_summary` | `(log)` | **yes** | [L2382](../../../crawlbot/simulation/sim_loop.py#L2382) |
+| `.plot` | `(log, save_path=None, cfg=None)` | not exercised | [L2421](../../../crawlbot/simulation/sim_loop.py#L2421) |
 
 ---
 
@@ -306,8 +306,8 @@ removed in CLEANUP-8 — but it gates two paths unrelated to the task stack:
 
 | site | what it gates |
 |---|---|
-| `controller.py:421-423` | torso-reference routing (delta-mapping vs raw quintic) |
-| `controller.py:567-568` | `passivity_active` — **the DS passivity constraint** |
+| `controller.py:415-417` | torso-reference routing (delta-mapping vs raw quintic) |
+| `controller.py:561-562` | `passivity_active` — **the DS passivity constraint** |
 
 Deleting it would silently disable DS passivity. Same name, opposite fates.
 
@@ -346,47 +346,47 @@ Unexercised: `_gripper_speed`, `_planned_arm_config`, `plot`.
 | `PlannerReferences.L_com_at` | [L293-295](../../../crawlbot/simulation/sim_loop.py#L293-L295) |
 | `PlannerReferences.torso_at` | [L297-310](../../../crawlbot/simulation/sim_loop.py#L297-L310) |
 | `PlannerReferences.swing_at` | [L312-317](../../../crawlbot/simulation/sim_loop.py#L312-L317) |
-| `class SimulationLoop` | [L320-2431](../../../crawlbot/simulation/sim_loop.py#L320-L2431) |
-| `SimulationLoop.mj_model` | [L421-422](../../../crawlbot/simulation/sim_loop.py#L421-L422) |
-| `SimulationLoop.mj_data` | [L425-426](../../../crawlbot/simulation/sim_loop.py#L425-L426) |
-| `SimulationLoop._sat_total_calls` | [L431-432](../../../crawlbot/simulation/sim_loop.py#L431-L432) |
-| `SimulationLoop._sat_clipped_calls` | [L435-436](../../../crawlbot/simulation/sim_loop.py#L435-L436) |
-| `SimulationLoop._sat_max_clip_mm` | [L439-440](../../../crawlbot/simulation/sim_loop.py#L439-L440) |
-| `SimulationLoop._diag_pure_pd` | [L444-445](../../../crawlbot/simulation/sim_loop.py#L444-L445) |
-| `SimulationLoop._diag_pure_pd` | [L448-449](../../../crawlbot/simulation/sim_loop.py#L448-L449) |
-| `SimulationLoop._diag_freeze_ref` | [L452-453](../../../crawlbot/simulation/sim_loop.py#L452-L453) |
-| `SimulationLoop._diag_freeze_ref` | [L456-457](../../../crawlbot/simulation/sim_loop.py#L456-L457) |
-| `SimulationLoop._diag_disable_aocs` | [L460-461](../../../crawlbot/simulation/sim_loop.py#L460-L461) |
-| `SimulationLoop._diag_disable_aocs` | [L464-465](../../../crawlbot/simulation/sim_loop.py#L464-L465) |
-| `SimulationLoop._diag_lock_arm_joints` | [L468-469](../../../crawlbot/simulation/sim_loop.py#L468-L469) |
-| `SimulationLoop._diag_lock_arm_joints` | [L472-473](../../../crawlbot/simulation/sim_loop.py#L472-L473) |
-| `SimulationLoop.setup` | [L477-792](../../../crawlbot/simulation/sim_loop.py#L477-L792) |
-| `SimulationLoop._settle_setup` | [L794-877](../../../crawlbot/simulation/sim_loop.py#L794-L877) |
-| `SimulationLoop._run_ds_passivity_loop` | [L879-886](../../../crawlbot/simulation/sim_loop.py#L879-L886) |
-| `SimulationLoop._ds_begin` | [L888-917](../../../crawlbot/simulation/sim_loop.py#L888-L917) |
-| `SimulationLoop._ds_tick` | [L919-973](../../../crawlbot/simulation/sim_loop.py#L919-L973) |
-| `SimulationLoop._ds_end` | [L975-991](../../../crawlbot/simulation/sim_loop.py#L975-L991) |
-| `SimulationLoop._build_qp` | [L993-1046](../../../crawlbot/simulation/sim_loop.py#L993-L1046) |
-| `SimulationLoop._gripper_distance` | [L1048-1050](../../../crawlbot/simulation/sim_loop.py#L1048-L1050) |
-| `SimulationLoop._gripper_speed` | [L1052-1065](../../../crawlbot/simulation/sim_loop.py#L1052-L1065) |
-| `SimulationLoop._gripper_ori_err_deg` | [L1067-1080](../../../crawlbot/simulation/sim_loop.py#L1067-L1080) |
-| `SimulationLoop._dock_gate` | [L1082-1114](../../../crawlbot/simulation/sim_loop.py#L1082-L1114) |
-| `SimulationLoop._setup_torso_for_step` | [L1119-1332](../../../crawlbot/simulation/sim_loop.py#L1119-L1332) |
-| `SimulationLoop._run_preplanner` | [L1334-1438](../../../crawlbot/simulation/sim_loop.py#L1334-L1438) |
-| `SimulationLoop._capture_snapshot` | [L1442-1445](../../../crawlbot/simulation/sim_loop.py#L1442-L1445) |
-| `SimulationLoop.run` | [L1447-1453](../../../crawlbot/simulation/sim_loop.py#L1447-L1453) |
-| `SimulationLoop._drive` | [L1457-1484](../../../crawlbot/simulation/sim_loop.py#L1457-L1484) |
-| `SimulationLoop._begin` | [L1486-1492](../../../crawlbot/simulation/sim_loop.py#L1486-L1492) |
-| `SimulationLoop._gait_program` | [L1494-2036](../../../crawlbot/simulation/sim_loop.py#L1494-L2036) |
-| `SimulationLoop._swing_query_time` | [L2040-2056](../../../crawlbot/simulation/sim_loop.py#L2040-L2056) |
-| `SimulationLoop._step` | [L2058-2075](../../../crawlbot/simulation/sim_loop.py#L2058-L2075) |
-| `SimulationLoop._nmpc_begin` | [L2077-2152](../../../crawlbot/simulation/sim_loop.py#L2077-L2152) |
-| `SimulationLoop._nmpc_tick` | [L2154-2161](../../../crawlbot/simulation/sim_loop.py#L2154-L2161) |
-| `SimulationLoop._qp_substep` | [L2163-2334](../../../crawlbot/simulation/sim_loop.py#L2163-L2334) |
-| `SimulationLoop._nmpc_handoff` | [L2337-2382](../../../crawlbot/simulation/sim_loop.py#L2337-L2382) |
-| `SimulationLoop._get_ee_data` | [L2384-2387](../../../crawlbot/simulation/sim_loop.py#L2384-L2387) |
-| `SimulationLoop._print_summary` | [L2391-2422](../../../crawlbot/simulation/sim_loop.py#L2391-L2422) |
-| `SimulationLoop.plot` | [L2430-2431](../../../crawlbot/simulation/sim_loop.py#L2430-L2431) |
+| `class SimulationLoop` | [L320-2422](../../../crawlbot/simulation/sim_loop.py#L320-L2422) |
+| `SimulationLoop.mj_model` | [L420-421](../../../crawlbot/simulation/sim_loop.py#L420-L421) |
+| `SimulationLoop.mj_data` | [L424-425](../../../crawlbot/simulation/sim_loop.py#L424-L425) |
+| `SimulationLoop._sat_total_calls` | [L430-431](../../../crawlbot/simulation/sim_loop.py#L430-L431) |
+| `SimulationLoop._sat_clipped_calls` | [L434-435](../../../crawlbot/simulation/sim_loop.py#L434-L435) |
+| `SimulationLoop._sat_max_clip_mm` | [L438-439](../../../crawlbot/simulation/sim_loop.py#L438-L439) |
+| `SimulationLoop._diag_pure_pd` | [L443-444](../../../crawlbot/simulation/sim_loop.py#L443-L444) |
+| `SimulationLoop._diag_pure_pd` | [L447-448](../../../crawlbot/simulation/sim_loop.py#L447-L448) |
+| `SimulationLoop._diag_freeze_ref` | [L451-452](../../../crawlbot/simulation/sim_loop.py#L451-L452) |
+| `SimulationLoop._diag_freeze_ref` | [L455-456](../../../crawlbot/simulation/sim_loop.py#L455-L456) |
+| `SimulationLoop._diag_disable_aocs` | [L459-460](../../../crawlbot/simulation/sim_loop.py#L459-L460) |
+| `SimulationLoop._diag_disable_aocs` | [L463-464](../../../crawlbot/simulation/sim_loop.py#L463-L464) |
+| `SimulationLoop._diag_lock_arm_joints` | [L467-468](../../../crawlbot/simulation/sim_loop.py#L467-L468) |
+| `SimulationLoop._diag_lock_arm_joints` | [L471-472](../../../crawlbot/simulation/sim_loop.py#L471-L472) |
+| `SimulationLoop.setup` | [L476-790](../../../crawlbot/simulation/sim_loop.py#L476-L790) |
+| `SimulationLoop._settle_setup` | [L792-875](../../../crawlbot/simulation/sim_loop.py#L792-L875) |
+| `SimulationLoop._run_ds_passivity_loop` | [L877-884](../../../crawlbot/simulation/sim_loop.py#L877-L884) |
+| `SimulationLoop._ds_begin` | [L886-913](../../../crawlbot/simulation/sim_loop.py#L886-L913) |
+| `SimulationLoop._ds_tick` | [L915-968](../../../crawlbot/simulation/sim_loop.py#L915-L968) |
+| `SimulationLoop._ds_end` | [L970-986](../../../crawlbot/simulation/sim_loop.py#L970-L986) |
+| `SimulationLoop._build_qp` | [L988-1041](../../../crawlbot/simulation/sim_loop.py#L988-L1041) |
+| `SimulationLoop._gripper_distance` | [L1043-1045](../../../crawlbot/simulation/sim_loop.py#L1043-L1045) |
+| `SimulationLoop._gripper_speed` | [L1047-1060](../../../crawlbot/simulation/sim_loop.py#L1047-L1060) |
+| `SimulationLoop._gripper_ori_err_deg` | [L1062-1075](../../../crawlbot/simulation/sim_loop.py#L1062-L1075) |
+| `SimulationLoop._dock_gate` | [L1077-1109](../../../crawlbot/simulation/sim_loop.py#L1077-L1109) |
+| `SimulationLoop._setup_torso_for_step` | [L1114-1327](../../../crawlbot/simulation/sim_loop.py#L1114-L1327) |
+| `SimulationLoop._run_preplanner` | [L1329-1430](../../../crawlbot/simulation/sim_loop.py#L1329-L1430) |
+| `SimulationLoop._capture_snapshot` | [L1434-1437](../../../crawlbot/simulation/sim_loop.py#L1434-L1437) |
+| `SimulationLoop.run` | [L1439-1445](../../../crawlbot/simulation/sim_loop.py#L1439-L1445) |
+| `SimulationLoop._drive` | [L1449-1476](../../../crawlbot/simulation/sim_loop.py#L1449-L1476) |
+| `SimulationLoop._begin` | [L1478-1484](../../../crawlbot/simulation/sim_loop.py#L1478-L1484) |
+| `SimulationLoop._gait_program` | [L1486-2028](../../../crawlbot/simulation/sim_loop.py#L1486-L2028) |
+| `SimulationLoop._swing_query_time` | [L2032-2048](../../../crawlbot/simulation/sim_loop.py#L2032-L2048) |
+| `SimulationLoop._step` | [L2050-2067](../../../crawlbot/simulation/sim_loop.py#L2050-L2067) |
+| `SimulationLoop._nmpc_begin` | [L2069-2144](../../../crawlbot/simulation/sim_loop.py#L2069-L2144) |
+| `SimulationLoop._nmpc_tick` | [L2146-2153](../../../crawlbot/simulation/sim_loop.py#L2146-L2153) |
+| `SimulationLoop._qp_substep` | [L2155-2325](../../../crawlbot/simulation/sim_loop.py#L2155-L2325) |
+| `SimulationLoop._nmpc_handoff` | [L2328-2373](../../../crawlbot/simulation/sim_loop.py#L2328-L2373) |
+| `SimulationLoop._get_ee_data` | [L2375-2378](../../../crawlbot/simulation/sim_loop.py#L2375-L2378) |
+| `SimulationLoop._print_summary` | [L2382-2413](../../../crawlbot/simulation/sim_loop.py#L2382-L2413) |
+| `SimulationLoop.plot` | [L2421-2422](../../../crawlbot/simulation/sim_loop.py#L2421-L2422) |
 
 ---
 
