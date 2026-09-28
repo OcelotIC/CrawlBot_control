@@ -105,6 +105,20 @@ class SimConfig:
     aocs_K_h: float = 0.5
     aocs_hw_target: np.ndarray = field(default_factory=lambda: np.zeros(3))
 
+    # AOCS finite-difference history across NMPC ticks (fix/aocs-carry).
+    # The AOCS differences sampled signals at dt_qp: ω̇_s = (ω_s − ω_s,prev)/dt
+    # and, in SS, the FD feedforward L̇_com, v̇_com. The per-NMPC-tick QP
+    # carry used to restart that history every 0.1 s: on QP sub-step 0,
+    # ω_s,prev = 0 (a K_d·ω_s/dt = 2500·ω_s N·m kick) and L_com,prev /
+    # v_com,prev = the current state (FD feedforward = 0). Measured on the
+    # canonical C run: |Δτ_w|∞ median 1.4 N·m / max 3.9 N·m on those ticks,
+    # 83 of 368 saturated wheel commands (results/aocs_kick/).
+    # True ⇒ sub-step 0 takes ω_s / L_com / v_com / τ_w from the previous
+    # control tick (NMPC or DS-settle path), the same sampling as sub-steps
+    # 1–9. False (default) ⇒ legacy restart, byte-identical to the frozen
+    # 2.5 canonical. Flipping the default changes the canonical: re-freeze.
+    aocs_carry_across_nmpc_ticks: bool = False
+
     # DS-only: route the per-contact wrench feedforward through the AOCS
     # instead of the FD-based Ḣ. In DS the welded loop carries internal
     # stress whose couple on the structure is invisible to L_com (the

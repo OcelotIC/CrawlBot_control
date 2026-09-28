@@ -39,18 +39,48 @@ with each rename asserted), not retyped — including the six `aocs_mode` branch
 the canonical never executes, which the bit-identity gate cannot see. Verified
 with `gate/local_ref.py check` + `gate/dock_check.py`.
 
-## 3. Trap — kept as found, flagged for decision
+## 3. The per-NMPC-tick history restart — measured, fix available, OFF
 
-**The ω̇_s carry is reset every NMPC tick.** In `SimulationLoop._step`,
-`_omega_s_last` (→ `omega_s_prev`) and `tau_w_last` (→ `tau_w_prev`) are
-initialised to **zero at every call of `_step`**, i.e. every 0.1 s. On the first
-QP sub-step of each NMPC tick the numerical derivative is therefore
-`(ω_s − 0)/dt`, and with the canonical `K_d = 25`, `dt = 0.01` the damping term
-is `2500·ω_s` N·m — a 10 Hz kick that saturates the 2.5 N·m cap for
-|ω_s| ≳ 1 mrad/s. The DS passivity loop, by contrast, seeds its history from the
-entry ω_s (`command_interstep` receives it correctly). This refactor preserves
-the behaviour (no behaviour change, Rule 6); whether it is intended is a
-separate, measured decision.
+**Legacy behaviour (canonical).** The QP carry is re-created every NMPC tick
+(0.1 s). On QP sub-step 0 the AOCS therefore sees `ω_s,prev = 0` — a
+numerical ω̇_s of `ω_s/dt`, i.e. `K_d·ω_s/dt = 2500·ω_s` N·m with `K_d = 25` —
+and, in SS, `L_com,prev = L_com`, `v_com,prev = v_com` (the current state), so
+the FD feedforward `−L̇_com − r×m·v̇_com` is zero on that sub-step. The DS
+settle path is unaffected: it seeds its own history from the entry ω_s.
+
+**Measured** (`scripts/diag_aocs_kick.py`, canonical C run, instrumentation
+proven inert — `sim_log.json` bit-identical to the reference; one-step
+counterfactual validated by an exact 0.0 match on the 6 381 sub-steps 1–9):
+
+| sub-step 0 (709 ticks) | legacy | with the previous tick's history |
+|---|---:|---:|
+| \|K_d·Δω_s/dt\|∞ median / max | 1.18 / 4.47 N·m | 0.007 / 0.12 N·m |
+| \|τ_w − τ_w,true-history\|∞ median / max | 1.36 / 3.91 N·m | — |
+| wheel commands at the 2.5 N·m cap | 103 | 20 |
+
+83 of the run's 368 saturated wheel commands are this artefact.
+
+**Fix — `cfg.aocs_carry_across_nmpc_ticks` (default False).** The controller
+keeps the last control tick's `(ω_s, L_com, v_com, τ_w)` on BOTH paths (NMPC
+sub-step and DS settle) and `begin_tracking` seeds sub-step 0 with it, i.e. the
+same sampling as sub-steps 1–9. Off ⇒ byte-identical to the frozen canonical.
+
+**Closed loop with the fix ON — not adoptable as is:**
+
+| | legacy (canonical) | fix ON |
+|---|---:|---:|
+| at-weld d [mm] | 4.016 / 4.888 / 4.990 / 4.973 / 4.954 / 4.624 | 4.017 / 4.891 / **4.997** / **4.996** / 4.953 / 4.587 |
+| θ_s peak | 0.540° | **0.873°** (+62 %) |
+| h_w peak axis / norm [N·m·s] | 4.10 / 4.24 | 3.85 / 3.94 |
+| ω_s peak | 1.79 mrad/s | 1.53 mrad/s |
+| saturated wheel commands | 368 | 287 |
+
+The kick is gone (sub-step-0 K_d term median 1.18 → 0.007 N·m), but θ_s grows
+by 62 % and steps 3–4 dock 3–4 µm inside the 5 mm capture radius. **The
+canonical AOCS gains (K_θ = 1, K_ω = 50, K_d = 25) were tuned with the artefact
+in the loop**; θ_s = 0.54° depends on it. Adopting the fix means re-tuning
+(one gain at a time, Rule 12) and re-freezing the canonical — a decision, not a
+default. Full record: `results/j2_adjconv/PHASE_AOCS_CARRY.md`.
 
 ## Public API
 

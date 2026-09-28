@@ -178,13 +178,13 @@ Update this line as work progresses:
 | NMPC state dim | 9 | — | spec §5.1 (B2) |
 | NMPC control dim | 12 | — | spec §5.1 |
 | weight_ratio | 1.0 — **α magnitudes ARE the hierarchy** (two-task weighted stack, no null-space projection; priority integers inert) | — | `wholebody_qp.py:94` |
-| **α torso-pose** | **2000** | — | `config.py:303` (Add-5) |
-| **α swing-EE** | **1000** (dock lever; needs ≥ ~1000) | — | `config.py:282` (Add-5) |
-| **α momentum (T-MOM)** | **400** (near-inert on Ḣ_s — NMPC owns the envelope) | — | `config.py:290` (Add-5) |
+| **α torso-pose** | **2000** | — | `config.py:317` (Add-5) |
+| **α swing-EE** | **1000** (dock lever; needs ≥ ~1000) | — | `config.py:296` (Add-5) |
+| **α momentum (T-MOM)** | **400** (near-inert on Ḣ_s — NMPC owns the envelope) | — | `config.py:304` (Add-5) |
 | **w hw-slack** | **800** (slacks active only if the hw box is violated) | — | `wholebody_qp.py:159` (Add-5) |
-| **α posture** | **20** | — | `config.py:283` |
+| **α posture** | **20** | — | `config.py:297` |
 | **α torque-min** | **5** (must stay ≳ 5× accel-reg floor — Rule 14) | — | `sim_loop.py:1010` (QP-construction literal) |
-| **α wrench-track** | **1.0** | — | `config.py:284` (Add-5; was 0.01 pre-freeze) |
+| **α wrench-track** | **1.0** | — | `config.py:298` (Add-5; was 0.01 pre-freeze) |
 | **α accel-reg** | **1.0** (regularizer floor) | — | `sim_loop.py:1010` |
 | ε (Tikhonov) | 1e-6 (inert: λ_min(H_LS)=1 ≫ ε) | — | `hierarchical_qp.py:98` default |
 | **κ_SS(H)** | ≈ 7.5e3 (530× below the pre-freeze canonical 3.6e6) | — | `canonical2p5_result.json` |
@@ -217,7 +217,7 @@ The **5 mm dock gate is the docking-mechanism capture radius** — the 0.01 mm w
 ## Known Issues
 
 - **The committed canonical baseline does not reproduce on every host.** With Python 3.11.16 (lock: 3.11.15) `gate/run_gate.py` FAILs artifact identity on a 1e-15 flip of `tauw_x_Nm` (row 1), while two replays on that host are bit-identical to each other. For refactors use the host-local reference, `gate/local_ref.py` (see `gate/README.md`).
-- **AOCS ω̇_s history restarts at zero every NMPC tick** (kept as found; decision pending). `QPCarry` (formerly `_step`'s locals) re-initialises `omega_s_prev = 0`, so the first QP sub-step of each tick sees ω̇_s = ω_s/dt → `K_d·ω_s/dt = 2500·ω_s` N·m with K_d = 25, able to hit the 2.5 N·m cap for |ω_s| ≳ 1 mrad/s. The DS settle seeds its history correctly. See `docs/crawlbot/control/attitude.md` §3.
+- **AOCS history restarts every NMPC tick — measured; fix exists, OFF** (`fix/aocs-carry`, `results/j2_adjconv/PHASE_AOCS_CARRY.md`). On QP sub-step 0, ω_s,prev = 0 (K_d·ω_s/dt kick: median 1.18, max 4.47 N·m) and the SS FD feedforward is 0; 83 of 368 saturated wheel commands. `cfg.aocs_carry_across_nmpc_ticks=True` removes it, but closed-loop θ_s peak 0.540° → 0.873° and steps 3–4 dock at 4.997 / 4.996 mm: the canonical AOCS gains were tuned with the kick. Adopting = re-tune (Rule 12) + re-freeze — Idriss's decision.
 - **The canonical driver crashes if the pre-planner fails on the first step**: its `_setup_torso_for_step` wrapper calls `sim._step_q_start.tolist()` while it is still `None` (`scripts/diag_cooperative_arms.py`).
 - **Suite state: 210 passed, 0 failed, 0 errors, 0 skipped, 1 xfail — and GATED** (`gate/run_suite.py`, CLEANUP-29). The one xfail, `test_coarse_preplanner::test_far_infeasible_under_tight_rate`, is `strict=True` with its reasoning in the marker: the envelope-semantics question at cap 2.5 is open (see Remaining Work), and if the far case ever goes infeasible again the test **fails** rather than turning green. Getting from 12 problems to 0 retired nothing: 6 tests ported to the two-task API (`PHASE_CLEANUP_28`), 7 repaired (`PHASE_CLEANUP_29` §1), 2 genuinely-dead retired, 1 marked honestly.
 - **`MUJOCO_GL=osmesa` aborts pytest collection** in the current container: `tests/test_diagnostics.py` → `PyOpenGL AttributeError: 'NoneType' object has no attribute 'glGetError'`. Environment, not code. `gate/run_suite.py` forces `MUJOCO_GL=disabled` for this reason — use it rather than calling `pytest` directly.

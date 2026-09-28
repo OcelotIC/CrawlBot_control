@@ -168,6 +168,11 @@ class WholeBodyController:
         self._has_rwa = has_rwa
         self._diag = diag
         self._n_qp_per_nmpc = n_qp_per_nmpc
+        # AOCS sampling history of the LAST control tick, on either path
+        # (NMPC sub-step or DS settle): (ω_s read that tick, L_com, v_com,
+        # τ_w). Seeds the next NMPC tick's carry when
+        # cfg.aocs_carry_across_nmpc_ticks (see begin_tracking).
+        self._aocs_hist = None
         # ── Mapping-layer state (was on SimulationLoop) ────────────────
         # M7 EE-bisection follow-up: torso linear position at SS entry
         # (set in _setup_torso_for_step). Read by _step() when
@@ -336,8 +341,26 @@ class WholeBodyController:
     # ── Stage 2 — whole-body QP (dt_qp = 0.01 s) ──────────────────────────
 
     def begin_tracking(self, plan, hw):
-        """Fresh per-NMPC-tick carry for the QP sub-steps."""
+        """Fresh per-NMPC-tick carry for the QP sub-steps.
+
+        Legacy (``cfg.aocs_carry_across_nmpc_ticks`` False): the AOCS
+        history restarts — ω_s,prev = 0 and L_com,prev / v_com,prev = the
+        current state, so sub-step 0 sees ω̇_s = ω_s/dt and a zero FD
+        feedforward (docs/crawlbot/control/attitude.md §3). With the flag,
+        the history is the previous control tick's, as for sub-steps 1–9.
+        """
         rs = plan.rs
+        if self._cfg.aocs_carry_across_nmpc_ticks and self._aocs_hist is not None:
+            omega_prev, L_prev, v_prev, tau_w_prev = self._aocs_hist
+            return QPCarry(
+                tau_last=np.zeros(self._robot.n_joints),
+                tau_w_last=tau_w_prev.copy(),
+                transport_mag_last=0.0,
+                omega_s_last=omega_prev.copy(),
+                qp_ok=True,
+                L_com_qp_prev=L_prev.copy(),
+                v_com_qp_prev=v_prev.copy(),
+                hw=hw, lr=plan.lr, af=plan.af)
         return QPCarry(
             tau_last=np.zeros(self._robot.n_joints),
             tau_w_last=np.zeros(3),
@@ -652,6 +675,8 @@ class WholeBodyController:
         carry.rs = rs
         carry.lambda_qp_sol = lambda_qp_sol
         carry.p_torso_ref_used = p_torso_ref_used
+        self._aocs_hist = (carry.omega_s_last, carry.L_com_qp_prev,
+                           carry.v_com_qp_prev, carry.tau_w_last)
         return TrackOut(
             tau=tau, tau_w=tau_w_cmd, tau_raw=tau_raw, rs=rs,
             qdd_t=qdd_t_qp, lambda_qp=lambda_qp_sol, qp_ok=qp_ok,
@@ -788,4 +813,13 @@ class WholeBodyController:
                 _omega_s_prev = self._sensors.omega_struct()
             else:
                 wheel_cmd = 0.0
+        # AOCS history for the next NMPC tick (read only when
+        # cfg.aocs_carry_across_nmpc_ticks): this tick's ω_s — the value the
+        # interstep AOCS just read, or a fresh read if it did not run.
+        omega_now = (_omega_s_prev
+                     if (self._has_rwa and cfg.aocs_active_in_interstep)
+                     else self._sensors.omega_struct())
+        self._aocs_hist = (np.asarray(omega_now, dtype=float).copy(),
+                           rs.L_com.copy(), rs.v_com.copy(),
+                           np.asarray(tau_w_applied, dtype=float).copy())
         return tau, lambda_qp_sol, tau_w_applied, wheel_cmd, _omega_s_prev
