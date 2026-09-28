@@ -54,6 +54,28 @@ QP-failure count. Exits non-zero on divergence.
 Rule 10 applies: at-weld only. It deliberately does **not** compute a
 min-over-swing distance, which is a fly-by artifact.
 
+## Host-local bit identity — `gate/local_ref.py`
+
+`run_gate.py` compares a 7-significant-digit CSV against a baseline committed
+from another host, and that baseline does not reproduce everywhere (Python
+3.11.15 → 3.11.16 flips `tauw_x_Nm` at 1e-15). For a no-behaviour-change
+refactor the claim needed is stronger and host-local: **every file** the replay
+writes, bit-identical to a reference produced on this host from the
+pre-refactor code. JSON floats compare by `float.hex()`; wall-clock fields
+(`*_ms`, the per-step solve-time summary) and the export's own path are the
+only exclusions, and each is printed when used.
+
+```bash
+PYTHONPATH=. python3 gate/local_ref.py run r0a && \
+PYTHONPATH=. python3 gate/local_ref.py run r0b && \
+PYTHONPATH=. python3 gate/local_ref.py diff r0a r0b   # self-consistency first
+PYTHONPATH=. python3 gate/local_ref.py freeze r0a      # -> gate/_run/local_ref/ref
+PYTHONPATH=. python3 gate/local_ref.py check           # after each commit
+```
+
+The reference lives under `gate/_run/` (git-ignored): it is valid only on the
+host that produced it, and its `_manifest.json` records the commit.
+
 ## Provenance
 
 - Baseline reference point: **commit `bfd5509`** (main HEAD at founding; the first
@@ -71,6 +93,7 @@ min-over-swing distance, which is a fly-by artifact.
 | `run_gate.py` | orchestrator (4 checks, verdict) | yes |
 | `replay_canonical.py` | isolated managed-scenario replay | yes |
 | `dock_check.py` | headline canonical numbers from a replay log | yes |
+| `local_ref.py` | host-local bit-identity reference for refactors | yes |
 | `environment.lock` | pinned stack (founding baseline) | yes |
 | `EXCEPTIONS.md` | acceptance policy + sign-off ledger | yes |
 | `last_verdict.json` | latest run output (founding = baseline) | yes |
