@@ -5,6 +5,7 @@
 | file | lines | canonical coverage | document |
 |---|---:|---:|---|
 | `sim_loop.py` | 3387 | 83 % | [sim_loop.md](sim_loop.md) |
+| `plant.py` | 199 | — | [plant.md](plant.md) |
 | `config.py` | 507 | **100 %** | [config.md](config.md) |
 | `logging.py` | 269 | 93 % | [logging.md](logging.md) |
 | `plotting.py` | 154 | 2 % | [plotting.md](plotting.md) |
@@ -14,6 +15,10 @@
 `sim_loop` is where the architecture actually happens: the DS/SS state machine,
 the per-step sequence (docking IK -> pre-planner -> planners -> swing -> settle),
 weld activation under the 5 mm / 5 deg gate, the AOCS command, and the log.
+
+`plant.py` is the MuJoCo side of the loop — the only writer of simulator state
+(step, welds, dock impact, actuators); `sim_loop` reads MuJoCo but no longer
+writes it directly.
 
 `config.py` is the single tuning surface — rule 5 of the project. `logging.py`
 produces the `sim_log.json` that every downstream analysis reads.

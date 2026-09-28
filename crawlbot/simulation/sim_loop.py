@@ -84,6 +84,7 @@ from .config import SimConfig
 from .logging import SimLog, capture_environment
 from .tick_logging import TickState, TickLoggingMixin
 from .plotting import plot_simulation
+from .plant import MujocoPlant
 # ── Simulation loop ──────────────────────────────────────────────────────────
 # TickState and the two per-tick recorders (_log_ds_tick / _log_ss_tick) live in
 # tick_logging.py — telemetry, separated from control. See that module's
@@ -101,8 +102,8 @@ class SimulationLoop(TickLoggingMixin):
         self.cfg = config or SimConfig()
         self.n_qp_per_nmpc = int(round(self.cfg.dt_nmpc / self.cfg.dt_qp))
 
-        self.mj_model = None
-        self.mj_data = None
+        # The MuJoCo plant — sole writer of MuJoCo state (plant.py).
+        self.plant: Optional[MujocoPlant] = None
         self.robot = None
         self.sched = None
         self.swing_planner = None
@@ -116,8 +117,6 @@ class SimulationLoop(TickLoggingMixin):
         self._R_torso_flat = None
         self.nmpc = None
         self.qp_ss = None
-        self._weld_map = {}
-        self._site_ids = {}
         self.plan = None
         self.has_rwa = False  # Set True if model has reaction wheels
         # M6/M7: coarse pre-planner — mandatory, built in setup().
@@ -223,6 +222,16 @@ class SimulationLoop(TickLoggingMixin):
         self._sat_clipped_calls: int = 0
         self._sat_max_clip_mm: float = 0.0
 
+    # MuJoCo model/data stay readable as attributes: tick_logging.py and the
+    # diagnostic drivers read them. Writes go through self.plant.
+    @property
+    def mj_model(self):
+        return self.plant.model if self.plant is not None else None
+
+    @property
+    def mj_data(self):
+        return self.plant.data if self.plant is not None else None
+
     # ── Setup ────────────────────────────────────────────────────────────
 
     def setup(self, n_steps: int = 3, start_a: int = 2, start_b: int = 2,
@@ -235,14 +244,9 @@ class SimulationLoop(TickLoggingMixin):
         """
         cfg = self.cfg
 
-        # MuJoCo
-        self.mj_model = mujoco.MjModel.from_xml_path(self.mjcf_path)
-        self.mj_data = mujoco.MjData(self.mj_model)
-        self.mj_model.opt.timestep = cfg.dt_qp
-
-        # Detect RWA model (3 reaction wheels)
-        rw_jid = mujoco.mj_name2id(self.mj_model, mujoco.mjtObj.mjOBJ_JOINT, 'rw_x')
-        self.has_rwa = rw_jid >= 0
+        # MuJoCo plant (loads the MJCF, sets dt, detects the RWA)
+        self.plant = MujocoPlant(self.mjcf_path, cfg.dt_qp)
+        self.has_rwa = self.plant.has_rwa
 
         # Verify torso mass
         tid = mujoco.mj_name2id(self.mj_model, mujoco.mjtObj.mjOBJ_BODY, 'torso')
@@ -258,7 +262,7 @@ class SimulationLoop(TickLoggingMixin):
         # legacy_pid_* AOCS modes: θ_s = log3(R_init.T @ R_now) gives
         # the small-angle attitude error in body frame.
         self._struct_quat_init = self.mj_data.qpos[3:7].copy()
-        mujoco.mj_forward(self.mj_model, self.mj_data)
+        self.plant.forward()
 
         # Read anchor sites in world frame and convert to structure-local frame
         mj_a_world, mj_b_world = read_anchors_from_mujoco(self.mj_model, self.mj_data)
@@ -271,6 +275,7 @@ class SimulationLoop(TickLoggingMixin):
         # Pinocchio
         self.robot = RobotInterface(
             self.urdf_path, gravity='zero')
+        self.plant.n_joints = self.robot.n_joints
 
         # Scheduler (anchors in structure-local frame).
         # M7: SS phases get duration=0 (placeholder); the real T_step
@@ -390,15 +395,14 @@ class SimulationLoop(TickLoggingMixin):
         mj_qpos, _ = pinocchio_to_mujoco(
             self.q_dock_init, np.zeros(self.robot.model.nv), struct_pos=sp, struct_quat=sq,
             rwa=self.has_rwa)
-        self.mj_data.qpos[:] = mj_qpos
-        self.mj_data.qvel[:] = 0.0
+        self.plant.set_state(mj_qpos, 0.0)
 
         # Welds
-        self._build_weld_map()
-        self._deactivate_all_welds()
-        self._activate_weld('a', start_a)
-        self._activate_weld('b', start_b)
-        mujoco.mj_forward(self.mj_model, self.mj_data)
+        self.plant.build_weld_map()
+        self.plant.deactivate_all_welds()
+        self.plant.activate_weld('a', start_a)
+        self.plant.activate_weld('b', start_b)
+        self.plant.forward()
 
         # Initial CoM calibration (no settling yet — state is hot from the
         # weld activation, but we only need total_mass + frame IDs for
@@ -407,7 +411,7 @@ class SimulationLoop(TickLoggingMixin):
             *mujoco_to_pinocchio(self.mj_data.qpos, self.mj_data.qvel))
 
         # Site IDs
-        self._cache_site_ids()
+        self.plant.cache_site_ids()
 
         # NMPC — plans robot motion only (hw managed by AOCS independently).
         # M3: when enforce_hw_conservation is on, the NMPC adds a
@@ -607,8 +611,8 @@ class SimulationLoop(TickLoggingMixin):
         log['exit_reason'] = stage2_result['exit_reason']
 
         # Record final state
-        self.mj_data.ctrl[:] = 0.0
-        mujoco.mj_forward(self.mj_model, self.mj_data)
+        self.plant.zero_ctrl()
+        self.plant.forward()
         pq_end, pv_end = mujoco_to_pinocchio(
             self.mj_data.qpos, self.mj_data.qvel)
         rs_end = self.robot.update(pq_end, pv_end)
@@ -811,7 +815,7 @@ class SimulationLoop(TickLoggingMixin):
                 tau = np.clip(tau, -cfg.tau_max, cfg.tau_max)
                 lambda_qp_sol = np.zeros(12)
 
-            self.mj_data.ctrl[:n_j] = tau
+            self.plant.apply_joint_torques(tau)
             # AOCS re-activation (free-floating invariant — J2 step 4a).
             # The structure is free-floating every tick, so the AOCS must
             # run in DS too. Flag ON (default): run the canonical
@@ -823,13 +827,14 @@ class SimulationLoop(TickLoggingMixin):
                 if cfg.aocs_active_in_interstep:
                     tau_w_applied = self._interstep_aocs_command(
                         rs, cc_ds, lambda_qp_sol, _omega_s_prev)
-                    self.mj_data.ctrl[n_j:n_j + 3] = tau_w_applied
+                    self.plant.apply_wheel_torques(tau_w_applied)
                     # Update the ω_s history BEFORE mj_step (current ω_s
                     # is this tick's pre-step value, the next tick's prev).
                     _omega_s_prev = self.mj_data.qvel[3:6].copy()
                 else:
-                    self.mj_data.ctrl[n_j:n_j + 3] = 0.0
-            mujoco.mj_step(self.mj_model, self.mj_data)
+                    self.plant.apply_wheel_torques(0.0)
+            # NB: no diagnostic arm lock here — this loop never applied it.
+            self.plant.step()
 
             # ── Phase-B per-tick logging (logging-only; no control change) ──
             # Emit a row schema-identical to the SS log block. NaN sentinels
@@ -986,57 +991,9 @@ class SimulationLoop(TickLoggingMixin):
         qp.set_nominal_posture(self.q_dock_init[self.robot.joints_q_slice])
         return qp
 
-    # ── Weld management ──────────────────────────────────────────────────
-
-    def _build_weld_map(self):
-        self._weld_map = {}
-        for i in range(self.mj_model.neq):
-            name = mujoco.mj_id2name(
-                self.mj_model, mujoco.mjtObj.mjOBJ_EQUALITY, i)
-            if name and name.startswith('grip_'):
-                parts = name.split('_to_')
-                arm = parts[0].split('_')[1]
-                anchor_idx = int(parts[1][0]) - 1
-                self._weld_map[(arm, anchor_idx)] = i
-
-    def _deactivate_all_welds(self):
-        for eq_id in range(self.mj_model.neq):
-            self.mj_data.eq_active[eq_id] = 0
-
-    def _activate_weld(self, arm, anchor_idx):
-        key = (arm, anchor_idx)
-        if key in self._weld_map:
-            self.mj_data.eq_active[self._weld_map[key]] = 1
-
-    def _deactivate_weld(self, arm, anchor_idx):
-        key = (arm, anchor_idx)
-        if key in self._weld_map:
-            self.mj_data.eq_active[self._weld_map[key]] = 0
-
-    def _cache_site_ids(self):
-        for name in ['gripper_a', 'gripper_b']:
-            sid = mujoco.mj_name2id(self.mj_model, mujoco.mjtObj.mjOBJ_SITE, name)
-            self._site_ids[name] = sid
-        # Cache ALL anchor sites present in the model (not a hardcoded
-        # count). A hardcoded range(5) silently dropped anchor_6, so the
-        # dock gate read d=inf and never fired on any step targeting the
-        # 6th anchor (e.g. step 4 -> dock_timeout despite the EE reaching
-        # the anchor). Discovering the count from the model keeps the
-        # cache consistent with the gait/MJCF for any anchor grid.
-        for arm in ['a', 'b']:
-            idx = 0
-            while True:
-                name = f'anchor_{idx+1}{arm}'
-                sid = mujoco.mj_name2id(
-                    self.mj_model, mujoco.mjtObj.mjOBJ_SITE, name)
-                if sid < 0:
-                    break
-                self._site_ids[name] = sid
-                idx += 1
-
     def _gripper_distance(self, arm, anchor_idx):
-        grip_sid = self._site_ids.get(f'gripper_{arm}', -1)
-        anch_sid = self._site_ids.get(f'anchor_{anchor_idx+1}{arm}', -1)
+        grip_sid = self.plant.site_ids.get(f'gripper_{arm}', -1)
+        anch_sid = self.plant.site_ids.get(f'anchor_{anchor_idx+1}{arm}', -1)
         if grip_sid < 0 or anch_sid < 0:
             return np.inf
         return float(np.linalg.norm(
@@ -1089,8 +1046,8 @@ class SimulationLoop(TickLoggingMixin):
         Jacobians are current. Returns zeros if either site is missing.
         """
         nv = self.mj_model.nv
-        gsid = self._site_ids.get(f'gripper_{arm}', -1)
-        asid = self._site_ids.get(f'anchor_{anchor_idx + 1}{arm}', -1)
+        gsid = self.plant.site_ids.get(f'gripper_{arm}', -1)
+        asid = self.plant.site_ids.get(f'anchor_{anchor_idx + 1}{arm}', -1)
         if gsid < 0 or asid < 0:
             return np.zeros(6)
         jpg = np.zeros((3, nv)); jrg = np.zeros((3, nv))
@@ -1714,7 +1671,7 @@ class SimulationLoop(TickLoggingMixin):
                     # ── 3. Release swing arm, reset NMPC/GMO ─────────────
                     self._capture_snapshot(log, t, f'release_step{step_idx}')
                     old_anchor = ss_gp.swing_from_idx
-                    self._deactivate_weld(swing_arm, old_anchor)
+                    self.plant.deactivate_weld(swing_arm, old_anchor)
                     self.nmpc.reset_warm_start()
                     pq_r, pv_r = mujoco_to_pinocchio(
                         self.mj_data.qpos, self.mj_data.qvel)
@@ -1760,7 +1717,7 @@ class SimulationLoop(TickLoggingMixin):
                         # Periodic frame capture (cfg.frames_per_step > 0).
                         # Triggered when t crosses the next scheduled time.
                         if self._frame_capture_times and t >= self._frame_capture_times[0]:
-                            mujoco.mj_forward(self.mj_model, self.mj_data)
+                            self.plant.forward()
                             label = (
                                 f'frame_step{self._frame_capture_step_idx}_'
                                 f'{self._frame_capture_kidx}')
@@ -1784,7 +1741,7 @@ class SimulationLoop(TickLoggingMixin):
                                       >= cfg.swing_early_finish_fraction * T_step)
                         if ((t - t_ss_start) > cfg.dock_check_delay
                                 and swing_done):
-                            mujoco.mj_forward(self.mj_model, self.mj_data)
+                            self.plant.forward()
                             docked, d, ori_err_deg, twist_norm = (
                                 self._dock_gate(
                                     swing_arm, target_idx,
@@ -1833,7 +1790,7 @@ class SimulationLoop(TickLoggingMixin):
                                 passivity_hold=cfg.dock_hold_passivity_on)
                             t += cfg.dt_nmpc
 
-                            mujoco.mj_forward(self.mj_model, self.mj_data)
+                            self.plant.forward()
                             docked, d, ori_err_deg, twist_norm = (
                                 self._dock_gate(
                                     swing_arm, target_idx,
@@ -1874,8 +1831,8 @@ class SimulationLoop(TickLoggingMixin):
 
                     # ── 6. Post-dock: activate weld + inelastic impact ───
                     if docked:
-                        self._activate_weld(swing_arm, target_idx)
-                        mujoco.mj_forward(self.mj_model, self.mj_data)
+                        self.plant.activate_weld(swing_arm, target_idx)
+                        self.plant.forward()
                         self.nmpc.reset_warm_start()
                         # Option A: capture the SS-exit torso position
                         # and weld time for the post-dock DS blend. The
@@ -1889,67 +1846,8 @@ class SimulationLoop(TickLoggingMixin):
                                 self._ss_entry_p_torso.copy())
 
                         # ── Inelastic impact: FULL-DOF momentum-consistent ──
-                        # Fix A (dock-leak Part 3). The previous map projected in
-                        # the robot-only Pinocchio space (structure as fixed
-                        # base) and wrote back only qvel[6+off:] via the
-                        # setup-only pinocchio_to_mujoco conversion — a one-sided
-                        # impulse that injected ~0.2 N·m·s of spurious system
-                        # angular momentum at the docks (dock-leak Parts 1–2:
-                        # the conversion also drops the structure-coupling terms
-                        # since it assumes v_struct≈0, false at a dock). Replace
-                        # with the full-DOF projection validated offline in
-                        # Part-2 A.1 (leak 0.3565→0.0011 over the 5 docks),
-                        # computed ENTIRELY in MuJoCo DOF (no Pinocchio round-
-                        # trip) and written back to ALL qvel, so the constraint
-                        # impulse is a full action-reaction pair and conserves
-                        # subtree_angmom to the O(gap·f) couple residual. The
-                        # weld is already active above, so every active
-                        # gripper↔anchor relation is in the constraint set.
-                        nv = self.mj_model.nv
-                        M_full = np.zeros((nv, nv))
-                        mujoco.mj_fullM(self.mj_model, self.mj_data, M_full)
-                        # Full-DOF weld constraint Jacobian: relative twist of
-                        # each welded gripper↔anchor site pair over ALL qvel
-                        # (incl. structure base + wheels) — the same relative-
-                        # site weld relation Part-2 A.1 validated. Active welds
-                        # are read from eq_active (exact welded pairs).
-                        inv_weld = {eq: key for key, eq in self._weld_map.items()}
-                        rows = []
-                        for eq_id in range(self.mj_model.neq):
-                            if not self.mj_data.eq_active[eq_id] or eq_id not in inv_weld:
-                                continue
-                            arm, a_idx = inv_weld[eq_id]
-                            gsid = self._site_ids.get(f'gripper_{arm}', -1)
-                            asid = self._site_ids.get(f'anchor_{a_idx + 1}{arm}', -1)
-                            if gsid < 0 or asid < 0:
-                                continue
-                            jpg = np.zeros((3, nv)); jrg = np.zeros((3, nv))
-                            jpa = np.zeros((3, nv)); jra = np.zeros((3, nv))
-                            mujoco.mj_jacSite(self.mj_model, self.mj_data, jpg, jrg, gsid)
-                            mujoco.mj_jacSite(self.mj_model, self.mj_data, jpa, jra, asid)
-                            rows.append(jpg - jpa)   # relative linear twist
-                            rows.append(jrg - jra)   # relative angular twist
-                        if rows:
-                            J = np.vstack(rows)        # (6·n_weld) × nv
-                            v_minus = self.mj_data.qvel.copy()
-                            v_pre = J @ v_minus
-                            MiJT = np.linalg.solve(M_full, J.T)
-                            impulse = np.linalg.solve(J @ MiJT, v_pre)
-                            v_plus = v_minus - MiJT @ impulse
-                            if verbose:
-                                mujoco.mj_subtreeVel(self.mj_model, self.mj_data)
-                                H_pre = float(np.linalg.norm(
-                                    self.mj_data.subtree_angmom[0]))
-                            self.mj_data.qvel[:] = v_plus   # write back ALL DOFs
-                            mujoco.mj_forward(self.mj_model, self.mj_data)
-                            if verbose:
-                                mujoco.mj_subtreeVel(self.mj_model, self.mj_data)
-                                H_post = float(np.linalg.norm(
-                                    self.mj_data.subtree_angmom[0]))
-                                print(f"  Impact(fullDOF): ||dv||="
-                                      f"{np.linalg.norm(v_plus - v_minus):.4f}, "
-                                      f"||J·v-||={np.linalg.norm(v_pre):.4f}, "
-                                      f"|H_sys| {H_pre:.4f}->{H_post:.4f}")
+                        # (Fix A, dock-leak Part 3) — see plant.py.
+                        self.plant.apply_dock_impact(verbose)
 
                     # Post-dock energy-based settling is now handled by
                     # the *next* step's DS block (above). One shared
@@ -2716,7 +2614,7 @@ class SimulationLoop(TickLoggingMixin):
                 # every mj_step below).
                 tau = np.zeros_like(tau)
                 tau_last = tau.copy()
-            self.mj_data.ctrl[:self.robot.n_joints] = tau
+            self.plant.apply_joint_torques(tau)
 
             # AOCS: reaction wheel torque command.
             if self.has_rwa:
@@ -2893,21 +2791,13 @@ class SimulationLoop(TickLoggingMixin):
 
                 if self._diag_disable_aocs:
                     tau_w_cmd = np.zeros(3)
-                self.mj_data.ctrl[self.robot.n_joints:self.robot.n_joints + 3] = tau_w_cmd
+                self.plant.apply_wheel_torques(tau_w_cmd)
                 tau_w_last = tau_w_cmd.copy()
                 _omega_s_last = omega_s.copy()
 
             _L_com_qp_prev = rs.L_com.copy()
             _v_com_qp_prev = rs.v_com.copy()
-            mujoco.mj_step(self.mj_model, self.mj_data)
-            if self._diag_lock_arm_joints:
-                # Re-freeze arm joints after the physics step. The arm
-                # joints live in the tail of qvel immediately after the
-                # structure(6) + RWA(3 if present) + torso(6) block.
-                off_rw = 3 if self.has_rwa else 0
-                arm_v_start = 6 + off_rw + 6
-                arm_v_end = arm_v_start + self.robot.n_joints
-                self.mj_data.qvel[arm_v_start:arm_v_end] = 0.0
+            self.plant.step(lock_arm_joints=self._diag_lock_arm_joints)
 
             omega_s_post = self.mj_data.qvel[3:6].copy()
             rs2 = self.robot.update(

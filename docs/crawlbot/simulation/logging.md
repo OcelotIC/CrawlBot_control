@@ -1,6 +1,6 @@
 # `crawlbot.simulation.logging`
 
-**File**: [`crawlbot/simulation/logging.py`](../../../crawlbot/simulation/logging.py) — **269 lines** — canonical coverage **93 %**
+**File**: [`crawlbot/simulation/logging.py`](../../../crawlbot/simulation/logging.py) — **269 lines** — canonical coverage **94 %**
 
 > Module docstring: *"Simulation data logger."*
 
