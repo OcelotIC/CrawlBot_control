@@ -62,12 +62,12 @@ except ImportError:
 
 from crawlbot.core.robot_interface import RobotInterface
 from crawlbot.core.state_conversions import (
-    mujoco_to_pinocchio, pinocchio_to_mujoco, quat_wxyz_to_euler_deg)
+    pinocchio_to_mujoco, quat_wxyz_to_euler_deg)
 from crawlbot.core.com_to_torso_mapping import CoMToTorsoMapping
 from crawlbot.core.ik import (
     dock_configuration, dock_configuration_fixed_rotation,
     manipulability_config)
-from crawlbot.planning.contact_scheduler import ContactScheduler, read_anchors_from_mujoco
+from crawlbot.planning.contact_scheduler import ContactScheduler
 # LocomotionPlanner removed — CoM reference comes from TorsoPlanner
 from crawlbot.planning.swing_planner import SwingPlanner
 from crawlbot.planning.torso_planner import TorsoPlanner
@@ -85,6 +85,7 @@ from .logging import SimLog, capture_environment
 from .tick_logging import TickState, TickLoggingMixin
 from .plotting import plot_simulation
 from .plant import MujocoPlant
+from .sensors import SensorSuite
 # ── Simulation loop ──────────────────────────────────────────────────────────
 # TickState and the two per-tick recorders (_log_ds_tick / _log_ss_tick) live in
 # tick_logging.py — telemetry, separated from control. See that module's
@@ -104,6 +105,9 @@ class SimulationLoop(TickLoggingMixin):
 
         # The MuJoCo plant — sole writer of MuJoCo state (plant.py).
         self.plant: Optional[MujocoPlant] = None
+        # Measurement channels over the plant — sole reader of MuJoCo state
+        # on the command path (sensors.py).
+        self.sensors: Optional[SensorSuite] = None
         self.robot = None
         self.sched = None
         self.swing_planner = None
@@ -247,6 +251,7 @@ class SimulationLoop(TickLoggingMixin):
         # MuJoCo plant (loads the MJCF, sets dt, detects the RWA)
         self.plant = MujocoPlant(self.mjcf_path, cfg.dt_qp)
         self.has_rwa = self.plant.has_rwa
+        self.sensors = SensorSuite(self.plant, cfg.rwa_I_w)
 
         # Verify torso mass
         tid = mujoco.mj_name2id(self.mj_model, mujoco.mjtObj.mjOBJ_BODY, 'torso')
@@ -261,13 +266,13 @@ class SimulationLoop(TickLoggingMixin):
         # Cache initial structure attitude (wxyz quaternion) for the
         # legacy_pid_* AOCS modes: θ_s = log3(R_init.T @ R_now) gives
         # the small-angle attitude error in body frame.
-        self._struct_quat_init = self.mj_data.qpos[3:7].copy()
+        self._struct_quat_init = self.sensors.struct_quat()
         self.plant.forward()
 
         # Read anchor sites in world frame and convert to structure-local frame
-        mj_a_world, mj_b_world = read_anchors_from_mujoco(self.mj_model, self.mj_data)
-        p_s0 = self.mj_data.qpos[0:3].copy()
-        w, x, y, z = self.mj_data.qpos[3:7]
+        mj_a_world, mj_b_world = self.sensors.anchor_sites_world()
+        p_s0 = self.sensors.struct_pos()
+        w, x, y, z = self.sensors.struct_quat()
         R_s0 = pin.Quaternion(w, x, y, z).toRotationMatrix()
         anchors_a_local = [R_s0.T @ (a - p_s0) for a in mj_a_world]
         anchors_b_local = [R_s0.T @ (b - p_s0) for b in mj_b_world]
@@ -390,8 +395,8 @@ class SimulationLoop(TickLoggingMixin):
                 print(f"  [standoff] init IK residual {err_z:.2e} >= 1e-4; "
                       f"keeping unconstrained init")
 
-        sp = self.mj_data.qpos[0:3].copy()
-        sq = self.mj_data.qpos[3:7].copy()
+        sp = self.sensors.struct_pos()
+        sq = self.sensors.struct_quat()
         mj_qpos, _ = pinocchio_to_mujoco(
             self.q_dock_init, np.zeros(self.robot.model.nv), struct_pos=sp, struct_quat=sq,
             rwa=self.has_rwa)
@@ -408,7 +413,7 @@ class SimulationLoop(TickLoggingMixin):
         # weld activation, but we only need total_mass + frame IDs for
         # building the NMPC/QP, which are invariant to velocity.)
         rs0 = self.robot.update(
-            *mujoco_to_pinocchio(self.mj_data.qpos, self.mj_data.qvel))
+            *self.sensors.joint_state())
 
         # Site IDs
         self.plant.cache_site_ids()
@@ -574,8 +579,7 @@ class SimulationLoop(TickLoggingMixin):
             return 0.5 * float(v_full @ H_robot @ v_full)
 
         # Log the initial hot state after weld activation
-        pq0, pv0 = mujoco_to_pinocchio(
-            self.mj_data.qpos, self.mj_data.qvel)
+        pq0, pv0 = self.sensors.joint_state()
         rs0 = self.robot.update(pq0, pv0)
         T_initial = _kinetic_energy(rs0.v, rs0.H)
         log['T_start'] = T_initial
@@ -613,8 +617,7 @@ class SimulationLoop(TickLoggingMixin):
         # Record final state
         self.plant.zero_ctrl()
         self.plant.forward()
-        pq_end, pv_end = mujoco_to_pinocchio(
-            self.mj_data.qpos, self.mj_data.qvel)
+        pq_end, pv_end = self.sensors.joint_state()
         rs_end = self.robot.update(pq_end, pv_end)
         log['T_end'] = _kinetic_energy(rs_end.v, rs_end.H)
         log['initial_vcom'] = rs_end.v_com.copy()
@@ -659,7 +662,7 @@ class SimulationLoop(TickLoggingMixin):
         --------------------
         - The robot is in DS (both tools welded to their anchors).
         - `self.qp_ss` is built with `use_m2_stack=True`.
-        - `self.mj_data` holds the current MuJoCo state.
+        - `self.plant` holds the current MuJoCo state (read via `self.sensors`).
 
         The loop runs at dt_qp (100 Hz) and calls `self.qp_ss.solve(...)`
         directly — NMPC is bypassed. Exit conditions (in priority order):
@@ -711,8 +714,7 @@ class SimulationLoop(TickLoggingMixin):
 
         # Threshold from H at entry (stable over the small displacement
         # we expect during settling).
-        pq0, pv0 = mujoco_to_pinocchio(
-            self.mj_data.qpos, self.mj_data.qvel)
+        pq0, pv0 = self.sensors.joint_state()
         rs0 = self.robot.update(pq0, pv0)
         eig_H = np.linalg.eigvalsh(rs0.H)
         lambda_min = float(np.min(np.abs(eig_H)))
@@ -726,7 +728,7 @@ class SimulationLoop(TickLoggingMixin):
         cc_ds = contact_config
 
         hw_current = np.zeros(3) if not self.has_rwa else (
-            cfg.rwa_I_w * self.mj_data.qvel[6:9]).copy()
+            self.sensors.wheel_momentum())
 
         # Loop-local ω_s history for the inter-step AOCS K_d·ω̇_s term.
         # The _step regulator's `_omega_s_last` is local to _step and
@@ -734,15 +736,14 @@ class SimulationLoop(TickLoggingMixin):
         # ω_s ⇒ ω̇_s = 0 on the first tick; updated each iteration before
         # mj_step). Only this history is new — the DS wrench feedforward
         # needs no L_com/v_com history (AOCS-FF audit).
-        _omega_s_prev = (self.mj_data.qvel[3:6].copy()
+        _omega_s_prev = (self.sensors.omega_struct()
                          if self.has_rwa else np.zeros(3))
 
         T_history = []
         exit_reason = 'max_steps'
         T = T_start
         for k in range(max_steps):
-            pq, pv = mujoco_to_pinocchio(
-                self.mj_data.qpos, self.mj_data.qvel)
+            pq, pv = self.sensors.joint_state()
             rs = self.robot.update(pq, pv)
             T = _kinetic_energy(rs.v, rs.H)
             T_history.append(T)
@@ -776,7 +777,7 @@ class SimulationLoop(TickLoggingMixin):
             # entry-frozen value (byte-identical). At k=0 qvel is unchanged
             # since entry ⇒ the first solve is identical either way.
             if self.has_rwa and cfg.interstep_hw_refresh:
-                hw_for_qp = (cfg.rwa_I_w * self.mj_data.qvel[6:9]).copy()
+                hw_for_qp = self.sensors.wheel_momentum()
             else:
                 hw_for_qp = hw_current
 
@@ -830,7 +831,7 @@ class SimulationLoop(TickLoggingMixin):
                     self.plant.apply_wheel_torques(tau_w_applied)
                     # Update the ω_s history BEFORE mj_step (current ω_s
                     # is this tick's pre-step value, the next tick's prev).
-                    _omega_s_prev = self.mj_data.qvel[3:6].copy()
+                    _omega_s_prev = self.sensors.omega_struct()
                 else:
                     self.plant.apply_wheel_torques(0.0)
             # NB: no diagnostic arm lock here — this loop never applied it.
@@ -849,8 +850,7 @@ class SimulationLoop(TickLoggingMixin):
 
         n_steps_run = min(k + 1, max_steps) if max_steps > 0 else 0
         # Record final energy (no ctrl reset — caller manages the handoff)
-        pq_end, pv_end = mujoco_to_pinocchio(
-            self.mj_data.qpos, self.mj_data.qvel)
+        pq_end, pv_end = self.sensors.joint_state()
         rs_end = self.robot.update(pq_end, pv_end)
         T_end = _kinetic_energy(rs_end.v, rs_end.H)
 
@@ -892,13 +892,13 @@ class SimulationLoop(TickLoggingMixin):
         from crawlbot.aocs.force_estimator import (
             compute_aocs_command_legacy_pid_numerical)
         cfg = self.cfg
-        omega_s = self.mj_data.qvel[3:6].copy()
-        hw_phys = (cfg.rwa_I_w * self.mj_data.qvel[6:9]).copy()
+        omega_s = self.sensors.omega_struct()
+        hw_phys = self.sensors.wheel_momentum()
 
         # Geometric SO(3) attitude error θ_s (same as _step).
         qw, qx, qy, qz = self._struct_quat_init
         R_init = pin.Quaternion(qw, qx, qy, qz).toRotationMatrix()
-        qw, qx, qy, qz = self.mj_data.qpos[3:7]
+        qw, qx, qy, qz = self.sensors.struct_quat()
         R_now = pin.Quaternion(qw, qx, qy, qz).toRotationMatrix()
         R_err = R_init.T @ R_now
         theta_s = 0.5 * np.array([
@@ -992,12 +992,8 @@ class SimulationLoop(TickLoggingMixin):
         return qp
 
     def _gripper_distance(self, arm, anchor_idx):
-        grip_sid = self.plant.site_ids.get(f'gripper_{arm}', -1)
-        anch_sid = self.plant.site_ids.get(f'anchor_{anchor_idx+1}{arm}', -1)
-        if grip_sid < 0 or anch_sid < 0:
-            return np.inf
-        return float(np.linalg.norm(
-            self.mj_data.site_xpos[grip_sid] - self.mj_data.site_xpos[anch_sid]))
+        # Kept as a method: tick_logging.py calls it on self.
+        return self.sensors.gripper_distance(arm, anchor_idx)
 
     def _gripper_speed(self, arm):
         """Swing-EE linear speed relative to the structure [m/s].
@@ -1009,7 +1005,7 @@ class SimulationLoop(TickLoggingMixin):
         spike). Pinocchio relative twist -> J_ee @ v gives EE velocity
         relative to the structure (LOCAL_WORLD_ALIGNED linear part).
         """
-        pq, pv = mujoco_to_pinocchio(self.mj_data.qpos, self.mj_data.qvel)
+        pq, pv = self.sensors.joint_state()
         rs = self.robot.update(pq, pv)
         J_ee, _, _ = self._get_ee_data(rs, arm)
         return float(np.linalg.norm((J_ee @ pv)[0:3]))
@@ -1021,7 +1017,7 @@ class SimulationLoop(TickLoggingMixin):
         reduces to the angle between the gripper's structure-frame
         rotation matrix and I. Returns the angle in degrees.
         """
-        pq, pv = mujoco_to_pinocchio(self.mj_data.qpos, self.mj_data.qvel)
+        pq, pv = self.sensors.joint_state()
         rs = self.robot.update(pq, pv)
         _, _, oMf = self._get_ee_data(rs, arm)
         R_ee = np.asarray(oMf.rotation)
@@ -1029,40 +1025,12 @@ class SimulationLoop(TickLoggingMixin):
         R_err = R_ee.T @ R_tgt
         return float(np.degrees(np.linalg.norm(pin.log3(R_err))))
 
-    def _weld_relative_twist(self, arm, anchor_idx):
-        """6-D weld-relative twist Jc·v⁻ for one gripper↔anchor pair.
-
-        Returns the 6-vector [relative linear; relative angular] velocity
-        of the swing gripper site w.r.t. its target anchor site, over ALL
-        qvel (incl. structure base + wheels). This is the exact quantity
-        the inelastic impact map projects out at dock.
-
-        Reuses the Fix-A relative-site weld-Jacobian construction
-        (the post-dock impact block): J = [jpg-jpa; jrg-jra] via
-        ``mj_jacSite`` for the gripper/anchor sites, twist = J @ qvel.
-        Unlike the impact block (which iterates ``eq_active``), the gate
-        runs BEFORE the weld engages, so the pair is addressed by name.
-        Assumes the caller has already run ``mj_forward`` so the site
-        Jacobians are current. Returns zeros if either site is missing.
-        """
-        nv = self.mj_model.nv
-        gsid = self.plant.site_ids.get(f'gripper_{arm}', -1)
-        asid = self.plant.site_ids.get(f'anchor_{anchor_idx + 1}{arm}', -1)
-        if gsid < 0 or asid < 0:
-            return np.zeros(6)
-        jpg = np.zeros((3, nv)); jrg = np.zeros((3, nv))
-        jpa = np.zeros((3, nv)); jra = np.zeros((3, nv))
-        mujoco.mj_jacSite(self.mj_model, self.mj_data, jpg, jrg, gsid)
-        mujoco.mj_jacSite(self.mj_model, self.mj_data, jpa, jra, asid)
-        J = np.vstack([jpg - jpa, jrg - jra])      # (6, nv)
-        return J @ self.mj_data.qvel               # 6-D weld-relative twist
-
     def _dock_gate(self, swing_arm, target_idx, *, log=None, t=0.0,
                    step_idx=-1):
         """Evaluate the dock gate. Returns (docked, d, ori_deg, twist_norm).
 
         Fix C (J2 #1): the velocity criterion is the 6-D weld-relative
-        twist ‖Jc·v⁻‖ < cfg.dock_twist_max (via ``_weld_relative_twist``),
+        twist ‖Jc·v⁻‖ < cfg.dock_twist_max (via ``sensors.weld_relative_twist``),
         not the legacy LINEAR EE speed. Pose criteria (d < weld_radius,
         ori < dock_ori_threshold_deg) are unchanged. The legacy linear
         gate is kept behind ``cfg.dock_use_6d_twist=False`` for A/B.
@@ -1074,7 +1042,7 @@ class SimulationLoop(TickLoggingMixin):
         d = self._gripper_distance(swing_arm, target_idx)
         ori_err_deg = self._gripper_ori_err_deg(swing_arm, target_idx)
         twist_norm = float(np.linalg.norm(
-            self._weld_relative_twist(swing_arm, target_idx)))
+            self.sensors.weld_relative_twist(swing_arm, target_idx)))
         pos_ok = d < cfg.weld_radius
         ori_ok = ori_err_deg < cfg.dock_ori_threshold_deg
         if cfg.dock_use_6d_twist:
@@ -1119,8 +1087,7 @@ class SimulationLoop(TickLoggingMixin):
         model = self.robot.model
 
         # Current robot state (structure frame)
-        pq_live, pv_live = mujoco_to_pinocchio(
-            self.mj_data.qpos, self.mj_data.qvel)
+        pq_live, pv_live = self.sensors.joint_state()
         rs_s = self.robot.update(pq_live, pv_live)
         p_t0 = rs_s.oMf_torso.translation.copy()
         R_t0 = rs_s.oMf_torso.rotation.copy()
@@ -1342,14 +1309,13 @@ class SimulationLoop(TickLoggingMixin):
         """
         cfg = self.cfg
         # Live state for (v0, L0)
-        pq_live, pv_live = mujoco_to_pinocchio(
-            self.mj_data.qpos, self.mj_data.qvel)
+        pq_live, pv_live = self.sensors.joint_state()
         rs_live = self.robot.update(pq_live, pv_live)
         v_com_0 = rs_live.v_com.copy()
         L_com_0 = rs_live.L_com.copy()
         # Conservation constant c = hw_0 + L_com_0 + r_com_0 × m·v_com_0
         if self.has_rwa:
-            hw_0 = cfg.rwa_I_w * self.mj_data.qvel[6:9].copy()
+            hw_0 = self.sensors.wheel_momentum()
         else:
             hw_0 = np.zeros(3)
         m = float(rs_live.total_mass)
@@ -1424,11 +1390,8 @@ class SimulationLoop(TickLoggingMixin):
 
     def _capture_snapshot(self, log, t, label):
         """Append a snapshot (t, qpos, qvel, label) for offline rendering."""
-        log.snapshots.append((
-            round(t, 3),
-            self.mj_data.qpos.copy(),
-            self.mj_data.qvel.copy(),
-            label))
+        qpos, qvel = self.sensors.raw_state()
+        log.snapshots.append((round(t, 3), qpos, qvel, label))
 
     def run(self, verbose=True):
         """Run full multi-step locomotion simulation."""
@@ -1460,8 +1423,7 @@ class SimulationLoop(TickLoggingMixin):
         # boundary. R_flat is the real mounting orientation (rpy ~ 0,0,-5.16°),
         # NOT identity — holding it imposes no frame convention and snaps
         # nothing at t=0.
-        _pq_flat, _pv_flat = mujoco_to_pinocchio(
-            self.mj_data.qpos, self.mj_data.qvel)
+        _pq_flat, _pv_flat = self.sensors.joint_state()
         _rs_flat = self.robot.update(_pq_flat, _pv_flat)
         self._R_torso_flat = _rs_flat.oMf_torso.rotation.copy()
         # Seed the hold so the initial DS (before the first step's setup)
@@ -1589,8 +1551,7 @@ class SimulationLoop(TickLoggingMixin):
                                   f"{_dwell_target:.1f}s "
                                   f"(centroidal-DS active, passivity on)")
                         # Capture welded-state torso reference for the dwell.
-                        pq_d, pv_d = mujoco_to_pinocchio(
-                            self.mj_data.qpos, self.mj_data.qvel)
+                        pq_d, pv_d = self.sensors.joint_state()
                         rs_d = self.robot.update(pq_d, pv_d)
                         t_dwell_end = t + _dwell_target
                         # CLEANUP-14: ds_mobile_com_magnitude was 0.0 on the canonical;
@@ -1673,8 +1634,7 @@ class SimulationLoop(TickLoggingMixin):
                     old_anchor = ss_gp.swing_from_idx
                     self.plant.deactivate_weld(swing_arm, old_anchor)
                     self.nmpc.reset_warm_start()
-                    pq_r, pv_r = mujoco_to_pinocchio(
-                        self.mj_data.qpos, self.mj_data.qvel)
+                    pq_r, pv_r = self.sensors.joint_state()
                     rs_r = self.robot.update(pq_r, pv_r)
                     self.gmo.reset(rs_r.H, rs_r.v)
                     self.contact_sm.reset()
@@ -1901,8 +1861,7 @@ class SimulationLoop(TickLoggingMixin):
                     # This gives the true static configuration rather than
                     # the transient pose at dock time (which has residual
                     # velocity and doesn't match the welded equilibrium).
-                    pq, pv = mujoco_to_pinocchio(
-                        self.mj_data.qpos, self.mj_data.qvel)
+                    pq, pv = self.sensors.joint_state()
                     rs_hold = self.robot.update(pq, pv)
                     # Stage 3 (DS memo §6.3, §7.4): when on, hold at the
                     # actual welded state, not the dock-IK target. The
@@ -2070,8 +2029,8 @@ class SimulationLoop(TickLoggingMixin):
 
         # Robot state in structure frame.
         # Extract structure angular velocity for non-inertial corrections.
-        omega_s = self.mj_data.qvel[3:6].copy()
-        pq, pv = mujoco_to_pinocchio(self.mj_data.qpos, self.mj_data.qvel)
+        omega_s = self.sensors.omega_struct()
+        pq, pv = self.sensors.joint_state()
         rs = self.robot.update(pq, pv, omega_struct=omega_s)
         if L_com_prev is None:
             L_com_prev = rs.L_com.copy()
@@ -2100,7 +2059,7 @@ class SimulationLoop(TickLoggingMixin):
         # when the torso is rotating. Prevents the NMPC from treating
         # intentional rotation as a disturbance to be cancelled.
         if self.has_rwa:
-            hw_for_nmpc = (cfg.rwa_I_w * self.mj_data.qvel[6:9]).copy()
+            hw_for_nmpc = self.sensors.wheel_momentum()
         else:
             hw_for_nmpc = hw.copy()
         # Query L_com_ref at the horizon midpoint to track the
@@ -2223,8 +2182,8 @@ class SimulationLoop(TickLoggingMixin):
 
         for qs in range(self.n_qp_per_nmpc):
             tq = t + qs * cfg.dt_qp
-            omega_s = self.mj_data.qvel[3:6].copy()
-            pq, pv = mujoco_to_pinocchio(self.mj_data.qpos, self.mj_data.qvel)
+            omega_s = self.sensors.omega_struct()
+            pq, pv = self.sensors.joint_state()
             rs = self.robot.update(pq, pv, omega_struct=omega_s)
             Jc, Jdc = self.robot.get_contact_jacobians(
                 cc_ss.active_contacts[0], cc_ss.active_contacts[1])
@@ -2618,9 +2577,9 @@ class SimulationLoop(TickLoggingMixin):
 
             # AOCS: reaction wheel torque command.
             if self.has_rwa:
-                rw_vel = self.mj_data.qvel[6:9]
-                hw_phys = cfg.rwa_I_w * rw_vel
-                omega_s = self.mj_data.qvel[3:6]
+                hw_phys = self.sensors.wheel_momentum()
+                # A live view, as the original read was (see sensors.py).
+                omega_s = self.sensors.omega_struct_view()
 
                 # Diagnostic: |ω_s × H_{r/O}| — magnitude of the transport
                 # term missing from Mode B's feedforward. Computed but
@@ -2737,7 +2696,7 @@ class SimulationLoop(TickLoggingMixin):
                     import pinocchio as _pin
                     qw, qx, qy, qz = self._struct_quat_init
                     R_init = _pin.Quaternion(qw, qx, qy, qz).toRotationMatrix()
-                    qw, qx, qy, qz = self.mj_data.qpos[3:7]
+                    qw, qx, qy, qz = self.sensors.struct_quat()
                     R_now = _pin.Quaternion(qw, qx, qy, qz).toRotationMatrix()
                     R_err = R_init.T @ R_now
                     # vee of (R_err − R_err^T) / 2 — geometric SO(3) error.
@@ -2799,9 +2758,9 @@ class SimulationLoop(TickLoggingMixin):
             _v_com_qp_prev = rs.v_com.copy()
             self.plant.step(lock_arm_joints=self._diag_lock_arm_joints)
 
-            omega_s_post = self.mj_data.qvel[3:6].copy()
+            omega_s_post = self.sensors.omega_struct()
             rs2 = self.robot.update(
-                *mujoco_to_pinocchio(self.mj_data.qpos, self.mj_data.qvel),
+                *self.sensors.joint_state(),
                 omega_struct=omega_s_post)
 
             # GMO update (100 Hz, after physics step)
@@ -2810,7 +2769,7 @@ class SimulationLoop(TickLoggingMixin):
             self.gmo.update(rs2.H, rs2.v, rs2.C_matrix, tau_applied)
 
             if self.has_rwa:
-                hw = cfg.rwa_I_w * self.mj_data.qvel[6:9].copy()
+                hw = self.sensors.wheel_momentum()
             else:
                 hw -= (rs2.L_com - rs.L_com) / cfg.dt_qp * cfg.dt_qp
             # Do NOT clip hw here. The QP's hw safety constraint is

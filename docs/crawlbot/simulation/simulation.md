@@ -6,6 +6,7 @@
 |---|---:|---:|---|
 | `sim_loop.py` | 3387 | 83 % | [sim_loop.md](sim_loop.md) |
 | `plant.py` | 199 | — | [plant.md](plant.md) |
+| `sensors.py` | 128 | — | [sensors.md](sensors.md) |
 | `config.py` | 507 | **100 %** | [config.md](config.md) |
 | `logging.py` | 269 | 93 % | [logging.md](logging.md) |
 | `plotting.py` | 154 | 2 % | [plotting.md](plotting.md) |
@@ -17,8 +18,9 @@ the per-step sequence (docking IK -> pre-planner -> planners -> swing -> settle)
 weld activation under the 5 mm / 5 deg gate, the AOCS command, and the log.
 
 `plant.py` is the MuJoCo side of the loop — the only writer of simulator state
-(step, welds, dock impact, actuators); `sim_loop` reads MuJoCo but no longer
-writes it directly.
+(step, welds, dock impact, actuators). `sensors.py` is its read side — one
+method per measurement channel; the control path touches MuJoCo only through
+these two.
 
 `config.py` is the single tuning surface — rule 5 of the project. `logging.py`
 produces the `sim_log.json` that every downstream analysis reads.

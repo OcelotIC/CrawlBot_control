@@ -23,7 +23,8 @@
 | site-id cache | `cache_site_ids` | weld-management block |
 | inelastic dock impact (writes all `qvel`) | `apply_dock_impact(verbose)` | `run()` post-dock block |
 
-`SimulationLoop.mj_model` / `.mj_data` remain as **read-only properties** —
+The read side is [`sensors.py`](sensors.md), which queries `plant.data` and the
+`site_ids` cache built here. `SimulationLoop.mj_model` / `.mj_data` remain as **read-only properties** —
 `tick_logging.py` and the diagnostic drivers read them — but no controller code
 writes through them any more. Under ROS 2 this class is what sits behind the
 bridge node (or is replaced by hardware): the controller sees measurements in and
