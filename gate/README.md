@@ -111,6 +111,13 @@ commit only the "new" side is re-run. `--cov` records coverage;
 replay does not (`gate/_run/cov/cov.json`, same commit), grouped by function —
 so a scenario that silently stopped taking its branch shows up as "none".
 
+**Bite tests** (2026-09-29, baseline `36c44bf`, run with `--new-side`): a
+`+1e-12` on the output of `compute_aocs_command_legacy_pd_model` fails
+`aocs_pd_model` and nothing else (the difference reaches `sim_log.json`,
+2.4e-14 on L_com by tick 10); a `+1e-12` on the logging-only `c_ref` of the
+`_step2_diag_log` entry fails every scenario with an SS phase (23/25 — not
+`skip` / `skipstop`) through `step_log.json` alone, all control files identical.
+
 The harness seeds `sim._step_q_start` / `_step_q_end` so the canonical driver
 survives a step-0 pre-planner failure (a driver defect, see CLAUDE.md Known
 Issues); the seed is identical on both sides and reaches no control path.

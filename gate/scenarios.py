@@ -12,7 +12,7 @@ masked.
     git worktree add /tmp/old_tree <pre-change commit>
     python3 gate/scenarios.py run  /tmp/old_tree old   [--cov] [names...]
     python3 gate/scenarios.py run  .             new   [names...]
-    python3 gate/scenarios.py diff [names...]          # exit 0 iff identical
+    python3 gate/scenarios.py diff [--new-side S] [names...]  # exit 0 iff identical
     python3 gate/scenarios.py coverage [names...]      # paths beyond canonical
     git worktree remove --force /tmp/old_tree
 
@@ -264,13 +264,13 @@ MASK = re.compile(r'  Output: .*|\d+\.\d+ ms|\d+\.\d+s sim|written .*|'
                   r't_max|\s+\d+\.\d\s+\d+\.\d\s+(?=\d+\s+Solve)')
 
 
-def diff(names):
+def diff(names, new='new'):
     sys.path.insert(0, REPO)
     os.chdir(REPO)
     import gate.local_ref as lr
     bad = 0
     for name in names:
-        a, b = f'scn_{name}_old', f'scn_{name}_new'
+        a, b = f'scn_{name}_old', f'scn_{name}_{new}'
         print(f'=== {name}')
         # stdout / stderr are compared separately (masked), not as files
         for side in (a, b):
@@ -360,6 +360,11 @@ def coverage(names, side='old'):
 
 
 if __name__ == '__main__':
+    new_side = 'new'
+    if '--new-side' in sys.argv:
+        k = sys.argv.index('--new-side')
+        new_side = sys.argv[k + 1]
+        del sys.argv[k:k + 2]
     args = [a for a in sys.argv[1:] if a != '--cov']
     if args[0] == '_child':
         child(args[1], args[2])
@@ -367,6 +372,6 @@ if __name__ == '__main__':
         run(os.path.abspath(args[1]), args[2], args[3:] or list(SCENARIOS),
             cov='--cov' in sys.argv)
     elif args[0] == 'diff':
-        sys.exit(diff(args[1:] or list(SCENARIOS)))
+        sys.exit(diff(args[1:] or list(SCENARIOS), new=new_side))
     elif args[0] == 'coverage':
         coverage(args[1:] or list(SCENARIOS))
