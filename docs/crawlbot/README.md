@@ -7,6 +7,7 @@ commit and from **line coverage of the canonical replay**
 | package | overview | modules |
 |---|---|---:|
 | **solvers** — the controller | [`solvers/solvers.md`](solvers/solvers.md) | 5 |
+| **control** — controller blocks (NMPC / QP / AOCS drivers) | [`control/control.md`](control/control.md) | 1 |
 | **planning** — reference generation | [`planning/planning.md`](planning/planning.md) | 6 |
 | **core** — model, IK, frames | [`core/core.md`](core/core.md) | 4 |
 | **simulation** — closed loop, config | [`simulation/simulation.md`](simulation/simulation.md) | 4 |
