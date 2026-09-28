@@ -136,6 +136,34 @@ class RobotState:
     total_mass: float
 
 
+def contact_jacobians(
+    rs: RobotState, active_A: bool, active_B: bool
+) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+    """Stacked contact Jacobian and J̇·q̇ of the active contacts, from ``rs``.
+
+    A pure function of the state it is given — unlike the method
+    ``RobotInterface.get_contact_jacobians``, which reads the interface's
+    most recent ``update()`` and therefore depends on call order.
+
+    Returns
+    -------
+    J_contacts : ndarray (6*nc, nv) or None
+        Stacked Jacobians, A then B.
+    Jdot_dq_contacts : ndarray (6*nc,) or None
+        Stacked J̇·q̇ vectors.
+    """
+    Js, Jds = [], []
+    if active_A:
+        Js.append(rs.J_tool_a)
+        Jds.append(rs.Jdot_dq_tool_a)
+    if active_B:
+        Js.append(rs.J_tool_b)
+        Jds.append(rs.Jdot_dq_tool_b)
+    if not Js:
+        return None, None
+    return np.vstack(Js), np.concatenate(Jds)
+
+
 class RobotInterface:
     """Pinocchio computation wrapper for the VISPA controller.
 
@@ -433,26 +461,12 @@ class RobotInterface:
     def get_contact_jacobians(
         self, active_A: bool, active_B: bool
     ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
-        """Return stacked contact Jacobian and J̇·q̇ for active contacts.
+        """``contact_jacobians`` of the MOST RECENT ``update()``.
 
-        Returns
-        -------
-        J_contacts : ndarray (6*nc, 18) or None
-            Stacked Jacobians, A then B.
-        Jdot_dq_contacts : ndarray (6*nc,) or None
-            Stacked J̇·q̇ vectors.
+        Kept for callers that hold no state of their own; order-dependent by
+        construction. The controller uses ``contact_jacobians(rs, ...)``.
         """
-        s = self.state
-        Js, Jds = [], []
-        if active_A:
-            Js.append(s.J_tool_a)
-            Jds.append(s.Jdot_dq_tool_a)
-        if active_B:
-            Js.append(s.J_tool_b)
-            Jds.append(s.Jdot_dq_tool_b)
-        if not Js:
-            return None, None
-        return np.vstack(Js), np.concatenate(Jds)
+        return contact_jacobians(self.state, active_A, active_B)
 
     def neutral_configuration(self) -> np.ndarray:
         """Pinocchio neutral configuration (identity base, zero joints)."""

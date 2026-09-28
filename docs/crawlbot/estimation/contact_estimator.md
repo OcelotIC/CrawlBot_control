@@ -97,7 +97,7 @@ different quantity.
 
 ## 3. Where it runs
 
-`update()` is called **in single support only** (`controller.py:662`); in double
+`update()` is called **in single support only** (`controller.py:664`); in double
 support the log records `0.0` (`:1057`), because `gmo_swing_residual` needs a
 swing-velocity slice that DS does not track.
 

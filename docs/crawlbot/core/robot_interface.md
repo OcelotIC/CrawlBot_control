@@ -1,6 +1,6 @@
 # `crawlbot.core.robot_interface`
 
-**File**: [`crawlbot/core/robot_interface.py`](../../../crawlbot/core/robot_interface.py) — **460 lines** — canonical coverage **87 %**
+**File**: [`crawlbot/core/robot_interface.py`](../../../crawlbot/core/robot_interface.py) — **474 lines** — canonical coverage **86 %**
 
 > Module docstring: *"RobotInterface — Pinocchio wrapper for the VISPA crawling controller."*
 
@@ -45,12 +45,13 @@ one consistent snapshot — no module re-derives a Jacobian on its own.
 |   `q_max` | `` | _field_ | [L132](../../../crawlbot/core/robot_interface.py#L132) |
 |   `tau_max` | `` | _field_ | [L133](../../../crawlbot/core/robot_interface.py#L133) |
 |   `total_mass` | `` | _field_ | [L136](../../../crawlbot/core/robot_interface.py#L136) |
-| **`RobotInterface`** |  |  | [L139](../../../crawlbot/core/robot_interface.py#L139) |
-| `.update` | `(q, v, omega_struct=None)` | **yes** | [L242](../../../crawlbot/core/robot_interface.py#L242) |
-| `.state` | `()` | **yes** | [L393](../../../crawlbot/core/robot_interface.py#L393) |
-| `.compute_gjm` | `(swing_arm)` | not exercised | [L401](../../../crawlbot/core/robot_interface.py#L401) |
-| `.get_contact_jacobians` | `(active_A, active_B)` | **yes** | [L433](../../../crawlbot/core/robot_interface.py#L433) |
-| `.neutral_configuration` | `()` | not exercised | [L457](../../../crawlbot/core/robot_interface.py#L457) |
+| `contact_jacobians` | `(rs, active_A, active_B)` | **yes** | [L139](../../../crawlbot/core/robot_interface.py#L139) |
+| **`RobotInterface`** |  |  | [L167](../../../crawlbot/core/robot_interface.py#L167) |
+| `.update` | `(q, v, omega_struct=None)` | **yes** | [L270](../../../crawlbot/core/robot_interface.py#L270) |
+| `.state` | `()` | not exercised | [L421](../../../crawlbot/core/robot_interface.py#L421) |
+| `.compute_gjm` | `(swing_arm)` | not exercised | [L429](../../../crawlbot/core/robot_interface.py#L429) |
+| `.get_contact_jacobians` | `(active_A, active_B)` | not exercised | [L461](../../../crawlbot/core/robot_interface.py#L461) |
+| `.neutral_configuration` | `()` | not exercised | [L471](../../../crawlbot/core/robot_interface.py#L471) |
 
 ### Module constants
 
@@ -118,6 +119,19 @@ from crawlbot.core.robot_interface import NQ   # 19, permanently
 Prefer instance attributes: `robot.model.nq`, `robot.n_joints`,
 `robot.frame_torso`. They are always right.
 
+## 2b. `contact_jacobians(rs, …)` — pure, and why it exists
+
+`RobotInterface.get_contact_jacobians` reads `self.state`, i.e. whatever the
+LAST `update()` computed — not the state the caller is holding. A caller that
+updates the interface twice (the loop does, for the dock gate and the planner)
+and then asks for contact Jacobians gets the second state's. The controller
+therefore uses the module-level `contact_jacobians(rs, active_A, active_B)`,
+a pure function of the `RobotState` it is handed (C1, refactor/sim-loop-split);
+the method remains as a thin wrapper for state-less callers. `update()` returns
+the state it stores, so at the two controller call sites the two forms are the
+same object — the switch is bit-identical. Frozen by
+`tests/test_invariants.py::TestContactJacobians::test_pure_function_ignores_later_update`.
+
 ## 3. DOF-generic by design
 
 The module does not hard-code "6 DOF per arm": it detects the joint slice from
@@ -136,12 +150,13 @@ The stale module-level defaults in section 2 are the residue of that transition.
 | unit | source |
 |---|---|
 | `class RobotState` | [L89-136](../../../crawlbot/core/robot_interface.py#L89-L136) |
-| `class RobotInterface` | [L139-459](../../../crawlbot/core/robot_interface.py#L139-L459) |
-| `RobotInterface.update` | [L242-390](../../../crawlbot/core/robot_interface.py#L242-L390) |
-| `RobotInterface.state` | [L393-397](../../../crawlbot/core/robot_interface.py#L393-L397) |
-| `RobotInterface.compute_gjm` | [L401-431](../../../crawlbot/core/robot_interface.py#L401-L431) |
-| `RobotInterface.get_contact_jacobians` | [L433-455](../../../crawlbot/core/robot_interface.py#L433-L455) |
-| `RobotInterface.neutral_configuration` | [L457-459](../../../crawlbot/core/robot_interface.py#L457-L459) |
+| `contact_jacobians()` | [L139-164](../../../crawlbot/core/robot_interface.py#L139-L164) |
+| `class RobotInterface` | [L167-473](../../../crawlbot/core/robot_interface.py#L167-L473) |
+| `RobotInterface.update` | [L270-418](../../../crawlbot/core/robot_interface.py#L270-L418) |
+| `RobotInterface.state` | [L421-425](../../../crawlbot/core/robot_interface.py#L421-L425) |
+| `RobotInterface.compute_gjm` | [L429-459](../../../crawlbot/core/robot_interface.py#L429-L459) |
+| `RobotInterface.get_contact_jacobians` | [L461-469](../../../crawlbot/core/robot_interface.py#L461-L469) |
+| `RobotInterface.neutral_configuration` | [L471-473](../../../crawlbot/core/robot_interface.py#L471-L473) |
 
 ---
 

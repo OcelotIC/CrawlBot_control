@@ -154,7 +154,7 @@ Update this line as work progresses:
 
 **Completed (cleanup chantier):** `crawlbot/` −3281/+644 across 19 files with the canonical byte-identical at every stage; 2098 files of research sediment moved to `Misc/`; 33 per-module documents under `docs/crawlbot/` with a generated-and-enforced half (`gate/sync_docs.py --check`); seven checkers in `gate/` (run_gate, run_suite, dock_check, sync_docs, verify_docs, verify_params, verify_roots, link_audit), each proven to bite on an injected fault before being trusted; the test suite taken from 12 problems to 0 and **gated**.
 
-**Two-task SS stack (current architecture):** T-MOM linear + 6-D torso-pose + swing-EE + posture, all weighted, NO null-space projection, `weight_ratio=1` ⇒ **α magnitudes ARE the hierarchy** (nominal priority integers inert). In two-task SS the torso task is fed the **raw TorsoPlanner quintic+SLERP — the CoM→torso δ-mapping is NOT used in SS** (`controller.py:415-417`); DS still uses the mapping. Superseded: the cooperative split, strict-P1, planned-δ, and the handoff-era "torso-ori blocker".
+**Two-task SS stack (current architecture):** T-MOM linear + 6-D torso-pose + swing-EE + posture, all weighted, NO null-space projection, `weight_ratio=1` ⇒ **α magnitudes ARE the hierarchy** (nominal priority integers inert). In two-task SS the torso task is fed the **raw TorsoPlanner quintic+SLERP — the CoM→torso δ-mapping is NOT used in SS** (`controller.py:417-419`); DS still uses the mapping. Superseded: the cooperative split, strict-P1, planned-δ, and the handoff-era "torso-ori blocker".
 
 ---
 
@@ -190,7 +190,7 @@ Update this line as work progresses:
 | **κ_SS(H)** | ≈ 7.5e3 (530× below the pre-freeze canonical 3.6e6) | — | `canonical2p5_result.json` |
 | ~~α_com_soft~~ | **field REMOVED** (CLEANUP-6), not merely 0 | — | The soft-CoM residual task is gone; the QP has no direct CoM feedback path. Do not re-add a config field for it without re-adding the task |
 | CoM shaping | a_cruise_max=**0.0** (off) | m/s² | `coarse_preplanner.py:99` — pre-planner cruise-accel cap disabled |
-| Torso reference (SS) | **raw TorsoPlanner quintic+SLERP — NO δ-mapping in two-task SS** (`controller.py:415-417`); DS still uses δ(q_current)+F-SAT | — | TORSO-REF-AUDIT; per-step reference re-anchored each SS |
+| Torso reference (SS) | **raw TorsoPlanner quintic+SLERP — NO δ-mapping in two-task SS** (`controller.py:417-419`); DS still uses δ(q_current)+F-SAT | — | TORSO-REF-AUDIT; per-step reference re-anchored each SS |
 | CoM-z standoff | −0.35 m (on) | m | Dock-IK + init pin crawl height (PR #17) |
 
 ---
@@ -270,6 +270,6 @@ The **5 mm dock gate is the docking-mechanism capture radius** — the 0.01 mm w
 - Do not implement a three-phase state machine (DS/SS/EXT) — the architecture is two-phase (DS/SS) per spec §7.1
 - Do not activate welds on position alone — require both `d < 5mm AND ori < 5°`
 - Do not use α_wrench > 1 — wrench regularization at 100 consumed 20% of QP budget and blocked torso/EE authority
-- Do not route the SS torso reference through the δ-mapping in two-task mode — SS uses the raw TorsoPlanner quintic (mapping is explicitly excluded, `controller.py:415-417`); the mapping (δ(q_current)+F-SAT) remains a DS-only path
+- Do not route the SS torso reference through the δ-mapping in two-task mode — SS uses the raw TorsoPlanner quintic (mapping is explicitly excluded, `controller.py:417-419`); the mapping (δ(q_current)+F-SAT) remains a DS-only path
 - Do not assume standalone component tests guarantee closed-loop success — always run the cascade bisection (A/B/C/D) to isolate integration failures
 - Do not generate trajectory acceleration profiles without checking actuator feasibility — quintic on 591mm torso displacement saturates 20 Nm joints

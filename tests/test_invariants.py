@@ -205,3 +205,35 @@ class TestContactJacobians:
         J, Jdot_dq = robot_interface.get_contact_jacobians(False, False)
         assert J is None
         assert Jdot_dq is None
+
+    def test_pure_function_matches_method(self, robot_interface):
+        """contact_jacobians(rs) == the method right after update(rs)."""
+        from crawlbot.core.robot_interface import contact_jacobians
+        q = pin.neutral(robot_interface.model)
+        v = np.linspace(-0.1, 0.1, robot_interface.model.nv)
+        rs = robot_interface.update(q, v)
+        for a, b in ((True, True), (True, False), (False, True)):
+            J1, Jd1 = contact_jacobians(rs, a, b)
+            J2, Jd2 = robot_interface.get_contact_jacobians(a, b)
+            assert np.array_equal(J1, J2) and np.array_equal(Jd1, Jd2)
+        assert contact_jacobians(rs, False, False) == (None, None)
+
+    def test_pure_function_ignores_later_update(self, robot_interface):
+        """The pure form stays bound to the state it is given; the method
+        follows the interface's latest update() (the hidden coupling C1
+        removed from the controller)."""
+        from crawlbot.core.robot_interface import contact_jacobians
+        model = robot_interface.model
+        q0 = pin.neutral(model)
+        dq = np.zeros(model.nv)
+        dq[6:] = 0.2
+        q1 = pin.integrate(model, q0, dq)
+        v = np.linspace(-0.1, 0.1, model.nv)
+        rs0 = robot_interface.update(q0, v)
+        J0, Jd0 = contact_jacobians(rs0, True, True)
+        J0, Jd0 = J0.copy(), Jd0.copy()
+        robot_interface.update(q1, v)
+        J0b, Jd0b = contact_jacobians(rs0, True, True)
+        assert np.array_equal(J0, J0b) and np.array_equal(Jd0, Jd0b)
+        J1, _ = robot_interface.get_contact_jacobians(True, True)
+        assert not np.array_equal(J0, J1)

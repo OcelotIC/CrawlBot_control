@@ -20,6 +20,8 @@ from typing import Any, Optional
 
 import numpy as np
 
+from crawlbot.core.robot_interface import contact_jacobians
+
 
 @dataclass
 class DiagHooks:
@@ -369,8 +371,8 @@ class WholeBodyController:
         omega_s = self._sensors.omega_struct()
         pq, pv = self._sensors.joint_state()
         rs = self._robot.update(pq, pv, omega_struct=omega_s)
-        Jc, Jdc = self._robot.get_contact_jacobians(
-            cc_ss.active_contacts[0], cc_ss.active_contacts[1])
+        Jc, Jdc = contact_jacobians(
+            rs, cc_ss.active_contacts[0], cc_ss.active_contacts[1])
 
         # M5 Fix 1b: linear interpolation along the NMPC trajectory
         # knot 0 -> knot 1 across the 10 QP sub-steps. alpha goes
@@ -701,7 +703,7 @@ class WholeBodyController:
         ``tau_w_applied``; ``omega_s_prev`` the updated ω_s history.
         """
         cfg = self._cfg
-        Jc, Jdc = self._robot.get_contact_jacobians(True, True)
+        Jc, Jdc = contact_jacobians(rs, True, True)
 
         # c_curr (J2): refresh the QP's hw_current parameter to the LIVE
         # wheel momentum this tick. With the AOCS active in this loop the
