@@ -76,6 +76,31 @@ PYTHONPATH=. python3 gate/local_ref.py check           # after each commit
 The reference lives under `gate/_run/` (git-ignored): it is valid only on the
 host that produced it, and its `_manifest.json` records the commit.
 
+## Non-canonical branches — `gate/scenarios.py`
+
+The canonical replay never takes DWELL, SKIP (pre-planner infeasible), dock
+TIMEOUT, `stop_on_failed_step` or the `diag_*_on_abort` overrides, so neither
+`run_gate.py` nor `local_ref.py` can say a change left them alone. This harness
+forces each one in a shortened traversal (six scenarios, ~1–2 min each) and
+runs it twice — on a git worktree of the pre-change commit and on the working
+tree — then compares every output file bit-for-bit (`local_ref.py`'s
+comparator) and stdout line for line with wall-clock numbers masked. It also
+prints which branch markers fired, because a scenario that silently stopped
+taking its branch would otherwise pass vacuously.
+
+```bash
+git worktree add /tmp/old_tree <pre-change commit>
+PYTHONPATH=. python3 gate/scenarios.py run /tmp/old_tree old
+PYTHONPATH=. python3 gate/scenarios.py run . new
+PYTHONPATH=. python3 gate/scenarios.py diff        # exit 0 iff all identical
+git worktree remove --force /tmp/old_tree
+```
+
+It seeds `sim._step_q_start` / `_step_q_end` so the canonical driver survives
+a step-0 pre-planner failure (a driver defect, see CLAUDE.md Known Issues); the
+seed is identical on both sides and reaches no control path. First used on
+`refactor/sim-loop-split` extraction 4: all six scenarios identical.
+
 ## Provenance
 
 - Baseline reference point: **commit `bfd5509`** (main HEAD at founding; the first
@@ -94,6 +119,7 @@ host that produced it, and its `_manifest.json` records the commit.
 | `replay_canonical.py` | isolated managed-scenario replay | yes |
 | `dock_check.py` | headline canonical numbers from a replay log | yes |
 | `local_ref.py` | host-local bit-identity reference for refactors | yes |
+| `scenarios.py` | differential replay of non-canonical branches, old tree vs new | yes |
 | `environment.lock` | pinned stack (founding baseline) | yes |
 | `EXCEPTIONS.md` | acceptance policy + sign-off ledger | yes |
 | `last_verdict.json` | latest run output (founding = baseline) | yes |
