@@ -7,7 +7,7 @@ commit and from **line coverage of the canonical replay**
 | package | overview | modules |
 |---|---|---:|
 | **solvers** — the controller | [`solvers/solvers.md`](solvers/solvers.md) | 5 |
-| **control** — controller blocks (NMPC / QP / AOCS drivers) | [`control/control.md`](control/control.md) | 2 |
+| **control** — controller blocks (NMPC / QP / AOCS drivers) | [`control/control.md`](control/control.md) | 3 |
 | **planning** — reference generation | [`planning/planning.md`](planning/planning.md) | 6 |
 | **core** — model, IK, frames | [`core/core.md`](core/core.md) | 4 |
 | **simulation** — closed loop, config | [`simulation/simulation.md`](simulation/simulation.md) | 4 |
@@ -136,7 +136,7 @@ cited symbol is no longer defined in `crawlbot/`.
 
 It has already earned its keep: the first draft carried a torso-reference line
 number inherited from CLAUDE.md, stale since the chantier shortened `sim_loop` by
-375 lines. The real site is `controller.py:408-410`. CLAUDE.md,
+375 lines. The real site is `torso_reference.py:102-104`. CLAUDE.md,
 `CLEANUP_CARRYOVER` and these documents were corrected together.
 
 **Not yet covered**: numeric values (weights, gains, thresholds), still verified

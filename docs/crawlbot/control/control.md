@@ -10,6 +10,7 @@ in [`aocs/`](../aocs/aocs.md); this package holds the blocks that *drive* them.
 | file | document |
 |---|---|
 | `controller.py` | [controller.md](controller.md) |
+| `torso_reference.py` | [torso_reference.md](torso_reference.md) |
 | `attitude.py` | [attitude.md](attitude.md) |
 
 ## Role

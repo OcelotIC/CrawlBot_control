@@ -427,15 +427,15 @@ class SimulationLoop(TickLoggingMixin):
     # driver reads these three after run().
     @property
     def _sat_total_calls(self):
-        return self.controller._sat_total_calls
+        return self.controller.torso_shaper._sat_total_calls
 
     @property
     def _sat_clipped_calls(self):
-        return self.controller._sat_clipped_calls
+        return self.controller.torso_shaper._sat_clipped_calls
 
     @property
     def _sat_max_clip_mm(self):
-        return self.controller._sat_max_clip_mm
+        return self.controller.torso_shaper._sat_max_clip_mm
 
     # ── Diagnostic hooks: properties onto the shared DiagHooks record ─────
     @property
@@ -1890,7 +1890,7 @@ class SimulationLoop(TickLoggingMixin):
                         self.nmpc.reset_warm_start()
                         # Option A: capture the SS-exit torso position
                         # and weld time for the post-dock DS blend. The
-                        # blend endpoint (_ds_ramp_p_end) is not stored
+                        # blend endpoint is not stored
                         # here — _step() recomputes the live mapping
                         # output each tick and blends it against
                         # _ds_ramp_p_start. See M7_T12_MEMO.md §5.
@@ -2214,13 +2214,13 @@ class SimulationLoop(TickLoggingMixin):
             else:
                 entry['a_torso_des'] = None
                 entry['a_torso_qp'] = None
-            if self.controller._last_mapping_delta is not None:
-                entry['delta_q'] = self.controller._last_mapping_delta.tolist()
+            if self.controller.torso_shaper._last_mapping_delta is not None:
+                entry['delta_q'] = self.controller.torso_shaper._last_mapping_delta.tolist()
             else:
                 entry['delta_q'] = None
-            if self.controller._last_mapping_delta_current is not None:
+            if self.controller.torso_shaper._last_mapping_delta_current is not None:
                 entry['delta_q_current'] = (
-                    self.controller._last_mapping_delta_current.tolist())
+                    self.controller.torso_shaper._last_mapping_delta_current.tolist())
             else:
                 entry['delta_q_current'] = None
             entry['step_idx'] = int(step_idx)

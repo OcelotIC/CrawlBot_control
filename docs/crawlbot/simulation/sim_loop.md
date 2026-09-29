@@ -305,8 +305,8 @@ removed in CLEANUP-8 — but it gates two paths unrelated to the task stack:
 
 | site | what it gates |
 |---|---|
-| `controller.py:408-410` | torso-reference routing (delta-mapping vs raw quintic) |
-| `controller.py:554-555` | `passivity_active` — **the DS passivity constraint** |
+| `torso_reference.py:102-104` | torso-reference routing (delta-mapping vs raw quintic) |
+| `controller.py:408-409` | `passivity_active` — **the DS passivity constraint** |
 
 Deleting it would silently disable DS passivity. Same name, opposite fates.
 

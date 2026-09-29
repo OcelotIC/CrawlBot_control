@@ -99,7 +99,7 @@ Two mitigations exist in the code:
 **F-RATE (canonical)** — recompute `delta` and `delta_dot` **once per NMPC tick**
 (10 Hz) instead of per QP tick. The interpolated `(m_total/m_b) * r_com` term
 still varies smoothly at 100 Hz. See the comment block at
-`controller.py:415-423`.
+`torso_reference.py:109-117`.
 
 **Loop-free reformulation (implemented, not canonical)** —
 `compute_delta_local` uses
@@ -118,7 +118,7 @@ unexercised on the canonical.
 Explicit project rule:
 
 > *Do not route the SS torso reference through the delta-mapping in two-task
-> mode — SS uses the raw TorsoPlanner quintic (`controller.py:408-410`); the
+> mode — SS uses the raw TorsoPlanner quintic (`torso_reference.py:102-104`); the
 > mapping remains a DS-only path.*
 
 In single support the QP's torso-pose task is fed the planner's raw

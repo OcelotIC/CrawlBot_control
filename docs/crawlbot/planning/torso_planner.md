@@ -88,7 +88,7 @@ error does not accumulate across a traversal.
 
 Explicit project rule:
 
-> *SS uses the raw TorsoPlanner quintic (`controller.py:408-410`); the mapping
+> *SS uses the raw TorsoPlanner quintic (`torso_reference.py:102-104`); the mapping
 > (delta(q_current) + F-SAT) remains a DS-only path.*
 
 In single support the QP's torso-pose task receives `tr.p / v / a` directly. The
