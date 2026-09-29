@@ -61,7 +61,6 @@ except ImportError:
 from crawlbot.core.robot_interface import RobotInterface
 from crawlbot.core.state_conversions import (
     pinocchio_to_mujoco, quat_wxyz_to_euler_deg)
-from crawlbot.core.com_to_torso_mapping import CoMToTorsoMapping
 from crawlbot.core.ik import (
     dock_configuration, dock_configuration_fixed_rotation,
     manipulability_config)
@@ -698,15 +697,6 @@ class SimulationLoop(TickLoggingMixin):
         self.preplanner = CoarsePrePlanner(pre_cfg)
         self.preplanner.build()
 
-        # M1/M5: CoM-to-torso mapping layer. Converts NMPC centroidal
-        # outputs (r_com, v_com, a_com_ff) into torso position references
-        # via the mass-weighted identity
-        #   r_b_ref = (m_total/m_b) * r_com_ref - delta(q)/m_b
-        # The QP then tracks this mapped torso reference instead of the
-        # TorsoPlanner's raw p_torso, ensuring the torso task is
-        # consistent with the momentum-feasible NMPC plan.
-        self.mapping = CoMToTorsoMapping(self.robot)
-
         # M7: single QP variant. EXT variants (qp_ext, qp_approach) with
         # their gain scheduling and close-approach latches are removed —
         # synchronized trajectories (both torso and swing over [0, T_step])
@@ -741,7 +731,7 @@ class SimulationLoop(TickLoggingMixin):
         # source it queries by time — control/controller.py.
         self.refs = PlannerReferences(self)
         self.controller = WholeBodyController(
-            cfg, self.robot, self.sensors, self.nmpc, self.qp_ss, self.mapping,
+            cfg, self.robot, self.sensors, self.nmpc, self.qp_ss,
             self.aocs, self.gmo, self.diag, self.n_qp_per_nmpc)
 
         # ── Two-stage setup settling ──────────────────────────────────
@@ -1307,12 +1297,6 @@ class SimulationLoop(TickLoggingMixin):
         # path is taken.
         self._step_q_seq = None
         self._step_dq_seg = None
-        # Snapshot the torso linear position at SS entry (the start of the
-        # post-dock DS blend). p_t0 is the torso pose computed from the
-        # live state above, i.e. the actual torso position at SS entry.
-        # Option A: this also resets the post-dock DS blend; the next weld
-        # activation re-arms it (controller.on_dock).
-        self.controller.on_ss_entry(p_t0)
 
         return (q_end, T_step, True)
 
@@ -1883,14 +1867,6 @@ class SimulationLoop(TickLoggingMixin):
                         self.plant.activate_weld(swing_arm, target_idx)
                         self.plant.forward()
                         self.nmpc.reset_warm_start()
-                        # Option A: capture the SS-exit torso position
-                        # and weld time for the post-dock DS blend. The
-                        # blend endpoint is not stored
-                        # here — _step() recomputes the live mapping
-                        # output each tick and blends it against
-                        # _ds_ramp_p_start. See M7_T12_MEMO.md §5.
-                        self.controller.on_dock(t)
-
                         # ── Inelastic impact: FULL-DOF momentum-consistent ──
                         # (Fix A, dock-leak Part 3) — see plant.py.
                         self.plant.apply_dock_impact(verbose)
@@ -2209,15 +2185,11 @@ class SimulationLoop(TickLoggingMixin):
             else:
                 entry['a_torso_des'] = None
                 entry['a_torso_qp'] = None
-            if self.controller.torso_shaper._last_mapping_delta is not None:
-                entry['delta_q'] = self.controller.torso_shaper._last_mapping_delta.tolist()
-            else:
-                entry['delta_q'] = None
-            if self.controller.torso_shaper._last_mapping_delta_current is not None:
-                entry['delta_q_current'] = (
-                    self.controller.torso_shaper._last_mapping_delta_current.tolist())
-            else:
-                entry['delta_q_current'] = None
+            # δ-mapping channels: the mapping was retired (R2b). It never ran
+            # before an SS tick, so these were None on every canonical entry;
+            # kept for the schema.
+            entry['delta_q'] = None
+            entry['delta_q_current'] = None
             entry['step_idx'] = int(step_idx)
             self._step2_diag_log.append(entry)
 

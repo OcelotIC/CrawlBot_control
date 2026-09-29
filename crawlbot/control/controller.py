@@ -156,21 +156,20 @@ class TrackOut:
 class WholeBodyController:
     """NMPC + whole-body QP + AOCS; measurements in, commands out."""
 
-    def __init__(self, cfg, robot, sensors, nmpc, qp, mapping, aocs, gmo,
+    def __init__(self, cfg, robot, sensors, nmpc, qp, aocs, gmo,
                  diag, n_qp_per_nmpc):
         self._cfg = cfg
         self._robot = robot
         self._sensors = sensors
         self._nmpc = nmpc
         self._qp = qp
-        self._mapping = mapping
         self._aocs = aocs
         self._gmo = gmo
         self._diag = diag
         self._n_qp_per_nmpc = n_qp_per_nmpc
-        # Torso-reference shaping (DS δ-mapping, post-dock DS blend,
-        # freeze diagnostics) and its state — control/torso_reference.py.
-        self.torso_shaper = TorsoReferenceShaper(cfg, mapping, diag)
+        # Torso reference (the planner's, + the freeze diagnostics) —
+        # control/torso_reference.py.
+        self.torso_shaper = TorsoReferenceShaper(cfg, diag)
 
     def plan(self, intent, refs):
         """Stage 1 — one centroidal NMPC solve (dt_nmpc = 0.1 s).
@@ -363,8 +362,7 @@ class WholeBodyController:
         # to _hold_reference() which holds p_t0 (initial) — see
         # TorsoPlanner.reference_at().
         tr = refs.torso_at(tq, phase, ss_end)
-        ref = self.torso_shaper.shape(tr, rs, qs, tq, phase,
-                                      rp_interp, vp_interp, af)
+        ref = self.torso_shaper.shape(tr)
         p_torso_ref_used, R_torso_ref_used = ref.p, ref.R
         v_torso_ref_used, a_torso_ff_used = ref.v, ref.a
         if self._diag.pure_pd:
@@ -505,16 +503,6 @@ class WholeBodyController:
         # wrench it can.
 
         carry.hw = hw
-
-    # ── Events from the orchestrator (reference shaping state) ────────────
-
-    def on_ss_entry(self, p_torso_entry):
-        """SS entry — forwarded to the torso-reference shaper."""
-        self.torso_shaper.on_ss_entry(p_torso_entry)
-
-    def on_dock(self, t):
-        """Weld activation — forwarded to the torso-reference shaper."""
-        self.torso_shaper.on_dock(t)
 
     # ── DS passivity settle (inter-step / setup) ──────────────────────────
 

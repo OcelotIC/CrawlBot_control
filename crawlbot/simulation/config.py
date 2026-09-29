@@ -178,10 +178,10 @@ class SimConfig:
     # ── M2: reworked QP task stack ──────────────────────────────
     # NOTE (CLEANUP-7): this no longer selects a QP task stack — the M2
     # torso-P1 / EE-null-space / soft-CoM tasks were removed. It survives
-    # because sim_loop still reads it on two unrelated paths: the torso-
-    # reference routing (δ-mapping vs raw TorsoPlanner quintic) and
-    # passivity_active, i.e. the DS passivity constraint. Do not delete.
-    use_m2_stack: bool = False    # gates torso-ref routing + DS passivity
+    # because the controller still reads it on an unrelated path:
+    # passivity_active, i.e. the DS passivity constraint (the torso-reference
+    # routing it also gated went with the δ-mapping, R2b). Do not delete.
+    use_m2_stack: bool = False    # gates DS passivity
     alpha_passivity: float = 1.0  # DS passivity decay rate [1/s]
 
     # ── M3: NMPC conservation-law box constraint ────────────────
@@ -470,17 +470,6 @@ class SimConfig:
     # When True, pass passivity_active=False to the QP during trailing DS
     # entered after dock_timeout, overriding the phase=='DS' gate at
     # sim_loop.py:1712.
-
-    ds_ramp_duration_s: float = 2.0
-    # Option A (2026-04-22): duration over which the torso linear
-    # position reference is ramped from the SS-exit pose
-    # (_ss_entry_p_torso) to the live DS mapping output
-    # (mapping.compute(q_current)) after weld activation. Quintic
-    # shape function s(tau) = 10 tau^3 - 15 tau^4 + 6 tau^5, C^2
-    # continuous with s(0)=0, s(1)=1, s'(0)=s'(1)=s''(0)=s''(1)=0.
-    # Set to 0.0 to disable (reverts to the pre-Option-A step
-    # behavior). Introduced to close the T12 DS1 divergence;
-    # see Misc/reports/architecture/M7_T12_MEMO.md §5.
 
     # ── Gait geometry ───────────────────────────────────────────
     gait_anchor_dx: float = 0.8  # Anchor-grid pitch [m]; rewrites MJCF anchor sites to x=(i-3.5)·dx (i=1..6) via _mutate_mjcf

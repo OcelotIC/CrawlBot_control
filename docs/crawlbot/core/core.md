@@ -6,7 +6,6 @@
 |---|---:|---:|---|
 | `ik.py` | 1468 | 40 % | [ik.md](ik.md) |
 | `robot_interface.py` | 460 | 87 % | [robot_interface.md](robot_interface.md) |
-| `com_to_torso_mapping.py` | 257 | 52 % | [com_to_torso_mapping.md](com_to_torso_mapping.md) |
 | `state_conversions.py` | 232 | **100 %** | [state_conversions.md](state_conversions.md) |
 
 ## Role
@@ -18,8 +17,10 @@ Everything above this layer assumes a consistent robot state expressed in the
   frame, and owns the quaternion conventions;
 - `robot_interface` computes, in one Pinocchio pass, every quantity the tick
   needs — dynamics, centroidal terms, Jacobians;
-- `ik` picks docking configurations out of a redundant solution space;
-- `com_to_torso_mapping` converts centroidal references into torso references.
+- `ik` picks docking configurations out of a redundant solution space.
+
+(`com_to_torso_mapping`, the CoM→torso reference mapping, was retired in R2b — see
+[`control/torso_reference.md`](../control/torso_reference.md) §2.)
 
 ## Two traps documented in detail
 

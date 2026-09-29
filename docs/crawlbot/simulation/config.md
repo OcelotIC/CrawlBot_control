@@ -1,6 +1,6 @@
 # `crawlbot.simulation.config`
 
-**File**: [`crawlbot/simulation/config.py`](../../../crawlbot/simulation/config.py) — **487 lines** — canonical coverage **100 %**
+**File**: [`crawlbot/simulation/config.py`](../../../crawlbot/simulation/config.py) — **476 lines** — canonical coverage **100 %**
 
 > Module docstring: *"Simulation configuration dataclass."*
 
@@ -135,8 +135,7 @@ controller lives here, with its unit and justification. **100 % coverage.**
 |   `diag_freeze_torso_ref_on_abort` | `False` | _field_ | [L456](../../../crawlbot/simulation/config.py#L456) |
 |   `diag_force_single_contact_on_abort` | `False` | _field_ | [L462](../../../crawlbot/simulation/config.py#L462) |
 |   `diag_disable_passivity_on_abort` | `False` | _field_ | [L468](../../../crawlbot/simulation/config.py#L468) |
-|   `ds_ramp_duration_s` | `2.0` | _field_ | [L474](../../../crawlbot/simulation/config.py#L474) |
-|   `gait_anchor_dx` | `0.8` | _field_ | [L486](../../../crawlbot/simulation/config.py#L486) |
+|   `gait_anchor_dx` | `0.8` | _field_ | [L475](../../../crawlbot/simulation/config.py#L475) |
 
 ---
 
@@ -170,8 +169,8 @@ taken for the canonical setting while the run sets it `True`.
 
 ## 3. The `use_m2_stack` trap
 
-It *looks* dead and in fact gates the torso-reference routing **and the DS
-passivity constraint**. Its declaration now carries a note saying so. See
+It *looks* dead and in fact gates **the DS passivity constraint** (the
+torso-reference routing it also gated was retired with the δ-mapping, R2b). Its declaration now carries a note saying so. See
 `sim_loop.md` section 6.
 
 ## 4. Parameters not to touch without reading CLAUDE.md
@@ -197,7 +196,7 @@ default.
 
 | unit | source |
 |---|---|
-| `class SimConfig` | [L12-486](../../../crawlbot/simulation/config.py#L12-L486) |
+| `class SimConfig` | [L12-475](../../../crawlbot/simulation/config.py#L12-L475) |
 
 ---
 

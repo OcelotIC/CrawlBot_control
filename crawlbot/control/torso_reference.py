@@ -1,25 +1,16 @@
 """
-TorsoReferenceShaper — the torso reference the whole-body QP tracks, built from
-the planner's torso reference ``tr`` and, where it applies, the CoM→torso
-δ-mapping of the NMPC CoM plan.
+TorsoReferenceShaper — the torso reference the whole-body QP tracks.
 
 It GENERATES a reference; it does not command. In the ROS 2 layout it belongs on
 the reference side, next to the planners — hence a module of its own, out of
-``WholeBodyController.track`` (refactor/sim-loop-split, C2). Moved as is: same
-expressions, same order.
+``WholeBodyController.track`` (refactor/sim-loop-split, C2).
 
-Paths:
-
-    δ-mapping (DS, use_m2_stack)
-        r_b = (m/m_b)·r_com_ref − δ(q)/m_b,  δ, δ̇ cached once per NMPC tick
-        (F-RATE); the post-dock DS blend (Option A) eases the linear ref from
-        the SS-entry pose
-    raw planner reference (SS — the two-task stack)   tr.p / tr.v / tr.a
-
-(The SS mapping bypass, the non-two-task SS path and F-SAT were retired, R2a.)
-
-then the ``freeze_ref`` and ``pure_pd`` diagnostic overrides. See
-docs/crawlbot/control/torso_reference.md for which paths the canonical takes.
+The reference is the planner's (TorsoPlanner quintic + SLERP, ``tr``), in SS and
+DS alike, followed by the ``freeze_ref`` and ``pure_pd`` diagnostic overrides.
+The CoM→torso δ-mapping that used to replace the linear part — in the
+non-two-task SS path and in DS — was retired (R2a, R2b): the paper's SS stack is
+two-task (raw reference) and in DS the QP drops the linear torso task under
+``settle_mode``, so the mapped value was never used (NaN probe, C2).
 """
 
 from dataclasses import dataclass
@@ -40,116 +31,20 @@ class TorsoRef:
 
 
 class TorsoReferenceShaper:
-    """Mapping-layer state + the torso-reference shaping of one QP sub-step."""
+    """The planner's torso reference, with the diagnostic overrides."""
 
-    def __init__(self, cfg, mapping, diag):
+    def __init__(self, cfg, diag):
         self._cfg = cfg
-        self._mapping = mapping
         self._diag = diag
-        # M7 EE-bisection follow-up: torso linear position at SS entry
-        # (set in _setup_torso_for_step). The start of the post-dock DS
-        # blend (on_dock).
-        self._ss_entry_p_torso: Optional[np.ndarray] = None
-        # Option A (T12 fix, 2026-04-22): post-dock blend state for
-        # the DS torso position reference. Populated at weld
-        # activation; cleared on SS entry. See
-        # cfg.ds_ramp_duration_s and Misc/reports/architecture/M7_T12_MEMO.md §5.
-        self._ds_ramp_t_start: Optional[float] = None
-        self._ds_ramp_p_start: Optional[np.ndarray] = None
         # _diag_freeze_ref: first-sample r_b_ref / R_b_ref held by the hook.
         self._diag_frozen_r_b_ref: Optional[np.ndarray] = None
         self._diag_frozen_R_b_ref: Optional[np.ndarray] = None
-        # Most recent CoMToTorsoMapping δ(q) output; populated by track()
-        # only on cycles where the live mapping was invoked (DS). None
-        # otherwise.
-        self._last_mapping_delta: Optional[np.ndarray] = None
-        # Auxiliary: δ(q_current) computed alongside the live mapping
-        # (which uses q_planned during SS) for the planned-vs-current
-        # mass-distribution diagnostic. Not used in control.
-        self._last_mapping_delta_current: Optional[np.ndarray] = None
-        # F-RATE: cache for mapping outputs at NMPC rate (10 Hz). The
-        # mapping (δ(q), δ̇(q,q̇)) is recomputed once per NMPC tick and
-        # reused across the WBC sub-steps. Avoids the q_current → δ → r_b
-        # → q feedback loop running at 100 Hz.
-        self._mapping_cache_delta: Optional[np.ndarray] = None
-        self._mapping_cache_delta_dot: Optional[np.ndarray] = None
 
-    def shape(self, tr, rs, qs, tq, phase, rp_interp, vp_interp, af):
-        """The torso reference for QP sub-step ``qs`` at time ``tq``.
-
-        ``tr`` the planner's torso reference at ``tq``; ``rs`` the robot
-        state (δ(q) is computed from ``rs.q``); ``rp_interp`` / ``vp_interp``
-        the NMPC CoM reference interpolated to ``tq``; ``af`` the NMPC CoM
-        feedforward acceleration.
-        """
-        cfg = self._cfg
-        if (phase == 'DS' and self._mapping is not None
-                and cfg.use_m2_stack):
-            # Phase-2.1 two-task: in SS the torso-pose task is fed the RAW
-            # TorsoPlanner quintic+SLERP (the `else` branch below, tr.p/v/a)
-            # — NO CoMToTorsoMapping δ. (DS still uses the mapping.)
-            af_for_mapping = np.zeros(3) if self._diag.pure_pd else af
-            # Planned-vs-current diag (commit 64479ab) confirmed
-            # q_current is the right q-source for the δ term. But
-            # q_current at the WBC rate (100 Hz) closes a mapping
-            # feedback loop that oscillates r_b_ref by up to
-            # 237 mm/tick on large swings (commit 1b5b841).
-            # F-RATE: recompute δ(q) and δ̇(q,q̇) ONCE per NMPC tick
-            # (10 Hz). The (m_total/m_b)·rp_interp term still varies
-            # smoothly at WBC rate via the existing interpolation.
-            ratio = self._mapping.ratio
-            m_b = self._mapping.m_b
-            # CLEANUP-14: use_local_delta_mapping was False on the canonical, so
-            # only the cached-delta path below ever ran. The loop-free D_local
-            # variant and its flag were removed.
-            if qs == 0 or self._mapping_cache_delta is None:
-                self._mapping_cache_delta = np.asarray(
-                    self._mapping.compute_delta(rs.q),
-                    dtype=float).copy()
-                self._mapping_cache_delta_dot = np.asarray(
-                    self._mapping.compute_delta_dot(rs.q, rs.v),
-                    dtype=float).copy()
-            _delta_q = self._mapping_cache_delta
-            _delta_dot = self._mapping_cache_delta_dot
-            r_b_ref_m = ratio * rp_interp - _delta_q / m_b
-            v_b_ref_m = ratio * vp_interp - _delta_dot / m_b
-            a_b_ff_m = ratio * af_for_mapping
-            # Telemetry (still records δ used by the WBC; q_current
-            # comparison still computed for the planned-vs-current
-            # diagnostic, unchanged).
-            self._last_mapping_delta = self._mapping_cache_delta.copy()
-            try:
-                self._last_mapping_delta_current = np.asarray(
-                    self._mapping.compute_delta(rs.q),
-                    dtype=float).copy()
-            except Exception:
-                self._last_mapping_delta_current = None
-            # Option A: post-dock blend of the DS torso linear
-            # position reference from the SS-exit pose to the live
-            # mapping output over cfg.ds_ramp_duration_s. Quintic
-            # shape s(tau) = 10 tau^3 - 15 tau^4 + 6 tau^5.
-            # Orientation reference (tr.R below) is not blended.
-            if phase == 'DS':
-                T_ramp = cfg.ds_ramp_duration_s
-                if (T_ramp > 0.0
-                        and self._ds_ramp_t_start is not None
-                        and self._ds_ramp_p_start is not None):
-                    tau_blend = (tq - self._ds_ramp_t_start) / T_ramp
-                    if tau_blend <= 0.0:
-                        r_b_ref_m = self._ds_ramp_p_start.copy()
-                    elif tau_blend < 1.0:
-                        s_blend = (10.0 * tau_blend ** 3
-                                   - 15.0 * tau_blend ** 4
-                                   + 6.0 * tau_blend ** 5)
-                        r_b_ref_m = ((1.0 - s_blend) * self._ds_ramp_p_start
-                                     + s_blend * r_b_ref_m)
-            p_torso_ref_used = r_b_ref_m
-            v_torso_ref_used = np.concatenate([v_b_ref_m, tr.v[3:6]])
-            a_torso_ff_used = np.concatenate([a_b_ff_m, tr.a[3:6]])
-        else:
-            p_torso_ref_used = tr.p
-            v_torso_ref_used = tr.v
-            a_torso_ff_used = tr.a
+    def shape(self, tr):
+        """The torso reference for one QP sub-step, from the planner's ``tr``."""
+        p_torso_ref_used = tr.p
+        v_torso_ref_used = tr.v
+        a_torso_ff_used = tr.a
 
         if self._diag.freeze_ref:
             # Freeze r_b_ref / R_b_ref to the first sample taken.
@@ -169,22 +64,3 @@ class TorsoReferenceShaper:
                             if self._diag.freeze_ref else tr.R)
         return TorsoRef(p=p_torso_ref_used, R=R_torso_ref_used,
                         v=v_torso_ref_used, a=a_torso_ff_used)
-
-    # ── Events from the orchestrator ──────────────────────────────────────
-
-    def on_ss_entry(self, p_torso_entry):
-        """SS entry: record the torso position and reset the post-dock DS
-        blend (Option A); the next dock re-arms it."""
-        self._ss_entry_p_torso = p_torso_entry.copy()
-        self._ds_ramp_t_start = None
-        self._ds_ramp_p_start = None
-
-    def on_dock(self, t):
-        """Weld activation: start the post-dock DS blend from the SS-entry
-        torso position (Option A; see Misc/reports/architecture/M7_T12_MEMO.md §5).
-        The blend endpoint is not stored — the DS torso reference recomputes
-        the live mapping output each tick and blends it against the start."""
-        self._ds_ramp_t_start = float(t)
-        if self._ss_entry_p_torso is not None:
-            self._ds_ramp_p_start = (
-                self._ss_entry_p_torso.copy())

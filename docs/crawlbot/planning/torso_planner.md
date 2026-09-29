@@ -84,15 +84,15 @@ Implemented in `_interpolate_phase` / `_quintic_params`; the CoM counterpart is
 is **re-anchored on the measured pose at the start of each step**, so tracking
 error does not accumulate across a traversal.
 
-## 4. ⚠ In SS this quintic is used raw
+## 4. ⚠ This quintic is used raw
 
 Explicit project rule:
 
-> *SS uses the raw TorsoPlanner quintic (`torso_reference.py:86-87`); the mapping
-> (delta(q_current) + F-SAT) remains a DS-only path.*
+> *The QP tracks the raw TorsoPlanner quintic (`torso_reference.py:45-47`).*
 
-In single support the QP's torso-pose task receives `tr.p / v / a` directly. The
-CoM->torso mapping only intervenes in double support.
+The QP's torso-pose task receives `tr.p / v / a` directly, in SS and DS. The
+CoM->torso δ-mapping that used to replace it (in DS, where it was inert under
+`settle_mode`) was retired in R2b.
 
 ## 5. `reference_at_clamped` — for the log, not the control
 
