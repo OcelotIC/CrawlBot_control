@@ -2,7 +2,7 @@
 """Differential replay of NON-canonical branches: old tree vs new tree.
 
 The canonical replay cannot see DWELL, SKIP (pre-planner infeasible),
-dock TIMEOUT, stop_on_failed_step, or the diag_*_on_abort overrides — it never
+dock TIMEOUT or stop_on_failed_step — it never
 takes them. Each scenario below forces one, on a shortened traversal, and is run
 twice: once from an old source tree (a git worktree at the pre-refactor commit)
 and once from the working tree. Outputs are compared bit-for-bit with
@@ -52,14 +52,6 @@ SCENARIOS = {
     'timeout': ({'n_steps': 2, 'settle_seconds': 1.0},
                 {'weld_radius': 0.0005, 't_hold_max': 0.5, 't_ss_margin': 0.3,
                  'stop_on_failed_step': False}),
-    'abortdiag': ({'n_steps': 1, 'settle_seconds': 1.0},
-                  {'weld_radius': 0.0005, 't_hold_max': 0.5, 't_ss_margin': 0.3,
-                   'stop_on_failed_step': False,
-                   'diag_force_single_contact_on_abort': True,
-                   'diag_freeze_torso_ref_on_abort': True,
-                   'diag_disable_passivity_on_abort': True,
-                   'ds_centroidal_mode': False,
-                   'ds_torso_ref_from_state': False}),
     'stop': ({'n_steps': 2, 'settle_seconds': 1.0},
              {'weld_radius': 0.0005, 't_hold_max': 0.5, 't_ss_margin': 0.3,
               'stop_on_failed_step': True}),

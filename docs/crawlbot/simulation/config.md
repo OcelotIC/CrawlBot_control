@@ -1,6 +1,6 @@
 # `crawlbot.simulation.config`
 
-**File**: [`crawlbot/simulation/config.py`](../../../crawlbot/simulation/config.py) — **473 lines** — canonical coverage **100 %**
+**File**: [`crawlbot/simulation/config.py`](../../../crawlbot/simulation/config.py) — **450 lines** — canonical coverage **100 %**
 
 > Module docstring: *"Simulation configuration dataclass."*
 
@@ -131,10 +131,7 @@ controller lives here, with its unit and justification. **100 % coverage.**
 |   `n_settle_max_steps` | `1000` | _field_ | [L444](../../../crawlbot/simulation/config.py#L444) |
 |   `settle_epsilon_v` | `0.001` | _field_ | [L445](../../../crawlbot/simulation/config.py#L445) |
 |   `settle_plateau_ratio` | `0.999` | _field_ | [L446](../../../crawlbot/simulation/config.py#L446) |
-|   `diag_freeze_torso_ref_on_abort` | `False` | _field_ | [L453](../../../crawlbot/simulation/config.py#L453) |
-|   `diag_force_single_contact_on_abort` | `False` | _field_ | [L459](../../../crawlbot/simulation/config.py#L459) |
-|   `diag_disable_passivity_on_abort` | `False` | _field_ | [L465](../../../crawlbot/simulation/config.py#L465) |
-|   `gait_anchor_dx` | `0.8` | _field_ | [L472](../../../crawlbot/simulation/config.py#L472) |
+|   `gait_anchor_dx` | `0.8` | _field_ | [L449](../../../crawlbot/simulation/config.py#L449) |
 
 ---
 
@@ -196,7 +193,7 @@ default.
 
 | unit | source |
 |---|---|
-| `class SimConfig` | [L12-472](../../../crawlbot/simulation/config.py#L12-L472) |
+| `class SimConfig` | [L12-449](../../../crawlbot/simulation/config.py#L12-L449) |
 
 ---
 

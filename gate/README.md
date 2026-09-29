@@ -87,7 +87,7 @@ wall-clock numbers masked.
 
 | group | scenarios | forces |
 |---|---|---|
-| gait sequencer | `timeout`, `abortdiag`, `stop`, `skip`, `skipstop`, `dwell` | dock TIMEOUT (continue / stop), the three `diag_*_on_abort` overrides, pre-planner SKIP (continue / stop), DWELL |
+| gait sequencer | `timeout`, `stop`, `skip`, `skipstop`, `dwell` | dock TIMEOUT (continue / stop), pre-planner SKIP (continue / stop), DWELL. (`abortdiag` left with the `diag_*_on_abort` overrides it covered, R3a.) |
 | AOCS | `aocs_off_interstep`, `hw_refresh_off` | the inter-step settle with the AOCS off, and with the entry-frozen h_w (`interstep_hw_refresh=False`). (The per-`aocs_mode` scenarios left with the modes, R1.) |
 | torso reference | `ff_compress` | CoM-reference time compression (`torso_early_finish_fraction` 0.7). (`bypass` and `legacy_stack` left with the paths they covered, R2a.) |
 | diagnostic hooks | `diag_pure_pd`, `diag_freeze_ref`, `diag_disable_aocs`, `diag_lock_arm_joints` | the four `DiagHooks` switches |

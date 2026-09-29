@@ -73,7 +73,7 @@ from crawlbot.planning.coarse_preplanner import (
 )
 from crawlbot.solvers.centroidal_nmpc import CentroidalNMPC, CentroidalNMPCConfig
 from crawlbot.solvers.wholebody_qp import WholeBodyQP, WholeBodyQPConfig
-from crawlbot.solvers.contact_phase import ContactConfig, ContactPhase
+from crawlbot.solvers.contact_phase import ContactConfig
 
 from .config import SimConfig
 from .logging import SimLog, capture_environment
@@ -159,9 +159,9 @@ class _NMPCTick:
     All quantities in structure frame. ``cc_ss`` is the tick's contact
     configuration; ``hw`` / ``L_com_prev`` the loop's carries (returned
     updated, as ``(hw, L_com_prev)``). ``passivity_hold`` activates the QP
-    passivity inequality in SS (convergence hold); ``passivity_override``
-    (diagnostic H_DS3), when not None, overrides the phase-based passivity
-    gate.
+    passivity inequality in SS (convergence hold); ``passivity_override``,
+    when not None, overrides the phase-based passivity gate (the trailing DS
+    forces it on).
     """
     t: float
     phase: str
@@ -1889,23 +1889,6 @@ class SimulationLoop(TickLoggingMixin):
                     t_ds_settle = t + cfg.t_settle_final
                     cc_ds = self.sched.contact_config_at(plan.t_start[i] + 0.1)
 
-                    # Diagnostic: did the preceding SS abort on dock_timeout?
-                    # Used only to gate the three diag_*_on_abort flags. No
-                    # effect on normal operation.
-                    _abort_ds = bool(
-                        log.aborted_steps
-                        and log.aborted_steps[-1].get('reason') == 'dock_timeout'
-                        and log.aborted_steps[-1].get('step_idx') == step_idx - 1
-                    )
-
-                    # H_DS1 diagnostic override — force SINGLE_A to match the
-                    # physical single-weld state after dock_timeout.
-                    if _abort_ds and cfg.diag_force_single_contact_on_abort:
-                        cc_ds = ContactConfig.from_phase(
-                            ContactPhase.SINGLE_A,
-                            cc_ds.r_contact_A.copy(),
-                            cc_ds.r_contact_B.copy())
-
                     # Use last swing step's info for logging
                     last_swing = 'b'; last_stance = 'a'
                     last_sa = plan.phases[i].anchor_a_idx if hasattr(plan.phases[i], 'anchor_a_idx') else 0
@@ -1930,10 +1913,7 @@ class SimulationLoop(TickLoggingMixin):
                     # dock-IK is the documented source of the persistent
                     # ~3.86° torso ori error (it solves both-tools-at-
                     # anchors, over-determined once welds are active).
-                    _use_state = (cfg.ds_torso_ref_from_state
-                                  or (_abort_ds
-                                      and cfg.diag_freeze_torso_ref_on_abort))
-                    if _use_state:
+                    if cfg.ds_torso_ref_from_state:
                         self.torso_planner.set_hold(
                             rs_hold.oMf_torso.translation.copy(),
                             self._R_torso_flat.copy(),
@@ -1958,20 +1938,11 @@ class SimulationLoop(TickLoggingMixin):
                                 self._R_torso_flat.copy(),
                                 r_com=rs_hold.r_com.copy())
 
-                    # H_DS3 diagnostic override — disable the passivity
-                    # inequality for trailing DS post-abort (_step reads this
-                    # via the passivity_override kwarg).
                     # When ds_centroidal_mode is on, the trailing-DS
                     # settle uses the passivity inequality for energy
                     # dissipation (replacing the joint-vel-damping cost),
-                    # so we force it ON regardless of the abort flag.
-                    if cfg.ds_centroidal_mode:
-                        _pass_override = True
-                    else:
-                        _pass_override = (
-                            False if (_abort_ds and cfg.diag_disable_passivity_on_abort)
-                            else None
-                        )
+                    # so it is forced ON.
+                    _pass_override = True if cfg.ds_centroidal_mode else None
 
                     while t < t_ds_settle:
                         hw, L_com_prev = yield _NMPCTick(
