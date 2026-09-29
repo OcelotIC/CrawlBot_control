@@ -63,6 +63,10 @@ class AttitudeController:
         # history records the zeroed value, as before).
         self._diag = diag
         self._hist = None
+        # Pre-clip command of the last call, filled only under
+        # cfg.log_hifreq_all (M0 instrumentation; a side evaluation of the
+        # same pure law with the clip lifted — never applied).
+        self.last_tau_w_preclip = None
 
     def reset_for_nmpc_tick(self, rs):
         """History restart at the start of every NMPC tick.
@@ -175,6 +179,20 @@ class AttitudeController:
             tau_w_max=cfg.aocs_tau_w_max,
             tau_struct_ff=tau_struct_ff_aocs)
 
+        if cfg.log_hifreq_all:
+            self.last_tau_w_preclip = compute_aocs_command_legacy_pid_numerical(
+                L_com=rs.L_com, L_com_prev=L_com_prev,
+                r_com=rs.r_com, v_com=rs.v_com,
+                v_com_prev=v_com_prev,
+                omega_s=omega_s, omega_s_prev=omega_s_prev,
+                theta_s=theta_s,
+                hw_current=hw_phys, dt=cfg.dt_qp,
+                robot_mass=self._robot._total_mass,
+                K_hw=cfg.aocs_K_hw, K_omega=cfg.aocs_K_omega,
+                K_d=cfg.aocs_K_d, K_theta=cfg.aocs_K_theta,
+                hw_min=cfg.hw_min, hw_max=cfg.hw_max,
+                tau_w_max=np.inf,
+                tau_struct_ff=tau_struct_ff_aocs)
         if self._diag.disable_aocs:
             tau_w_cmd = np.zeros(3)
         # Record this tick (omega_s is the live gyro view: copy it now,

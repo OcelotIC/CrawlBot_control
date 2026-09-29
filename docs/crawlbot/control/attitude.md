@@ -1,6 +1,6 @@
 # `crawlbot.control.attitude`
 
-**File**: [`crawlbot/control/attitude.py`](../../../crawlbot/control/attitude.py) — **263 lines** — canonical coverage **93 %**
+**File**: [`crawlbot/control/attitude.py`](../../../crawlbot/control/attitude.py) — **281 lines** — canonical coverage **92 %**
 
 **The AOCS: reaction-wheel torque for the free-floating platform.** Extraction
 3a of the `sim_loop.py` split (branch `refactor/sim-loop-split`). The control
@@ -51,6 +51,16 @@ the history records τ_w). Frozen on synthetic inputs by
 `tests/test_attitude_controller.py`; a fix of §3 changes
 `test_nmpc_tick_reset_is_the_known_defect` on purpose.
 
+## 1c. M0 instrumentation (logging only)
+
+With `cfg.log_hifreq_all`, `command()` also evaluates the same pure law with the
+clip lifted and keeps it in `last_tau_w_preclip` (never applied); the loop
+records every plant step in `SimulationLoop.hifreq_trace` — τ_w commanded
+(post-clip, what is applied), the pre-clip value, qs, phase, h_w, ω_s. The
+10 Hz log only ever records sub-step `qs=9`, which cannot see the `qs=0` kick of
+§3. Default off; proven inert (canonical bit-identical with the trace on).
+Measurement script: `scripts/diag_m0_aocs_hifreq.py`.
+
 ## 2. Why the move is byte-identical
 
 Both blocks were moved by **text slicing** (re-indented, scope variables renamed
@@ -88,21 +98,21 @@ separate, measured decision.
 |   `L_com_prev` | `` | _field_ | [L39](../../../crawlbot/control/attitude.py#L39) |
 |   `v_com_prev` | `` | _field_ | [L40](../../../crawlbot/control/attitude.py#L40) |
 | **`AttitudeController`** |  |  | [L43](../../../crawlbot/control/attitude.py#L43) |
-| `.reset_for_nmpc_tick` | `(rs)` | **yes** | [L67](../../../crawlbot/control/attitude.py#L67) |
-| `.reset_for_settle` | `()` | **yes** | [L81](../../../crawlbot/control/attitude.py#L81) |
-| `.command` | `(phase, rs, lambda_qp_sol, cc_nmpc, stance_anchors)` | **yes** | [L89](../../../crawlbot/control/attitude.py#L89) |
-| `.command_interstep` | `(rs, cc_ds, lambda_qp_sol)` | **yes** | [L187](../../../crawlbot/control/attitude.py#L187) |
+| `.reset_for_nmpc_tick` | `(rs)` | **yes** | [L71](../../../crawlbot/control/attitude.py#L71) |
+| `.reset_for_settle` | `()` | **yes** | [L85](../../../crawlbot/control/attitude.py#L85) |
+| `.command` | `(phase, rs, lambda_qp_sol, cc_nmpc, stance_anchors)` | **yes** | [L93](../../../crawlbot/control/attitude.py#L93) |
+| `.command_interstep` | `(rs, cc_ds, lambda_qp_sol)` | **yes** | [L205](../../../crawlbot/control/attitude.py#L205) |
 
 ## Code map
 
 | unit | source |
 |---|---|
 | `class AocsHistory` | [L34-40](../../../crawlbot/control/attitude.py#L34-L40) |
-| `class AttitudeController` | [L43-262](../../../crawlbot/control/attitude.py#L43-L262) |
-| `AttitudeController.reset_for_nmpc_tick` | [L67-79](../../../crawlbot/control/attitude.py#L67-L79) |
-| `AttitudeController.reset_for_settle` | [L81-87](../../../crawlbot/control/attitude.py#L81-L87) |
-| `AttitudeController.command` | [L89-185](../../../crawlbot/control/attitude.py#L89-L185) |
-| `AttitudeController.command_interstep` | [L187-262](../../../crawlbot/control/attitude.py#L187-L262) |
+| `class AttitudeController` | [L43-280](../../../crawlbot/control/attitude.py#L43-L280) |
+| `AttitudeController.reset_for_nmpc_tick` | [L71-83](../../../crawlbot/control/attitude.py#L71-L83) |
+| `AttitudeController.reset_for_settle` | [L85-91](../../../crawlbot/control/attitude.py#L85-L91) |
+| `AttitudeController.command` | [L93-203](../../../crawlbot/control/attitude.py#L93-L203) |
+| `AttitudeController.command_interstep` | [L205-280](../../../crawlbot/control/attitude.py#L205-L280) |
 
 ---
 

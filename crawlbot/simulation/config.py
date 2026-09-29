@@ -287,6 +287,13 @@ class SimConfig:
     # (vs the default 10 Hz per-NMPC-step cadence). Default OFF ⇒ no behavioural
     # change, flag-OFF bit-identical preserved. Only populates extra buffers.
     log_hifreq_ss: bool = False
+    # M0 instrumentation (logging only): record the AOCS wheel command at EVERY
+    # control tick (100 Hz), in every phase — NMPC sub-steps with their qs, and
+    # the inter-step / setup settle ticks — plus the pre-clip command, h_w and
+    # ω_s, into SimulationLoop.hifreq_trace (NOT into SimLog, so sim_log.json
+    # is unchanged). The 10 Hz log records only sub-step qs=9 and so cannot see
+    # the qs=0 AOCS kick (attitude.md §3). Default OFF.
+    log_hifreq_all: bool = False
 
     # Phase-2.1 reformulation: two-task fully-weighted SS stack — T-MOM linear
     # (ss_alpha_mom) + a 6-D torso-pose task on J_torso (alpha_torso_pose, fed

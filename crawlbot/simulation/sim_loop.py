@@ -410,6 +410,9 @@ class SimulationLoop(TickLoggingMixin):
         # a_torso_qp, delta_q). Captured only during step 2 SS to limit size.
         self._step2_diag_enabled: bool = False
         self._step2_diag_log: list = []
+        # M0 (cfg.log_hifreq_all): one record per plant step, every phase.
+        # Kept out of SimLog so sim_log.json is unchanged.
+        self.hifreq_trace: list = []
 
     # MuJoCo model/data stay readable as attributes: tick_logging.py and the
     # diagnostic drivers read them. Writes go through self.plant.
@@ -938,6 +941,14 @@ class SimulationLoop(TickLoggingMixin):
         # ── Phase-B per-tick logging (logging-only; no control change) ──
         # Emit a row schema-identical to the SS log block. NaN sentinels
         # for NMPC-side quantities (NMPC is bypassed in this settle).
+        if cfg.log_hifreq_all:
+            self.hifreq_trace.append(dict(
+                t=float(r.log_t_abs + (k + 1) * dt), src='ds_settle', qs=None,
+                phase='DS' if r.log_obj is not None else 'setup',
+                tau_w=np.asarray(tau_w_applied, dtype=float).tolist(),
+                tau_w_preclip=None,
+                hw=self.sensors.wheel_momentum().tolist(),
+                omega_s=self.sensors.omega_struct().tolist()))
         if r.log_obj is not None:
             t_abs_tick = r.log_t_abs + (k + 1) * dt
             self._log_ds_tick(
@@ -2299,6 +2310,14 @@ class SimulationLoop(TickLoggingMixin):
         # torque + stored momentum. Gated (default OFF) ⇒ no behavioural
         # change; tau_w_last (init 2495, updated this tick at the AOCS block
         # every sub-step), hw, tq, phase are all in scope.
+        if cfg.log_hifreq_all:
+            self.hifreq_trace.append(dict(
+                t=float(tq), src='nmpc', qs=int(qs), phase=phase,
+                tau_w=np.asarray(carry.tau_w_last, dtype=float).tolist(),
+                tau_w_preclip=np.asarray(self.aocs.last_tau_w_preclip,
+                                         dtype=float).tolist(),
+                hw=np.asarray(carry.hw, dtype=float).tolist(),
+                omega_s=self.sensors.omega_struct().tolist()))
         if cfg.log_hifreq_ss and phase == 'SS':
             log.t_ss_hifreq.append(float(tq))
             log.tau_w_ss_hifreq.append(
