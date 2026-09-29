@@ -133,17 +133,6 @@ def wholebody_qp(robot_interface):
 
 
 # ---------------------------------------------------------------------------
-# Force estimator
-# ---------------------------------------------------------------------------
-@pytest.fixture
-def force_estimator():
-    """MomentumDisturbanceEstimator with default config."""
-    from crawlbot.aocs.force_estimator import MomentumDisturbanceEstimator, EstimatorConfig
-    cfg = EstimatorConfig(robot_mass=71.0, dt=0.01, filter_tau=0.016)
-    return MomentumDisturbanceEstimator(config=cfg)
-
-
-# ---------------------------------------------------------------------------
 # Helper: single-contact config for solver tests
 # ---------------------------------------------------------------------------
 @pytest.fixture(scope="session")

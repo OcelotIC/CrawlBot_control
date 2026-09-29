@@ -1,15 +1,9 @@
-"""AOCS: momentum disturbance estimator and wheel command generation."""
+"""AOCS: the reaction-wheel torque law (legacy_pid_numerical)."""
 
-from .force_estimator import (
-    MomentumDisturbanceEstimator,
-    EstimatorConfig,
-    compute_aocs_command,
-)
+from .force_estimator import compute_aocs_command_legacy_pid_numerical
 
-# Re-exported package API. Declared so the names are not read as
-# unused imports — they are the interface, not leftovers.
+# Re-exported package API. Declared so the name is not read as an unused
+# import — it is the interface, not a leftover.
 __all__ = [
-    'MomentumDisturbanceEstimator',
-    'EstimatorConfig',
-    'compute_aocs_command',
+    'compute_aocs_command_legacy_pid_numerical',
 ]

@@ -276,13 +276,11 @@ class TickLoggingMixin:
         except Exception:
             log.gmo_contact_state.append(0)
 
-        # H_rO / H estimator diagnostics — H_estimator not advanced here.
-        try:
-            log.H_rO.append(self.H_estimator.H_rO.copy())
-            log.H_dot_est.append(self.H_estimator.H_dot.copy())
-        except Exception:
-            log.H_rO.append(np.zeros(3))
-            log.H_dot_est.append(np.zeros(3))
+        # H_{r/O} estimator channels: the estimator was retired (R1). It was
+        # never updated on the canonical, so these read its zero initial
+        # state; the channels stay so the log schema is unchanged.
+        log.H_rO.append(np.zeros(3))
+        log.H_dot_est.append(np.zeros(3))
         log.omega_struct.append(self.mj_data.qvel[3:6].copy())
         log.qfrc_constraint_torque.append(np.zeros(3))
 
@@ -426,9 +424,8 @@ class TickLoggingMixin:
         log.rw_speed.append(rw_vel_f.copy())
         log.transport_term_mag.append(ts.transport_term_mag)
 
-        # H_{r/O} estimator diagnostics — the estimator branch was removed in
-        # CLEANUP-13 (aocs_use_H_estimator is False on the canonical, so only
-        # the zero-fill path ever ran). The channels stay so the log schema is
+        # H_{r/O} estimator channels — the estimator was retired (R1); only
+        # the zero-fill ever ran. The channels stay so the log schema is
         # unchanged.
         log.H_rO.append(np.zeros(3))
         log.H_dot_est.append(np.zeros(3))

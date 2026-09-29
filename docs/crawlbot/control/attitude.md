@@ -1,6 +1,6 @@
 # `crawlbot.control.attitude`
 
-**File**: [`crawlbot/control/attitude.py`](../../../crawlbot/control/attitude.py) — **362 lines** — canonical coverage **82 %**
+**File**: [`crawlbot/control/attitude.py`](../../../crawlbot/control/attitude.py) — **263 lines** — canonical coverage **93 %**
 
 **The AOCS: reaction-wheel torque for the free-floating platform.** Extraction
 3a of the `sim_loop.py` split (branch `refactor/sim-loop-split`). The control
@@ -21,7 +21,7 @@ caller applies τ_w through [`MujocoPlant`](../simulation/plant.md).
 
 | entry point | loop | law |
 |---|---|---|
-| `command()` | NMPC-tracked ticks (SS, DWELL, trailing DS) | every `cfg.aocs_mode` branch |
+| `command()` | NMPC-tracked ticks (SS, DWELL, trailing DS) | `legacy_pid_numerical` + FD (SS) or wrench (DS) feedforward |
 | `command_interstep()` | inter-step DS passivity loop | `legacy_pid_numerical` + DS wrench FF |
 
 Canonical mode: `legacy_pid_numerical`,
@@ -54,9 +54,16 @@ the history records τ_w). Frozen on synthetic inputs by
 ## 2. Why the move is byte-identical
 
 Both blocks were moved by **text slicing** (re-indented, scope variables renamed
-with each rename asserted), not retyped — including the six `aocs_mode` branches
-the canonical never executes, which the bit-identity gate cannot see. Verified
-with `gate/local_ref.py check` + `gate/dock_check.py`.
+with each rename asserted), not retyped. Verified with `gate/local_ref.py check`
++ `gate/dock_check.py`.
+
+**R1 — one law left.** `command()` used to select among six `aocs_mode`
+branches (plus `aocs_off_in_ds`); only `legacy_pid_numerical` is used by the
+canonical and by the paper's Table 2, so the other branches, their laws and the
+H_{r/O} estimator were retired. `AttitudeController` now raises on any other
+`aocs_mode`. The removal is proven inert by coverage (no removed line executed
+by the canonical or the Table 2 scenarios) and by bit-identity
+(`results/j2_adjconv/PHASE_R1_AOCS_MODES_RETIRED.md`).
 
 ## 3. Trap — kept as found, flagged for decision
 
@@ -76,27 +83,26 @@ separate, measured decision.
 
 | symbol | signature | canonical? | code |
 |---|---|---|---|
-| **`AocsHistory`** *(dataclass)* |  |  | [L35](../../../crawlbot/control/attitude.py#L35) |
-|   `omega_s_prev` | `` | _field_ | [L39](../../../crawlbot/control/attitude.py#L39) |
-|   `tau_w_prev` | `` | _field_ | [L40](../../../crawlbot/control/attitude.py#L40) |
-|   `L_com_prev` | `` | _field_ | [L41](../../../crawlbot/control/attitude.py#L41) |
-|   `v_com_prev` | `` | _field_ | [L42](../../../crawlbot/control/attitude.py#L42) |
-| **`AttitudeController`** |  |  | [L45](../../../crawlbot/control/attitude.py#L45) |
-| `.reset_for_nmpc_tick` | `(rs)` | **yes** | [L69](../../../crawlbot/control/attitude.py#L69) |
-| `.reset_for_settle` | `()` | **yes** | [L83](../../../crawlbot/control/attitude.py#L83) |
-| `.command` | `(phase, rs, lambda_qp_sol, cc_nmpc, stance_anchors)` | **yes** | [L91](../../../crawlbot/control/attitude.py#L91) |
-| `.command_interstep` | `(rs, cc_ds, lambda_qp_sol)` | **yes** | [L286](../../../crawlbot/control/attitude.py#L286) |
+| **`AocsHistory`** *(dataclass)* |  |  | [L34](../../../crawlbot/control/attitude.py#L34) |
+|   `omega_s_prev` | `` | _field_ | [L38](../../../crawlbot/control/attitude.py#L38) |
+|   `L_com_prev` | `` | _field_ | [L39](../../../crawlbot/control/attitude.py#L39) |
+|   `v_com_prev` | `` | _field_ | [L40](../../../crawlbot/control/attitude.py#L40) |
+| **`AttitudeController`** |  |  | [L43](../../../crawlbot/control/attitude.py#L43) |
+| `.reset_for_nmpc_tick` | `(rs)` | **yes** | [L67](../../../crawlbot/control/attitude.py#L67) |
+| `.reset_for_settle` | `()` | **yes** | [L81](../../../crawlbot/control/attitude.py#L81) |
+| `.command` | `(phase, rs, lambda_qp_sol, cc_nmpc, stance_anchors)` | **yes** | [L89](../../../crawlbot/control/attitude.py#L89) |
+| `.command_interstep` | `(rs, cc_ds, lambda_qp_sol)` | **yes** | [L187](../../../crawlbot/control/attitude.py#L187) |
 
 ## Code map
 
 | unit | source |
 |---|---|
-| `class AocsHistory` | [L35-42](../../../crawlbot/control/attitude.py#L35-L42) |
-| `class AttitudeController` | [L45-361](../../../crawlbot/control/attitude.py#L45-L361) |
-| `AttitudeController.reset_for_nmpc_tick` | [L69-81](../../../crawlbot/control/attitude.py#L69-L81) |
-| `AttitudeController.reset_for_settle` | [L83-89](../../../crawlbot/control/attitude.py#L83-L89) |
-| `AttitudeController.command` | [L91-284](../../../crawlbot/control/attitude.py#L91-L284) |
-| `AttitudeController.command_interstep` | [L286-361](../../../crawlbot/control/attitude.py#L286-L361) |
+| `class AocsHistory` | [L34-40](../../../crawlbot/control/attitude.py#L34-L40) |
+| `class AttitudeController` | [L43-262](../../../crawlbot/control/attitude.py#L43-L262) |
+| `AttitudeController.reset_for_nmpc_tick` | [L67-79](../../../crawlbot/control/attitude.py#L67-L79) |
+| `AttitudeController.reset_for_settle` | [L81-87](../../../crawlbot/control/attitude.py#L81-L87) |
+| `AttitudeController.command` | [L89-185](../../../crawlbot/control/attitude.py#L89-L185) |
+| `AttitudeController.command_interstep` | [L187-262](../../../crawlbot/control/attitude.py#L187-L262) |
 
 ---
 

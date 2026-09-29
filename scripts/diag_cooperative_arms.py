@@ -240,7 +240,7 @@ def _nmpc_table(step_log, out_path):
 
 
 def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
-         mass_ratio: float = 0.01, aocs_mode: str = 'legacy_corrected',
+         mass_ratio: float = 0.01, aocs_mode: str = 'legacy_pid_numerical',
          settle_seconds: float = 20.0, K_theta: float = 1.0,
          K_omega: float = 50.0, tau_w_max: float = 2.5,
          scenario: str = None, baseline_ds_rework: bool = False,
@@ -303,15 +303,10 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     cfg.preplanner_tstep_standoff_knee = float(preplanner_tstep_standoff_knee)
     cfg.preplanner_tstep_scale_step = int(preplanner_tstep_scale_step)
     cfg.preplanner_tstep_scale_factor = float(preplanner_tstep_scale_factor)
-    # AOCS mode override (default 'legacy_corrected' = canonical).
-    # legacy_pd_numerical / legacy_pd_model add a PD regulator on ω_s
-    # on top of the legacy_corrected feedforward + desat. The two
-    # differ only in how ω̇_s is sourced (finite-diff vs Newton-Euler).
-    if aocs_mode != 'legacy_corrected':
-        cfg.aocs_mode = aocs_mode
-        cfg.aocs_use_legacy_corrected = False
-        cfg.aocs_use_H_estimator = (aocs_mode == 'H_est')
-    # Per-contact wrench feedforward in DS for legacy_pid_* modes — the
+    # AOCS: one law, legacy_pid_numerical (the other modes were retired, R1;
+    # AttitudeController rejects any other value).
+    cfg.aocs_mode = aocs_mode
+    # Per-contact wrench feedforward in DS — the
     # FD-on-L_com Ḣ-FF misses the welded-loop internal-stress couple.
     # See AOCS code path; AOCS uses tau_struct_ff = −Σ(r_Ci × f_i + τ_i)
     # from λ_qp when this is on and phase=='DS'.
@@ -410,18 +405,6 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     elif abs(mass_ratio - 0.01) > 1e-9:
         out_dir = os.path.join(_root, 'Misc', 'runs',
                                f'diag_cooperative_arms_{int(round(mass_ratio*100))}pct')
-    elif aocs_mode != 'legacy_corrected':
-        # Non-default AOCS mode → separate dir for A/B.
-        # Add _Kt{val}/_Kw{val}/_Tw{val} suffixes when gains/limits differ from defaults.
-        suffix = ''
-        if 'pid' in aocs_mode and abs(K_theta - 1.0) > 1e-9:
-            suffix += f'_Kt{K_theta:g}'
-        if abs(K_omega - 50.0) > 1e-9:
-            suffix += f'_Kw{K_omega:g}'
-        if abs(tau_w_max - 2.5) > 1e-9:  # non-canonical cap (frozen 2.5)
-            suffix += f'_Tw{tau_w_max:g}'
-        out_dir = os.path.join(_root, 'Misc', 'runs',
-                               f'diag_cooperative_arms_{aocs_mode}{suffix}')
     elif abs(alpha_torso_lin - 500.0) > 1e-6:
         out_dir = os.path.join(_root, 'Misc',
                                'runs',
@@ -658,16 +641,11 @@ if __name__ == '__main__':
                         help='Robot/structure mass ratio; scales structure '
                              'mass+inertia by 0.01/ratio (default 0.01 = no-op; '
                              '0.14 = spec T12 14%%, structure 507.857 kg)')
-    parser.add_argument('--aocs_mode', type=str, default='legacy_corrected',
-                        choices=['legacy_corrected',
-                                 'legacy_pd_numerical', 'legacy_pd_model',
-                                 'legacy_pid_numerical', 'legacy_pid_model',
-                                 'H_est'],
-                        help='AOCS controller (default legacy_corrected). '
-                             'legacy_pd_*  add a PD on ω_s. '
-                             'legacy_pid_* further add an attitude P term '
-                             'to recover the per-traversal net rotation. '
-                             '_numerical / _model differ in ω̇_s source.')
+    parser.add_argument('--aocs_mode', type=str,
+                        default='legacy_pid_numerical',
+                        choices=['legacy_pid_numerical'],
+                        help='AOCS controller — the one law kept '
+                             '(the other modes were retired, R1).')
     parser.add_argument('--settle_seconds', type=float, default=20.0,
                         help='Post-traversal settle duration [s] (cfg.t_settle_final). '
                              'Drives the post-settle drift measurement. '

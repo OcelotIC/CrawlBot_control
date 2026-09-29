@@ -75,8 +75,6 @@ from crawlbot.planning.coarse_preplanner import (
 from crawlbot.solvers.centroidal_nmpc import CentroidalNMPC, CentroidalNMPCConfig
 from crawlbot.solvers.wholebody_qp import WholeBodyQP, WholeBodyQPConfig
 from crawlbot.solvers.contact_phase import ContactConfig, ContactPhase
-from crawlbot.aocs.force_estimator import (
-    MomentumDisturbanceEstimator, EstimatorConfig)
 
 from .config import SimConfig
 from .logging import SimLog, capture_environment
@@ -490,14 +488,8 @@ class SimulationLoop(TickLoggingMixin):
         tid = mujoco.mj_name2id(self.mj_model, mujoco.mjtObj.mjOBJ_BODY, 'torso')
         assert abs(self.mj_model.body_mass[tid] - 40.0) < 1.0, \
             f"Torso mass mismatch: {self.mj_model.body_mass[tid]}"
-        # Cache structure principal inertia for AOCS PD model variant.
-        # body_inertia is (nbody, 3) — principal moments at body CoM.
-        sid = mujoco.mj_name2id(self.mj_model, mujoco.mjtObj.mjOBJ_BODY,
-                                'structure')
-        self._struct_I = self.mj_model.body_inertia[sid].copy() \
-            if sid >= 0 else np.array([597.0, 1493.0, 1777.0])
         # Cache initial structure attitude (wxyz quaternion) for the
-        # legacy_pid_* AOCS modes: θ_s = log3(R_init.T @ R_now) gives
+        # AOCS (legacy_pid_numerical): θ_s = log3(R_init.T @ R_now) gives
         # the small-angle attitude error in body frame.
         self._struct_quat_init = self.sensors.struct_quat()
         self.plant.forward()
@@ -716,22 +708,9 @@ class SimulationLoop(TickLoggingMixin):
             cfg.ss_Kp_ee, cfg.ss_Kd_ee,
             cfg.ss_Kp_ee_ang, cfg.ss_Kd_ee_ang)
 
-        # H_{r/O} momentum disturbance estimator for AOCS
-        self.H_estimator = MomentumDisturbanceEstimator(
-            robot_mass=rs0.total_mass,
-            dt=cfg.dt_qp,
-            config=EstimatorConfig(
-                robot_mass=rs0.total_mass,
-                dt=cfg.dt_qp,
-                filter_tau=cfg.aocs_filter_tau,
-                include_transport=True,
-            ),
-        )
-
         # AOCS (reaction wheels) — crawlbot/control/attitude.py
         self.aocs = AttitudeController(
-            cfg, self.robot, self.sensors, self.H_estimator,
-            self._struct_quat_init, self._struct_I, self.diag)
+            cfg, self.robot, self.sensors, self._struct_quat_init, self.diag)
 
         # GMO contact estimator
         from crawlbot.estimation.contact_estimator import (
@@ -767,7 +746,7 @@ class SimulationLoop(TickLoggingMixin):
         print(f"[SimulationLoop] Initialized:")
         print(f"  Robot mass:     {rs0.total_mass:.1f} kg")
         print("  RWA model:      YES (3 wheels)")
-        print(f"  AOCS estimator: {'H_{r/O}' if cfg.aocs_use_H_estimator else 'L_dot (legacy)'}")
+        print("  AOCS estimator: L_dot (legacy)")
         print(f"  NMPC:           {1/cfg.dt_nmpc:.0f} Hz, N={cfg.nmpc_N}")
         print(f"  QP:             {1/cfg.dt_qp:.0f} Hz, {self.n_qp_per_nmpc} per NMPC")
         print(f"  Gait:           {n_steps} step(s), "

@@ -1,41 +1,15 @@
 # `crawlbot.aocs.force_estimator`
 
-**File**: [`crawlbot/aocs/force_estimator.py`](../../../crawlbot/aocs/force_estimator.py) — **657 lines** — canonical coverage **39 %**
+**File**: [`crawlbot/aocs/force_estimator.py`](../../../crawlbot/aocs/force_estimator.py) — **103 lines** — canonical coverage **88 %**
 
 > Module docstring: *"MomentumDisturbanceEstimator — Estimate the disturbance torque applied by"*
 
-Reaction-wheel control, and the estimator of the disturbance torque the moving
-robot applies to the host structure.
+The AOCS law — one law, the one the paper uses (`legacy_pid_numerical`).
 
 This is the other half of the decentralised contract: the NMPC promises never to
-demand more than `tau_w_max`; this module is what actually spends it.
-
----
-
-## Public API
-
-| symbol | signature | canonical? | code |
-|---|---|---|---|
-| **`EstimatorConfig`** *(dataclass)* |  |  | [L43](../../../crawlbot/aocs/force_estimator.py#L43) |
-|   `robot_mass` | `71.0` | _field_ | [L60](../../../crawlbot/aocs/force_estimator.py#L60) |
-|   `dt` | `0.01` | _field_ | [L61](../../../crawlbot/aocs/force_estimator.py#L61) |
-|   `filter_tau` | `0.016` | _field_ | [L62](../../../crawlbot/aocs/force_estimator.py#L62) |
-|   `include_transport` | `True` | _field_ | [L63](../../../crawlbot/aocs/force_estimator.py#L63) |
-| **`MomentumDisturbanceEstimator`** |  |  | [L66](../../../crawlbot/aocs/force_estimator.py#L66) |
-| `.reset` | `()` | not exercised | [L110](../../../crawlbot/aocs/force_estimator.py#L110) |
-| `.update` | `(r_com, v_com, L_com, omega_s)` | not exercised | [L118](../../../crawlbot/aocs/force_estimator.py#L118) |
-| `.update_analytical` | `(r_com, v_com, L_com, L_com_prev, a_com, omega_s)` | not exercised | [L174](../../../crawlbot/aocs/force_estimator.py#L174) |
-| `.H_rO` | `()` | **yes** | [L223](../../../crawlbot/aocs/force_estimator.py#L223) |
-| `.H_dot` | `()` | **yes** | [L228](../../../crawlbot/aocs/force_estimator.py#L228) |
-| `.initialized` | `()` | not exercised | [L233](../../../crawlbot/aocs/force_estimator.py#L233) |
-| `compute_aocs_command` | `(H_dot_est, omega_s, hw_current, hw_target=None, K_omega...)` | not exercised | [L243](../../../crawlbot/aocs/force_estimator.py#L243) |
-| `compute_aocs_command_legacy_corrected` | `(L_com, L_com_prev, r_com, v_com, v_com_prev, hw_current...)` | not exercised | [L291](../../../crawlbot/aocs/force_estimator.py#L291) |
-| `compute_aocs_command_legacy_pd_numerical` | `(L_com, L_com_prev, r_com, v_com, v_com_prev, omega_s, o...)` | not exercised | [L379](../../../crawlbot/aocs/force_estimator.py#L379) |
-| `compute_aocs_command_legacy_pd_model` | `(L_com, L_com_prev, r_com, v_com, v_com_prev, omega_s, t...)` | not exercised | [L444](../../../crawlbot/aocs/force_estimator.py#L444) |
-| `compute_aocs_command_legacy_pid_numerical` | `(L_com, L_com_prev, r_com, v_com, v_com_prev, omega_s, o...)` | **yes** | [L514](../../../crawlbot/aocs/force_estimator.py#L514) |
-| `compute_aocs_command_legacy_pid_model` | `(L_com, L_com_prev, r_com, v_com, v_com_prev, omega_s, t...)` | not exercised | [L598](../../../crawlbot/aocs/force_estimator.py#L598) |
-
----
+demand more than `tau_w_max`; this law is what actually spends it. The block that
+drives it (history, attitude error, wrench feedforward) is
+[`control/attitude.md`](../control/attitude.md).
 
 ---
 
@@ -64,9 +38,10 @@ body-frame derivative — it is not optional once the structure itself rotates.
 
 ## 2. The canonical control law
 
-Six laws are implemented; the canonical run selects
-`aocs_mode='legacy_pid_numerical'`. The other five are alternative modes — not
-dead code, but **not covered by the gate either**.
+One law is implemented, `legacy_pid_numerical`. Its five variants (legacy,
+legacy_corrected, legacy_pd_numerical/model, legacy_pid_model) and the H_{r/O}
+estimator law (H_est) were never run by the canonical nor by the paper's Table 2
+configurations and were retired (R1 — `results/j2_adjconv/PHASE_R1_AOCS_MODES_RETIRED.md`).
 
 ```
 tau_w = ff_term
@@ -111,7 +86,7 @@ minimum**, whatever the torque budget. This is why K_theta is sized for a slow
 
 `ff_term` has two branches, and **both run** on the canonical:
 
-### Single support: kinematic finite differences (`:585-588`)
+### Single support: kinematic finite differences
 
 ```
 ff = -L_com_dot - r_com x ( m_r * v_com_dot )       (both by FD)
@@ -119,7 +94,7 @@ ff = -L_com_dot - r_com x ( m_r * v_com_dot )       (both by FD)
 
 Valid while the robot is kinematically free at the contact.
 
-### Double support: contact-wrench feedforward (`:592`)
+### Double support: contact-wrench feedforward
 
 With both grippers welded, the closed loop carries internal stress. It exerts on
 the structure a couple
@@ -132,7 +107,7 @@ that is **invisible in `L_com`** — the two contact forces cancel in the
 momentum balance while their moments do not. The kinematic feedforward is
 therefore structurally incomplete in DS, not merely noisy.
 
-`sim_loop.py:877-883` computes the correct term straight from the QP solution:
+`control/attitude.py` computes the correct term straight from the QP solution:
 
 ```
 tau_struct_ff = - sum_i ( r_Ci x f_i + tau_i )
@@ -142,48 +117,21 @@ and passes it in, short-circuiting the FD branch.
 
 This is the only difference in AOCS treatment between DS and SS.
 
-## 4. ⚠ `MomentumDisturbanceEstimator` is not in the loop
+## 4. `MomentumDisturbanceEstimator` — retired (R1)
 
-The object is constructed (`sim_loop.py:445`) and its `H_rO` / `H_dot`
-properties are read every tick for the log (`:1067-1068`), but **`update()` is
-never called** — 0 of 54 lines covered.
-
-Measured on the canonical log:
-
-```
-H_rO       shape=(2077, 3)   max|.| = 0   all-zero = True
-H_dot_est  shape=(2077, 3)   max|.| = 0   all-zero = True
-```
-
-**Both exported channels are identically zero over the whole traversal.** The
-feedforward actually used is the inline computation of section 3.
-
-The theory in the module docstring — variant A (EMA-filtered finite differences)
-and variant B (analytical, via `a_com`) — remains valid; neither is wired in.
-The EMA-before-differentiation ordering described there is the right design if
-it is ever reconnected: filtering after a finite difference amplifies the noise
-you were trying to remove.
-
-Worth knowing before plotting or analysing `H_dot_est`.
+It was constructed and its `H_rO` / `H_dot` properties were read every tick for
+the log, but `update()` was never called: both channels were identically zero
+over all 2077 ticks. It was retired with the other modes; the log channels
+`H_rO` / `H_dot_est` are kept (schema unchanged) and written as zeros directly —
+bit-identical. Its theory (EMA-filtered finite differences on H_{r/O}, or the
+analytical variant via `a_com`) is in git history if a disturbance estimator is
+ever wanted; note the ordering it got right — filter before differentiating.
 
 ## Code map
 
 | unit | source |
 |---|---|
-| `class EstimatorConfig` | [L43-63](../../../crawlbot/aocs/force_estimator.py#L43-L63) |
-| `class MomentumDisturbanceEstimator` | [L66-240](../../../crawlbot/aocs/force_estimator.py#L66-L240) |
-| `MomentumDisturbanceEstimator.reset` | [L110-116](../../../crawlbot/aocs/force_estimator.py#L110-L116) |
-| `MomentumDisturbanceEstimator.update` | [L118-172](../../../crawlbot/aocs/force_estimator.py#L118-L172) |
-| `MomentumDisturbanceEstimator.update_analytical` | [L174-218](../../../crawlbot/aocs/force_estimator.py#L174-L218) |
-| `MomentumDisturbanceEstimator.H_rO` | [L223-225](../../../crawlbot/aocs/force_estimator.py#L223-L225) |
-| `MomentumDisturbanceEstimator.H_dot` | [L228-230](../../../crawlbot/aocs/force_estimator.py#L228-L230) |
-| `MomentumDisturbanceEstimator.initialized` | [L233-234](../../../crawlbot/aocs/force_estimator.py#L233-L234) |
-| `compute_aocs_command()` | [L243-288](../../../crawlbot/aocs/force_estimator.py#L243-L288) |
-| `compute_aocs_command_legacy_corrected()` | [L291-376](../../../crawlbot/aocs/force_estimator.py#L291-L376) |
-| `compute_aocs_command_legacy_pd_numerical()` | [L379-441](../../../crawlbot/aocs/force_estimator.py#L379-L441) |
-| `compute_aocs_command_legacy_pd_model()` | [L444-511](../../../crawlbot/aocs/force_estimator.py#L444-L511) |
-| `compute_aocs_command_legacy_pid_numerical()` | [L514-595](../../../crawlbot/aocs/force_estimator.py#L514-L595) |
-| `compute_aocs_command_legacy_pid_model()` | [L598-656](../../../crawlbot/aocs/force_estimator.py#L598-L656) |
+| `compute_aocs_command_legacy_pid_numerical()` | [L21-102](../../../crawlbot/aocs/force_estimator.py#L21-L102) |
 
 ---
 

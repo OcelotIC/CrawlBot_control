@@ -47,7 +47,6 @@ BASE = os.path.join(REPO, 'gate/_run/local_ref')
 #          'nmpc_unsuccessful': {call index: status}} — the
 #          CentroidalNMPC.solve / WholeBodyQP.solve call with that 0-based
 #          index raises RuntimeError (forced-failure fallbacks).
-_AOCS = {'n_steps': 1, 'settle_seconds': 1.0}
 _SHORT = {'n_steps': 1, 'settle_seconds': 1.0}
 SCENARIOS = {
     'timeout': ({'n_steps': 2, 'settle_seconds': 1.0},
@@ -69,19 +68,6 @@ SCENARIOS = {
     'skipstop': ({'n_steps': 2, 'settle_seconds': 1.0},
                  {'preplanner_max_iter': 1, 'stop_on_failed_step': True}),
     'dwell': ({'n_steps': 2, 'settle_seconds': 1.0, 'dt_ds': 3.0}, {}),
-    # ── L8: every aocs_mode branch of AttitudeController.command ─────────
-    'aocs_legacy': (_AOCS, {'aocs_mode': 'legacy',
-                            'aocs_use_legacy_corrected': False,
-                            'aocs_use_H_estimator': False}),
-    'aocs_legacy_corrected': (_AOCS, {'aocs_mode': 'legacy',
-                                      'aocs_use_legacy_corrected': True,
-                                      'aocs_use_H_estimator': False}),
-    'aocs_pd_numerical': (_AOCS, {'aocs_mode': 'legacy_pd_numerical'}),
-    'aocs_pd_model': (_AOCS, {'aocs_mode': 'legacy_pd_model'}),
-    'aocs_pid_model': (_AOCS, {'aocs_mode': 'legacy_pid_model'}),
-    'aocs_H_est': (_AOCS, {'aocs_mode': 'H_est',
-                           'aocs_use_H_estimator': True}),
-    'aocs_off_in_ds': (_AOCS, {'aocs_off_in_ds': True}),
     # ── L8: torso-reference mapping bypass in SS ─────────────────────────
     'bypass': (_SHORT, {'mapping_bypass_in_ss': True}),
     # ── L8: reference paths the canonical never takes ───────────────────

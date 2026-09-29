@@ -10,7 +10,8 @@ It tracked the spin (centroidal) rate but missed the orbital rate:
                         ^^^^^^^^^^^^^^^^^^^^^
                         NEW — M4 correction
 
-This file covers the algebraic properties of the corrected helper:
+This file covers the algebraic properties of the corrected feedforward, now
+tested on the kept law (legacy_pid_numerical, attitude gains zero):
   1. With zero acceleration, the legacy and corrected formulae agree.
   2. With non-zero linear acceleration AND non-zero r_com, the orbital
      term is non-trivial and points in the expected direction.
@@ -25,8 +26,21 @@ import numpy as np
 import pytest
 
 from crawlbot.aocs.force_estimator import (
-    compute_aocs_command_legacy_corrected,
+    compute_aocs_command_legacy_pid_numerical,
 )
+
+
+def _ff_and_desat(**kw):
+    """The FD feedforward + desaturation part of the kept AOCS law.
+
+    ``legacy_corrected`` was retired (R1); its terms live on unchanged in
+    ``legacy_pid_numerical``, which reduces to them exactly with the attitude
+    gains at zero and ω_s = ω_s,prev = θ_s = 0 (adding exact zeros).
+    """
+    z = np.zeros(3)
+    return compute_aocs_command_legacy_pid_numerical(
+        omega_s=z, omega_s_prev=z, theta_s=z,
+        K_omega=0.0, K_d=0.0, K_theta=0.0, **kw)
 
 
 ROBOT_MASS = 71.0
@@ -66,7 +80,7 @@ class TestOrbitalTerm:
                   hw_min=np.full(3, -5.0), hw_max=np.full(3, 5.0),
                   tau_w_max=5.0)
 
-        tw_corrected = compute_aocs_command_legacy_corrected(
+        tw_corrected = _ff_and_desat(
             L_com=L, L_com_prev=L_prev, r_com=r, v_com=v, v_com_prev=v_prev,
             hw_current=hw, robot_mass=ROBOT_MASS, **kw)
         tw_legacy = _legacy_uncorrected(
@@ -92,7 +106,7 @@ class TestOrbitalTerm:
                   hw_min=np.full(3, -5.0), hw_max=np.full(3, 5.0),
                   tau_w_max=1e6)  # effectively unclipped
 
-        tw = compute_aocs_command_legacy_corrected(
+        tw = _ff_and_desat(
             L_com=L, L_com_prev=L_prev, r_com=r, v_com=v, v_com_prev=v_prev,
             hw_current=hw, robot_mass=ROBOT_MASS, **kw)
 
@@ -125,7 +139,7 @@ class TestOrbitalTerm:
         hw_max = np.full(3, 5.0)
         K_hw = 2.0
 
-        tw = compute_aocs_command_legacy_corrected(
+        tw = _ff_and_desat(
             L_com=np.zeros(3), L_com_prev=np.zeros(3),
             r_com=np.zeros(3),  # no orbital term
             v_com=np.zeros(3), v_com_prev=np.zeros(3),
@@ -139,7 +153,7 @@ class TestOrbitalTerm:
         """Large orbital + centroidal rates should be clipped."""
         L = np.array([100.0, 0.0, 0.0])
         L_prev = np.zeros(3)  # huge L_dot
-        tw = compute_aocs_command_legacy_corrected(
+        tw = _ff_and_desat(
             L_com=L, L_com_prev=L_prev,
             r_com=np.zeros(3),
             v_com=np.zeros(3), v_com_prev=np.zeros(3),

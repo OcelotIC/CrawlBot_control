@@ -11,9 +11,9 @@
 The robot crawling along the structure transfers angular momentum to it. This
 package is what spends the wheel budget the NMPC promised not to exceed.
 
-Six control laws are implemented; the canonical run uses exactly one
-(`legacy_pid_numerical`). The other five are selectable alternatives — not dead
-code, but **not covered by the gate**.
+One control law: `legacy_pid_numerical`, the one the paper uses. The five
+variants and the H_{r/O}-estimator law were retired in R1 (never run by the
+canonical nor by Table 2).
 
 ## Two points worth knowing
 
@@ -22,6 +22,6 @@ finite-difference estimate from centroidal momentum; in double support the welde
 loop carries an internal stress whose couple `(r_CA - r_CB) x f` is *invisible in
 `L_com`*, so the term is instead computed directly from the QP contact wrenches.
 
-**The estimator object is not in the loop.** `MomentumDisturbanceEstimator` is
-constructed and its outputs are logged every tick, but `update()` is never
-called — so `H_rO` and `H_dot_est` are identically zero across all 2077 ticks.
+**The disturbance estimator is gone.** `MomentumDisturbanceEstimator` was
+constructed but never updated (`H_rO`, `H_dot_est` identically zero); it was
+retired in R1 and the two log channels are now written as zeros directly.

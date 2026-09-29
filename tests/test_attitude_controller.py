@@ -41,8 +41,6 @@ class _Sensors:
 def _make(diag=None):
     cfg = SimConfig()
     cfg.aocs_mode = 'legacy_pid_numerical'
-    cfg.aocs_use_legacy_corrected = False
-    cfg.aocs_use_H_estimator = False
     cfg.dt_qp = DT
     # isolate the K_d·ω̇_s term
     cfg.aocs_K_theta = 0.0
@@ -52,8 +50,8 @@ def _make(diag=None):
     cfg.aocs_tau_w_max = 1e9
     sensors = _Sensors()
     robot = SimpleNamespace(_total_mass=70.0)
-    aocs = AttitudeController(cfg, robot, sensors, None,
-                              np.array([1.0, 0.0, 0.0, 0.0]), np.ones(3),
+    aocs = AttitudeController(cfg, robot, sensors,
+                              np.array([1.0, 0.0, 0.0, 0.0]),
                               diag or DiagHooks())
     return aocs, sensors
 
@@ -95,10 +93,9 @@ def test_history_records_each_tick():
     h = aocs._hist
     assert np.array_equal(h.omega_s_prev, sensors.omega)
     assert h.omega_s_prev is not sensors.omega            # a copy, not the view
-    assert np.array_equal(h.tau_w_prev, tau)
 
 
-def test_disable_aocs_zeroes_command_and_history():
+def test_disable_aocs_zeroes_the_command():
     diag = DiagHooks(disable_aocs=True)
     aocs, sensors = _make(diag)
     rs = _rs()
@@ -106,7 +103,7 @@ def test_disable_aocs_zeroes_command_and_history():
     sensors.omega = np.array([1e-4, 0.0, 0.0])
     tau, _ = _cmd(aocs, rs)
     assert np.array_equal(tau, np.zeros(3))
-    assert np.array_equal(aocs._hist.tau_w_prev, np.zeros(3))
+    assert np.array_equal(aocs._hist.omega_s_prev, sensors.omega)
 
 
 def test_settle_seeds_from_entry_omega():

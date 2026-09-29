@@ -45,10 +45,8 @@ def _make_m7_config():
         h_max_tight=np.full(3, 5.0),
         w_L_nmpc=1.0,
         kappa_terminal=1.0,
-        # M4: corrected legacy AOCS
-        aocs_mode='legacy_corrected',
-        aocs_use_legacy_corrected=True,
-        aocs_use_H_estimator=False,
+        # The one AOCS law (the others were retired, R1).
+        aocs_mode='legacy_pid_numerical',
         # M6: coarse pre-planner (now mandatory in M7; config knobs
         # still tune the NLP)
         preplanner_M=15,
