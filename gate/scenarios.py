@@ -112,6 +112,19 @@ SCENARIOS = {
     'aocs_off_interstep': (_SHORT, {'aocs_active_in_interstep': False}),
     # Inter-step settle QP fed the entry-frozen h_w (no per-tick refresh).
     'hw_refresh_off': (_SHORT, {'interstep_hw_refresh': False}),
+    # ── R0: the paper's Table 2 configurations (short traversal) ─────────
+    # Arms of the three-way envelope ablation (e37b9ca, branch
+    # claude/review-closure-bloc-2-uwu1x7) + the published unmanaged run.
+    # full = the canonical (covered by the canonical replay itself).
+    # rate: NMPC rate cap kept, NMPC storage (h_w) box off.
+    'table2_rate': (_SHORT, {'enforce_hw_conservation': False}),
+    # none: NMPC rate cap AND storage box off; QP box + AOCS clip held at 2.5.
+    # nmpc_tau_w_max=inf exists only on that unmerged branch; the harness
+    # reproduces its single effect: CentroidalNMPCConfig(tau_w_max=inf).
+    'table2_none': (_SHORT, {'enforce_hw_conservation': False},
+                    {'nmpc_tau_w_max': float('inf')}),
+    # u25: tau_w_max=1e6 through dca -> NMPC cap + QP box + AOCS clip lifted.
+    'table2_u25': (dict(_SHORT, tau_w_max=1e6), {}),
 }
 
 C_KWARGS = dict(
@@ -175,6 +188,14 @@ def child(name, out_rel):
             return orig(self, *a, **k)
         setattr(cls, meth, wrapped)
 
+    if 'nmpc_tau_w_max' in extras:
+        # e37b9ca's SimConfig.nmpc_tau_w_max: the NMPC alone gets this cap.
+        _cfg_cls = sl.CentroidalNMPCConfig
+
+        def _nmpc_cfg(*a, **k):
+            k['tau_w_max'] = extras['nmpc_tau_w_max']
+            return _cfg_cls(*a, **k)
+        sl.CentroidalNMPCConfig = _nmpc_cfg
     if extras.get('nmpc_fail'):
         import crawlbot.solvers.centroidal_nmpc as cn
         _failing(cn.CentroidalNMPC, 'solve', extras['nmpc_fail'], 'NMPC')
