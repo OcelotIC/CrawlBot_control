@@ -175,13 +175,10 @@ class SimConfig:
     # Default 0 = off. Used by scripts/render_traversal.py.
     frames_per_step: int = 0
 
-    # ── M2: reworked QP task stack ──────────────────────────────
-    # NOTE (CLEANUP-7): this no longer selects a QP task stack — the M2
-    # torso-P1 / EE-null-space / soft-CoM tasks were removed. It survives
-    # because the controller still reads it on an unrelated path:
-    # passivity_active, i.e. the DS passivity constraint (the torso-reference
-    # routing it also gated went with the δ-mapping, R2b). Do not delete.
-    use_m2_stack: bool = False    # gates DS passivity
+    # ── DS passivity ────────────────────────────────────────────
+    # The QP passivity inequality dqᵀτ_q + 2α·T ≤ 0 is always on in DS (and in
+    # the SS convergence hold). The use_m2_stack flag that gated it — True in
+    # every run of the paper — was frozen and removed (R2c).
     alpha_passivity: float = 1.0  # DS passivity decay rate [1/s]
 
     # ── M3: NMPC conservation-law box constraint ────────────────

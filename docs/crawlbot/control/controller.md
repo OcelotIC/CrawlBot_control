@@ -1,6 +1,6 @@
 # `crawlbot.control.controller`
 
-**File**: [`crawlbot/control/controller.py`](../../../crawlbot/control/controller.py) — **589 lines** — canonical coverage **82 %**
+**File**: [`crawlbot/control/controller.py`](../../../crawlbot/control/controller.py) — **588 lines** — canonical coverage **82 %**
 
 **The two-stage controller driven as one block.** Built by extractions 3b–3c of
 the `sim_loop.py` split (branch `refactor/sim-loop-split`).
@@ -164,9 +164,9 @@ commit with `gate/local_ref.py check` + `gate/dock_check.py`.
 | `.plan` | `(intent, refs)` | **yes** | [L174](../../../crawlbot/control/controller.py#L174) |
 | `.begin_tracking` | `(plan, hw)` | **yes** | [L298](../../../crawlbot/control/controller.py#L298) |
 | `.track` | `(carry, qs, tq, intent, refs, plan)` | **yes** | [L308](../../../crawlbot/control/controller.py#L308) |
-| `.after_step` | `(carry, tau)` | **yes** | [L486](../../../crawlbot/control/controller.py#L486) |
-| `.begin_settle` | `()` | **yes** | [L509](../../../crawlbot/control/controller.py#L509) |
-| `.settle` | `(rs, cc_ds, hw_current, fallback_Kd)` | **yes** | [L513](../../../crawlbot/control/controller.py#L513) |
+| `.after_step` | `(carry, tau)` | **yes** | [L485](../../../crawlbot/control/controller.py#L485) |
+| `.begin_settle` | `()` | **yes** | [L508](../../../crawlbot/control/controller.py#L508) |
+| `.settle` | `(rs, cc_ds, hw_current, fallback_Kd)` | **yes** | [L512](../../../crawlbot/control/controller.py#L512) |
 
 ## Code map
 
@@ -178,13 +178,13 @@ commit with `gate/local_ref.py check` + `gate/dock_check.py`.
 | `class NMPCPlan` | [L80-110](../../../crawlbot/control/controller.py#L80-L110) |
 | `class QPCarry` | [L114-132](../../../crawlbot/control/controller.py#L114-L132) |
 | `class TrackOut` | [L136-153](../../../crawlbot/control/controller.py#L136-L153) |
-| `class WholeBodyController` | [L156-588](../../../crawlbot/control/controller.py#L156-L588) |
+| `class WholeBodyController` | [L156-587](../../../crawlbot/control/controller.py#L156-L587) |
 | `WholeBodyController.plan` | [L174-294](../../../crawlbot/control/controller.py#L174-L294) |
 | `WholeBodyController.begin_tracking` | [L298-306](../../../crawlbot/control/controller.py#L298-L306) |
-| `WholeBodyController.track` | [L308-484](../../../crawlbot/control/controller.py#L308-L484) |
-| `WholeBodyController.after_step` | [L486-505](../../../crawlbot/control/controller.py#L486-L505) |
-| `WholeBodyController.begin_settle` | [L509-511](../../../crawlbot/control/controller.py#L509-L511) |
-| `WholeBodyController.settle` | [L513-588](../../../crawlbot/control/controller.py#L513-L588) |
+| `WholeBodyController.track` | [L308-483](../../../crawlbot/control/controller.py#L308-L483) |
+| `WholeBodyController.after_step` | [L485-504](../../../crawlbot/control/controller.py#L485-L504) |
+| `WholeBodyController.begin_settle` | [L508-510](../../../crawlbot/control/controller.py#L508-L510) |
+| `WholeBodyController.settle` | [L512-587](../../../crawlbot/control/controller.py#L512-L587) |
 
 ---
 

@@ -36,9 +36,6 @@ def _make_m7_config():
     are synchronized over [0, T_step].
     """
     return SimConfig(
-        # Gates the torso-reference routing and DS passivity (the QP task
-        # stack it used to select was removed in CLEANUP-6).
-        use_m2_stack=True,
         alpha_passivity=1.0,
         # M3: NMPC conservation-law box
         enforce_hw_conservation=True,

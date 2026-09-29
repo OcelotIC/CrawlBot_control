@@ -127,8 +127,6 @@ class WholeBodyQPConfig:
     # CLEANUP-6/7 removed the stacks this superseded (legacy CoM / torso-6D
     # P1, the cooperative split, the Option D tube, the projected EE task,
     # T-MOM v1, the soft-CoM residual) and their config fields.
-    # NOTE: SimConfig.use_m2_stack survives — it gates DS passivity in the
-    # controller. Only the QP-side copy was removed.
     # The two-task SS stack is the only SS stack (R2a retired the
     # ss_two_task_mode switch and the legacy non-two-task SS path).
     ss_alpha_mom: float = 5e2

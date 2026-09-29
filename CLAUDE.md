@@ -178,13 +178,13 @@ Update this line as work progresses:
 | NMPC state dim | 9 | — | spec §5.1 (B2) |
 | NMPC control dim | 12 | — | spec §5.1 |
 | weight_ratio | 1.0 — **α magnitudes ARE the hierarchy** (two-task weighted stack, no null-space projection; priority integers inert) | — | `wholebody_qp.py:94` |
-| **α torso-pose** | **2000** | — | `config.py:293` (Add-5) |
-| **α swing-EE** | **1000** (dock lever; needs ≥ ~1000) | — | `config.py:267` (Add-5) |
-| **α momentum (T-MOM)** | **400** (near-inert on Ḣ_s — NMPC owns the envelope) | — | `config.py:275` (Add-5) |
-| **w hw-slack** | **800** (slacks active only if the hw box is violated) | — | `wholebody_qp.py:160` (Add-5) |
-| **α posture** | **20** | — | `config.py:268` |
+| **α torso-pose** | **2000** | — | `config.py:290` (Add-5) |
+| **α swing-EE** | **1000** (dock lever; needs ≥ ~1000) | — | `config.py:264` (Add-5) |
+| **α momentum (T-MOM)** | **400** (near-inert on Ḣ_s — NMPC owns the envelope) | — | `config.py:272` (Add-5) |
+| **w hw-slack** | **800** (slacks active only if the hw box is violated) | — | `wholebody_qp.py:158` (Add-5) |
+| **α posture** | **20** | — | `config.py:265` |
 | **α torque-min** | **5** (must stay ≳ 5× accel-reg floor — Rule 14) | — | `sim_loop.py:988` (QP-construction literal) |
-| **α wrench-track** | **1.0** | — | `config.py:269` (Add-5; was 0.01 pre-freeze) |
+| **α wrench-track** | **1.0** | — | `config.py:266` (Add-5; was 0.01 pre-freeze) |
 | **α accel-reg** | **1.0** (regularizer floor) | — | `sim_loop.py:988` |
 | ε (Tikhonov) | 1e-6 (inert: λ_min(H_LS)=1 ≫ ε) | — | `hierarchical_qp.py:98` default |
 | **κ_SS(H)** | ≈ 7.5e3 (530× below the pre-freeze canonical 3.6e6) | — | `canonical2p5_result.json` |
@@ -219,7 +219,7 @@ The **5 mm dock gate is the docking-mechanism capture radius** — the 0.01 mm w
 - **The committed canonical baseline does not reproduce on every host.** With Python 3.11.16 (lock: 3.11.15) `gate/run_gate.py` FAILs artifact identity on a 1e-15 flip of `tauw_x_Nm` (row 1), while two replays on that host are bit-identical to each other. For refactors use the host-local reference, `gate/local_ref.py` (see `gate/README.md`).
 - **AOCS ω̇_s history restarts at zero every NMPC tick** (kept as found; decision pending). `AttitudeController.reset_for_nmpc_tick` (called every NMPC tick) re-initialises `omega_s_prev = 0` — one place since A0, frozen by `tests/test_attitude_controller.py` — so the first QP sub-step of each tick sees ω̇_s = ω_s/dt → `K_d·ω_s/dt = 2500·ω_s` N·m with K_d = 25, able to hit the 2.5 N·m cap for |ω_s| ≳ 1 mrad/s. The DS settle seeds its history correctly. See `docs/crawlbot/control/attitude.md` §3.
 - **The canonical driver crashes if the pre-planner fails on the first step**: its `_setup_torso_for_step` wrapper calls `sim._step_q_start.tolist()` while it is still `None` (`scripts/diag_cooperative_arms.py`).
-- **Suite state: 210 passed, 0 failed, 0 errors, 0 skipped, 1 xfail — and GATED** (`gate/run_suite.py`, CLEANUP-29). The one xfail, `test_coarse_preplanner::test_far_infeasible_under_tight_rate`, is `strict=True` with its reasoning in the marker: the envelope-semantics question at cap 2.5 is open (see Remaining Work), and if the far case ever goes infeasible again the test **fails** rather than turning green. Getting from 12 problems to 0 retired nothing: 6 tests ported to the two-task API (`PHASE_CLEANUP_28`), 7 repaired (`PHASE_CLEANUP_29` §1), 2 genuinely-dead retired, 1 marked honestly.
+- **Suite state: 164 passed, 0 failed, 0 errors, 0 skipped, 1 xfail — and GATED** (`gate/run_suite.py`, CLEANUP-29; full run at R2c). It was 210 on `main`: `refactor/sim-loop-split` retired tests together with their subjects (R1 AOCS modes, R2b `CoMToTorsoMapping` ×30 — `PHASE_R1_AOCS_MODES_RETIRED.md`, `PHASE_R2_REFERENCE_PATHS_RETIRED.md`). The one xfail, `test_coarse_preplanner::test_far_infeasible_under_tight_rate`, is `strict=True` with its reasoning in the marker: the envelope-semantics question at cap 2.5 is open (see Remaining Work), and if the far case ever goes infeasible again the test **fails** rather than turning green. Getting from 12 problems to 0 retired nothing: 6 tests ported to the two-task API (`PHASE_CLEANUP_28`), 7 repaired (`PHASE_CLEANUP_29` §1), 2 genuinely-dead retired, 1 marked honestly.
 - **`MUJOCO_GL=osmesa` aborts pytest collection** in the current container: `tests/test_diagnostics.py` → `PyOpenGL AttributeError: 'NoneType' object has no attribute 'glGetError'`. Environment, not code. `gate/run_suite.py` forces `MUJOCO_GL=disabled` for this reason — use it rather than calling `pytest` directly.
 - **The orphaned manipulability-IK path is RETIRED (CLEANUP-30).** `manipulability_config_trajectory`, `manipulability_config_mid_waypoint`, `check_path_feasibility`, `precompute_torso_map` + 4 stranded helpers — 695 lines, 47 % of `ik.py` — had zero callers and 0 lines executed by the canonical replay. Removal proven inert: artifact identity byte-exact, all six docks delta +0.0000. `sim_loop` uses **`manipulability_config`** (IK 2, `sim_loop.py:580`), a different and live function. Suite 743 s → **89 s**. Reasoning and revival path: `PHASE_CLEANUP_30_IK_OPTION_B_RETIRED.md`; §7–§9 of `IK_FORMULATION.md` still derive it under a RETIRED banner. **Consequence:** there is now no interior path-feasibility guard at all — `check_path_feasibility` was the only one and was already disconnected.
 - **`crawlbot/diagnostics/` is KEPT** — live consumer (`scripts/run_m7_single_step.py`) and mandated by Rule 3. The real defect is that the **canonical run does not honour Rule 3**: the gate exports via `scripts/diag_full_diag_export.py`, never `run_diagnostics()` (`CARRYOVER` §A6).

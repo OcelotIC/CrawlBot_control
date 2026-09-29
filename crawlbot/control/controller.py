@@ -395,16 +395,15 @@ class WholeBodyController:
                           v_ee_ref=np.concatenate([sr.v_ee, sr.omega_ee]),
                           a_ee_ff=np.concatenate([sr.a_ee, sr.alpha_ee]))
 
-        # M2: enable passivity inequality during DS (settling) when the
-        # reworked task stack is active. settle_mode already bypasses
-        # torso/EE tasks; passivity just adds dq^T*tau_q + 2α*T ≤ 0.
+        # Passivity inequality during DS (settling): settle_mode already
+        # bypasses torso/EE tasks; passivity just adds dq^T*tau_q + 2α*T ≤ 0.
+        # (Gated by cfg.use_m2_stack until R2c; True in every paper run.)
         # M7: passivity active during DS (energy-based settle) and
         # during the SS convergence-hold window (passivity_hold=True).
         # Main loop engages hold mode once the trajectory has ended
         # without docking, so the system dissipates residual energy
         # while the EE closes on the target.
-        passivity_active = bool(
-            cfg.use_m2_stack and (phase == 'DS' or passivity_hold))
+        passivity_active = bool(phase == 'DS' or passivity_hold)
         if passivity_override is not None:
             passivity_active = bool(passivity_override)
 

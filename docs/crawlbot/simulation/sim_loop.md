@@ -298,17 +298,14 @@ that signature can shrink without touching the loop (A1).
 `run()`'s 600 lines of nesting are now the sequencer `_gait_program`; the
 physics loop is `_drive` (§1).
 
-## 6. The `use_m2_stack` trap
+## 6. `use_m2_stack` — frozen and removed (R2c)
 
-`SimConfig.use_m2_stack` **looks dead** — its `WholeBodyQPConfig` twin was
-removed in CLEANUP-8 — but it gates a path unrelated to the task stack (the torso-reference
-routing it also gated went with the δ-mapping, R2b):
-
-| site | what it gates |
-|---|---|
-| `controller.py:406-407` | `passivity_active` — **the DS passivity constraint** |
-
-Deleting it would silently disable DS passivity. Same name, opposite fates.
+`SimConfig.use_m2_stack` looked dead but gated two live paths: the
+torso-reference routing (retired with the δ-mapping, R2b) and `passivity_active`,
+**the DS passivity constraint**. Every run of the paper set it `True`
+(`_make_m7_config`), so R2c froze it there: `passivity_active` is now
+`phase == 'DS' or passivity_hold` (`controller.py:406`). Behaviour change only
+for a bare `SimConfig()`, whose default was `False` (DS passivity off).
 
 ## 7. Diagnostic hooks — live, keep
 

@@ -88,3 +88,29 @@ tracks the planner's. No run in the repo does this.
 **Revival.** `git show 4b988ec:crawlbot/core/com_to_torso_mapping.py` (and
 `4b988ec:crawlbot/control/torso_reference.py` for the F-RATE / blend logic),
 should an active DS with a tracked linear torso task (P3) be wanted.
+
+---
+
+## R2c — `use_m2_stack` frozen at its canonical value and removed
+
+**What the paper uses.** `use_m2_stack=True` in every run: `_make_m7_config`
+(`scripts/run_m7_single_step.py`) sets it, and the canonical driver
+(`diag_cooperative_arms.py`), `run_table2.py` and every gate scenario build their
+config through it. After R2b the flag gated a single site,
+`passivity_active = use_m2_stack and (phase == 'DS' or passivity_hold)` in
+`WholeBodyController.track`.
+
+**Frozen.** `passivity_active = phase == 'DS' or passivity_hold`; the field and
+its `SimConfig(use_m2_stack=True)` argument in `_make_m7_config` are removed.
+There is no line to prove unexecuted — the `False` side of a boolean operand —
+so the proof is the configuration (True in every run) and the replay: see the
+commit (`local_ref`, `dock_check`, 20 scenarios).
+
+**Behaviour change for non-canonical defaults — flagged.** `SimConfig()`
+defaulted to `use_m2_stack=False`, i.e. **no DS passivity**. A caller building a
+bare `SimConfig()` and running DS now gets the passivity inequality. No test
+depended on it: full suite 164 passed + 1 xfail, as before R2c.
+
+**`scripts/` change (signalled separately):** `run_m7_single_step.py` drops
+`use_m2_stack=True`. Scripts under `Misc/` that still pass it are sediment and
+were already broken by earlier field removals (`alpha_com_soft`, CLEANUP-6).
