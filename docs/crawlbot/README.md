@@ -136,7 +136,7 @@ cited symbol is no longer defined in `crawlbot/`.
 
 It has already earned its keep: the first draft carried a torso-reference line
 number inherited from CLAUDE.md, stale since the chantier shortened `sim_loop` by
-375 lines. The real site is `controller.py:417-419`. CLAUDE.md,
+375 lines. The real site is `controller.py:408-410`. CLAUDE.md,
 `CLEANUP_CARRYOVER` and these documents were corrected together.
 
 **Not yet covered**: numeric values (weights, gains, thresholds), still verified

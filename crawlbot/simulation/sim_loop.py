@@ -150,7 +150,6 @@ class _DSRun:
     T_settle: float
     T_start: float
     hw_current: Any
-    omega_s_prev: Any
     T_history: list = field(default_factory=list)
     exit_reason: str = 'max_steps'
     k: int = 0
@@ -732,7 +731,7 @@ class SimulationLoop(TickLoggingMixin):
         # AOCS (reaction wheels) — crawlbot/control/attitude.py
         self.aocs = AttitudeController(
             cfg, self.robot, self.sensors, self.H_estimator,
-            self._struct_quat_init, self._struct_I)
+            self._struct_quat_init, self._struct_I, self.diag)
 
         # GMO contact estimator
         from crawlbot.estimation.contact_estimator import (
@@ -900,17 +899,13 @@ class SimulationLoop(TickLoggingMixin):
         # to build the lever arms for the hw safety constraint.
         hw_current = self.sensors.wheel_momentum()
 
-        # Loop-local ω_s history for the inter-step AOCS K_d·ω̇_s term.
-        # The NMPC tick's AOCS carry is invisible here, so the settle
-        # tracks its own (init from the entry ω_s ⇒ ω̇_s = 0 on the first
-        # tick; updated each iteration before the plant step). Only this
-        # history is new — the DS wrench feedforward needs no L_com/v_com
+        # The AOCS seeds its own ω_s history from the entry ω_s (⇒ ω̇_s = 0
+        # on the first tick); the DS wrench feedforward needs no L_com/v_com
         # history (AOCS-FF audit).
-        _omega_s_prev = self.sensors.omega_struct()
+        self.controller.begin_settle()
 
         return _DSRun(req=r, lambda_min=lambda_min, T_settle=T_settle,
-                      T_start=T_start, hw_current=hw_current,
-                      omega_s_prev=_omega_s_prev)
+                      T_start=T_start, hw_current=hw_current)
 
     def _ds_tick(self, st):
         """One DS-settle iteration k: exit checks, then one control period.
@@ -946,9 +941,9 @@ class SimulationLoop(TickLoggingMixin):
                     return True, self._ds_end(st, k)
 
         # Settle QP + inter-step AOCS — WholeBodyController.settle.
-        tau, lambda_qp_sol, tau_w_applied, wheel_cmd, st.omega_s_prev = (
+        tau, lambda_qp_sol, tau_w_applied, wheel_cmd = (
             self.controller.settle(rs, r.contact_config, st.hw_current,
-                                   r.fallback_Kd, st.omega_s_prev))
+                                   r.fallback_Kd))
         self.plant.apply_joint_torques(tau)
         self.plant.apply_wheel_torques(wheel_cmd)
         # NB: no diagnostic arm lock here — this loop never applied it.

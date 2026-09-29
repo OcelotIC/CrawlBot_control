@@ -113,18 +113,17 @@ class NMPCPlan:
 class QPCarry:
     """State threaded through the QP sub-steps of ONE NMPC tick.
 
-    Re-created by ``begin_tracking`` at every NMPC tick — which is why the
-    AOCS ω̇_s history restarts from zero each tick (see attitude.md §3).
-    ``lr`` / ``af`` start as the plan's and are zeroed in place of the plan's
-    by ``pure_pd``; ``hw`` is the loop's h_w carry (the same array object).
+    Re-created by ``begin_tracking`` at every NMPC tick. The AOCS history is
+    NOT here: the AOCS owns it (``AttitudeController.reset_for_nmpc_tick``).
+    ``tau_w_last`` / ``transport_mag_last`` are the tick's last AOCS outputs,
+    for telemetry. ``lr`` / ``af`` start as the plan's and are zeroed in place
+    of the plan's by ``pure_pd``; ``hw`` is the loop's h_w carry (the same
+    array object).
     """
     tau_last: np.ndarray
     tau_w_last: np.ndarray
     transport_mag_last: float
-    omega_s_last: np.ndarray
     qp_ok: bool
-    L_com_qp_prev: np.ndarray
-    v_com_qp_prev: np.ndarray
     hw: np.ndarray
     lr: np.ndarray
     af: np.ndarray
@@ -333,17 +332,12 @@ class WholeBodyController:
 
     def begin_tracking(self, plan, hw):
         """Fresh per-NMPC-tick carry for the QP sub-steps."""
-        rs = plan.rs
+        self._aocs.reset_for_nmpc_tick(plan.rs)
         return QPCarry(
             tau_last=np.zeros(self._robot.n_joints),
             tau_w_last=np.zeros(3),
             transport_mag_last=0.0,
-            omega_s_last=np.zeros(3),
             qp_ok=True,
-            L_com_qp_prev=rs.L_com.copy(),
-            # M4: track v_com across QP sub-steps to estimate dv_com for the
-            # orbital feedforward term r_com × m·dv_com_est.
-            v_com_qp_prev=rs.v_com.copy(),
             hw=hw, lr=plan.lr, af=plan.af)
 
     def track(self, carry, qs, tq, intent, refs, plan):
@@ -364,9 +358,6 @@ class WholeBodyController:
         rp_k0, rp_k1, vp_k0, vp_k1 = plan.rp_k0, plan.rp_k1, plan.vp_k0, plan.vp_k1
         lr, af, hw = carry.lr, carry.af, carry.hw
         qp_ok = carry.qp_ok
-        tau_w_last, _omega_s_last = carry.tau_w_last, carry.omega_s_last
-        transport_mag_last = carry.transport_mag_last
-        _L_com_qp_prev, _v_com_qp_prev = carry.L_com_qp_prev, carry.v_com_qp_prev
 
         omega_s = self._sensors.omega_struct()
         pq, pv = self._sensors.joint_state()
@@ -622,27 +613,16 @@ class WholeBodyController:
             tau_last = tau.copy()
 
         # AOCS: reaction wheel torque command.
-        tau_w_cmd, omega_s, transport_mag_last = self._aocs.command(
+        tau_w_cmd, transport_mag_last = self._aocs.command(
             phase=phase, rs=rs, lambda_qp_sol=lambda_qp_sol,
             cc_nmpc=cc_nmpc,
-            stance_anchors=intent.stance_anchors,
-            L_com_prev=_L_com_qp_prev, v_com_prev=_v_com_qp_prev,
-            omega_s_prev=_omega_s_last, tau_w_prev=tau_w_last)
-
-        if self._diag.disable_aocs:
-            tau_w_cmd = np.zeros(3)
+            stance_anchors=intent.stance_anchors)
         tau_w_last = tau_w_cmd.copy()
-        _omega_s_last = omega_s.copy()
-
-        _L_com_qp_prev = rs.L_com.copy()
-        _v_com_qp_prev = rs.v_com.copy()
 
         carry.lr, carry.af = lr, af
         carry.qp_ok = qp_ok
         carry.tau_last, carry.tau_w_last = tau_last, tau_w_last
-        carry.omega_s_last = _omega_s_last
         carry.transport_mag_last = transport_mag_last
-        carry.L_com_qp_prev, carry.v_com_qp_prev = _L_com_qp_prev, _v_com_qp_prev
         carry.lambda_qp_sol = lambda_qp_sol
         carry.p_torso_ref_used = p_torso_ref_used
         return TrackOut(
@@ -694,13 +674,17 @@ class WholeBodyController:
 
     # ── DS passivity settle (inter-step / setup) ──────────────────────────
 
-    def settle(self, rs, cc_ds, hw_current, fallback_Kd, _omega_s_prev):
+    def begin_settle(self):
+        """Entry of an inter-step DS settle: seed the AOCS history."""
+        self._aocs.reset_for_settle()
+
+    def settle(self, rs, cc_ds, hw_current, fallback_Kd):
         """One tick of the passivity-constrained settle QP (NMPC bypassed).
 
-        Returns ``(tau, lambda_qp_sol, tau_w_applied, wheel_cmd,
-        omega_s_prev)``: ``wheel_cmd`` is what to write to the wheel
-        actuators — 0.0 (AOCS off in the inter-step settle) or
-        ``tau_w_applied``; ``omega_s_prev`` the updated ω_s history.
+        Returns ``(tau, lambda_qp_sol, tau_w_applied, wheel_cmd)``:
+        ``wheel_cmd`` is what to write to the wheel actuators — 0.0 (AOCS off
+        in the inter-step settle) or ``tau_w_applied``. The AOCS keeps its
+        own ω_s history (``begin_settle`` seeds it).
         """
         cfg = self._cfg
         Jc, Jdc = contact_jacobians(rs, True, True)
@@ -765,11 +749,8 @@ class WholeBodyController:
         tau_w_applied = np.zeros(3)
         if cfg.aocs_active_in_interstep:
             tau_w_applied = self._aocs.command_interstep(
-                rs, cc_ds, lambda_qp_sol, _omega_s_prev)
+                rs, cc_ds, lambda_qp_sol)
             wheel_cmd = tau_w_applied
-            # Update the ω_s history BEFORE mj_step (current ω_s
-            # is this tick's pre-step value, the next tick's prev).
-            _omega_s_prev = self._sensors.omega_struct()
         else:
             wheel_cmd = 0.0
-        return tau, lambda_qp_sol, tau_w_applied, wheel_cmd, _omega_s_prev
+        return tau, lambda_qp_sol, tau_w_applied, wheel_cmd

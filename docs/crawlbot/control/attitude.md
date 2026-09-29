@@ -1,6 +1,6 @@
 # `crawlbot.control.attitude`
 
-**File**: [`crawlbot/control/attitude.py`](../../../crawlbot/control/attitude.py) — **306 lines** — canonical coverage **78 %**
+**File**: [`crawlbot/control/attitude.py`](../../../crawlbot/control/attitude.py) — **362 lines** — canonical coverage **82 %**
 
 **The AOCS: reaction-wheel torque for the free-floating platform.** Extraction
 3a of the `sim_loop.py` split (branch `refactor/sim-loop-split`). The control
@@ -14,8 +14,9 @@ from measurements, and returns a torque.
 
 In: platform gyro ω_s, attitude quaternion and wheel momentum h_w (read through
 [`SensorSuite`](../simulation/sensors.md)); the robot's centroidal state `rs`;
-the QP contact wrench λ_qp; the per-tick carry (previous L_com, v_com, ω_s,
-τ_w). Out: τ_w, clipped to `cfg.aocs_tau_w_max`. It never writes MuJoCo — the
+the QP contact wrench λ_qp. Out: τ_w, clipped to `cfg.aocs_tau_w_max`. The
+previous tick's values its finite differences need are the AOCS's **own
+state** (`AocsHistory`, below), not an argument. It never writes MuJoCo — the
 caller applies τ_w through [`MujocoPlant`](../simulation/plant.md).
 
 | entry point | loop | law |
@@ -32,6 +33,24 @@ ff  = −L̇_com − r_com × m·v̇_com                    (SS: FD on centroida
 ff  = −Σ_i (r_Ci × f_i + τ_i) from λ_qp           (DS: wrench feedforward)
 ```
 
+## 1b. The history belongs to the AOCS (A0)
+
+`AocsHistory` = (ω_s,prev, τ_w,prev, L_com,prev, v_com,prev). It used to live in
+the controller's per-NMPC-tick `QPCarry` (and, for the settle, in the loop's DS
+state), which is why the restart defect of §3 was invisible from here. Now:
+
+| call | effect on the history |
+|---|---|
+| `reset_for_nmpc_tick(rs)` | ω,τ := 0; L,v := `rs` — **the known defect, in one place** |
+| `reset_for_settle()` | ω := entry ω_s (τ, L, v unused on that path) |
+| `command(...)` | reads the previous tick, then records this one (after the `disable_aocs` override) |
+| `command_interstep(...)` | reads ω_s,prev, then records this tick's ω_s |
+
+The `disable_aocs` diagnostic override moved here with it (it must act before
+the history records τ_w). Frozen on synthetic inputs by
+`tests/test_attitude_controller.py`; a fix of §3 changes
+`test_nmpc_tick_reset_is_the_known_defect` on purpose.
+
 ## 2. Why the move is byte-identical
 
 Both blocks were moved by **text slicing** (re-indented, scope variables renamed
@@ -41,14 +60,15 @@ with `gate/local_ref.py check` + `gate/dock_check.py`.
 
 ## 3. Trap — kept as found, flagged for decision
 
-**The ω̇_s carry is reset every NMPC tick.** In `SimulationLoop._step`,
-`_omega_s_last` (→ `omega_s_prev`) and `tau_w_last` (→ `tau_w_prev`) are
-initialised to **zero at every call of `_step`**, i.e. every 0.1 s. On the first
+**The ω̇_s history is reset every NMPC tick** (`reset_for_nmpc_tick`, called
+by `WholeBodyController.begin_tracking`): ω_s,prev and τ_w,prev restart at
+**zero** every 0.1 s, and L_com,prev / v_com,prev at the current state (so the
+SS FD feedforward is 0 on that sub-step). On the first
 QP sub-step of each NMPC tick the numerical derivative is therefore
 `(ω_s − 0)/dt`, and with the canonical `K_d = 25`, `dt = 0.01` the damping term
 is `2500·ω_s` N·m — a 10 Hz kick that saturates the 2.5 N·m cap for
 |ω_s| ≳ 1 mrad/s. The DS passivity loop, by contrast, seeds its history from the
-entry ω_s (`command_interstep` receives it correctly). This refactor preserves
+entry ω_s (`reset_for_settle`). This refactor preserves
 the behaviour (no behaviour change, Rule 6); whether it is intended is a
 separate, measured decision.
 
@@ -56,17 +76,27 @@ separate, measured decision.
 
 | symbol | signature | canonical? | code |
 |---|---|---|---|
-| **`AttitudeController`** |  |  | [L32](../../../crawlbot/control/attitude.py#L32) |
-| `.command` | `(phase, rs, lambda_qp_sol, cc_nmpc, stance_anchors, L_co...)` | **yes** | [L46](../../../crawlbot/control/attitude.py#L46) |
-| `.command_interstep` | `(rs, cc_ds, lambda_qp_sol, omega_s_prev)` | **yes** | [L235](../../../crawlbot/control/attitude.py#L235) |
+| **`AocsHistory`** *(dataclass)* |  |  | [L35](../../../crawlbot/control/attitude.py#L35) |
+|   `omega_s_prev` | `` | _field_ | [L39](../../../crawlbot/control/attitude.py#L39) |
+|   `tau_w_prev` | `` | _field_ | [L40](../../../crawlbot/control/attitude.py#L40) |
+|   `L_com_prev` | `` | _field_ | [L41](../../../crawlbot/control/attitude.py#L41) |
+|   `v_com_prev` | `` | _field_ | [L42](../../../crawlbot/control/attitude.py#L42) |
+| **`AttitudeController`** |  |  | [L45](../../../crawlbot/control/attitude.py#L45) |
+| `.reset_for_nmpc_tick` | `(rs)` | **yes** | [L69](../../../crawlbot/control/attitude.py#L69) |
+| `.reset_for_settle` | `()` | **yes** | [L83](../../../crawlbot/control/attitude.py#L83) |
+| `.command` | `(phase, rs, lambda_qp_sol, cc_nmpc, stance_anchors)` | **yes** | [L91](../../../crawlbot/control/attitude.py#L91) |
+| `.command_interstep` | `(rs, cc_ds, lambda_qp_sol)` | **yes** | [L286](../../../crawlbot/control/attitude.py#L286) |
 
 ## Code map
 
 | unit | source |
 |---|---|
-| `class AttitudeController` | [L32-305](../../../crawlbot/control/attitude.py#L32-L305) |
-| `AttitudeController.command` | [L46-233](../../../crawlbot/control/attitude.py#L46-L233) |
-| `AttitudeController.command_interstep` | [L235-305](../../../crawlbot/control/attitude.py#L235-L305) |
+| `class AocsHistory` | [L35-42](../../../crawlbot/control/attitude.py#L35-L42) |
+| `class AttitudeController` | [L45-361](../../../crawlbot/control/attitude.py#L45-L361) |
+| `AttitudeController.reset_for_nmpc_tick` | [L69-81](../../../crawlbot/control/attitude.py#L69-L81) |
+| `AttitudeController.reset_for_settle` | [L83-89](../../../crawlbot/control/attitude.py#L83-L89) |
+| `AttitudeController.command` | [L91-284](../../../crawlbot/control/attitude.py#L91-L284) |
+| `AttitudeController.command_interstep` | [L286-361](../../../crawlbot/control/attitude.py#L286-L361) |
 
 ---
 

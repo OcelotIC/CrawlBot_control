@@ -19,6 +19,8 @@ Moved verbatim out of ``sim_loop.py`` (refactor/sim-loop-split, extraction
 unchanged. See docs/crawlbot/control/attitude.md for the law and its traps.
 """
 
+from dataclasses import dataclass
+
 import numpy as np
 
 try:
@@ -29,11 +31,28 @@ except ImportError:
 from crawlbot.aocs.force_estimator import compute_aocs_command
 
 
+@dataclass
+class AocsHistory:
+    """The AOCS's own sampling history — the previous control tick's values
+    its finite differences need: ω̇_s = (ω_s − omega_s_prev)/dt, the FD
+    feedforward L̇_com / v̇_com, and the model-based ω̇_s (tau_w_prev)."""
+    omega_s_prev: np.ndarray
+    tau_w_prev: np.ndarray
+    L_com_prev: np.ndarray
+    v_com_prev: np.ndarray
+
+
 class AttitudeController:
-    """Reaction-wheel torque law (spec §4, *AOCS Controller (Corrected)*)."""
+    """Reaction-wheel torque law (spec §4, *AOCS Controller (Corrected)*).
+
+    Owns its sampling history (``AocsHistory``). Two explicit resets mark the
+    two loops that drive it: ``reset_for_nmpc_tick`` (every NMPC tick — the
+    known restart defect, attitude.md §3) and ``reset_for_settle`` (entry of
+    an inter-step DS settle).
+    """
 
     def __init__(self, cfg, robot, sensors, H_estimator,
-                 struct_quat_init, struct_I):
+                 struct_quat_init, struct_I, diag):
         self._cfg = cfg
         self._robot = robot
         self._sensors = sensors
@@ -42,23 +61,47 @@ class AttitudeController:
         self._struct_quat_init = struct_quat_init
         # Structure principal inertia, for the *_model ω̇_s variants.
         self._struct_I = struct_I
+        # Shared DiagHooks: `disable_aocs` zeroes the command (and the
+        # history records the zeroed value, as before).
+        self._diag = diag
+        self._hist = None
 
-    def command(self, *, phase, rs, lambda_qp_sol, cc_nmpc, stance_anchors,
-                L_com_prev, v_com_prev, omega_s_prev, tau_w_prev):
+    def reset_for_nmpc_tick(self, rs):
+        """History restart at the start of every NMPC tick.
+
+        KNOWN DEFECT, kept for bit-identity (attitude.md §3): ω_s,prev and
+        τ_w,prev restart at ZERO and L_com,prev / v_com,prev at the CURRENT
+        state, so on QP sub-step 0 ω̇_s = ω_s/dt and the FD feedforward is 0.
+        """
+        self._hist = AocsHistory(
+            omega_s_prev=np.zeros(3), tau_w_prev=np.zeros(3),
+            L_com_prev=rs.L_com.copy(),
+            # M4: track v_com across QP sub-steps to estimate dv_com for the
+            # orbital feedforward term r_com × m·dv_com_est.
+            v_com_prev=rs.v_com.copy())
+
+    def reset_for_settle(self):
+        """History seed at the entry of an inter-step DS settle: ω_s,prev =
+        the entry ω_s (so ω̇_s = 0 on the first settle tick). Only the ω_s
+        history is used on that path (wrench feedforward, no L/v history)."""
+        self._hist = AocsHistory(
+            omega_s_prev=self._sensors.omega_struct(),
+            tau_w_prev=np.zeros(3), L_com_prev=None, v_com_prev=None)
+
+    def command(self, *, phase, rs, lambda_qp_sol, cc_nmpc, stance_anchors):
         """Wheel torque for one QP tick of the NMPC-tracked loop.
 
-        Parameters are the per-tick carry the loop threads through its
-        sub-steps: ``L_com_prev`` / ``v_com_prev`` (previous sub-step's
-        centroidal state, for the FD feedforward), ``omega_s_prev`` (for the
-        numerical ω̇_s) and ``tau_w_prev`` (for the model ω̇_s).
-        ``stance_anchors`` = (anchor A, anchor B) positions, structure frame,
-        the levers of the DS wrench feedforward.
+        Reads the previous tick from the AOCS history and records this tick
+        in it. ``stance_anchors`` = (anchor A, anchor B) positions, structure
+        frame, the levers of the DS wrench feedforward.
 
-        Returns ``(tau_w_cmd, omega_s, transport_mag)`` — ``omega_s`` is the
-        live gyro view the caller copies into its ``omega_s_prev`` carry;
-        ``transport_mag`` = |ω_s × H_{r/O}| (diagnostic, not applied).
+        Returns ``(tau_w_cmd, transport_mag)`` — ``transport_mag`` =
+        |ω_s × H_{r/O}| (diagnostic, not applied).
         """
         cfg = self._cfg
+        h = self._hist
+        L_com_prev, v_com_prev = h.L_com_prev, h.v_com_prev
+        omega_s_prev, tau_w_prev = h.omega_s_prev, h.tau_w_prev
         hw_phys = self._sensors.wheel_momentum()
         # A live view, as the original read was (see sensors.py).
         omega_s = self._sensors.omega_struct_view()
@@ -230,9 +273,17 @@ class AttitudeController:
             tau_w_cmd = np.clip(tau_w_cmd, -cfg.aocs_tau_w_max, cfg.aocs_tau_w_max)
 
 
-        return tau_w_cmd, omega_s, transport_mag
+        if self._diag.disable_aocs:
+            tau_w_cmd = np.zeros(3)
+        # Record this tick (omega_s is the live gyro view: copy it now,
+        # before the plant steps).
+        h.tau_w_prev = tau_w_cmd.copy()
+        h.omega_s_prev = omega_s.copy()
+        h.L_com_prev = rs.L_com.copy()
+        h.v_com_prev = rs.v_com.copy()
+        return tau_w_cmd, transport_mag
 
-    def command_interstep(self, rs, cc_ds, lambda_qp_sol, omega_s_prev):
+    def command_interstep(self, rs, cc_ds, lambda_qp_sol):
         """Canonical AOCS wheel-torque command for the inter-step DS loop.
 
         Re-activates the structure attitude controller inside
@@ -261,6 +312,7 @@ class AttitudeController:
         from crawlbot.aocs.force_estimator import (
             compute_aocs_command_legacy_pid_numerical)
         cfg = self._cfg
+        omega_s_prev = self._hist.omega_s_prev
         omega_s = self._sensors.omega_struct()
         hw_phys = self._sensors.wheel_momentum()
 
@@ -291,7 +343,7 @@ class AttitudeController:
 
         # L_com/v_com args are unused on the wrench-FF path (the FD branch
         # is `tau_struct_ff is None`), so current values are passed.
-        return compute_aocs_command_legacy_pid_numerical(
+        tau_w = compute_aocs_command_legacy_pid_numerical(
             L_com=rs.L_com, L_com_prev=rs.L_com,
             r_com=rs.r_com, v_com=rs.v_com, v_com_prev=rs.v_com,
             omega_s=omega_s, omega_s_prev=omega_s_prev,
@@ -303,3 +355,7 @@ class AttitudeController:
             hw_min=cfg.hw_min, hw_max=cfg.hw_max,
             tau_w_max=cfg.aocs_tau_w_max,
             tau_struct_ff=tau_struct_ff)
+        # Update the ω_s history (this tick's pre-step value, the next
+        # settle tick's prev).
+        self._hist.omega_s_prev = self._sensors.omega_struct()
+        return tau_w
