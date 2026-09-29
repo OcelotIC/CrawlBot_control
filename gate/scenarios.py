@@ -104,11 +104,12 @@ SCENARIOS = {
     # full = the canonical (covered by the canonical replay itself).
     # rate: NMPC rate cap kept, NMPC storage (h_w) box off.
     'table2_rate': (_SHORT, {'enforce_hw_conservation': False}),
-    # none: NMPC rate cap AND storage box off; QP box + AOCS clip held at 2.5.
-    # nmpc_tau_w_max=inf exists only on that unmerged branch; the harness
-    # reproduces its single effect: CentroidalNMPCConfig(tau_w_max=inf).
-    'table2_none': (_SHORT, {'enforce_hw_conservation': False},
-                    {'nmpc_tau_w_max': float('inf')}),
+    # none: NMPC rate cap AND storage box off; QP box + AOCS clip held at 2.5
+    # (SimConfig.nmpc_tau_w_max, ported from e37b9ca in a44a3b6; the frozen
+    # 36c44bf baseline was produced by a harness injection of the same single
+    # effect — CentroidalNMPCConfig(tau_w_max=inf) — which the diff equates).
+    'table2_none': (_SHORT, {'enforce_hw_conservation': False,
+                             'nmpc_tau_w_max': float('inf')}),
     # u25: tau_w_max=1e6 through dca -> NMPC cap + QP box + AOCS clip lifted.
     'table2_u25': (dict(_SHORT, tau_w_max=1e6), {}),
 }
@@ -174,14 +175,6 @@ def child(name, out_rel):
             return orig(self, *a, **k)
         setattr(cls, meth, wrapped)
 
-    if 'nmpc_tau_w_max' in extras:
-        # e37b9ca's SimConfig.nmpc_tau_w_max: the NMPC alone gets this cap.
-        _cfg_cls = sl.CentroidalNMPCConfig
-
-        def _nmpc_cfg(*a, **k):
-            k['tau_w_max'] = extras['nmpc_tau_w_max']
-            return _cfg_cls(*a, **k)
-        sl.CentroidalNMPCConfig = _nmpc_cfg
     if extras.get('nmpc_fail'):
         import crawlbot.solvers.centroidal_nmpc as cn
         _failing(cn.CentroidalNMPC, 'solve', extras['nmpc_fail'], 'NMPC')
