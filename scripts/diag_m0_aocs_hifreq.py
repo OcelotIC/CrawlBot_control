@@ -20,6 +20,7 @@ Test, logging only (cfg.log_hifreq_all -> sim.hifreq_trace, never applied):
 
     MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/diag_m0_aocs_hifreq.py --proof
     MUJOCO_GL=disabled PYTHONPATH=. python3 scripts/diag_m0_aocs_hifreq.py --settle
+    PYTHONPATH=. python3 scripts/diag_m0_aocs_hifreq.py --analyse   # from the trace
 Writes results/m0_aocs_hifreq/{proof,settle900}/ and m0_summary.json.
 """
 import json
@@ -174,9 +175,50 @@ def settle():
     print(json.dumps(res, indent=1))
 
 
+def analyse():
+    """From results/m0_aocs_hifreq/settle900/hifreq_trace.json (no re-run):
+    per-step regression Δh_w = k·τ_w·dt over every pair of consecutive plant
+    steps, and the decomposition of the memo's gap on the trailing hold."""
+    tr = json.load(open(f'{OUT}/settle900/hifreq_trace.json'))
+    t = np.array([r['t'] for r in tr])
+    tau = np.array([r['tau_w'] for r in tr])
+    hw = np.array([r['hw'] for r in tr])
+    dt = 0.01
+    ok = np.abs(np.diff(t) - dt) < 1e-9
+    dh, tdt = np.diff(hw, axis=0)[ok], (tau[1:] * dt)[ok]
+    reg = {a: {'k': float(np.polyfit(tdt[:, j], dh[:, j], 1)[0]),
+               'corr': float(np.corrcoef(tdt[:, j], dh[:, j])[0, 1])}
+           for j, a in enumerate('xyz')}
+    s = json.load(open(f'{OUT}/m0_summary.json'))
+    z = 2
+    dur = s['duration_s']
+    gap = {
+        'logged_qs9_integral_z': s['integral_tau_w_qs9_subsample_Nms'][z],
+        'applied_100Hz_integral_z': s['integral_tau_w_100Hz_Nms'][z],
+        'delta_hw_channel_endpoints_z': s['delta_h_w_trace_Nms'][z],
+        'delta_hw_channel_slope_times_T_z':
+            s['dh_w_dt_slope_trace_Nm'][z] * dur,
+        'wheel_momentum_true_z (channel / k)':
+            s['delta_h_w_trace_Nms'][z] / reg['z']['k'],
+    }
+    gap['factor_sampling_qs9_vs_100Hz'] = (gap['logged_qs9_integral_z']
+                                           / gap['applied_100Hz_integral_z'])
+    gap['factor_inertia_channel_vs_true'] = 1.0 / reg['z']['k']
+    gap['factor_slope_vs_endpoint_metric'] = (
+        gap['delta_hw_channel_endpoints_z']
+        / gap['delta_hw_channel_slope_times_T_z'])
+    gap['residual_applied_vs_true'] = (gap['applied_100Hz_integral_z']
+                                       / gap['wheel_momentum_true_z (channel / k)'])
+    out = {'per_step_regression_dhw_on_tau_dt': reg, 'gap_decomposition_z': gap}
+    json.dump(out, open(f'{OUT}/m0_analysis.json', 'w'), indent=1)
+    print(json.dumps(out, indent=1))
+
+
 if __name__ == '__main__':
     os.makedirs(OUT, exist_ok=True)
     if '--proof' in sys.argv:
         sys.exit(0 if proof() else 1)
     if '--settle' in sys.argv:
         settle()
+    if '--analyse' in sys.argv:
+        analyse()
