@@ -154,7 +154,7 @@ Update this line as work progresses:
 
 **Completed (cleanup chantier):** `crawlbot/` −3281/+644 across 19 files with the canonical byte-identical at every stage; 2098 files of research sediment moved to `Misc/`; 33 per-module documents under `docs/crawlbot/` with a generated-and-enforced half (`gate/sync_docs.py --check`); seven checkers in `gate/` (run_gate, run_suite, dock_check, sync_docs, verify_docs, verify_params, verify_roots, link_audit), each proven to bite on an injected fault before being trusted; the test suite taken from 12 problems to 0 and **gated**.
 
-**Two-task SS stack (current architecture):** T-MOM linear + 6-D torso-pose + swing-EE + posture, all weighted, NO null-space projection, `weight_ratio=1` ⇒ **α magnitudes ARE the hierarchy** (nominal priority integers inert). In two-task SS the torso task is fed the **raw TorsoPlanner quintic+SLERP — the CoM→torso δ-mapping is NOT used in SS** (`torso_reference.py:102-104`). In DS the mapping is still COMPUTED, but its linear output is ignored by the QP under `settle_mode` — inert on the canonical and all 26 gate scenarios (NaN probe, `docs/crawlbot/control/torso_reference.md` §2); retire-or-keep is Idriss's decision. Superseded: the cooperative split, strict-P1, planned-δ, and the handoff-era "torso-ori blocker".
+**Two-task SS stack (current architecture):** T-MOM linear + 6-D torso-pose + swing-EE + posture, all weighted, NO null-space projection, `weight_ratio=1` ⇒ **α magnitudes ARE the hierarchy** (nominal priority integers inert). In two-task SS the torso task is fed the **raw TorsoPlanner quintic+SLERP — the CoM→torso δ-mapping is NOT used in SS** (`torso_reference.py:86-87`). In DS the mapping is still COMPUTED, but its linear output is ignored by the QP under `settle_mode` — inert on the canonical and all 26 gate scenarios (NaN probe, `docs/crawlbot/control/torso_reference.md` §2); retire-or-keep is Idriss's decision. Superseded: the cooperative split, strict-P1, planned-δ, and the handoff-era "torso-ori blocker".
 
 ---
 
@@ -178,19 +178,19 @@ Update this line as work progresses:
 | NMPC state dim | 9 | — | spec §5.1 (B2) |
 | NMPC control dim | 12 | — | spec §5.1 |
 | weight_ratio | 1.0 — **α magnitudes ARE the hierarchy** (two-task weighted stack, no null-space projection; priority integers inert) | — | `wholebody_qp.py:94` |
-| **α torso-pose** | **2000** | — | `config.py:305` (Add-5) |
-| **α swing-EE** | **1000** (dock lever; needs ≥ ~1000) | — | `config.py:277` (Add-5) |
-| **α momentum (T-MOM)** | **400** (near-inert on Ḣ_s — NMPC owns the envelope) | — | `config.py:285` (Add-5) |
-| **w hw-slack** | **800** (slacks active only if the hw box is violated) | — | `wholebody_qp.py:159` (Add-5) |
-| **α posture** | **20** | — | `config.py:278` |
-| **α torque-min** | **5** (must stay ≳ 5× accel-reg floor — Rule 14) | — | `sim_loop.py:997` (QP-construction literal) |
-| **α wrench-track** | **1.0** | — | `config.py:279` (Add-5; was 0.01 pre-freeze) |
-| **α accel-reg** | **1.0** (regularizer floor) | — | `sim_loop.py:997` |
+| **α torso-pose** | **2000** | — | `config.py:293` (Add-5) |
+| **α swing-EE** | **1000** (dock lever; needs ≥ ~1000) | — | `config.py:267` (Add-5) |
+| **α momentum (T-MOM)** | **400** (near-inert on Ḣ_s — NMPC owns the envelope) | — | `config.py:275` (Add-5) |
+| **w hw-slack** | **800** (slacks active only if the hw box is violated) | — | `wholebody_qp.py:160` (Add-5) |
+| **α posture** | **20** | — | `config.py:268` |
+| **α torque-min** | **5** (must stay ≳ 5× accel-reg floor — Rule 14) | — | `sim_loop.py:998` (QP-construction literal) |
+| **α wrench-track** | **1.0** | — | `config.py:269` (Add-5; was 0.01 pre-freeze) |
+| **α accel-reg** | **1.0** (regularizer floor) | — | `sim_loop.py:998` |
 | ε (Tikhonov) | 1e-6 (inert: λ_min(H_LS)=1 ≫ ε) | — | `hierarchical_qp.py:98` default |
 | **κ_SS(H)** | ≈ 7.5e3 (530× below the pre-freeze canonical 3.6e6) | — | `canonical2p5_result.json` |
 | ~~α_com_soft~~ | **field REMOVED** (CLEANUP-6), not merely 0 | — | The soft-CoM residual task is gone; the QP has no direct CoM feedback path. Do not re-add a config field for it without re-adding the task |
 | CoM shaping | a_cruise_max=**0.0** (off) | m/s² | `coarse_preplanner.py:99` — pre-planner cruise-accel cap disabled |
-| Torso reference (SS) | **raw TorsoPlanner quintic+SLERP — NO δ-mapping in two-task SS** (`torso_reference.py:102-104`); DS computes δ(q_current) but the QP ignores the linear torso ref under settle_mode (measured inert); F-SAT is SS-only |  — | TORSO-REF-AUDIT; per-step reference re-anchored each SS |
+| Torso reference (SS) | **raw TorsoPlanner quintic+SLERP — NO δ-mapping in two-task SS** (`torso_reference.py:86-87`); DS computes δ(q_current) but the QP ignores the linear torso ref under settle_mode (measured inert); F-SAT is SS-only |  — | TORSO-REF-AUDIT; per-step reference re-anchored each SS |
 | CoM-z standoff | −0.35 m (on) | m | Dock-IK + init pin crawl height (PR #17) |
 
 ---
@@ -221,7 +221,7 @@ The **5 mm dock gate is the docking-mechanism capture radius** — the 0.01 mm w
 - **The canonical driver crashes if the pre-planner fails on the first step**: its `_setup_torso_for_step` wrapper calls `sim._step_q_start.tolist()` while it is still `None` (`scripts/diag_cooperative_arms.py`).
 - **Suite state: 210 passed, 0 failed, 0 errors, 0 skipped, 1 xfail — and GATED** (`gate/run_suite.py`, CLEANUP-29). The one xfail, `test_coarse_preplanner::test_far_infeasible_under_tight_rate`, is `strict=True` with its reasoning in the marker: the envelope-semantics question at cap 2.5 is open (see Remaining Work), and if the far case ever goes infeasible again the test **fails** rather than turning green. Getting from 12 problems to 0 retired nothing: 6 tests ported to the two-task API (`PHASE_CLEANUP_28`), 7 repaired (`PHASE_CLEANUP_29` §1), 2 genuinely-dead retired, 1 marked honestly.
 - **`MUJOCO_GL=osmesa` aborts pytest collection** in the current container: `tests/test_diagnostics.py` → `PyOpenGL AttributeError: 'NoneType' object has no attribute 'glGetError'`. Environment, not code. `gate/run_suite.py` forces `MUJOCO_GL=disabled` for this reason — use it rather than calling `pytest` directly.
-- **The orphaned manipulability-IK path is RETIRED (CLEANUP-30).** `manipulability_config_trajectory`, `manipulability_config_mid_waypoint`, `check_path_feasibility`, `precompute_torso_map` + 4 stranded helpers — 695 lines, 47 % of `ik.py` — had zero callers and 0 lines executed by the canonical replay. Removal proven inert: artifact identity byte-exact, all six docks delta +0.0000. `sim_loop` uses **`manipulability_config`** (IK 2, `sim_loop.py:580`), a different and live function. Suite 743 s → **89 s**. Reasoning and revival path: `PHASE_CLEANUP_30_IK_OPTION_B_RETIRED.md`; §7–§9 of `IK_FORMULATION.md` still derive it under a RETIRED banner. **Consequence:** there is now no interior path-feasibility guard at all — `check_path_feasibility` was the only one and was already disconnected.
+- **The orphaned manipulability-IK path is RETIRED (CLEANUP-30).** `manipulability_config_trajectory`, `manipulability_config_mid_waypoint`, `check_path_feasibility`, `precompute_torso_map` + 4 stranded helpers — 695 lines, 47 % of `ik.py` — had zero callers and 0 lines executed by the canonical replay. Removal proven inert: artifact identity byte-exact, all six docks delta +0.0000. `sim_loop` uses **`manipulability_config`** (IK 2, `sim_loop.py:581`), a different and live function. Suite 743 s → **89 s**. Reasoning and revival path: `PHASE_CLEANUP_30_IK_OPTION_B_RETIRED.md`; §7–§9 of `IK_FORMULATION.md` still derive it under a RETIRED banner. **Consequence:** there is now no interior path-feasibility guard at all — `check_path_feasibility` was the only one and was already disconnected.
 - **`crawlbot/diagnostics/` is KEPT** — live consumer (`scripts/run_m7_single_step.py`) and mandated by Rule 3. The real defect is that the **canonical run does not honour Rule 3**: the gate exports via `scripts/diag_full_diag_export.py`, never `run_diagnostics()` (`CARRYOVER` §A6).
 - **`gate/link_audit.py` cannot see computed paths.** It audits citations in prose; the CLEANUP-21 miss that disabled 7 tests for six passes was `os.path.join(_root, 'diagnostic', ...)` in Python. `tests/fixtures/` is now the convention for test data.
 - **CoM-reference export snaps to the measured CoM at SS→DS entry** — logging convention (`_log_ds_tick` logs e_com=0 with ref:=measured, `tick_logging.py:236-239`); reviewer-reported magnitude ~76 mm (not repo-verified — the fulldiag CSV has no CoM-ref channel). Decision pending whether to apply the same terminal-hold fix as the torso export.
@@ -270,6 +270,6 @@ The **5 mm dock gate is the docking-mechanism capture radius** — the 0.01 mm w
 - Do not implement a three-phase state machine (DS/SS/EXT) — the architecture is two-phase (DS/SS) per spec §7.1
 - Do not activate welds on position alone — require both `d < 5mm AND ori < 5°`
 - Do not use α_wrench > 1 — wrench regularization at 100 consumed 20% of QP budget and blocked torso/EE authority
-- Do not route the SS torso reference through the δ-mapping in two-task mode — SS uses the raw TorsoPlanner quintic (mapping is explicitly excluded, `torso_reference.py:102-104`); in DS the mapping is computed but inert (settle_mode drops the linear torso task; `torso_reference.md` §2)
+- Do not route the SS torso reference through the δ-mapping in two-task mode — SS uses the raw TorsoPlanner quintic (mapping is explicitly excluded, `torso_reference.py:86-87`); in DS the mapping is computed but inert (settle_mode drops the linear torso task; `torso_reference.md` §2)
 - Do not assume standalone component tests guarantee closed-loop success — always run the cascade bisection (A/B/C/D) to isolate integration failures
 - Do not generate trajectory acceleration profiles without checking actuator feasibility — quintic on 591mm torso displacement saturates 20 Nm joints

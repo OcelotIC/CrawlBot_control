@@ -55,9 +55,9 @@ sub-step:
 1. `track()` — measure → `robot.update` → contact Jacobians
    (`contact_jacobians(rs, …)`, a pure function of that `rs`); interpolate the
    NMPC knots; **torso reference**: `refs.torso_at(tq)` shaped by
-   [`TorsoReferenceShaper`](torso_reference.md) (δ-mapping, F-SAT, post-dock DS
-   blend, freeze diagnostics — outside two-task SS; two-task SS takes the raw
-   quintic); **swing reference**
+   [`TorsoReferenceShaper`](torso_reference.md) (in DS the δ-mapping and the
+   post-dock blend; in SS — the two-task stack — the raw quintic; then the
+   freeze diagnostics); **swing reference**
    `refs.swing_at(tq)`; passivity decision; `WholeBodyQP.solve`; clip to
    τ_max; diagnostic lock; AOCS wheel torque. Returns `TrackOut` — the command,
    plus `tau_raw` (pre-clip) and the values the loop's traces read.

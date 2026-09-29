@@ -202,7 +202,7 @@ class SimConfig:
     # CoarsePlanResult.from_heuristic() directly.
     preplanner_M: int = 15                  # collocation intervals
     preplanner_kappa: float = 0.7           # terminal margin multiplier (< 1)
-    preplanner_f_max: float = 25.0          # [N] per active contact (also used by F-SAT clamp)
+    preplanner_f_max: float = 25.0          # [N] per active contact
     preplanner_tau_max: float = 8.0         # [Nm] per active contact
     preplanner_w_L: float = 1.0             # cost weight on ||L_com||²
     preplanner_w_u: float = 1e-2            # cost weight on ||[f; τ]||²
@@ -223,16 +223,6 @@ class SimConfig:
     # TSTEP-DIAG sweep to isolate one step; default scale_step=-1 → no-op.
     preplanner_tstep_scale_step: int = -1
     preplanner_tstep_scale_factor: float = 1.0
-    # F-SAT (mapping torso-ref rate limiter): the per-WBC-tick r_b_ref
-    # increment is capped at (|v_b_ref_ff| + fsat_jitter_margin)·dt_qp,
-    # i.e. the planned (feasibility-bounded) torso-reference velocity
-    # plus a jitter slack. The slack absorbs the once-per-NMPC-tick
-    # δ(q_current) step (F-RATE updates δ at 10 Hz) and discretisation,
-    # while still clipping the multi-m/s cross-tick δ jitter the limiter
-    # exists for. Replaces the old fixed (f_max/m_b)·dt²·2 ≈ 0.125mm/tick
-    # cap, which throttled *sustained* forward motion and prevented the
-    # torso reference from reaching the dock on large steps (T15 step 2).
-    fsat_jitter_margin: float = 0.05         # [m/s] jitter slack on the torso-ref rate cap
 
     # ── NMPC solver ─────────────────────────────────────────────
     nmpc_N: int = 8
@@ -295,13 +285,11 @@ class SimConfig:
     # the qs=0 AOCS kick (attitude.md §3). Default OFF.
     log_hifreq_all: bool = False
 
-    # Phase-2.1 reformulation: two-task fully-weighted SS stack — T-MOM linear
+    # The SS stack is the two-task fully-weighted one — T-MOM linear
     # (ss_alpha_mom) + a 6-D torso-pose task on J_torso (alpha_torso_pose, fed
     # by the TorsoPlanner quintic+SLERP DIRECTLY, no δ-mapping) + swing-EE +
-    # posture, NO null-space projection (strict-P1 abandoned). The
-    # ss_alpha_mom : alpha_torso_pose ratio is the tuning knob. Default OFF ⇒
-    # legacy cooperative/strict-P1 path unchanged (bit-identical).
-    ss_two_task_mode: bool = False
+    # posture, NO null-space projection. It is no longer optional: the legacy
+    # non-two-task SS path and its ss_two_task_mode switch were retired (R2a).
     alpha_torso_pose: float = 2e3    # 6-D torso-pose weight — CANONICAL-2p5 / Add-5 freeze (was 5e3; torso is the fine dock lever at EE 1e3, floor in (300, 2000])
 
     # α (J2 #2): CoM-mobile DS. ───────────────────────────────────────
@@ -482,16 +470,6 @@ class SimConfig:
     # When True, pass passivity_active=False to the QP during trailing DS
     # entered after dock_timeout, overriding the phase=='DS' gate at
     # sim_loop.py:1712.
-
-    mapping_bypass_in_ss: bool = False
-    # M7 EE bisection follow-up. When True, sim_loop bypasses the
-    # CoM->torso mapping during SS only: the QP receives
-    #   r_torso_ref = r_torso(t = t_ss_start)   (frozen at SS entry)
-    #   v_torso_ref_lin = 0
-    #   a_torso_ff_lin  = 0
-    # for the linear components of the torso reference. Angular
-    # reference still comes from TorsoPlanner (orientation tracking
-    # unchanged). DS phase is unchanged (mapping still active there).
 
     ds_ramp_duration_s: float = 2.0
     # Option A (2026-04-22): duration over which the torso linear

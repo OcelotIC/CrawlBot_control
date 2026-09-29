@@ -424,19 +424,20 @@ class SimulationLoop(TickLoggingMixin):
     def mj_data(self):
         return self.plant.data if self.plant is not None else None
 
-    # F-SAT telemetry lives in the controller's mapping layer; the canonical
-    # driver reads these three after run().
+    # F-SAT (the SS torso-reference rate limiter) was retired with the
+    # non-two-task SS path (R2a); it never ran on the canonical (all counters
+    # 0). The canonical driver still writes sat_stats.txt from these three.
     @property
     def _sat_total_calls(self):
-        return self.controller.torso_shaper._sat_total_calls
+        return 0
 
     @property
     def _sat_clipped_calls(self):
-        return self.controller.torso_shaper._sat_clipped_calls
+        return 0
 
     @property
     def _sat_max_clip_mm(self):
-        return self.controller.torso_shaper._sat_max_clip_mm
+        return 0.0
 
     # ── Diagnostic hooks: properties onto the shared DiagHooks record ─────
     @property
@@ -1025,7 +1026,6 @@ class SimulationLoop(TickLoggingMixin):
             passivity_W_budget=cfg.passivity_W_budget,
             qp_envelope_exact=cfg.qp_envelope_exact,
             ss_alpha_mom=cfg.ss_alpha_mom,
-            ss_two_task_mode=cfg.ss_two_task_mode,
             alpha_torso_pose=cfg.alpha_torso_pose,
             )
         qp = WholeBodyQP(c)
@@ -1307,11 +1307,9 @@ class SimulationLoop(TickLoggingMixin):
         # path is taken.
         self._step_q_seq = None
         self._step_dq_seg = None
-        # Snapshot the torso linear position at SS entry — read by the
-        # mapping_bypass_in_ss diagnostic in _step() to freeze the SS
-        # linear torso reference. p_t0 is the torso pose computed from
-        # the live state above (line ~810), so it equals the actual
-        # torso position at the moment SS begins.
+        # Snapshot the torso linear position at SS entry (the start of the
+        # post-dock DS blend). p_t0 is the torso pose computed from the
+        # live state above, i.e. the actual torso position at SS entry.
         # Option A: this also resets the post-dock DS blend; the next weld
         # activation re-arms it (controller.on_dock).
         self.controller.on_ss_entry(p_t0)
@@ -2124,7 +2122,7 @@ class SimulationLoop(TickLoggingMixin):
         # trajectories eliminate the need for gain scheduling.
         # ══════════════════════════════════════════════════════════════════
         # STAGE 2 — whole-body QP sub-loop  (dt_qp = 0.01 s, n_qp_per_nmpc ticks)
-        # Per sub-step: controller.track (torso mapping + F-SAT, QP, clip, AOCS)
+        # Per sub-step: controller.track (torso reference, QP, clip, AOCS)
         # -> diagnostic traces -> plant I/O -> controller.after_step. The ~25
         # live locals that blocked this cut now travel in a QPCarry.
         # ══════════════════════════════════════════════════════════════════

@@ -13,7 +13,7 @@ as output-dir / hero-render discriminators — they no longer change control.
 
 Config carried over:
   nmpc_f_max=300, preplanner_f_max=25 (= F-SAT clamp source),
-  mapping_bypass_in_ss=False, q_current, F-RATE+F-SAT enabled,
+  q_current, F-RATE (F-SAT and the mapping bypass retired, R2a),
   stop_on_failed_step=True.
 
 Outputs:
@@ -246,7 +246,7 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
          scenario: str = None, baseline_ds_rework: bool = False,
          out_dir_override: str = None,
          ss_alpha_mom: float = 5000.0,
-         n_steps: int = 5, ss_two_task: bool = False,
+         n_steps: int = 5, ss_two_task: bool = True,
          alpha_torso_pose: float = 5000.0,
          ss_alpha_ee: float = 3e3, ss_alpha_posture: float = 2e1,
          ss_alpha_wrench: float = 1e-2,
@@ -271,7 +271,6 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     cfg.gait_anchor_dx = anchor_dx
     # Sweet-spot config carry-over (these are also already the defaults
     # via _make_m7_config + SimConfig at this point).
-    cfg.mapping_bypass_in_ss = False
     cfg.t_ss_margin = 5.0
     cfg.preplanner_f_max = 25.0  # F-SAT clamp source
     # Constant CoM-z standoff (crawl height). Initial config is also
@@ -426,8 +425,11 @@ def main(legacy: bool, alpha_torso_lin: float, anchor_dx: float = 0.8,
     # Phase-2.1: log τ_w + h_w at the 100 Hz QP rate during SS (harmless —
     # adds separate buffers; the 10 Hz log + postproc CSV are unaffected).
     cfg.log_hifreq_ss = True
-    # Phase-2.1 reformulation: two-task fully-weighted SS stack.
-    cfg.ss_two_task_mode = bool(ss_two_task)
+    # The two-task SS stack is the only one (the non-two-task path and its
+    # switch were retired, R2a); the kwarg is kept for callers.
+    if not ss_two_task:
+        raise ValueError('ss_two_task=False: the non-two-task SS stack was '
+                         'retired (R2a)')
     cfg.alpha_torso_pose = float(alpha_torso_pose)
     # Expose the remaining SS-stack weights for tuning. Defaults equal the
     # config values (ss_alpha_ee=3e3, ss_alpha_posture=2e1, ss_alpha_wrench=1e-2),
@@ -700,9 +702,9 @@ if __name__ == '__main__':
     parser.add_argument('--n-steps', type=int, default=5,
                         help='Traversal steps (default 5; use 1 for the '
                              'Phase-2.1 single-step swing).')
-    parser.add_argument('--ss-two-task', action='store_true',
-                        help='Phase-2.1 two-task fully-weighted SS stack '
-                             '(T-MOM + 6D torso-pose + EE + posture, no δ).')
+    parser.add_argument('--ss-two-task', action='store_true', default=True,
+                        help='Kept for compatibility: the two-task SS stack '
+                             'is the only one (R2a).')
     parser.add_argument('--alpha-torso-pose', '--ss-alpha-torso-pose',
                         dest='alpha_torso_pose', type=float, default=5000.0,
                         help='6-D torso-pose task weight in two-task mode '

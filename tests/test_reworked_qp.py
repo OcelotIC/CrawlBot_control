@@ -110,7 +110,6 @@ def _build_qp(robot, q_nominal, *, alpha_mom=4e2, alpha_torso_pose=2e3,
     """
     cfg = WholeBodyQPConfig(
         nq=robot.n_joints, nc_max=2,
-        ss_two_task_mode=True,
         ss_alpha_mom=alpha_mom,
         alpha_torso_pose=alpha_torso_pose,
         alpha_ee=alpha_ee,

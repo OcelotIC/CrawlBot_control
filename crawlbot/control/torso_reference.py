@@ -8,15 +8,15 @@ the reference side, next to the planners — hence a module of its own, out of
 ``WholeBodyController.track`` (refactor/sim-loop-split, C2). Moved as is: same
 expressions, same order.
 
-Paths, in order of precedence:
+Paths:
 
-    mapping bypass (SS, cfg.mapping_bypass_in_ss)  linear ref frozen at the
-                                                   SS-entry torso position
-    δ-mapping (SS or DS, use_m2_stack, NOT two-task SS)
+    δ-mapping (DS, use_m2_stack)
         r_b = (m/m_b)·r_com_ref − δ(q)/m_b,  δ, δ̇ cached once per NMPC tick
-        (F-RATE); F-SAT caps the per-tick increment in SS; the post-dock DS
-        blend (Option A) eases the linear ref from the SS-entry pose
-    raw planner reference (two-task SS)           tr.p / tr.v / tr.a
+        (F-RATE); the post-dock DS blend (Option A) eases the linear ref from
+        the SS-entry pose
+    raw planner reference (SS — the two-task stack)   tr.p / tr.v / tr.a
+
+(The SS mapping bypass, the non-two-task SS path and F-SAT were retired, R2a.)
 
 then the ``freeze_ref`` and ``pure_pd`` diagnostic overrides. See
 docs/crawlbot/control/torso_reference.md for which paths the canonical takes.
@@ -47,8 +47,8 @@ class TorsoReferenceShaper:
         self._mapping = mapping
         self._diag = diag
         # M7 EE-bisection follow-up: torso linear position at SS entry
-        # (set in _setup_torso_for_step). Read by shape() when
-        # cfg.mapping_bypass_in_ss is True; otherwise unused.
+        # (set in _setup_torso_for_step). The start of the post-dock DS
+        # blend (on_dock).
         self._ss_entry_p_torso: Optional[np.ndarray] = None
         # Option A (T12 fix, 2026-04-22): post-dock blend state for
         # the DS torso position reference. Populated at weld
@@ -60,8 +60,8 @@ class TorsoReferenceShaper:
         self._diag_frozen_r_b_ref: Optional[np.ndarray] = None
         self._diag_frozen_R_b_ref: Optional[np.ndarray] = None
         # Most recent CoMToTorsoMapping δ(q) output; populated by track()
-        # only on cycles where the live mapping was invoked (i.e. NOT
-        # under mapping_bypass_in_ss). None otherwise.
+        # only on cycles where the live mapping was invoked (DS). None
+        # otherwise.
         self._last_mapping_delta: Optional[np.ndarray] = None
         # Auxiliary: δ(q_current) computed alongside the live mapping
         # (which uses q_planned during SS) for the planned-vs-current
@@ -71,16 +71,8 @@ class TorsoReferenceShaper:
         # mapping (δ(q), δ̇(q,q̇)) is recomputed once per NMPC tick and
         # reused across the WBC sub-steps. Avoids the q_current → δ → r_b
         # → q feedback loop running at 100 Hz.
-        # F-SAT: previous-cycle r_b_ref kept so per-WBC-tick increment
-        # can be saturated against the physical body-acceleration bound.
         self._mapping_cache_delta: Optional[np.ndarray] = None
         self._mapping_cache_delta_dot: Optional[np.ndarray] = None
-        self._last_r_b_ref_out: Optional[np.ndarray] = None
-        # F-SAT telemetry: counts of cycles where the increment was
-        # clipped, max clip magnitude, per-step bookkeeping.
-        self._sat_total_calls: int = 0
-        self._sat_clipped_calls: int = 0
-        self._sat_max_clip_mm: float = 0.0
 
     def shape(self, tr, rs, qs, tq, phase, rp_interp, vp_interp, af):
         """The torso reference for QP sub-step ``qs`` at time ``tq``.
@@ -91,17 +83,8 @@ class TorsoReferenceShaper:
         feedforward acceleration.
         """
         cfg = self._cfg
-        if (phase == 'SS' and cfg.mapping_bypass_in_ss
-                and self._ss_entry_p_torso is not None):
-            # Diagnostic bypass: freeze the linear torso reference at
-            # its SS-entry value; angular reference still from
-            # TorsoPlanner. Mapping is not called this tick.
-            p_torso_ref_used = self._ss_entry_p_torso.copy()
-            v_torso_ref_used = np.concatenate([np.zeros(3), tr.v[3:6]])
-            a_torso_ff_used = np.concatenate([np.zeros(3), tr.a[3:6]])
-        elif (phase in ('SS', 'DS') and self._mapping is not None
-                and cfg.use_m2_stack
-                and not (cfg.ss_two_task_mode and phase == 'SS')):
+        if (phase == 'DS' and self._mapping is not None
+                and cfg.use_m2_stack):
             # Phase-2.1 two-task: in SS the torso-pose task is fed the RAW
             # TorsoPlanner quintic+SLERP (the `else` branch below, tr.p/v/a)
             # — NO CoMToTorsoMapping δ. (DS still uses the mapping.)
@@ -131,32 +114,6 @@ class TorsoReferenceShaper:
             r_b_ref_m = ratio * rp_interp - _delta_q / m_b
             v_b_ref_m = ratio * vp_interp - _delta_dot / m_b
             a_b_ff_m = ratio * af_for_mapping
-            # F-SAT: cap the per-WBC-tick r_b_ref increment at the
-            # *planned* torso-reference velocity (|v_b_ref_m|, already
-            # feasibility-bounded by the pre-planner CoM trajectory)
-            # plus a jitter slack. This clips the multi-m/s cross-tick
-            # δ(q_current) jitter the limiter exists for, while letting
-            # the reference advance at its commanded rate. The previous
-            # cap, (f_max/m_b)·dt²·2 ≈ 0.125mm/tick, was the body's
-            # 2-tick *startup* distance — it throttled sustained motion,
-            # so the torso reference advanced only ~0.125mm × n_ticks and
-            # never reached the dock on large steps (T15 step 2: needed
-            # ~590mm, old cap allowed ~200mm), stranding the swing arm.
-            if self._last_r_b_ref_out is not None and phase == 'SS':
-                v_ref_ff = float(np.linalg.norm(v_b_ref_m))
-                threshold = ((v_ref_ff + cfg.fsat_jitter_margin)
-                             * cfg.dt_qp)
-                delta_rb = r_b_ref_m - self._last_r_b_ref_out
-                nrm = float(np.linalg.norm(delta_rb))
-                self._sat_total_calls += 1
-                if nrm > threshold and nrm > 0.0:
-                    r_b_ref_m = (self._last_r_b_ref_out
-                                 + threshold * delta_rb / nrm)
-                    self._sat_clipped_calls += 1
-                    self._sat_max_clip_mm = max(
-                        self._sat_max_clip_mm,
-                        (nrm - threshold) * 1000.0)
-            self._last_r_b_ref_out = r_b_ref_m.copy()
             # Telemetry (still records δ used by the WBC; q_current
             # comparison still computed for the planned-vs-current
             # diagnostic, unchanged).

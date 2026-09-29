@@ -1,9 +1,8 @@
 """TorsoReferenceShaper — path selection and events on synthetic inputs.
 
 Covers the paths that need no CoMToTorsoMapping (mapping=None): the raw
-planner reference, the SS mapping bypass, the SS-entry / dock events, and the
-freeze_ref / pure_pd overrides. The δ-mapping path itself is exercised by the
-canonical replay (DS) and the legacy_stack scenario (SS, with F-SAT).
+planner reference, the SS-entry / dock events, and the freeze_ref / pure_pd
+overrides. The DS δ-mapping path is exercised by the canonical replay.
 """
 from types import SimpleNamespace
 
@@ -30,20 +29,6 @@ def test_raw_planner_reference_without_mapping():
     tr = _tr()
     ref = _shape(sh, tr)
     assert ref.p is tr.p and ref.v is tr.v and ref.a is tr.a and ref.R is tr.R
-
-
-def test_mapping_bypass_holds_the_ss_entry_position():
-    cfg = SimConfig()
-    cfg.mapping_bypass_in_ss = True
-    sh = TorsoReferenceShaper(cfg, None, DiagHooks())
-    tr = _tr()
-    assert _shape(sh, tr).p is tr.p            # no SS entry yet -> raw
-    entry = np.array([1.0, 2.0, 3.0])
-    sh.on_ss_entry(entry)
-    ref = _shape(sh, tr)
-    assert np.array_equal(ref.p, entry) and ref.p is not entry
-    assert np.array_equal(ref.v[:3], np.zeros(3))
-    assert np.array_equal(ref.v[3:], tr.v[3:])
 
 
 def test_dock_arms_the_ds_blend_from_the_ss_entry():

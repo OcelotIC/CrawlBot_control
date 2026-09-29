@@ -1,6 +1,6 @@
 # `crawlbot.solvers.wholebody_qp`
 
-**File**: [`crawlbot/solvers/wholebody_qp.py`](../../../crawlbot/solvers/wholebody_qp.py) — **950 lines** — canonical coverage **97 %**
+**File**: [`crawlbot/solvers/wholebody_qp.py`](../../../crawlbot/solvers/wholebody_qp.py) — **951 lines** — canonical coverage **97 %**
 
 > Module docstring: *"WholeBodyQP - Whole-body Quadratic Program for high-rate tracking."*
 
@@ -34,42 +34,41 @@ Stage 1 decides *what is feasible* against the wheel envelope; this decides
 |   `ds_alpha_com` | `100.0` | _field_ | [L116](../../../crawlbot/solvers/wholebody_qp.py#L116) |
 |   `ds_alpha_torso_ori` | `200.0` | _field_ | [L117](../../../crawlbot/solvers/wholebody_qp.py#L117) |
 |   `ds_alpha_posture` | `50.0` | _field_ | [L118](../../../crawlbot/solvers/wholebody_qp.py#L118) |
-|   `ss_two_task_mode` | `False` | _field_ | [L132](../../../crawlbot/solvers/wholebody_qp.py#L132) |
-|   `ss_alpha_mom` | `500.0` | _field_ | [L133](../../../crawlbot/solvers/wholebody_qp.py#L133) |
-|   `alpha_torso_pose` | `1000.0` | _field_ | [L134](../../../crawlbot/solvers/wholebody_qp.py#L134) |
-|   `alpha_passivity` | `1.0` | _field_ | [L137](../../../crawlbot/solvers/wholebody_qp.py#L137) |
-|   `passivity_W_budget` | `0.0` | _field_ | [L143](../../../crawlbot/solvers/wholebody_qp.py#L143) |
-|   `qp_envelope_exact` | `False` | _field_ | [L147](../../../crawlbot/solvers/wholebody_qp.py#L147) |
-|   `w_hw_slack` | `800.0` | _field_ | [L159](../../../crawlbot/solvers/wholebody_qp.py#L159) |
-|   `Kp_com` | `100.0 * np.ones(3)` | _field_ | [L162](../../../crawlbot/solvers/wholebody_qp.py#L162) |
-|   `Kd_com` | `20.0 * np.ones(3)` | _field_ | [L163](../../../crawlbot/solvers/wholebody_qp.py#L163) |
-|   `Kp_torso` | `np.array([8.0, 8.0, 8.0, 5.0, 5.0, 5.0])` | _field_ | [L166](../../../crawlbot/solvers/wholebody_qp.py#L166) |
-|   `Kd_torso` | `np.array([6.0, 6.0, 6.0, 4.0, 4.0, 4.0])` | _field_ | [L167](../../../crawlbot/solvers/wholebody_qp.py#L167) |
-|   `Kp_ee` | `80.0 * np.ones(3)` | _field_ | [L170](../../../crawlbot/solvers/wholebody_qp.py#L170) |
-|   `Kd_ee` | `15.0 * np.ones(3)` | _field_ | [L171](../../../crawlbot/solvers/wholebody_qp.py#L171) |
-|   `Kp_ee_ang` | `5.0 * np.ones(3)` | _field_ | [L172](../../../crawlbot/solvers/wholebody_qp.py#L172) |
-|   `Kd_ee_ang` | `3.0 * np.ones(3)` | _field_ | [L173](../../../crawlbot/solvers/wholebody_qp.py#L173) |
-|   `Kp_posture` | `25.0` | _field_ | [L176](../../../crawlbot/solvers/wholebody_qp.py#L176) |
-|   `Kd_posture` | `10.0` | _field_ | [L177](../../../crawlbot/solvers/wholebody_qp.py#L177) |
-|   `Kd_settle` | `10.0` | _field_ | [L180](../../../crawlbot/solvers/wholebody_qp.py#L180) |
-|   `alpha_settle` | `1000.0` | _field_ | [L181](../../../crawlbot/solvers/wholebody_qp.py#L181) |
-|   `tau_max` | `50.0 * np.ones(14)` | _field_ | [L184](../../../crawlbot/solvers/wholebody_qp.py#L184) |
-|   `qdd_max` | `50.0` | _field_ | [L187](../../../crawlbot/solvers/wholebody_qp.py#L187) |
-|   `dt_qp` | `0.008` | _field_ | [L190](../../../crawlbot/solvers/wholebody_qp.py#L190) |
-|   `f_max` | `3000.0` | _field_ | [L193](../../../crawlbot/solvers/wholebody_qp.py#L193) |
-|   `tau_contact_max` | `300.0` | _field_ | [L194](../../../crawlbot/solvers/wholebody_qp.py#L194) |
-|   `L_max` | `np.inf` | _field_ | [L197](../../../crawlbot/solvers/wholebody_qp.py#L197) |
-|   `tau_w_max` | `np.inf` | _field_ | [L198](../../../crawlbot/solvers/wholebody_qp.py#L198) |
-| **`WholeBodyQP`** |  |  | [L201](../../../crawlbot/solvers/wholebody_qp.py#L201) |
-| `.set_nominal_posture` | `(q_nom)` | **yes** | [L249](../../../crawlbot/solvers/wholebody_qp.py#L249) |
-| `.solve` | `(dq_t, q, dq, r_com_ref, v_com_ref, lambda_ref, a_com_ff...)` | **yes** | [L259](../../../crawlbot/solvers/wholebody_qp.py#L259) |
-| `._add_equality_constraints` | `(qp, H_robot, C_robot, J_contacts, Jdot_dq_contacts, con...)` | **yes** | [L672](../../../crawlbot/solvers/wholebody_qp.py#L672) |
-| `._add_inequality_constraints` | `(qp, H_robot, dq, r_com, hw_current, hw_min, hw_max, L_c...)` | **yes** | [L731](../../../crawlbot/solvers/wholebody_qp.py#L731) |
-| `._set_variable_bounds` | `(qp, contact_config, hw_constraint_active)` | **yes** | [L842](../../../crawlbot/solvers/wholebody_qp.py#L842) |
-| `._com_task_rows` | `(J_com, Jdot_dq_com, dq_robot, r_com, r_com_ref, v_com_r...)` | **yes** | [L888](../../../crawlbot/solvers/wholebody_qp.py#L888) |
-| `._compute_indices` | `()` | **yes** | [L914](../../../crawlbot/solvers/wholebody_qp.py#L914) |
-| `.n_vars` | `()` | not exercised | [L937](../../../crawlbot/solvers/wholebody_qp.py#L937) |
-| `.variable_indices` | `()` | not exercised | [L941](../../../crawlbot/solvers/wholebody_qp.py#L941) |
+|   `ss_alpha_mom` | `500.0` | _field_ | [L134](../../../crawlbot/solvers/wholebody_qp.py#L134) |
+|   `alpha_torso_pose` | `1000.0` | _field_ | [L135](../../../crawlbot/solvers/wholebody_qp.py#L135) |
+|   `alpha_passivity` | `1.0` | _field_ | [L138](../../../crawlbot/solvers/wholebody_qp.py#L138) |
+|   `passivity_W_budget` | `0.0` | _field_ | [L144](../../../crawlbot/solvers/wholebody_qp.py#L144) |
+|   `qp_envelope_exact` | `False` | _field_ | [L148](../../../crawlbot/solvers/wholebody_qp.py#L148) |
+|   `w_hw_slack` | `800.0` | _field_ | [L160](../../../crawlbot/solvers/wholebody_qp.py#L160) |
+|   `Kp_com` | `100.0 * np.ones(3)` | _field_ | [L163](../../../crawlbot/solvers/wholebody_qp.py#L163) |
+|   `Kd_com` | `20.0 * np.ones(3)` | _field_ | [L164](../../../crawlbot/solvers/wholebody_qp.py#L164) |
+|   `Kp_torso` | `np.array([8.0, 8.0, 8.0, 5.0, 5.0, 5.0])` | _field_ | [L167](../../../crawlbot/solvers/wholebody_qp.py#L167) |
+|   `Kd_torso` | `np.array([6.0, 6.0, 6.0, 4.0, 4.0, 4.0])` | _field_ | [L168](../../../crawlbot/solvers/wholebody_qp.py#L168) |
+|   `Kp_ee` | `80.0 * np.ones(3)` | _field_ | [L171](../../../crawlbot/solvers/wholebody_qp.py#L171) |
+|   `Kd_ee` | `15.0 * np.ones(3)` | _field_ | [L172](../../../crawlbot/solvers/wholebody_qp.py#L172) |
+|   `Kp_ee_ang` | `5.0 * np.ones(3)` | _field_ | [L173](../../../crawlbot/solvers/wholebody_qp.py#L173) |
+|   `Kd_ee_ang` | `3.0 * np.ones(3)` | _field_ | [L174](../../../crawlbot/solvers/wholebody_qp.py#L174) |
+|   `Kp_posture` | `25.0` | _field_ | [L177](../../../crawlbot/solvers/wholebody_qp.py#L177) |
+|   `Kd_posture` | `10.0` | _field_ | [L178](../../../crawlbot/solvers/wholebody_qp.py#L178) |
+|   `Kd_settle` | `10.0` | _field_ | [L181](../../../crawlbot/solvers/wholebody_qp.py#L181) |
+|   `alpha_settle` | `1000.0` | _field_ | [L182](../../../crawlbot/solvers/wholebody_qp.py#L182) |
+|   `tau_max` | `50.0 * np.ones(14)` | _field_ | [L185](../../../crawlbot/solvers/wholebody_qp.py#L185) |
+|   `qdd_max` | `50.0` | _field_ | [L188](../../../crawlbot/solvers/wholebody_qp.py#L188) |
+|   `dt_qp` | `0.008` | _field_ | [L191](../../../crawlbot/solvers/wholebody_qp.py#L191) |
+|   `f_max` | `3000.0` | _field_ | [L194](../../../crawlbot/solvers/wholebody_qp.py#L194) |
+|   `tau_contact_max` | `300.0` | _field_ | [L195](../../../crawlbot/solvers/wholebody_qp.py#L195) |
+|   `L_max` | `np.inf` | _field_ | [L198](../../../crawlbot/solvers/wholebody_qp.py#L198) |
+|   `tau_w_max` | `np.inf` | _field_ | [L199](../../../crawlbot/solvers/wholebody_qp.py#L199) |
+| **`WholeBodyQP`** |  |  | [L202](../../../crawlbot/solvers/wholebody_qp.py#L202) |
+| `.set_nominal_posture` | `(q_nom)` | **yes** | [L250](../../../crawlbot/solvers/wholebody_qp.py#L250) |
+| `.solve` | `(dq_t, q, dq, r_com_ref, v_com_ref, lambda_ref, a_com_ff...)` | **yes** | [L260](../../../crawlbot/solvers/wholebody_qp.py#L260) |
+| `._add_equality_constraints` | `(qp, H_robot, C_robot, J_contacts, Jdot_dq_contacts, con...)` | **yes** | [L673](../../../crawlbot/solvers/wholebody_qp.py#L673) |
+| `._add_inequality_constraints` | `(qp, H_robot, dq, r_com, hw_current, hw_min, hw_max, L_c...)` | **yes** | [L732](../../../crawlbot/solvers/wholebody_qp.py#L732) |
+| `._set_variable_bounds` | `(qp, contact_config, hw_constraint_active)` | **yes** | [L843](../../../crawlbot/solvers/wholebody_qp.py#L843) |
+| `._com_task_rows` | `(J_com, Jdot_dq_com, dq_robot, r_com, r_com_ref, v_com_r...)` | **yes** | [L889](../../../crawlbot/solvers/wholebody_qp.py#L889) |
+| `._compute_indices` | `()` | **yes** | [L915](../../../crawlbot/solvers/wholebody_qp.py#L915) |
+| `.n_vars` | `()` | not exercised | [L938](../../../crawlbot/solvers/wholebody_qp.py#L938) |
+| `.variable_indices` | `()` | not exercised | [L942](../../../crawlbot/solvers/wholebody_qp.py#L942) |
 
 ---
 
@@ -225,17 +224,17 @@ best-covered in the repository at **97 %**.
 
 | unit | source |
 |---|---|
-| `class WholeBodyQPConfig` | [L71-198](../../../crawlbot/solvers/wholebody_qp.py#L71-L198) |
-| `class WholeBodyQP` | [L201-949](../../../crawlbot/solvers/wholebody_qp.py#L201-L949) |
-| `WholeBodyQP.set_nominal_posture` | [L249-257](../../../crawlbot/solvers/wholebody_qp.py#L249-L257) |
-| `WholeBodyQP.solve` | [L259-658](../../../crawlbot/solvers/wholebody_qp.py#L259-L658) |
-| `WholeBodyQP._add_equality_constraints` | [L672-729](../../../crawlbot/solvers/wholebody_qp.py#L672-L729) |
-| `WholeBodyQP._add_inequality_constraints` | [L731-840](../../../crawlbot/solvers/wholebody_qp.py#L731-L840) |
-| `WholeBodyQP._set_variable_bounds` | [L842-886](../../../crawlbot/solvers/wholebody_qp.py#L842-L886) |
-| `WholeBodyQP._com_task_rows` | [L888-912](../../../crawlbot/solvers/wholebody_qp.py#L888-L912) |
-| `WholeBodyQP._compute_indices` | [L914-934](../../../crawlbot/solvers/wholebody_qp.py#L914-L934) |
-| `WholeBodyQP.n_vars` | [L937-938](../../../crawlbot/solvers/wholebody_qp.py#L937-L938) |
-| `WholeBodyQP.variable_indices` | [L941-943](../../../crawlbot/solvers/wholebody_qp.py#L941-L943) |
+| `class WholeBodyQPConfig` | [L71-199](../../../crawlbot/solvers/wholebody_qp.py#L71-L199) |
+| `class WholeBodyQP` | [L202-950](../../../crawlbot/solvers/wholebody_qp.py#L202-L950) |
+| `WholeBodyQP.set_nominal_posture` | [L250-258](../../../crawlbot/solvers/wholebody_qp.py#L250-L258) |
+| `WholeBodyQP.solve` | [L260-659](../../../crawlbot/solvers/wholebody_qp.py#L260-L659) |
+| `WholeBodyQP._add_equality_constraints` | [L673-730](../../../crawlbot/solvers/wholebody_qp.py#L673-L730) |
+| `WholeBodyQP._add_inequality_constraints` | [L732-841](../../../crawlbot/solvers/wholebody_qp.py#L732-L841) |
+| `WholeBodyQP._set_variable_bounds` | [L843-887](../../../crawlbot/solvers/wholebody_qp.py#L843-L887) |
+| `WholeBodyQP._com_task_rows` | [L889-913](../../../crawlbot/solvers/wholebody_qp.py#L889-L913) |
+| `WholeBodyQP._compute_indices` | [L915-935](../../../crawlbot/solvers/wholebody_qp.py#L915-L935) |
+| `WholeBodyQP.n_vars` | [L938-939](../../../crawlbot/solvers/wholebody_qp.py#L938-L939) |
+| `WholeBodyQP.variable_indices` | [L942-944](../../../crawlbot/solvers/wholebody_qp.py#L942-L944) |
 
 ---
 

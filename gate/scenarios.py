@@ -68,12 +68,6 @@ SCENARIOS = {
     'skipstop': ({'n_steps': 2, 'settle_seconds': 1.0},
                  {'preplanner_max_iter': 1, 'stop_on_failed_step': True}),
     'dwell': ({'n_steps': 2, 'settle_seconds': 1.0, 'dt_ds': 3.0}, {}),
-    # ── L8: torso-reference mapping bypass in SS ─────────────────────────
-    'bypass': (_SHORT, {'mapping_bypass_in_ss': True}),
-    # ── L8: reference paths the canonical never takes ───────────────────
-    # Legacy (non-two-task) SS stack: the delta-mapping runs in SS, so the
-    # F-SAT jitter guard is exercised.
-    'legacy_stack': (dict(_SHORT, ss_two_task=False), {}),
     # Torso CoM reference time compression (0 < ff < 1) in PlannerReferences.
     'ff_compress': (_SHORT, {'torso_early_finish_fraction': 0.7}),
     # ── L8: runtime diagnostic hooks (DiagHooks via sim._diag_*) ────────

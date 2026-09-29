@@ -1,6 +1,6 @@
 # `crawlbot.control.torso_reference`
 
-**File**: [`crawlbot/control/torso_reference.py`](../../../crawlbot/control/torso_reference.py) — **234 lines** — canonical coverage **78 %**
+**File**: [`crawlbot/control/torso_reference.py`](../../../crawlbot/control/torso_reference.py) — **191 lines** — canonical coverage **88 %**
 
 **The torso reference the whole-body QP tracks.** Extracted as is from
 `WholeBodyController.track` (C2, branch `refactor/sim-loop-split`). It
@@ -12,28 +12,30 @@ reference side, next to the planners.
 ## 1. Paths
 
 `TorsoReferenceShaper.shape(tr, rs, qs, tq, phase, rp_interp, vp_interp, af)`
-returns a `TorsoRef(p, R, v, a)` (structure frame). In order of precedence:
+returns a `TorsoRef(p, R, v, a)` (structure frame):
 
 | path | when | linear reference |
 |---|---|---|
-| mapping bypass | SS, `cfg.mapping_bypass_in_ss`, after an SS entry | frozen at the SS-entry torso position |
-| δ-mapping | SS or DS, `use_m2_stack`, **not** two-task SS | `r_b = (m/m_b)·r_com_ref − δ(q)/m_b` |
-| raw planner | two-task SS (the canonical SS) | `tr.p`, `tr.v`, `tr.a` |
+| δ-mapping | DS, `use_m2_stack` | `r_b = (m/m_b)·r_com_ref − δ(q)/m_b` |
+| raw planner | SS (the two-task stack, the only SS stack) | `tr.p`, `tr.v`, `tr.a` |
 
 The angular part is always the planner's (`tr.R`, `tr.v[3:]`, `tr.a[3:]`).
 Inside the δ-mapping path:
 
 - **F-RATE** — δ(q), δ̇(q, q̇) are recomputed once per NMPC tick (`qs == 0`) and
   cached across the QP sub-steps, which stops the q → δ → r_b → q loop at 100 Hz.
-- **F-SAT** (SS only) — the per-tick increment of r_b is capped at
-  `(|v_b_ref| + cfg.fsat_jitter_margin)·dt`; counters `_sat_*` are read by the
-  canonical driver after the run.
-- **Post-dock DS blend** (Option A, DS only) — quintic blend over
-  `cfg.ds_ramp_duration_s` from the SS-entry torso position, armed by `on_dock`,
-  cleared by `on_ss_entry`.
+- **Post-dock DS blend** (Option A) — quintic blend over `cfg.ds_ramp_duration_s`
+  from the SS-entry torso position, armed by `on_dock`, cleared by `on_ss_entry`.
 
 Then the diagnostic overrides: `freeze_ref` holds the first sample of `p` and `R`
 with zero `v`, `a`; `pure_pd` zeroes `a` (the controller zeroes λ_ref and a_com_ff).
+
+**Retired in R2a** (the paper uses none; coverage-proved unexecuted by the
+canonical and the Table 2 scenarios): the SS mapping bypass
+(`mapping_bypass_in_ss`), the non-two-task SS path (`ss_two_task_mode=False`,
+which fed the δ-mapping in SS) and F-SAT, its SS-only rate limiter
+(`fsat_jitter_margin`; its counters, all 0 on the canonical, stay readable as
+constants for the driver's `sat_stats.txt`).
 
 ## 2. What the canonical actually uses — measured
 
@@ -57,9 +59,9 @@ by NaN. Result:
 So on the canonical this block is inert. Whether to retire it (CLEANUP-30 style)
 or keep it for an active-DS future (NMPC in DS, P3) is a decision for Idriss; the
 extraction kept it as is. Its DS path is inert in every run the gait sequencer
-drives (all its DS ticks are `settle_mode=True`); what remains live is the SS
-path with `ss_two_task_mode=False` (scenario `legacy_stack`, F-SAT included)
-and external `_step(settle_mode=False)` callers.
+drives (all its DS ticks are `settle_mode=True`). Its SS use (the non-two-task
+stack, scenario `legacy_stack`, with F-SAT) was retired in R2a; external
+`_step(settle_mode=False)` callers in DS are the only other consumers.
 
 ## 3. What C2 removed
 
@@ -67,7 +69,7 @@ Three stores that were written but never read: `_ds_ramp_p_end` (only ever set
 to `None`), `_mapping_nmpc_tick`, and the local `R_b_ref_frozen` of the
 `freeze_ref` branch.
 
-Tests: `tests/test_torso_reference.py` (raw path, bypass, SS-entry / dock events,
+Tests: `tests/test_torso_reference.py` (raw path, SS-entry / dock events,
 freeze_ref + pure_pd), synthetic inputs, no mapping.
 
 ## Public API
@@ -80,19 +82,19 @@ freeze_ref + pure_pd), synthetic inputs, no mapping.
 |   `v` | `` | _field_ | [L38](../../../crawlbot/control/torso_reference.py#L38) |
 |   `a` | `` | _field_ | [L39](../../../crawlbot/control/torso_reference.py#L39) |
 | **`TorsoReferenceShaper`** |  |  | [L42](../../../crawlbot/control/torso_reference.py#L42) |
-| `.shape` | `(tr, rs, qs, tq, phase, rp_interp, vp_interp, af)` | **yes** | [L85](../../../crawlbot/control/torso_reference.py#L85) |
-| `.on_ss_entry` | `(p_torso_entry)` | **yes** | [L218](../../../crawlbot/control/torso_reference.py#L218) |
-| `.on_dock` | `(t)` | **yes** | [L225](../../../crawlbot/control/torso_reference.py#L225) |
+| `.shape` | `(tr, rs, qs, tq, phase, rp_interp, vp_interp, af)` | **yes** | [L77](../../../crawlbot/control/torso_reference.py#L77) |
+| `.on_ss_entry` | `(p_torso_entry)` | **yes** | [L175](../../../crawlbot/control/torso_reference.py#L175) |
+| `.on_dock` | `(t)` | **yes** | [L182](../../../crawlbot/control/torso_reference.py#L182) |
 
 ## Code map
 
 | unit | source |
 |---|---|
 | `class TorsoRef` | [L32-39](../../../crawlbot/control/torso_reference.py#L32-L39) |
-| `class TorsoReferenceShaper` | [L42-233](../../../crawlbot/control/torso_reference.py#L42-L233) |
-| `TorsoReferenceShaper.shape` | [L85-214](../../../crawlbot/control/torso_reference.py#L85-L214) |
-| `TorsoReferenceShaper.on_ss_entry` | [L218-223](../../../crawlbot/control/torso_reference.py#L218-L223) |
-| `TorsoReferenceShaper.on_dock` | [L225-233](../../../crawlbot/control/torso_reference.py#L225-L233) |
+| `class TorsoReferenceShaper` | [L42-190](../../../crawlbot/control/torso_reference.py#L42-L190) |
+| `TorsoReferenceShaper.shape` | [L77-171](../../../crawlbot/control/torso_reference.py#L77-L171) |
+| `TorsoReferenceShaper.on_ss_entry` | [L175-180](../../../crawlbot/control/torso_reference.py#L175-L180) |
+| `TorsoReferenceShaper.on_dock` | [L182-190](../../../crawlbot/control/torso_reference.py#L182-L190) |
 
 ---
 

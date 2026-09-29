@@ -168,7 +168,7 @@ class WholeBodyController:
         self._gmo = gmo
         self._diag = diag
         self._n_qp_per_nmpc = n_qp_per_nmpc
-        # Torso-reference shaping (δ-mapping, F-SAT, post-dock DS blend,
+        # Torso-reference shaping (DS δ-mapping, post-dock DS blend,
         # freeze diagnostics) and its state — control/torso_reference.py.
         self.torso_shaper = TorsoReferenceShaper(cfg, mapping, diag)
 

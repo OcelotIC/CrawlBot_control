@@ -129,7 +129,8 @@ class WholeBodyQPConfig:
     # T-MOM v1, the soft-CoM residual) and their config fields.
     # NOTE: SimConfig.use_m2_stack survives — it gates torso-reference
     # routing and DS passivity in sim_loop. Only the QP-side copy was removed.
-    ss_two_task_mode: bool = False
+    # The two-task SS stack is the only SS stack (R2a retired the
+    # ss_two_task_mode switch and the legacy non-two-task SS path).
     ss_alpha_mom: float = 5e2
     alpha_torso_pose: float = 1e3
 
@@ -419,7 +420,7 @@ class WholeBodyQP:
         # are gated off via `_two_task`. weight_ratio=1 ⇒ the α's set the
         # hierarchy directly (momentum+EE high, torso-pose just below, posture
         # low). Constraints (dynamics, contact, momentum box) added earlier.
-        _two_task = cfg.ss_two_task_mode and not settle_mode
+        _two_task = not settle_mode
         if _two_task:
             # (1) Momentum task — linear CMM rows (CoM-Jacobian form).
             qp.add_task(A_com, b_com, cfg.ss_alpha_mom, priority=2)
