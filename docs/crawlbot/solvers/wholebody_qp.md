@@ -1,6 +1,6 @@
 # `crawlbot.solvers.wholebody_qp`
 
-**File**: [`crawlbot/solvers/wholebody_qp.py`](../../../crawlbot/solvers/wholebody_qp.py) — **949 lines** — canonical coverage **97 %**
+**File**: [`crawlbot/solvers/wholebody_qp.py`](../../../crawlbot/solvers/wholebody_qp.py) — **948 lines** — canonical coverage **97 %**
 
 > Module docstring: *"WholeBodyQP - Whole-body Quadratic Program for high-rate tracking."*
 
@@ -30,7 +30,6 @@ Stage 1 decides *what is feasible* against the wheel envelope; this decides
 |   `alpha_torque` | `1.0` | _field_ | [L100](../../../crawlbot/solvers/wholebody_qp.py#L100) |
 |   `alpha_reg` | `0.01` | _field_ | [L101](../../../crawlbot/solvers/wholebody_qp.py#L101) |
 |   `alpha_lambda_int` | `0.0` | _field_ | [L102](../../../crawlbot/solvers/wholebody_qp.py#L102) |
-|   `ds_centroidal_mode` | `False` | _field_ | [L115](../../../crawlbot/solvers/wholebody_qp.py#L115) |
 |   `ds_alpha_com` | `100.0` | _field_ | [L116](../../../crawlbot/solvers/wholebody_qp.py#L116) |
 |   `ds_alpha_torso_ori` | `200.0` | _field_ | [L117](../../../crawlbot/solvers/wholebody_qp.py#L117) |
 |   `ds_alpha_posture` | `50.0` | _field_ | [L118](../../../crawlbot/solvers/wholebody_qp.py#L118) |
@@ -62,13 +61,13 @@ Stage 1 decides *what is feasible* against the wheel envelope; this decides
 | **`WholeBodyQP`** |  |  | [L200](../../../crawlbot/solvers/wholebody_qp.py#L200) |
 | `.set_nominal_posture` | `(q_nom)` | **yes** | [L248](../../../crawlbot/solvers/wholebody_qp.py#L248) |
 | `.solve` | `(dq_t, q, dq, r_com_ref, v_com_ref, lambda_ref, a_com_ff...)` | **yes** | [L258](../../../crawlbot/solvers/wholebody_qp.py#L258) |
-| `._add_equality_constraints` | `(qp, H_robot, C_robot, J_contacts, Jdot_dq_contacts, con...)` | **yes** | [L671](../../../crawlbot/solvers/wholebody_qp.py#L671) |
-| `._add_inequality_constraints` | `(qp, H_robot, dq, r_com, hw_current, hw_min, hw_max, L_c...)` | **yes** | [L730](../../../crawlbot/solvers/wholebody_qp.py#L730) |
-| `._set_variable_bounds` | `(qp, contact_config, hw_constraint_active)` | **yes** | [L841](../../../crawlbot/solvers/wholebody_qp.py#L841) |
-| `._com_task_rows` | `(J_com, Jdot_dq_com, dq_robot, r_com, r_com_ref, v_com_r...)` | **yes** | [L887](../../../crawlbot/solvers/wholebody_qp.py#L887) |
-| `._compute_indices` | `()` | **yes** | [L913](../../../crawlbot/solvers/wholebody_qp.py#L913) |
-| `.n_vars` | `()` | not exercised | [L936](../../../crawlbot/solvers/wholebody_qp.py#L936) |
-| `.variable_indices` | `()` | not exercised | [L940](../../../crawlbot/solvers/wholebody_qp.py#L940) |
+| `._add_equality_constraints` | `(qp, H_robot, C_robot, J_contacts, Jdot_dq_contacts, con...)` | **yes** | [L670](../../../crawlbot/solvers/wholebody_qp.py#L670) |
+| `._add_inequality_constraints` | `(qp, H_robot, dq, r_com, hw_current, hw_min, hw_max, L_c...)` | **yes** | [L729](../../../crawlbot/solvers/wholebody_qp.py#L729) |
+| `._set_variable_bounds` | `(qp, contact_config, hw_constraint_active)` | **yes** | [L840](../../../crawlbot/solvers/wholebody_qp.py#L840) |
+| `._com_task_rows` | `(J_com, Jdot_dq_com, dq_robot, r_com, r_com_ref, v_com_r...)` | **yes** | [L886](../../../crawlbot/solvers/wholebody_qp.py#L886) |
+| `._compute_indices` | `()` | **yes** | [L912](../../../crawlbot/solvers/wholebody_qp.py#L912) |
+| `.n_vars` | `()` | not exercised | [L935](../../../crawlbot/solvers/wholebody_qp.py#L935) |
+| `.variable_indices` | `()` | not exercised | [L939](../../../crawlbot/solvers/wholebody_qp.py#L939) |
 
 ---
 
@@ -153,9 +152,12 @@ All phases add: contact-wrench tracking (`alpha_wrench = 1`), joint-torque
 minimisation (`alpha_torque = 5`), acceleration regularisation
 (`alpha_reg = 1`, the cost floor), and the `h_w` slack penalty.
 
-Double support instead runs a joint-space settle, or — under
-`ds_centroidal_mode` — CoM 3-D + torso-angular 3-D + posture, with energy
-dissipation handled by the **passivity inequality** rather than by a cost.
+Double support instead runs a joint-space settle (the inter-step settle), or —
+with `solve(ds_centroidal_active=True)`, i.e. every NMPC-tracked DS (DWELL,
+trailing DS) — CoM 3-D + torso-angular 3-D + posture, with energy dissipation
+handled by the **passivity inequality** rather than by a cost. (The
+`ds_centroidal_mode` config switch, True in every paper run, was frozen and
+removed in R3b.)
 
 ### 1.4 Consequences of weight_ratio = 1
 
@@ -225,16 +227,16 @@ best-covered in the repository at **97 %**.
 | unit | source |
 |---|---|
 | `class WholeBodyQPConfig` | [L71-197](../../../crawlbot/solvers/wholebody_qp.py#L71-L197) |
-| `class WholeBodyQP` | [L200-948](../../../crawlbot/solvers/wholebody_qp.py#L200-L948) |
+| `class WholeBodyQP` | [L200-947](../../../crawlbot/solvers/wholebody_qp.py#L200-L947) |
 | `WholeBodyQP.set_nominal_posture` | [L248-256](../../../crawlbot/solvers/wholebody_qp.py#L248-L256) |
-| `WholeBodyQP.solve` | [L258-657](../../../crawlbot/solvers/wholebody_qp.py#L258-L657) |
-| `WholeBodyQP._add_equality_constraints` | [L671-728](../../../crawlbot/solvers/wholebody_qp.py#L671-L728) |
-| `WholeBodyQP._add_inequality_constraints` | [L730-839](../../../crawlbot/solvers/wholebody_qp.py#L730-L839) |
-| `WholeBodyQP._set_variable_bounds` | [L841-885](../../../crawlbot/solvers/wholebody_qp.py#L841-L885) |
-| `WholeBodyQP._com_task_rows` | [L887-911](../../../crawlbot/solvers/wholebody_qp.py#L887-L911) |
-| `WholeBodyQP._compute_indices` | [L913-933](../../../crawlbot/solvers/wholebody_qp.py#L913-L933) |
-| `WholeBodyQP.n_vars` | [L936-937](../../../crawlbot/solvers/wholebody_qp.py#L936-L937) |
-| `WholeBodyQP.variable_indices` | [L940-942](../../../crawlbot/solvers/wholebody_qp.py#L940-L942) |
+| `WholeBodyQP.solve` | [L258-656](../../../crawlbot/solvers/wholebody_qp.py#L258-L656) |
+| `WholeBodyQP._add_equality_constraints` | [L670-727](../../../crawlbot/solvers/wholebody_qp.py#L670-L727) |
+| `WholeBodyQP._add_inequality_constraints` | [L729-838](../../../crawlbot/solvers/wholebody_qp.py#L729-L838) |
+| `WholeBodyQP._set_variable_bounds` | [L840-884](../../../crawlbot/solvers/wholebody_qp.py#L840-L884) |
+| `WholeBodyQP._com_task_rows` | [L886-910](../../../crawlbot/solvers/wholebody_qp.py#L886-L910) |
+| `WholeBodyQP._compute_indices` | [L912-932](../../../crawlbot/solvers/wholebody_qp.py#L912-L932) |
+| `WholeBodyQP.n_vars` | [L935-936](../../../crawlbot/solvers/wholebody_qp.py#L935-L936) |
+| `WholeBodyQP.variable_indices` | [L939-941](../../../crawlbot/solvers/wholebody_qp.py#L939-L941) |
 
 ---
 

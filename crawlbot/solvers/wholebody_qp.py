@@ -40,7 +40,7 @@ the α magnitudes ARE the hierarchy and `priority=` is a nominal label):
         posture           α = alpha_posture      (20)
 
     Double support
-        joint-space settle, or — when ds_centroidal_mode — CoM 3-D +
+        joint-space settle, or — when ds_centroidal_active — CoM 3-D +
         torso-angular 3-D + posture, with energy dissipation handled by the
         passivity *inequality* rather than a cost.
         internal-stress regularization on the welded-loop λ (alpha_lambda_int)
@@ -106,13 +106,13 @@ class WholeBodyQPConfig:
     # the welded loop. No effect in SS (only one contact ⇒ rank-6 λ,
     # null space is empty). Default 0 ⇒ bit-identical legacy.
 
-    # DS centroidal-control mode: when True and settle_mode is True,
-    # replaces the joint-vel-damping cost task (P1, weight 1000) with
-    # CoM 3D + torso angular 3D tracking tasks at P1, plus posture at
-    # P3. Energy dissipation is handled by the passivity *inequality*
-    # (not a cost), which the sim_loop activates concurrently. Default
-    # False ⇒ legacy behavior (joint-vel damping cost).
-    ds_centroidal_mode: bool = False
+    # DS centroidal control: when solve(settle_mode=True,
+    # ds_centroidal_active=True), the joint-vel-damping cost task (P1,
+    # weight 1000) is replaced with CoM 3D + torso angular 3D tracking
+    # tasks at P1, plus posture at P3. Energy dissipation is handled by the
+    # passivity *inequality* (not a cost), which the caller activates
+    # concurrently. (The ds_centroidal_mode config switch that also had to
+    # be on was frozen True and removed, R3b.)
     ds_alpha_com: float = 1e2
     ds_alpha_torso_ori: float = 2e2
     ds_alpha_posture: float = 5e1
@@ -468,11 +468,10 @@ class WholeBodyQP:
         # q̈_posture = Kp_post (q_nom - q) + Kd_post (0 - dq)
         # Skipped in settle_mode (legacy joint-vel-damping path) because
         # the settle task already dampens velocities and posture would
-        # interfere (T10 regression). Re-enabled when ds_centroidal_mode
+        # interfere (T10 regression). Re-enabled when ds_centroidal_active
         # since the joint-vel cost is gone — posture is needed to
         # constrain the 2 arm-null-space DOFs.
-        _posture_in_ds = (settle_mode and cfg.ds_centroidal_mode
-                          and ds_centroidal_active)
+        _posture_in_ds = settle_mode and ds_centroidal_active
         if ((not settle_mode) or _posture_in_ds) and not _two_task:
             qdd_posture = (cfg.Kp_posture * (self._q_nominal - q) -
                            cfg.Kd_posture * dq)
@@ -494,11 +493,11 @@ class WholeBodyQP:
         # (6 base + 2 redundant from 7-DOF arms) and welds constraining the
         # EEs, the system can only stop at the current configuration.
         #
-        # When cfg.ds_centroidal_mode is True, this cost task is REPLACED
+        # When ds_centroidal_active is True, this cost task is REPLACED
         # by CoM + torso-ori tracking at P1 (below), with energy
         # dissipation handled by the passivity inequality (sim_loop
         # activates passivity_active=True concurrently).
-        if settle_mode and not (cfg.ds_centroidal_mode and ds_centroidal_active):
+        if settle_mode and not ds_centroidal_active:
             A_settle = np.zeros((nq, n))
             A_settle[:, idx['qdd'][0]: idx['qdd'][1]] = np.eye(nq)
             b_settle = -cfg.Kd_settle * dq
@@ -510,7 +509,7 @@ class WholeBodyQP:
         # becomes load-bearing here. Energy dissipation is enforced by
         # the passivity inequality (added below if passivity_active).
         # The NMPC's planned a_com_ff is already in a_com_des.
-        if settle_mode and cfg.ds_centroidal_mode and ds_centroidal_active:
+        if settle_mode and ds_centroidal_active:
             # CoM 3D task — reuses a_com_des / A_com computed earlier
             # (always-on at the top of the task block).
             qp.add_task(A_com, b_com, cfg.ds_alpha_com, priority=1)

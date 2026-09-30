@@ -987,7 +987,6 @@ class SimulationLoop(TickLoggingMixin):
             # step-0 dock timeout (PHASE_COPRIORITY_1000 Addendum 5).
             alpha_torque=5e0, alpha_reg=1e0,
             alpha_lambda_int=cfg.ss_alpha_lambda_int,
-            ds_centroidal_mode=cfg.ds_centroidal_mode,
             ds_alpha_com=cfg.ds_alpha_com,
             ds_alpha_torso_ori=cfg.ds_alpha_torso_ori,
             ds_alpha_posture=cfg.ds_alpha_posture,
@@ -1618,7 +1617,7 @@ class SimulationLoop(TickLoggingMixin):
                     # planned duration. The Stage 3 captured reference is
                     # set so the WBC holds the welded equilibrium.
                     _dwell_target = gp.duration - dt_ds_elapsed
-                    if _dwell_target > 1.0 and cfg.ds_centroidal_mode:
+                    if _dwell_target > 1.0:
                         if verbose:
                             print(f"  DWELL: continuing DS for "
                                   f"{_dwell_target:.1f}s "
@@ -1938,11 +1937,9 @@ class SimulationLoop(TickLoggingMixin):
                                 self._R_torso_flat.copy(),
                                 r_com=rs_hold.r_com.copy())
 
-                    # When ds_centroidal_mode is on, the trailing-DS
-                    # settle uses the passivity inequality for energy
-                    # dissipation (replacing the joint-vel-damping cost),
-                    # so it is forced ON.
-                    _pass_override = True if cfg.ds_centroidal_mode else None
+                    # The trailing-DS settle is centroidal: it uses the
+                    # passivity inequality for energy dissipation
+                    # (replacing the joint-vel-damping cost), forced ON.
 
                     while t < t_ds_settle:
                         hw, L_com_prev = yield _NMPCTick(
@@ -1950,8 +1947,8 @@ class SimulationLoop(TickLoggingMixin):
                             cc_ds, 0, last_sa, last_sb,
                             hw, L_com_prev, log, ss_end=t,
                             settle_mode=True,
-                            passivity_override=_pass_override,
-                            ds_centroidal_active=cfg.ds_centroidal_mode)
+                            passivity_override=True,
+                            ds_centroidal_active=True)
                         t += cfg.dt_nmpc
 
                     i += 1

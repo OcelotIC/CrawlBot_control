@@ -14,7 +14,7 @@ cannot vary a weight, isolate one task, or check an identity):
     dynamics   H q̈ + C − B τ − Jᶜᵀ λ = 0 to solver precision at every step
                — the hard equality constraint, true for ANY task stack
     passivity  dq_jᵀ τ_q + 2 α T_kin ≤ 0 at every DS step, in both the legacy
-               joint-velocity settle and the canonical `ds_centroidal_mode`
+               joint-velocity settle and the canonical centroidal DS
     momentum   the T-MOM linear task in CoM-Jacobian form: exact equilibrium at
                rest, J̇_com·q̇ (Ȧ_G·q̇) assembly against finite differences, and
                realized/commanded accel rising monotonically with authority
@@ -90,8 +90,7 @@ def dock_state(robot):
 # ---------------------------------------------------------------------------
 
 def _build_qp(robot, q_nominal, *, alpha_mom=4e2, alpha_torso_pose=2e3,
-              alpha_ee=1e3, alpha_wrench=1e-2, alpha_passivity=1.0,
-              ds_centroidal=False):
+              alpha_ee=1e3, alpha_wrench=1e-2, alpha_passivity=1.0):
     """Build the canonical two-task QP.
 
     Weights are the frozen canonical set (CLAUDE.md): torso-pose 2000 >
@@ -118,7 +117,6 @@ def _build_qp(robot, q_nominal, *, alpha_mom=4e2, alpha_torso_pose=2e3,
         alpha_torque=5.0,
         alpha_reg=1.0,
         alpha_passivity=alpha_passivity,
-        ds_centroidal_mode=ds_centroidal,
         tau_max=20.0 * np.ones(robot.n_joints),
         dt_qp=0.01,
         L_max=np.inf, tau_w_max=np.inf,
@@ -380,7 +378,7 @@ class TestDSPassivity:
     The constraint the QP enforces is dq_jᵀ τ_q + 2 α T_kin ≤ 0, so zero
     violations is the direct criterion; the energy decay is the consequence.
     Both DS variants are live code and both are exercised: the legacy
-    joint-velocity settle cost, and `ds_centroidal_mode` (CoM 3-D +
+    joint-velocity settle cost, and centroidal DS (CoM 3-D +
     torso-angular 3-D + posture), which is what `sim_loop` runs canonically.
     """
 
@@ -406,8 +404,7 @@ class TestDSPassivity:
         q = q0.copy()
 
         alpha = 1.0  # target decay rate [1/s]
-        qp = _build_qp(robot, q0, alpha_passivity=alpha,
-                       ds_centroidal=ds_centroidal)
+        qp = _build_qp(robot, q0, alpha_passivity=alpha)
         cc = _contact_cfg(ContactPhase.DOUBLE, anchor_a, anchor_b)
 
         rs0 = robot.update(q, v)

@@ -324,10 +324,11 @@ class SimConfig:
     #   omits the orbital term r_com×Σf). False ⇒ proxy (byte-identical).
     qp_envelope_exact: bool = False
 
-    # DS centroidal-control mode (replaces joint-vel-damping cost with
-    # CoM + torso-ori tracking at P1, posture at P3, passivity inequality
-    # for energy dissipation). Off by default ⇒ legacy joint-vel damping.
-    ds_centroidal_mode: bool = False
+    # DS centroidal control (CoM + torso-ori tracking at P1, posture at P3,
+    # passivity inequality for energy dissipation) is always on in the
+    # NMPC-tracked DS (DWELL, trailing DS); the inter-step settle keeps the
+    # joint-vel-damping cost. The ds_centroidal_mode switch — True in every
+    # paper run — was frozen and removed (R3b). Weights:
     ds_alpha_com: float = 1e2
     ds_alpha_torso_ori: float = 2e2
     ds_alpha_posture: float = 5e1

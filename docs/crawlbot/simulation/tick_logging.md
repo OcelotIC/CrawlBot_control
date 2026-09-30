@@ -93,9 +93,9 @@ terminal-hold fix the torso export received (CLAUDE.md Known Issues,
 | unit | source |
 |---|---|
 | `class TickState` | [L48-112](../../../crawlbot/simulation/tick_logging.py#L48-L112) |
-| `class TickLoggingMixin` | [L115-518](../../../crawlbot/simulation/tick_logging.py#L115-L518) |
+| `class TickLoggingMixin` | [L115-517](../../../crawlbot/simulation/tick_logging.py#L115-L517) |
 | `TickLoggingMixin._log_ds_tick` | [L118-321](../../../crawlbot/simulation/tick_logging.py#L118-L321) |
-| `TickLoggingMixin._log_ss_tick` | [L323-518](../../../crawlbot/simulation/tick_logging.py#L323-L518) |
+| `TickLoggingMixin._log_ss_tick` | [L323-517](../../../crawlbot/simulation/tick_logging.py#L323-L517) |
 
 ---
 

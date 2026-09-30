@@ -226,7 +226,7 @@ The **5 mm dock gate is the docking-mechanism capture radius** — the 0.01 mm w
 - **`gate/link_audit.py` cannot see computed paths.** It audits citations in prose; the CLEANUP-21 miss that disabled 7 tests for six passes was `os.path.join(_root, 'diagnostic', ...)` in Python. `tests/fixtures/` is now the convention for test data.
 - **CoM-reference export snaps to the measured CoM at SS→DS entry** — logging convention (`_log_ds_tick` logs e_com=0 with ref:=measured, `tick_logging.py:236-239`); reviewer-reported magnitude ~76 mm (not repo-verified — the fulldiag CSV has no CoM-ref channel). Decision pending whether to apply the same terminal-hold fix as the torso export.
 - **Fig-3 conservation quantity ‖L_total‖ is NOT in the fulldiag export** (verified: no `Ltot` column in `c25_fulldiag.csv`; it exists in the `export_figure_data.py` traversal CSVs). Dedicated export pending.
-- `dca.main` sets `cfg.ds_centroidal_mode=True` (`diag_cooperative_arms.py:347`) — the locked config runs centroidal DS everywhere including the trailing settle; flags keyed on it cannot discriminate the DWELL (see TORSO-REF-EXPORT-FIX).
+- Centroidal DS runs in every NMPC-tracked DS, the trailing settle included (the `ds_centroidal_mode` switch was frozen True and removed, R3b); a flag keyed on `ds_centroidal_active` cannot discriminate the DWELL (see TORSO-REF-EXPORT-FIX).
 
 ---
 

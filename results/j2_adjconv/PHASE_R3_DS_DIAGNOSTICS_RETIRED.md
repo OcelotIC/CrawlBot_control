@@ -43,3 +43,49 @@ The rewritten trailing-DS lines compute the same values:
 (the dock-configuration IK hold target, L1985) is executed by **no** run — it is
 the `ds_torso_ref_from_state=False` path, reachable only through
 `baseline_ds_rework` or a bare `SimConfig()`. See R3b.
+
+---
+
+## R3b — `ds_centroidal_mode` frozen True; `baseline_ds_rework` removed
+
+**What the paper uses.** `dca.main` sets `ds_centroidal_mode=True` for every run
+(canonical, the four Table 2 arms, station keeping, all gate scenarios); the only
+`False` setters were `abortdiag` (retired, R3a) and dca's `--baseline_ds_rework`,
+the pre-rework comparison for the 2026-06 DS-rework memo, which Table 2 does not
+use (`run_table2.py` never passes it).
+
+**Frozen / retired.**
+
+| item | now |
+|---|---|
+| `SimConfig.ds_centroidal_mode`, `WholeBodyQPConfig.ds_centroidal_mode` | removed |
+| QP DS task selection | keyed on the `solve(ds_centroidal_active=…)` argument alone (the NMPC-tracked DS passes True, the inter-step settle False) |
+| DWELL gate `_dwell_target > 1.0 and ds_centroidal_mode` | `_dwell_target > 1.0` |
+| trailing DS | `passivity_override=True`, `ds_centroidal_active=True` |
+| `dca.main(baseline_ds_rework=…)`, `--baseline_ds_rework`, the `_baseline` output-dir suffix | removed (**`scripts/` change**) |
+
+**Proof.** No line is exclusive to `ds_centroidal_mode=False` once `abortdiag`
+is gone: every remaining site is an operand of a condition whose value is
+unchanged under `True`, and the joint-velocity settle task stays live (the
+inter-step settle calls the QP with `ds_centroidal_active=False`; canonical
+coverage). Replay: see the commit.
+
+**Behaviour change for non-canonical defaults — flagged.** `SimConfig()` /
+`WholeBodyQPConfig()` defaulted to `ds_centroidal_mode=False`. A bare config now
+gets centroidal DS whenever the caller passes `ds_centroidal_active=True`
+(the orchestrator does in DWELL and trailing DS). `tests/test_reworked_qp.py`
+keeps both DS variants, selected by `ds_centroidal_active` alone.
+
+**Not retired — for Idriss.** `--baseline_ds_rework` also flipped four other
+switches to `False`. For the first two that side is now reachable only from a
+bare `SimConfig()`; the last two keep their own dca kwargs and scenarios:
+
+| field | dca sets | `False` path |
+|---|---|---|
+| `aocs_use_wrench_ff_in_ds` | True | AOCS without the per-contact wrench FF in DS |
+| `ds_torso_ref_from_state` | True | trailing-DS hold target from the dock-configuration IK — executed by **no** run (R3a table) |
+| `aocs_active_in_interstep` | kwarg (default True) | kept: scenario `aocs_off_interstep`, dca `--no-aocs-in-interstep` |
+| `interstep_hw_refresh` | kwarg (default True) | kept: scenario `hw_refresh_off`, dca `--no-interstep-hw-refresh` |
+
+(`ss_alpha_lambda_int` is a weight, not a switch — kept.) The first two are
+candidates for the same freeze; not done without a decision.

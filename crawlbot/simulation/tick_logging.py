@@ -363,9 +363,8 @@ class TickLoggingMixin:
         # exported reference is continuous across the whole traversal.
         # When a phase DOES cover t_log, ts.p_torso_ref_used is kept — the QP
         # genuinely tracks that moving centroidal reference. NB the guard
-        # cannot key on ds_centroidal_active: the locked config runs
-        # centroidal DS in the trailing settle too (dca sets
-        # ds_centroidal_mode).
+        # cannot key on ds_centroidal_active: the trailing settle is
+        # centroidal DS too.
         if (phase == 'DS' and settle_mode
                 and not self.torso_planner.has_phase_at(t_log)):
             p_torso_ref_log = self.torso_planner.reference_at_clamped(
